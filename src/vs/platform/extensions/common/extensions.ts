@@ -165,6 +165,7 @@ export const EXTENSION_CATEGORIES = [
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
+	'Education',
 	'Formatters',
 	'Keymaps',
 	'Language Packs',

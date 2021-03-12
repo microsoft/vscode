@@ -203,48 +203,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
 				this.visibleRanges = [{ start: topModelIndex, end: bottomModelIndex }];
 			} else {
-				let stack: number[] = [];
-				const ranges: ICellRange[] = [];
-				// there are hidden ranges
-				let index = topViewIndex;
-				let modelIndex = topModelIndex;
-
-				while (index <= bottomViewIndex) {
-					const accu = this.hiddenRangesPrefixSum!.getAccumulatedValue(index);
-					if (accu === modelIndex + 1) {
-						// no hidden area after it
-						if (stack.length) {
-							if (stack[stack.length - 1] === modelIndex - 1) {
-								ranges.push({ start: stack[stack.length - 1], end: modelIndex });
-							} else {
-								ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
-							}
-						}
-
-						stack.push(modelIndex);
-						index++;
-						modelIndex++;
-					} else {
-						// there are hidden ranges after it
-						if (stack.length) {
-							if (stack[stack.length - 1] === modelIndex - 1) {
-								ranges.push({ start: stack[stack.length - 1], end: modelIndex });
-							} else {
-								ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
-							}
-						}
-
-						stack.push(modelIndex);
-						index++;
-						modelIndex = accu;
-					}
-				}
-
-				if (stack.length) {
-					ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
-				}
-
-				this.visibleRanges = reduceCellRanges(ranges);
+				this.visibleRanges = this._getVisibleRangesFromIndex(topViewIndex, topModelIndex, bottomViewIndex, bottomModelIndex);
 			}
 		};
 
@@ -509,6 +468,71 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	private _getVisibleRangesFromIndex(topViewIndex: number, topModelIndex: number, bottomViewIndex: number, bottomModelIndex: number) {
+		let stack: number[] = [];
+		const ranges: ICellRange[] = [];
+		// there are hidden ranges
+		let index = topViewIndex;
+		let modelIndex = topModelIndex;
+
+		while (index <= bottomViewIndex) {
+			const accu = this.hiddenRangesPrefixSum!.getAccumulatedValue(index);
+			if (accu === modelIndex + 1) {
+				// no hidden area after it
+				if (stack.length) {
+					if (stack[stack.length - 1] === modelIndex - 1) {
+						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+					} else {
+						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+					}
+				}
+
+				stack.push(modelIndex);
+				index++;
+				modelIndex++;
+			} else {
+				// there are hidden ranges after it
+				if (stack.length) {
+					if (stack[stack.length - 1] === modelIndex - 1) {
+						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+					} else {
+						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+					}
+				}
+
+				stack.push(modelIndex);
+				index++;
+				modelIndex = accu;
+			}
+		}
+
+		if (stack.length) {
+			ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+		}
+
+		return reduceCellRanges(ranges);
+	}
+
+	getVisibleRangesPlusViewportAboveBelow() {
+		if (this.view.length <= 0) {
+			return [];
+		}
+
+		const top = clamp(this.getViewScrollTop() - this.renderHeight, 0, this.scrollHeight);
+		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
+		const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
+		const topElement = this.view.element(topViewIndex);
+		const topModelIndex = this._viewModel!.getCellIndex(topElement);
+		const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);
+		const bottomElement = this.view.element(bottomViewIndex);
+		const bottomModelIndex = this._viewModel!.getCellIndex(bottomElement);
+
+		if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
+			return [{ start: topModelIndex, end: bottomModelIndex }];
+		} else {
+			return this._getVisibleRangesFromIndex(topViewIndex, topModelIndex, bottomViewIndex, bottomModelIndex);
+		}
+	}
 
 	private _getViewIndexUpperBound(cell: ICellViewModel): number {
 		if (!this._viewModel) {

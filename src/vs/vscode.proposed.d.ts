@@ -1236,7 +1236,7 @@ declare module 'vscode' {
 		 */
 		readonly end: number;
 
-		isEmpty: boolean;
+		readonly isEmpty: boolean;
 
 		constructor(start: number, end: number);
 	}

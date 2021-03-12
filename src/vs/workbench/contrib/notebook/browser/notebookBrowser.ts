@@ -241,6 +241,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;
+	getHeight(lineHeight: number): number;
 	metadata: NotebookCellMetadata | undefined;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
@@ -355,6 +356,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidFocusEditorWidget: Event<void>;
 	activeKernel: INotebookKernel | undefined;
 	multipleKernelsAvailable: boolean;
+	readonly onDidScroll: Event<void>;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
@@ -386,6 +388,8 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * Layout info for the notebook editor
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
+
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
 
 	/**
 	 * Fetch the output renderers for notebook outputs.
@@ -636,6 +640,7 @@ export interface INotebookCellList {
 	attachViewModel(viewModel: NotebookViewModel): void;
 	clear(): void;
 	getViewIndex(cell: ICellViewModel): number | undefined;
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];

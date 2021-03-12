@@ -76,6 +76,12 @@
 	outline-offset: 2px !important;
 }
 
+.workspace-trust-editor.settings-editor .workspace-trust-section-title {
+	font-weight: 600;
+	font-size: 18px;
+	padding-bottom: 5px;
+}
+
 /** Features List */
 .workspace-trust-editor.settings-editor > .workspace-trust-features {
 	padding: 14px;
@@ -83,10 +89,19 @@
 	user-select: text;
 }
 
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extensions-list {
+	padding-bottom: 10px;
+}
+
 .workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-title {
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 32px;
+}
+
+
+.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-description {
+	padding-bottom: 15px;
 }
 
 .workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry {
@@ -110,6 +125,10 @@
 }
 
 /** Settings */
+.workspace-trust-editor.settings-editor .workspace-trust-settings .workspace-trust-section-title {
+	padding: 14px;
+}
+
 .workspace-trust-editor.settings-editor > .settings-body > .settings-tree-container .shadow.top {
 	left: initial;
 	margin-left: initial;

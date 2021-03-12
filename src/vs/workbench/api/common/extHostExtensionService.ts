@@ -547,7 +547,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		);
 	}
 
-	private _handleExtensionTests(): Promise<void> {
+	public $extensionTestsExecute(): Promise<number> {
 		return this._doHandleExtensionTests().then(undefined, error => {
 			console.error(error); // ensure any error message makes it onto the console
 
@@ -555,76 +555,51 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	private async _doHandleExtensionTests(): Promise<void> {
+	private async _doHandleExtensionTests(): Promise<number> {
 		const { extensionDevelopmentLocationURI, extensionTestsLocationURI } = this._initData.environment;
-		if (!(extensionDevelopmentLocationURI && extensionTestsLocationURI && extensionTestsLocationURI.scheme === Schemas.file)) {
-			return Promise.resolve(undefined);
+		if (!extensionDevelopmentLocationURI || !extensionTestsLocationURI || extensionTestsLocationURI.scheme !== Schemas.file) {
+			throw new Error(nls.localize('extensionTestError1', "Cannot load test runner."));
 		}
 
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
-		let testRunner: ITestRunner | INewTestRunner | undefined;
-		let requireError: Error | undefined;
-		try {
-			testRunner = await this._loadCommonJSModule(null, URI.file(extensionTestsPath), new ExtensionActivationTimesBuilder(false));
-		} catch (error) {
-			requireError = error;
+		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, URI.file(extensionTestsPath), new ExtensionActivationTimesBuilder(false));
+
+		if (!testRunner || typeof testRunner.run !== 'function') {
+			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath));
 		}
 
 		// Execute the runner if it follows the old `run` spec
-		if (testRunner && typeof testRunner.run === 'function') {
-			return new Promise<void>((c, e) => {
-				const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
-					if (error) {
-						e(error.toString());
-					} else {
-						c(undefined);
-					}
-
-					// after tests have run, we shutdown the host
-					this._testRunnerExit(error || (typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
-				};
-
-				const runResult = testRunner!.run(extensionTestsPath, oldTestRunnerCallback);
-
-				// Using the new API `run(): Promise<void>`
-				if (runResult && runResult.then) {
-					runResult
-						.then(() => {
-							c();
-							this._testRunnerExit(0);
-						})
-						.catch((err: Error) => {
-							e(err.toString());
-							this._testRunnerExit(1);
-						});
+		return new Promise<number>((resolve, reject) => {
+			const oldTestRunnerCallback = (error: Error, failures: number | undefined) => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve((typeof failures === 'number' && failures > 0) ? 1 /* ERROR */ : 0 /* OK */);
 				}
-			});
-		}
+			};
 
-		// Otherwise make sure to shutdown anyway even in case of an error
-		else {
-			this._testRunnerExit(1 /* ERROR */);
-		}
+			const runResult = testRunner.run(extensionTestsPath, oldTestRunnerCallback);
 
-		return Promise.reject(new Error(requireError ? requireError.toString() : nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath)));
+			// Using the new API `run(): Promise<void>`
+			if (runResult && runResult.then) {
+				runResult
+					.then(() => {
+						resolve(0);
+					})
+					.catch((err: Error) => {
+						reject(err.toString());
+					});
+			}
+		});
 	}
 
-	private _testRunnerExit(code: number): void {
+	public async $extensionTestsExit(code: number): Promise<void> {
 		this._logService.info(`extension host terminating: test runner requested exit with code ${code}`);
+		this._logService.info(`exiting with code ${code}`);
 		this._logService.flush();
-
-		// wait at most 5000ms for the renderer to confirm our exit request and for the renderer socket to drain
-		// (this is to ensure all outstanding messages reach the renderer)
-		const exitPromise = this._mainThreadExtensionsProxy.$onExtensionHostExit(code);
-		const drainPromise = this._extHostContext.drain();
-		Promise.race([Promise.all([exitPromise, drainPromise]), timeout(5000)]).then(() => {
-			this._logService.info(`exiting with code ${code}`);
-			this._logService.flush();
-
-			this._hostUtils.exit(code);
-		});
+		this._hostUtils.exit(code);
 	}
 
 	private _startExtensionHost(): Promise<void> {
@@ -636,7 +611,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return this._readyToStartExtensionHost.wait()
 			.then(() => this._readyToRunExtensions.open())
 			.then(() => this._handleEagerExtensions())
-			.then(() => this._handleExtensionTests())
 			.then(() => {
 				this._logService.info(`eager extensions activated`);
 			});
