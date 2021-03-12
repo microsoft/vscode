@@ -1065,6 +1065,7 @@ class NotebookCellExecutionTask extends Disposable {
 	get state(): NotebookCellExecutionTaskState { return this._state; }
 
 	private readonly _tokenSource: CancellationTokenSource;
+	private _editsQueue = Promise.resolve<void>(undefined);
 
 	constructor(
 		private readonly _uri: vscode.Uri,
@@ -1074,14 +1075,19 @@ class NotebookCellExecutionTask extends Disposable {
 		private readonly _proxy: MainThreadNotebookShape) {
 		super();
 		this._tokenSource = this._register(new CancellationTokenSource());
+
+		this.mixinMetadata({
+			runState: NotebookCellRunState.Pending
+		});
 	}
 
 	cancel(): void {
 		this._tokenSource.cancel();
 	}
 
-	private applyEdits(edits: ICellEditOperation[]): void {
-		retryAsync(() => this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, edits));
+	private applyEdits(getEdits: () => ICellEditOperation[]): void {
+		this._editsQueue = this._editsQueue.finally(() =>
+			retryAsync(() => this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, getEdits())));
 	}
 
 	private verifyStateForOutput() {
@@ -1094,13 +1100,27 @@ class NotebookCellExecutionTask extends Disposable {
 		}
 	}
 
+	private mixinMetadata(mixinMetadata: NotebookCellMetadata) {
+		this.applyEdits(() => {
+			const metadata: NotebookCellMetadata = {
+				...this._cell.internalMetadata,
+				...mixinMetadata
+			};
+
+			const edits: ICellEditOperation[] = [
+				{ editType: CellEditType.Metadata, index: this._index, metadata }
+			];
+			return edits;
+		});
+	}
+
 	asApiObject(): vscode.NotebookCellExecutionTask {
 		const that = this;
 		return Object.freeze(<vscode.NotebookCellExecutionTask>{
 			get document() { return that._document.notebookDocument; },
 			get cell() { return that._cell.cell; },
 
-			start(): void {
+			start(context?: vscode.NotebookCellExecuteStartContext): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved || that._state === NotebookCellExecutionTaskState.Started) {
 					throw new Error('Cannot call start again');
 				}
@@ -1108,31 +1128,17 @@ class NotebookCellExecutionTask extends Disposable {
 				that._state = NotebookCellExecutionTaskState.Started;
 				that._onDidChangeState.fire();
 
-				const metadata: NotebookCellMetadata = {
-					...that._cell.internalMetadata,
-					...{
-						runState: NotebookCellRunState.Running
-					}
-				};
-
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Metadata, index: that._index, metadata }
-				];
-				that.applyEdits(edits);
+				that.mixinMetadata({
+					runState: NotebookCellRunState.Running,
+					lastRunDuration: undefined,
+					runStartTime: context?.startTime
+				});
 			},
 
 			setExecutionOrder(order: number): void {
-				const metadata: NotebookCellMetadata = {
-					...that._cell.internalMetadata,
-					...{
-						executionOrder: order
-					}
-				};
-
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Metadata, index: that._index, metadata }
-				];
-				that.applyEdits(edits);
+				that.mixinMetadata({
+					executionOrder: order
+				});
 			},
 
 			end(result: vscode.NotebookCellPreviousExecutionResult): void {
@@ -1147,20 +1153,11 @@ class NotebookCellExecutionTask extends Disposable {
 				that._state = NotebookCellExecutionTaskState.Resolved;
 				that._onDidChangeState.fire();
 
-				const metadata: NotebookCellMetadata = {
-					...that._cell.internalMetadata,
-					...{
-						runState: result.success === true ? NotebookCellRunState.Success :
-							result.success === false ? NotebookCellRunState.Error :
-								NotebookCellRunState.Idle,
-						lastRunDuration: result.duration,
-					}
-				};
-
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Metadata, index: that._index, metadata }
-				];
-				that.applyEdits(edits);
+				that.mixinMetadata({
+					runState: NotebookCellRunState.Idle,
+					lastRunSuccess: result.success,
+					lastRunDuration: result.duration,
+				});
 			},
 
 			getOutputEdit() {
