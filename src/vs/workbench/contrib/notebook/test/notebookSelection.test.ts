@@ -170,8 +170,8 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
-	test('notebook cell list view/model api', function () {
-		withTestNotebook(
+	test('notebook cell list getModelIndex', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
@@ -189,8 +189,10 @@ suite('NotebookCellList focus/selection', () => {
 
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				updateFoldingStateAtIndex(foldingModel, 2, true);
+				viewModel.updateFoldingRanges(foldingModel.regions);
+				cellList.setHiddenAreas(viewModel.getHiddenRanges(), true);
 
-				assert.deepStrictEqual(cellList.getModelIndex2(-1), undefined);
+				assert.deepStrictEqual(cellList.getModelIndex2(-1), 0);
 				assert.deepStrictEqual(cellList.getModelIndex2(0), 0);
 				assert.deepStrictEqual(cellList.getModelIndex2(1), 2);
 				assert.deepStrictEqual(cellList.getModelIndex2(2), 4);
