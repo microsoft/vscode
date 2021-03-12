@@ -840,3 +840,13 @@ export function reduceRanges(ranges: ICellRange[]) {
 		return prev;
 	}, [first] as ICellRange[]);
 }
+
+/**
+ * todo@rebornix test and sort
+ * @param range
+ * @param other
+ * @returns
+ */
+export function cellRangeContains(range: ICellRange, other: ICellRange): boolean {
+	return other.start >= range.start && other.end <= range.end;
+}

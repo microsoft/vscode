@@ -59,8 +59,6 @@ const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
-const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
-const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
 const COPY_CELL_COMMAND_ID = 'notebook.cell.copy';
 const CUT_CELL_COMMAND_ID = 'notebook.cell.cut';
 const PASTE_CELL_COMMAND_ID = 'notebook.cell.paste';
@@ -223,7 +221,7 @@ abstract class NotebookAction extends Action2 {
 	}
 }
 
-abstract class NotebookCellAction<T = INotebookCellActionContext> extends NotebookAction {
+export abstract class NotebookCellAction<T = INotebookCellActionContext> extends NotebookAction {
 	protected isCellActionContext(context?: unknown): context is INotebookCellActionContext {
 		return !!context && !!(context as INotebookCellActionContext).notebookEditor && !!(context as INotebookCellActionContext).cell;
 	}
@@ -1038,17 +1036,6 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-async function moveCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	const result = direction === 'up' ?
-		await context.notebookEditor.moveCellUp(context.cell) :
-		await context.notebookEditor.moveCellDown(context.cell);
-
-	if (result) {
-		// move cell command only works when the cell container has focus
-		context.notebookEditor.focusNotebookCell(result, 'container');
-	}
-}
-
 async function copyCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const text = context.cell.getText();
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
@@ -1057,46 +1044,6 @@ async function copyCell(context: INotebookCellActionContext, direction: 'up' | '
 		context.notebookEditor.focusNotebookCell(newCell, 'container');
 	}
 }
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: MOVE_CELL_UP_COMMAND_ID,
-				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
-				icon: icons.moveUpIcon,
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.UpArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return moveCell(context, 'up');
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: MOVE_CELL_DOWN_COMMAND_ID,
-				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
-				icon: icons.moveDownIcon,
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.DownArrow,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
-					weight: KeybindingWeight.WorkbenchContrib
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return moveCell(context, 'down');
-	}
-});
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
