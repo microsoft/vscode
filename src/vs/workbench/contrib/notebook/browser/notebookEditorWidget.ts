@@ -289,7 +289,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	private _debugFlag: boolean = true;
+	private _debugFlag: boolean = false;
 	private _frameId = 0;
 	private _domFrameLog() {
 		DOM.scheduleAtNextAnimationFrame(() => {
@@ -1646,7 +1646,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
 
-		this._list.move(index, desiredIndex);
+		// this._list.move(index, desiredIndex);
 
 		let r: (val: ICellViewModel | null) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
