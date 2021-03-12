@@ -238,6 +238,7 @@ export interface ICreateMarkdownMessage {
 	id: string;
 	handle: number;
 	content: string;
+	contentVersion: number;
 	top: number;
 }
 export interface IRemoveMarkdownMessage {
@@ -260,6 +261,7 @@ export interface IShowMarkdownMessage {
 	id: string;
 	handle: number;
 	content: string;
+	contentVersion: number;
 	top: number;
 }
 
@@ -345,7 +347,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	markdownPreviewMapping: Set<string> = new Set();
+	markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -1065,35 +1067,52 @@ var requirejs = (function() {
 		});
 	}
 
-	async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number) {
+	async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
 		}
 
 		const initialTop = cellTop;
-		this.markdownPreviewMapping.add(cellId);
+		this.markdownPreviewMapping.set(cellId, { version: contentVersion, visible: true });
 
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
 			id: cellId,
 			handle: cellHandle,
 			content: content,
+			contentVersion: contentVersion,
 			top: initialTop,
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number) {
+	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'showMarkdownPreview',
-			id: cellId,
-			handle: cellHandle,
-			content: content,
-			top: cellTop
-		});
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.log('Try to show a preview that does not exist');
+			return;
+		}
+
+		if (entry.version !== contentVersion || !entry.visible) {
+			this._sendMessageToWebview({
+				type: 'showMarkdownPreview',
+				id: cellId,
+				handle: cellHandle,
+				// If the content has not changed, we still want to make sure the
+				// preview is visible but don't need to send anything over
+				content: entry.version === contentVersion ? '' : content,
+				contentVersion: contentVersion,
+				top: cellTop
+			});
+
+		} else {
+			console.log('skip');
+		}
+
+		entry.visible = true;
 	}
 
 	async hideMarkdownPreview(cellId: string,) {
@@ -1101,10 +1120,19 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'hideMarkdownPreview',
-			id: cellId
-		});
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.log('Try to hide a preview that does not exist');
+			return;
+		}
+
+		if (entry.visible) {
+			this._sendMessageToWebview({
+				type: 'hideMarkdownPreview',
+				id: cellId
+			});
+			entry.visible = false;
+		}
 	}
 
 	async unhideMarkdownPreview(cellId: string,) {
@@ -1112,14 +1140,29 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'unhideMarkdownPreview',
-			id: cellId
-		});
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.log('Try to unhide a preview that does not exist');
+			return;
+		}
+
+		if (!entry.visible) {
+			this._sendMessageToWebview({
+				type: 'unhideMarkdownPreview',
+				id: cellId
+			});
+			entry.visible = true;
+		}
 	}
 
 	async removeMarkdownPreview(cellId: string,) {
 		if (this._disposed) {
+			return;
+		}
+
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.log('Try to delete a preview that does not exist');
 			return;
 		}
 
@@ -1158,6 +1201,10 @@ var requirejs = (function() {
 	async initializeMarkdown(cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>) {
 		await this._loaded;
 
+		if (this._disposed) {
+			return;
+		}
+
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
 			this.webview?.onMessage(e => {
@@ -1168,7 +1215,7 @@ var requirejs = (function() {
 		});
 
 		for (const cell of cells) {
-			this.markdownPreviewMapping.add(cell.cellId);
+			this.markdownPreviewMapping.set(cell.cellId, { version: 0, visible: false });
 		}
 
 		this._sendMessageToWebview({

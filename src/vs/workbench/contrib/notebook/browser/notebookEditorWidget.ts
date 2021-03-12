@@ -289,7 +289,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	private _debugFlag: boolean = false;
+	private _debugFlag: boolean = true;
 	private _frameId = 0;
 	private _domFrameLog() {
 		DOM.scheduleAtNextAnimationFrame(() => {
@@ -875,7 +875,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				if (this._webview?.markdownPreviewMapping) {
 					const updateItems: { id: string, top: number }[] = [];
-					this._webview!.markdownPreviewMapping.forEach(cellId => {
+					this._webview.markdownPreviewMapping.forEach((_, cellId) => {
 						const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 						if (cell) {
 							const cellTop = this._list.getAbsoluteTopOfElement(cell);
@@ -1646,6 +1646,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
 
+		this._list.move(index, desiredIndex);
+
 		let r: (val: ICellViewModel | null) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (this._isDisposed) {
@@ -1788,9 +1790,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		if (this._webview.markdownPreviewMapping.has(cell.id)) {
-			await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop);
+			await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop, cell.version);
 		} else {
-			await this._webview.createMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop);
+			await this._webview.createMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop, cell.version);
 		}
 	}
 

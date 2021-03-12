@@ -412,9 +412,7 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
 				for (const cell of event.data.cells) {
-					console.log('initializeMarkdownPreview', cell.cellHandle);
-
-					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+					createMarkdownPreview(cell.cellId, cell.content, cell.offset, /* version*/ 0);
 
 					const cellContainer = document.getElementById(cell.cellId);
 					if (cellContainer) {
@@ -425,21 +423,20 @@ function webviewPreloads() {
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
-				console.log('createMarkdown', event.data.handle);
-				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
+				createMarkdownPreview(event.data.id, event.data.content, event.data.top, event.data.contentVersion);
 				break;
 			case 'showMarkdownPreview':
 				{
 					const data = event.data;
-					let cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'visible';
-					}
 					const previewNode = document.getElementById(`${data.id}_container`);
 					if (previewNode) {
 						previewNode.style.top = `${data.top}px`;
 					}
-					updateMarkdownPreview(data.id, data.content);
+					const cellContainer = document.getElementById(data.id);
+					if (cellContainer) {
+						cellContainer.style.visibility = 'visible';
+					}
+					updateMarkdownPreview(data.id, data.content, data.contentVersion);
 				}
 				break;
 			case 'hideMarkdownPreview':
@@ -719,7 +716,7 @@ function webviewPreloads() {
 		});
 	});
 
-	function createMarkdownPreview(cellId: string, content: string, top: number) {
+	function createMarkdownPreview(cellId: string, content: string, top: number, contentVersion: number) {
 		let cellContainer = document.getElementById(cellId);
 		if (!cellContainer) {
 			const container = document.getElementById('container')!;
@@ -734,6 +731,7 @@ function webviewPreloads() {
 			previewContainerNode.style.top = top + 'px';
 			previewContainerNode.id = `${cellId}_preview`;
 			previewContainerNode.classList.add('preview');
+			previewContainerNode.dataset.contentVersion = `${contentVersion}`;
 
 			previewContainerNode.addEventListener('dblclick', () => {
 				postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
@@ -800,7 +798,7 @@ function webviewPreloads() {
 				isOutput: false
 			});
 		} else {
-			updateMarkdownPreview(cellId, content);
+			updateMarkdownPreview(cellId, content, contentVersion);
 		}
 	}
 
@@ -815,23 +813,32 @@ function webviewPreloads() {
 		});
 	}
 
-	function updateMarkdownPreview(cellId: string, content: string) {
+	function updateMarkdownPreview(cellId: string, content: string, contentVersion: number) {
 		const previewContainerNode = document.getElementById(`${cellId}_preview`);
-		if (previewContainerNode) {
+		if (!previewContainerNode) {
+			return;
+		}
+
+		const contentVersionKey = `${contentVersion}`;
+		if (previewContainerNode.dataset.contentVersion !== contentVersionKey) {
+			// Content changed, re-render
+
 			// TODO: handle namespace
 			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
 				element: previewContainerNode,
 				content: content
 			}]);
 
-			postNotebookMessage<IDimensionMessage>('dimension', {
-				id: `${cellId}_preview`,
-				data: {
-					height: previewContainerNode.clientHeight,
-				},
-				isOutput: false
-			});
+			previewContainerNode.dataset.contentVersion = contentVersionKey;
 		}
+
+		postNotebookMessage<IDimensionMessage>('dimension', {
+			id: `${cellId}_preview`,
+			data: {
+				height: previewContainerNode.clientHeight,
+			},
+			isOutput: false
+		});
 	}
 }
 
