@@ -46,7 +46,7 @@ export interface ITestTreeProjection extends IDisposable, IAsyncDataSource<null,
 	/**
 	 * Applies pending update to the tree.
 	 */
-	applyTo(tree: AsyncDataTree<null, ITestTreeElement, FuzzyScore>): void;
+	applyTo(tree: AsyncDataTree<null, ITestTreeElement, FuzzyScore>): Promise<void>;
 }
 
 

@@ -141,14 +141,17 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	/**
 	 * Expands the children of the element.
 	 */
-	protected expandNode(node: HierarchicalElement, depth = 1) {
+	protected expandNode(node: HierarchicalElement, depth = 0) {
 		const folder = node.folder;
 		const collection = this.listener.workspaceFolderCollections.find(([f]) => f.folder === folder);
 		if (!collection) {
 			return Iterable.empty();
 		}
 
-		return collection[1].expand(node.test.item.extId, depth).then(() => node!.children);
+		return collection[1].expand(node.test.item.extId, depth).then(() => {
+			this.changes.didRenderChildrenFor(node);
+			return node!.children;
+		});
 	}
 
 	/**
@@ -244,8 +247,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	/**
 	 * @inheritdoc
 	 */
-	public applyTo(tree: AsyncDataTree<null, ITestTreeElement, FuzzyScore>) {
-		this.changes.applyTo(tree);
+	public async applyTo(tree: AsyncDataTree<null, ITestTreeElement, FuzzyScore>) {
+		await this.changes.applyTo(tree);
 	}
 
 	protected createItem(item: InternalTestItem, folder: IWorkspaceFolder): HierarchicalElement {

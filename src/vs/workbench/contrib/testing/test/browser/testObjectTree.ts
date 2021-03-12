@@ -45,7 +45,7 @@ export class TestObjectTree<T> extends AsyncDataTree<null, T, FuzzyScore> {
 			{
 				sorter: {
 					compare: (a, b) => serializer(a).localeCompare(serializer(b))
-				}
+				},
 			}
 		);
 		this.layout(1000, 200);
@@ -90,19 +90,28 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	public readonly projection: T;
 	public readonly tree: TestObjectTree<ITestTreeElement>;
 
-	constructor(makeTree: (listener: TestSubscriptionListener) => T) {
+	constructor(folders: IWorkspaceFolderData[], makeTree: (listener: TestSubscriptionListener) => T) {
 		super();
+		element.textContent = '';
 		this.projection = this._register(makeTree({
-			workspaceFolderCollections: [],
+			workspaceFolderCollections: folders.map(folder => [{ folder }, {
+				expand: (testId: string, levels: number) => {
+					this.c.expand(testId, levels);
+					this.onDiff.fire([folder, this.c.collectDiff()]);
+					return Promise.resolve();
+				},
+				all: [],
+			}]),
 			onDiff: this.onDiff.event,
 			onFolderChange: this.onFolderChange.event,
 		} as any));
 		this.tree = this._register(new TestObjectTree(t => t.label, this.projection));
+		this.tree.setInput(null);
 	}
 
-	public flush(folder?: IWorkspaceFolderData) {
+	public async flush(folder?: IWorkspaceFolderData) {
 		this.onDiff.fire([folder!, this.c.collectDiff()]);
-		this.projection.applyTo(this.tree);
+		await this.projection.applyTo(this.tree);
 		return this.tree.getRendered();
 	}
 }

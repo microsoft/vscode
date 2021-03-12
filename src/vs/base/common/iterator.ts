@@ -67,6 +67,12 @@ export namespace Iterable {
 		}
 	}
 
+	export async function* mapAsync<T, R>(iterable: AsyncIterable<T>, fn: (t: T) => Promise<R> | R): AsyncIterable<R> {
+		for await (const element of iterable) {
+			yield await fn(element);
+		}
+	}
+
 	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
 		for (const iterable of iterables) {
 			for (const element of iterable) {

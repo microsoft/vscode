@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout, isThenable, timeout } from 'vs/base/common/async';
+import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
+import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepFreeze } from 'vs/base/common/objects';
-import { isDefined } from 'vs/base/common/types';
+import { isAsyncIterable, isDefined, isIterable } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -402,12 +403,10 @@ export const createDefaultDocumentTestHierarchy = async <T extends vscode.TestIt
 
 		getChildren(item, token) {
 			const children = workspaceHierarchy.getChildren(item.actual, token);
-			if (isThenable<T[] | null | undefined>(children)) {
-				return children.then(c => {
-					return c?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item)) ?? [];
-				});
-			} else if (children instanceof Array) {
-				return children.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item));
+			if (isAsyncIterable<vscode.TestItem>(children)) {
+				return Iterable.mapAsync(children, t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item));
+			} else if (isIterable<vscode.TestItem>(children)) {
+				return Iterable.map(children, t => TestItemFilteredWrapper.getWrapperForTestItem(t, document, item));
 			} else {
 				return undefined;
 			}

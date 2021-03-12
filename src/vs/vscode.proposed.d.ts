@@ -2283,7 +2283,7 @@ declare module 'vscode' {
 		 * requested if the test changes before the previous call completes.
 		 * @returns a provider result of child test items
 		 */
-		getChildren(item: T, token: CancellationToken): ProviderResult<T[]>;
+		getChildren(item: T, token: CancellationToken): Iterable<T> | AsyncIterable<T> | undefined | null;
 
 		/**
 		 * Gets the parent of the test item. This should only return "undefined"

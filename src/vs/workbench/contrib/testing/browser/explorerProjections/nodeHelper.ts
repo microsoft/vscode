@@ -53,21 +53,12 @@ export const enum NodeRenderDirective {
 
 export type NodeRenderFn<T> = (n: T, recurse: (items: Iterable<T>) => Iterable<ITestTreeElement>) => ITestTreeElement | NodeRenderDirective;
 
-const pruneNodesNotInTree = <T extends ITestTreeElement>(nodes: Set<T | null>, tree: AsyncDataTree<null, ITestTreeElement>) => {
-	for (const node of nodes) {
-		if (node && !tree.hasNode(node)) {
-			nodes.delete(node);
-		}
-	}
-};
-
 /**
  * Helper to gather and bulk-apply tree updates.
  */
 export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>; parentItem: T | null; }> {
 	private changedParents = new Set<T | null>();
 	private updatedNodes = new Set<T>();
-	private omittedNodes = new WeakSet<T>();
 	private isFirstApply = true;
 
 	public updated(node: T) {
@@ -79,24 +70,30 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 	}
 
 	public added(node: T) {
-		this.changedParents.add(this.getNearestNotOmittedParent(node));
+		this.changedParents.add(node.parentItem);
+	}
+
+	public didRenderChildrenFor(node: T) {
+		this.changedParents.delete(node);
 	}
 
 	public applyTo(tree: AsyncDataTree<null, ITestTreeElement, any>) {
-		pruneNodesNotInTree(this.changedParents, tree);
-		pruneNodesNotInTree(this.updatedNodes, tree);
-
+		const todo: Promise<void>[] = [];
 		const diffDepth = this.isFirstApply ? Infinity : 0;
 		this.isFirstApply = false;
 
 		for (let parent of this.changedParents) {
+			while (parent && !tree.hasNode(parent)) {
+				parent = parent.parentItem;
+			}
+
 			if (tree.hasNode(parent) && !tree.getNode(parent).collapsed) {
-				tree.updateChildren(
+				todo.push(tree.updateChildren(
 					parent || undefined,
 					false,
 					false,
 					{ diffIdentityProvider: testIdentityProvider, diffDepth },
-				);
+				));
 			}
 		}
 
@@ -110,14 +107,6 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 
 		this.changedParents.clear();
 		this.updatedNodes.clear();
-	}
-
-	private getNearestNotOmittedParent(node: T | null) {
-		let parent = node && node.parentItem;
-		while (parent && this.omittedNodes.has(parent)) {
-			parent = parent.parentItem;
-		}
-
-		return parent;
+		return Promise.all(todo);
 	}
 }

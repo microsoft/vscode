@@ -8,12 +8,12 @@ import { isThenable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { throttle } from 'vs/base/common/decorators';
 import { IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ProviderResult } from 'vs/editor/common/modes';
+import { isAsyncIterable, isIterable } from 'vs/base/common/types';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
 import { InternalTestItem, TestDiffOpType, TestItemExpandable, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface IHierarchyProvider {
-	getChildren(node: TestItem.Raw, token: CancellationToken): ProviderResult<TestItem.Raw[]>;
+	getChildren(node: TestItem.Raw, token: CancellationToken): Iterable<TestItem.Raw> | AsyncIterable<TestItem.Raw> | undefined | null;
 }
 
 /**
@@ -220,10 +220,13 @@ export class SingleUseTestCollection implements IDisposable {
 			return;
 		}
 
-		const parent = existing.parent === null ? undefined : this.testIdToInternal.object.get(existing.parent);
-		if (!parent) {
-			// can be a change for something we haven't expanded yet
-			return;
+		let parent: OwnedCollectionTestItem | null = null;
+		if (existing.parent) {
+			parent = this.testIdToInternal.object.get(existing.parent)!;
+			if (!parent) {
+				// can be a change for something we haven't expanded yet
+				return;
+			}
 		}
 
 		this.addItem(item, providerId, hierarchy, parent);
@@ -265,7 +268,6 @@ export class SingleUseTestCollection implements IDisposable {
 		// try to avoid awaiting things if the provider returns synchronously in
 		// order to keep everything in a single diff and DOM update.
 		if (internal.expand === TestItemExpandable.Expandable) {
-			internal.expand = TestItemExpandable.Expanded;
 			const r = this.updateChildren(internal);
 			return isThenable(r)
 				? r.then(() => this.expandChildren(internal, levels - 1))
@@ -313,7 +315,11 @@ export class SingleUseTestCollection implements IDisposable {
 			if (internal.expandLevels !== undefined) {
 				this.expand(actual.id, internal.expandLevels);
 			}
-		} else if (!internal.previousEquals(actual)) {
+
+			return internal;
+		}
+
+		if (!internal.previousEquals(actual)) {
 			internal.item = TestItem.from(actual);
 			internal.previousEquals = itemEqualityComparator(actual);
 			this.diff.push([TestDiffOpType.Update, { parent: parentId, providerId, expand: internal.expand, item: internal.item }]);
@@ -349,37 +355,46 @@ export class SingleUseTestCollection implements IDisposable {
 		const cts = internal.childrenCancellation.value = new CancellationTokenSource();
 
 		// todo@connor4312: error handling
-		const children = internal.hierarchy.getChildren(internal.actual, cts.token) ?? [];
-		if (isThenable<TestItem.Raw[] | undefined | null>(children)) {
+		const children = internal.hierarchy.getChildren(internal.actual, cts.token);
+		if (isAsyncIterable<TestItem.Raw>(children)) {
 			return this.updateChildrenAsync(internal, children, cts);
 		}
 
+		if (isIterable<TestItem.Raw>(children)) {
+			this.updateChildrenSync(internal, children);
+		}
+
 		cts.cancel();
-		this.updateChildrenSync(internal, children as TestItem.Raw[]);
 	}
 
 	private async updateChildrenAsync(
 		internal: OwnedCollectionTestItem,
-		children: Thenable<TestItem.Raw[] | undefined | null>,
+		children: AsyncIterable<TestItem.Raw>,
 		cts: CancellationTokenSource,
 	) {
 		this.diff.push([TestDiffOpType.DeltaDiscoverComplete, 1]);
-		const resolved = await children;
-		if (cts.token.isCancellationRequested) {
-			this.diff.push([TestDiffOpType.DeltaDiscoverComplete, -1]);
-			return;
+		for await (const child of children) {
+			if (cts.token.isCancellationRequested) {
+				break;
+			}
+
+			const previous = this.testIdToInternal.object.get(child.id);
+			if (previous && previous.actual !== child) {
+				this.removeItembyId(child.id);
+			}
+
+			this.addItem(child, internal.providerId, internal.hierarchy, internal);
+			this.debounceSendDiff.schedule();
 		}
 
-		this.updateChildrenSync(internal, resolved);
 		this.diff.push([TestDiffOpType.DeltaDiscoverComplete, -1]);
 		cts.cancel();
-		this.debounceSendDiff.schedule();
 	}
 
-	private updateChildrenSync(internal: OwnedCollectionTestItem, children: TestItem.Raw[] | null | undefined) {
+	private updateChildrenSync(internal: OwnedCollectionTestItem, children: Iterable<TestItem.Raw>) {
 		const deletedChildren = internal.previousChildren;
 		const currentChildren = new Set<string>();
-		for (const child of children ?? []) {
+		for (const child of children) {
 			// If a child was recreated, delete the old object before calling
 			// addItem() anew.
 			const previous = this.testIdToInternal.object.get(child.id);
