@@ -412,7 +412,7 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
 				for (const cell of event.data.cells) {
-					createMarkdownPreview(cell.cellId, cell.content, cell.offset, /* version*/ 0);
+					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
 
 					const cellContainer = document.getElementById(cell.cellId);
 					if (cellContainer) {
@@ -423,7 +423,7 @@ function webviewPreloads() {
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
-				createMarkdownPreview(event.data.id, event.data.content, event.data.top, event.data.contentVersion);
+				createMarkdownPreview(event.data.id, event.data.content, event.data.top);
 				break;
 			case 'showMarkdownPreview':
 				{
@@ -436,7 +436,10 @@ function webviewPreloads() {
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
 					}
-					updateMarkdownPreview(data.id, data.content, data.contentVersion);
+
+					if (typeof data.content === 'string') {
+						updateMarkdownPreview(data.id, data.content);
+					}
 				}
 				break;
 			case 'hideMarkdownPreview':
@@ -716,7 +719,7 @@ function webviewPreloads() {
 		});
 	});
 
-	function createMarkdownPreview(cellId: string, content: string, top: number, contentVersion: number) {
+	function createMarkdownPreview(cellId: string, content: string, top: number) {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
 
@@ -728,7 +731,6 @@ function webviewPreloads() {
 		previewContainerNode.style.top = top + 'px';
 		previewContainerNode.id = `${cellId}_preview`;
 		previewContainerNode.classList.add('preview');
-		previewContainerNode.dataset.contentVersion = `${contentVersion}`;
 
 		previewContainerNode.addEventListener('dblclick', () => {
 			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
@@ -807,24 +809,17 @@ function webviewPreloads() {
 		});
 	}
 
-	function updateMarkdownPreview(cellId: string, content: string, contentVersion: number) {
+	function updateMarkdownPreview(cellId: string, content: string) {
 		const previewContainerNode = document.getElementById(`${cellId}_preview`);
 		if (!previewContainerNode) {
 			return;
 		}
 
-		const contentVersionKey = `${contentVersion}`;
-		if (previewContainerNode.dataset.contentVersion !== contentVersionKey) {
-			// Content changed, re-render
-
-			// TODO: handle namespace
-			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-				element: previewContainerNode,
-				content: content
-			}]);
-
-			previewContainerNode.dataset.contentVersion = contentVersionKey;
-		}
+		// TODO: handle namespace
+		onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+			element: previewContainerNode,
+			content: content
+		}]);
 
 		postNotebookMessage<IDimensionMessage>('dimension', {
 			id: `${cellId}_preview`,

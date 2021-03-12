@@ -1085,7 +1085,6 @@ var requirejs = (function() {
 			id: cellId,
 			handle: cellHandle,
 			content: content,
-			contentVersion: contentVersion,
 			top: initialTop,
 		});
 	}
@@ -1112,8 +1111,7 @@ var requirejs = (function() {
 				handle: cellHandle,
 				// If the content has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
-				content: entry.version === contentVersion ? '' : content,
-				contentVersion: contentVersion,
+				content: entry.version === contentVersion ? undefined : content,
 				top: cellTop
 			});
 		}
