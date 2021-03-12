@@ -286,28 +286,9 @@ suite('Notebook API tests', function () {
 			]
 		});
 
-		const secondCell = vscode.window.activeNotebookEditor!.document.cells[1];
-
 		const moveCellEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveUp');
-		const moveCellEventRet = await moveCellEvent;
-		assert.deepStrictEqual(moveCellEventRet, {
-			document: vscode.window.activeNotebookEditor!.document,
-			changes: [
-				{
-					start: 1,
-					deletedCount: 1,
-					deletedItems: [secondCell],
-					items: []
-				},
-				{
-					start: 0,
-					deletedCount: 0,
-					deletedItems: [],
-					items: [vscode.window.activeNotebookEditor?.document.cells[0]]
-				}
-			]
-		});
+		await moveCellEvent;
 
 		const cellOutputChange = asPromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
 		await vscode.commands.executeCommand('notebook.cell.execute');
@@ -350,25 +331,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
 		const moveChange = asPromise(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		const ret = await moveChange;
-		assert.deepStrictEqual(ret, {
-			document: vscode.window.activeNotebookEditor?.document,
-			changes: [
-				{
-					start: 0,
-					deletedCount: 1,
-					deletedItems: [activeCell],
-					items: []
-				},
-				{
-					start: 1,
-					deletedCount: 0,
-					deletedItems: [],
-					items: [activeCell]
-				}
-			]
-		});
-
+		await moveChange;
 		await saveAllEditors();
 		await closeAllEditors();
 
