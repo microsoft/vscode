@@ -70,8 +70,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
-				productService,
-				configurationService,
+				(extension) => this._getExtensionKind(extension),
 				(extensionKinds, isInstalledLocally, isInstalledRemotely) => this._pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely)
 			),
 			instantiationService,
@@ -86,7 +85,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			configurationService,
 		);
 
-		this._enableLocalWebWorker = this._configurationService.getValue<boolean>(webWorkerExtHostConfig);
+		this._enableLocalWebWorker = this._isLocalWebWorkerEnabled();
 		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 
@@ -102,6 +101,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._initialize();
 			}, 50 /*max delay*/);
 		});
+	}
+
+	private _isLocalWebWorkerEnabled() {
+		if (this._configurationService.getValue<boolean>(webWorkerExtHostConfig)) {
+			return true;
+		}
+		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentKind?.some(k => k === 'web')) {
+			return true;
+		}
+		return false;
 	}
 
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {

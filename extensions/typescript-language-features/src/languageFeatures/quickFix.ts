@@ -223,7 +223,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		_range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
-	): Promise<vscode.CodeAction[]> {
+	): Promise<VsCodeCodeAction[]> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];

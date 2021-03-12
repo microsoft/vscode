@@ -6,9 +6,6 @@
 import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { exists } from 'vs/base/node/pfs';
-import { isString } from 'vs/base/common/types';
-import { getCaseInsensitive } from 'vs/base/common/objects';
 
 let mainProcessParentEnv: IProcessEnvironment | undefined;
 
@@ -79,57 +76,4 @@ export async function getMainProcessParentEnv(baseEnvironment: IProcessEnvironme
 	}
 
 	return mainProcessParentEnv!;
-}
-
-export async function findExecutable(command: string, cwd?: string, paths?: string[], env: IProcessEnvironment = process.env as IProcessEnvironment): Promise<string | undefined> {
-	// If we have an absolute path then we take it.
-	if (path.isAbsolute(command)) {
-		return await exists(command) ? command : undefined;
-	}
-	if (cwd === undefined) {
-		cwd = process.cwd();
-	}
-	const dir = path.dirname(command);
-	if (dir !== '.') {
-		// We have a directory and the directory is relative (see above). Make the path absolute
-		// to the current working directory.
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	const envPath = getCaseInsensitive(env, 'PATH');
-	if (paths === undefined && isString(envPath)) {
-		paths = envPath.split(path.delimiter);
-	}
-	// No PATH environment. Make path absolute to the cwd.
-	if (paths === undefined || paths.length === 0) {
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	// We have a simple file name. We get the path variable from the env
-	// and try to find the executable on the path.
-	for (let pathEntry of paths) {
-		// The path entry is absolute.
-		let fullPath: string;
-		if (path.isAbsolute(pathEntry)) {
-			fullPath = path.join(pathEntry, command);
-		} else {
-			fullPath = path.join(cwd, pathEntry, command);
-		}
-
-		if (await exists(fullPath)) {
-			return fullPath;
-		}
-		if (isWindows) {
-			let withExtension = fullPath + '.com';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-		}
-	}
-	const fullPath = path.join(cwd, command);
-	return await exists(fullPath) ? fullPath : undefined;
 }

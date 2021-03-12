@@ -4,55 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { ISplice } from 'vs/base/common/sequence';
+import { deepFreeze } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import * as UUID from 'vs/base/common/uuid';
-import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, NotebookCellOutputsSplice, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, CellOutputKind, diff, IMainCellDto, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { IMainCellDto, IOutputDto, IOutputItemDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
-
-
-interface IObservable<T> {
-	proxy: T;
-	onDidChange: Event<void>;
-}
-
-function getObservable<T extends Object>(obj: T): IObservable<T> {
-	const onDidChange = new Emitter<void>();
-	const proxy = new Proxy(obj, {
-		set(target: T, p: PropertyKey, value: any, _receiver: any): boolean {
-			target[p as keyof T] = value;
-			onDidChange.fire();
-			return true;
-		}
-	});
-
-	return {
-		proxy,
-		onDidChange: onDidChange.event
-	};
-}
 
 class RawContentChangeEvent {
 
-	constructor(readonly start: number, readonly deletedCount: number, readonly deletedItems: ExtHostCell[], readonly items: ExtHostCell[]) { }
+	constructor(readonly start: number, readonly deletedCount: number, readonly deletedItems: vscode.NotebookCell[], readonly items: ExtHostCell[]) { }
 
-	static asApiEvent(event: RawContentChangeEvent): vscode.NotebookCellsChangeData {
-		return Object.freeze({
-			start: event.start,
-			deletedCount: event.deletedCount,
-			deletedItems: event.deletedItems.map(data => data.cell),
-			items: event.items.map(data => data.cell)
+	static asApiEvents(events: RawContentChangeEvent[]): readonly vscode.NotebookCellsChangeData[] {
+		return events.map(event => {
+			return {
+				start: event.start,
+				deletedCount: event.deletedCount,
+				deletedItems: event.deletedItems,
+				items: event.items.map(data => data.cell)
+			};
 		});
 	}
 }
 
-export class ExtHostCell extends Disposable {
+export class ExtHostCell {
 
 	static asModelAddData(notebook: vscode.NotebookDocument, cell: IMainCellDto): IExtHostModelAddedData {
 		return {
@@ -69,14 +49,8 @@ export class ExtHostCell extends Disposable {
 	private _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _onDidChangeOutputs = new Emitter<ISplice<IProcessedOutput>[]>();
-	readonly onDidChangeOutputs: Event<ISplice<IProcessedOutput>[]> = this._onDidChangeOutputs.event;
-
-	private _outputs: any[];
-	private _outputMapping = new WeakMap<vscode.CellOutput, string | undefined /* output ID */>();
-
-	private _metadata: vscode.NotebookCellMetadata;
-	private _metadataChangeListener: IDisposable;
+	private _outputs: extHostTypes.NotebookCellOutput[];
+	private _metadata: extHostTypes.NotebookCellMetadata;
 
 	readonly handle: number;
 	readonly uri: URI;
@@ -85,28 +59,20 @@ export class ExtHostCell extends Disposable {
 	private _cell: vscode.NotebookCell | undefined;
 
 	constructor(
-		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
 		private readonly _notebook: ExtHostNotebookDocument,
 		private readonly _extHostDocument: ExtHostDocumentsAndEditors,
 		private readonly _cellData: IMainCellDto,
 	) {
-		super();
-
 		this.handle = _cellData.handle;
 		this.uri = URI.revive(_cellData.uri);
 		this.cellKind = _cellData.cellKind;
+		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
+		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(_cellData.metadata ?? {});
+	}
 
-		this._outputs = _cellData.outputs;
-		for (const output of this._outputs) {
-			this._outputMapping.set(output, output.outputId);
-			delete output.outputId;
-		}
-
-		const observableMetadata = getObservable(_cellData.metadata ?? {});
-		this._metadata = observableMetadata.proxy;
-		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
-			this._updateMetadata();
-		}));
+	dispose() {
+		this._onDidDispose.fire();
+		this._onDidDispose.dispose();
 	}
 
 	get cell(): vscode.NotebookCell {
@@ -116,100 +82,44 @@ export class ExtHostCell extends Disposable {
 			if (!data) {
 				throw new Error(`MISSING extHostDocument for notebook cell: ${this.uri}`);
 			}
-			this._cell = Object.freeze({
+			this._cell = Object.freeze<vscode.NotebookCell>({
 				get index() { return that._notebook.getCellIndex(that); },
 				notebook: that._notebook.notebookDocument,
-				uri: that.uri,
-				cellKind: this._cellData.cellKind,
+				kind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
 				document: data.document,
-				get language() { return data!.document.languageId; },
-				get outputs() { return that._outputs; },
-				set outputs(value) { that._updateOutputs(value); },
+				get outputs() { return that._outputs.slice(0); },
 				get metadata() { return that._metadata; },
-				set metadata(value) {
-					that.setMetadata(value);
-					that._updateMetadata();
-				},
 			});
 		}
 		return this._cell;
 	}
 
-	dispose() {
-		super.dispose();
-		this._onDidDispose.fire();
+	setOutputs(newOutputs: IOutputDto[]): void {
+		this._outputs = newOutputs.map(extHostTypeConverters.NotebookCellOutput.to);
 	}
 
-	setOutputs(newOutputs: vscode.CellOutput[]): void {
-		this._outputs = newOutputs;
-	}
-
-	private _updateOutputs(newOutputs: vscode.CellOutput[]) {
-		const rawDiffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
-			return this._outputMapping.has(a);
-		});
-
-		const transformedDiffs: ISplice<IProcessedOutput>[] = rawDiffs.map(diff => {
-			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
-				this._outputMapping.delete(this._outputs[i]);
+	setOutputItems(outputId: string, append: boolean, newOutputItems: IOutputItemDto[]) {
+		const newItems = newOutputItems.map(extHostTypeConverters.NotebookCellOutputItem.to);
+		const output = this._outputs.find(op => op.id === outputId);
+		if (output) {
+			if (!append) {
+				output.outputs.length = 0;
 			}
-
-			return {
-				deleteCount: diff.deleteCount,
-				start: diff.start,
-				toInsert: diff.toInsert.map((output): IProcessedOutput => {
-					if (output.outputKind === CellOutputKind.Rich) {
-						const uuid = UUID.generateUuid();
-						this._outputMapping.set(output, uuid);
-						return { ...output, outputId: uuid };
-					}
-
-					this._outputMapping.set(output, undefined);
-					return output;
-				})
-			};
-		});
-
-		this._outputs = newOutputs;
-		this._onDidChangeOutputs.fire(transformedDiffs);
+			output.outputs.push(...newItems);
+		}
 	}
 
-	setMetadata(newMetadata: vscode.NotebookCellMetadata): void {
-		// Don't apply metadata defaults here, 'undefined' means 'inherit from document metadata'
-		this._metadataChangeListener.dispose();
-		const observableMetadata = getObservable(newMetadata);
-		this._metadata = observableMetadata.proxy;
-		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
-			this._updateMetadata();
-		}));
-	}
-
-	private _updateMetadata(): Promise<boolean> {
-		const index = this._notebook.notebookDocument.cells.indexOf(this.cell);
-		const edit: IWorkspaceCellEditDto = {
-			_type: WorkspaceEditType.Cell,
-			metadata: undefined,
-			resource: this._notebook.uri,
-			notebookVersionId: this._notebook.notebookDocument.version,
-			edit: { editType: CellEditType.Metadata, index, metadata: this._metadata }
-		};
-
-		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit({ edits: [edit] });
+	setMetadata(newMetadata: NotebookCellMetadata): void {
+		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(newMetadata);
 	}
 }
 
 export interface INotebookEventEmitter {
 	emitModelChange(events: vscode.NotebookCellsChangeEvent): void;
-	emitDocumentMetadataChange(event: vscode.NotebookDocumentMetadataChangeEvent): void;
 	emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void;
-	emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void;
 	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
 }
 
-function hashPath(resource: URI): string {
-	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	return hash(str) + '';
-}
 
 export class ExtHostNotebookDocument extends Disposable {
 
@@ -221,33 +131,21 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _cellDisposableMapping = new Map<number, DisposableStore>();
 
 	private _notebook: vscode.NotebookDocument | undefined;
-	private _metadata: Required<vscode.NotebookDocumentMetadata>;
-	private _metadataChangeListener: IDisposable;
-	private _versionId = 0;
+	private _versionId: number = 0;
 	private _isDirty: boolean = false;
-	private _backupCounter = 1;
 	private _backup?: vscode.NotebookDocumentBackup;
-	private _disposed = false;
-	private _languages: string[] = [];
+	private _disposed: boolean = false;
 
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
-		private readonly _documentsAndEditors: ExtHostDocumentsAndEditors,
-		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
+		private readonly _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _textDocuments: ExtHostDocuments,
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
-		private readonly _contentOptions: vscode.NotebookDocumentContentOptions,
-		metadata: Required<vscode.NotebookDocumentMetadata>,
-		public readonly uri: URI,
-		private readonly _storagePath: URI | undefined
+		private _metadata: extHostTypes.NotebookDocumentMetadata,
+		readonly uri: URI,
 	) {
 		super();
-
-		const observableMetadata = getObservable(metadata);
-		this._metadata = observableMetadata.proxy;
-		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
-			this._tryUpdateMetadata();
-		}));
 	}
 
 	dispose() {
@@ -256,36 +154,6 @@ export class ExtHostNotebookDocument extends Disposable {
 		dispose(this._cellDisposableMapping.values());
 	}
 
-	private _updateMetadata(newMetadata: Required<vscode.NotebookDocumentMetadata>) {
-		this._metadataChangeListener.dispose();
-		newMetadata = {
-			...notebookDocumentMetadataDefaults,
-			...newMetadata
-		};
-		if (this._metadataChangeListener) {
-			this._metadataChangeListener.dispose();
-		}
-
-		const observableMetadata = getObservable(newMetadata);
-		this._metadata = observableMetadata.proxy;
-		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
-			this._tryUpdateMetadata();
-		}));
-
-		this._tryUpdateMetadata();
-	}
-
-	private _tryUpdateMetadata() {
-		const edit: IWorkspaceCellEditDto = {
-			_type: WorkspaceEditType.Cell,
-			metadata: undefined,
-			edit: { editType: CellEditType.DocumentMetadata, metadata: this._metadata },
-			resource: this.uri,
-			notebookVersionId: this.notebookDocument.version,
-		};
-
-		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit({ edits: [edit] });
-	}
 
 	get notebookDocument(): vscode.NotebookDocument {
 		if (!this._notebook) {
@@ -298,27 +166,12 @@ export class ExtHostNotebookDocument extends Disposable {
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
-				get languages() { return that._languages; },
-				set languages(value: string[]) { that._trySetLanguages(value); },
 				get metadata() { return that._metadata; },
-				set metadata(value: Required<vscode.NotebookDocumentMetadata>) { that._updateMetadata(value); },
-				get contentOptions() { return that._contentOptions; }
+				set metadata(_value: Required<vscode.NotebookDocumentMetadata>) { throw new Error('Use WorkspaceEdit to update metadata.'); },
+				save() { return that._save(); }
 			});
 		}
 		return this._notebook;
-	}
-
-	private _trySetLanguages(newLanguages: string[]) {
-		this._languages = newLanguages;
-		this._proxy.$updateNotebookLanguages(this._viewType, this.uri, this._languages);
-	}
-
-	getNewBackupUri(): URI {
-		if (!this._storagePath) {
-			throw new Error('Backup requires a valid storage path');
-		}
-		const fileName = hashPath(this.uri) + (this._backupCounter++);
-		return joinPath(this._storagePath, fileName);
 	}
 
 	updateBackup(backup: vscode.NotebookDocumentBackup): void {
@@ -332,42 +185,39 @@ export class ExtHostNotebookDocument extends Disposable {
 	}
 
 	acceptDocumentPropertiesChanged(data: INotebookDocumentPropertiesChangeData) {
-		const newMetadata = {
-			...notebookDocumentMetadataDefaults,
-			...data.metadata
-		};
-
-		if (this._metadataChangeListener) {
-			this._metadataChangeListener.dispose();
+		if (data.metadata) {
+			this._metadata = this._metadata.with(data.metadata);
 		}
-
-		const observableMetadata = getObservable(newMetadata);
-		this._metadata = observableMetadata.proxy;
-		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
-			this._tryUpdateMetadata();
-		}));
-
-		this._emitter.emitDocumentMetadataChange({ document: this.notebookDocument });
 	}
 
 	acceptModelChanged(event: NotebookCellsChangedEventDto, isDirty: boolean): void {
 		this._versionId = event.versionId;
 		this._isDirty = isDirty;
-		event.rawEvents.forEach(e => {
-			if (e.kind === NotebookCellsChangeType.Initialize) {
-				this._spliceNotebookCells(e.changes, true);
-			} if (e.kind === NotebookCellsChangeType.ModelChange) {
-				this._spliceNotebookCells(e.changes, false);
-			} else if (e.kind === NotebookCellsChangeType.Move) {
-				this._moveCell(e.index, e.newIdx);
-			} else if (e.kind === NotebookCellsChangeType.Output) {
-				this._setCellOutputs(e.index, e.outputs);
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
-				this._changeCellLanguage(e.index, e.language);
-			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
-				this._changeCellMetadata(e.index, e.metadata);
+
+		for (const rawEvent of event.rawEvents) {
+			if (rawEvent.kind === NotebookCellsChangeType.Initialize) {
+				this._spliceNotebookCells(rawEvent.changes, true);
+			} if (rawEvent.kind === NotebookCellsChangeType.ModelChange) {
+				this._spliceNotebookCells(rawEvent.changes, false);
+			} else if (rawEvent.kind === NotebookCellsChangeType.Move) {
+				this._moveCell(rawEvent.index, rawEvent.newIdx);
+			} else if (rawEvent.kind === NotebookCellsChangeType.Output) {
+				this._setCellOutputs(rawEvent.index, rawEvent.outputs);
+			} else if (rawEvent.kind === NotebookCellsChangeType.OutputItem) {
+				this._setCellOutputItems(rawEvent.index, rawEvent.outputId, rawEvent.append, rawEvent.outputItems);
+			} else if (rawEvent.kind === NotebookCellsChangeType.ChangeLanguage) {
+				this._changeCellLanguage(rawEvent.index, rawEvent.language);
+			} else if (rawEvent.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+				this._changeCellMetadata(rawEvent.index, rawEvent.metadata);
 			}
-		});
+		}
+	}
+
+	private async _save(): Promise<boolean> {
+		if (this._disposed) {
+			return Promise.reject(new Error('Notebook has been closed'));
+		}
+		return this._proxy.$trySaveDocument(this.uri);
 	}
 
 	private _spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
@@ -383,7 +233,7 @@ export class ExtHostNotebookDocument extends Disposable {
 			const cellDtos = splice[2];
 			const newCells = cellDtos.map(cell => {
 
-				const extCell = new ExtHostCell(this._mainThreadBulkEdits, this, this._documentsAndEditors, cell);
+				const extCell = new ExtHostCell(this, this._textDocumentsAndEditors, cell);
 
 				if (!initialization) {
 					addedCellDocuments.push(ExtHostCell.asModelAddData(this.notebookDocument, cell));
@@ -395,12 +245,6 @@ export class ExtHostNotebookDocument extends Disposable {
 					this._cellDisposableMapping.set(extCell.handle, store);
 				}
 
-				const store = this._cellDisposableMapping.get(extCell.handle)!;
-
-				store.add(extCell.onDidChangeOutputs((diffs) => {
-					this.eventuallyUpdateCellOutputs(extCell, diffs);
-				}));
-
 				return extCell;
 			});
 
@@ -409,81 +253,69 @@ export class ExtHostNotebookDocument extends Disposable {
 				this._cellDisposableMapping.delete(this._cells[j].handle);
 			}
 
+			const changeEvent = new RawContentChangeEvent(splice[0], splice[1], [], newCells);
 			const deletedItems = this._cells.splice(splice[0], splice[1], ...newCells);
 			for (let cell of deletedItems) {
 				removedCellDocuments.push(cell.uri);
+				changeEvent.deletedItems.push(cell.cell);
 			}
 
-			contentChangeEvents.push(new RawContentChangeEvent(splice[0], splice[1], deletedItems, newCells));
+			contentChangeEvents.push(changeEvent);
 		});
 
-		this._documentsAndEditors.acceptDocumentsAndEditorsDelta({
+		this._textDocumentsAndEditors.acceptDocumentsAndEditorsDelta({
 			addedDocuments: addedCellDocuments,
 			removedDocuments: removedCellDocuments
 		});
 
 		if (!initialization) {
-			this._emitter.emitModelChange({
+			this._emitter.emitModelChange(deepFreeze({
 				document: this.notebookDocument,
-				changes: contentChangeEvents.map(RawContentChangeEvent.asApiEvent)
-			});
+				changes: RawContentChangeEvent.asApiEvents(contentChangeEvents)
+			}));
 		}
 	}
 
 	private _moveCell(index: number, newIdx: number): void {
 		const cells = this._cells.splice(index, 1);
 		this._cells.splice(newIdx, 0, ...cells);
-		const changes: vscode.NotebookCellsChangeData[] = [{
-			start: index,
-			deletedCount: 1,
-			deletedItems: cells.map(data => data.cell),
-			items: []
-		}, {
-			start: newIdx,
-			deletedCount: 0,
-			deletedItems: [],
-			items: cells.map(data => data.cell)
-		}];
-		this._emitter.emitModelChange({
+		const changes = [
+			new RawContentChangeEvent(index, 1, cells.map(c => c.cell), []),
+			new RawContentChangeEvent(newIdx, 0, [], cells)
+		];
+		this._emitter.emitModelChange(deepFreeze({
 			document: this.notebookDocument,
-			changes
-		});
+			changes: RawContentChangeEvent.asApiEvents(changes)
+		}));
 	}
 
-	private _setCellOutputs(index: number, outputs: IProcessedOutput[]): void {
+	private _setCellOutputs(index: number, outputs: IOutputDto[]): void {
 		const cell = this._cells[index];
 		cell.setOutputs(outputs);
-		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });
+		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.notebookDocument, cells: [cell.cell] }));
 	}
 
-	private _changeCellLanguage(index: number, language: string): void {
+	private _setCellOutputItems(index: number, outputId: string, append: boolean, outputItems: IOutputItemDto[]): void {
 		const cell = this._cells[index];
-		const event: vscode.NotebookCellLanguageChangeEvent = { document: this.notebookDocument, cell: cell.cell, language };
-		this._emitter.emitCellLanguageChange(event);
+		cell.setOutputItems(outputId, append, outputItems);
+		this._emitter.emitCellOutputsChange(deepFreeze({ document: this.notebookDocument, cells: [cell.cell] }));
+	}
+
+	private _changeCellLanguage(index: number, newModeId: string): void {
+		const cell = this._cells[index];
+		if (cell.cell.document.languageId !== newModeId) {
+			this._textDocuments.$acceptModelModeChanged(cell.uri, newModeId);
+		}
 	}
 
 	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata | undefined): void {
 		const cell = this._cells[index];
 		cell.setMetadata(newMetadata || {});
-		const event: vscode.NotebookCellMetadataChangeEvent = { document: this.notebookDocument, cell: cell.cell };
-		this._emitter.emitCellMetadataChange(event);
+		this._emitter.emitCellMetadataChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell }));
 	}
 
-	async eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<IProcessedOutput>[]) {
-		const outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
-			const outputs = diff.toInsert;
-			return [diff.start, diff.deleteCount, outputs];
-		});
-
-		if (!outputDtos.length) {
-			return;
-		}
-
-		await this._proxy.$spliceNotebookCellOutputs(this._viewType, this.uri, cell.handle, outputDtos);
-		this._emitter.emitCellOutputsChange({
-			document: this.notebookDocument,
-			cells: [cell.cell]
-		});
+	getCellFromIndex(index: number): ExtHostCell | undefined {
+		return this._cells[index];
 	}
 
 	getCell(cellHandle: number): ExtHostCell | undefined {

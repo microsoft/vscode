@@ -84,11 +84,11 @@
           "description": "%emmetExclude%"
         },
         "emmet.extensionsPath": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "default": null,
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
           "description": "%emmetExtensionsPath%"
         },
         "emmet.triggerExpansionOnTab": {
@@ -212,6 +212,16 @@
               "type": "number",
               "default": 0.3,
               "description": "%emmetPreferencesCssFuzzySearchMinScore%"
+            },
+            "output.reverseAttributes": {
+              "type": "boolean",
+              "default": false,
+              "description": "%emmetPreferencesOutputReverseAttributes%"
+            },
+            "css.color.short": {
+              "type": "boolean",
+              "default": true,
+              "description": "%emmetPreferencesCssColorShort%"
             }
           }
         },
@@ -228,11 +238,6 @@
       }
     },
     "commands": [
-      {
-        "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation",
-        "title": "%command.wrapIndividualLinesWithAbbreviation%",
-        "category": "Emmet"
-      },
       {
         "command": "editor.emmet.action.wrapWithAbbreviation",
         "title": "%command.wrapWithAbbreviation%",
@@ -352,9 +357,6 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "editor.emmet.action.wrapIndividualLinesWithAbbreviation"
-        },
-        {
           "command": "editor.emmet.action.wrapWithAbbreviation"
         },
         {
@@ -430,8 +432,7 @@
     "deps": "yarn add vscode-emmet-helper"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9",
-    "emmet": "https://github.com/rzhao271/emmet.git#1b2df677d8925ef5ea6da9df8845968403979a0a"
+    "@types/node": "^12.19.9"
   },
   "dependencies": {
     "@emmetio/abbreviation": "^2.2.0",
@@ -439,7 +440,7 @@
     "@emmetio/html-matcher": "^0.3.3",
     "@emmetio/math-expression": "^1.0.4",
     "image-size": "^0.5.2",
-    "vscode-emmet-helper": "2.2.4-3",
+    "vscode-emmet-helper": "^2.3.0",
     "vscode-languageserver-textdocument": "^1.0.1"
   }
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IEditorControl } from 'vs/workbench/common/editor';
 import { CompositeScope, CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -27,7 +27,6 @@ class TestViewlet implements IViewlet {
 	getActions(): IAction[] { return []; }
 	getSecondaryActions(): IAction[] { return []; }
 	getContextMenuActions(): IAction[] { return []; }
-	getActionViewItem(action: IAction): IActionViewItem { return null!; }
 	getControl(): IEditorControl { return null!; }
 	focus(): void { }
 	getOptimalWidth(): number { return 10; }

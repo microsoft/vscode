@@ -19,6 +19,63 @@
 						"type": "integer"
 					}
 				},
+				"portsAttributes": {
+					"type": "object",
+					"patternProperties": {
+						"^\\d+(\\-\\d+)?$": {
+							"type": "object",
+							"description": "A port, or range of ports (ex. \"40000-55000\") that the attributes should apply to",
+							"properties": {
+								"onAutoForward": {
+									"type": "string",
+									"enum": [
+										"notify",
+										"openBrowser",
+										"openPreview",
+										"silent",
+										"ignore"
+									],
+									"enumDescriptions": [
+										"Shows a notification when a port is automatically forwarded.",
+										"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
+										"Opens a preview in the same window when the port is automatically forwarded.",
+										"Shows no notification and takes no action when this port is automatically forwarded.",
+										"This port will not be automatically forwarded."
+									],
+									"description": "Defines the action that occurs when the port is discovered for automatic forwarding",
+									"default": "notify"
+								},
+								"elevateIfNeeded": {
+									"type": "boolean",
+									"description": "Automatically prompt for elevation (if needed) when this port is forwarded. Elevate is required if the local port is a privileged port.",
+									"default": false
+								},
+								"label": {
+									"type": "string",
+									"description": "Label that will be shown in the UI for this port.",
+									"default": "Labeled Port"
+								}
+							},
+							"default": {
+								"label": "Labeled Port",
+								"onAutoForward": "notify"
+							}
+						}
+					},
+					"markdownDescription": "Set default properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Labeled Port\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n}\n```",
+					"defaultSnippets": [
+						{
+							"body": {
+								"${1:3000}": {
+									"label": "${2:My Port}",
+									"onAutoForward": "notify"
+								}
+							}
+						}
+					],
+					"errorMessage": "Must be a port number or a range of port numbers",
+					"additionalProperties": false
+				},
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time."

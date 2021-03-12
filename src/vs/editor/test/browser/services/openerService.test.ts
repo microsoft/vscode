@@ -127,6 +127,20 @@ suite('OpenerService', function () {
 		assert.equal(openCount, 2);
 	});
 
+	test('links aren\'t manipulated before being passed to validator: PR #118226', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+
+		openerService.registerValidator({
+			shouldOpen: (resource) => {
+				// We don't want it to convert strings into URIs
+				assert.strictEqual(resource instanceof URI, false);
+				return Promise.resolve(false);
+			}
+		});
+		await openerService.open('https://wwww.microsoft.com');
+		await openerService.open('https://www.microsoft.com??params=CountryCode%3DUSA%26Name%3Dvscode"');
+	});
+
 	test('links validated by multiple validators', async function () {
 		const openerService = new OpenerService(editorService, commandService);
 

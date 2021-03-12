@@ -324,7 +324,7 @@ export async function createTask(packageManager: string, script: NpmTaskDefiniti
 		const result: (string | ShellQuotedString)[] = new Array(cmd.length);
 		for (let i = 0; i < cmd.length; i++) {
 			if (/\s/.test(cmd[i])) {
-				result[i] = { value: `${cmd[i]}`, quoting: ShellQuoting.Strong };
+				result[i] = { value: cmd[i], quoting: cmd[i].includes('--') ? ShellQuoting.Weak : ShellQuoting.Strong };
 			} else {
 				result[i] = cmd[i];
 			}
@@ -365,19 +365,8 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 }
 
 export async function hasPackageJson(): Promise<boolean> {
-	let folders = workspace.workspaceFolders;
-	if (!folders) {
-		return false;
-	}
-	for (const folder of folders) {
-		if (folder.uri.scheme === 'file') {
-			let packageJson = path.join(folder.uri.fsPath, 'package.json');
-			if (await exists(packageJson)) {
-				return true;
-			}
-		}
-	}
-	return false;
+	const files = await workspace.findFiles('**/package.json', undefined, 1);
+	return files.length > 0;
 }
 
 async function exists(file: string): Promise<boolean> {

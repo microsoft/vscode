@@ -43,7 +43,12 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			return {};
 		}
 
-		const debug = codeWindow.win.webContents.debugger;
+		const win = codeWindow.win;
+		if (!win) {
+			return {};
+		}
+
+		const debug = win.webContents.debugger;
 
 		let listeners = debug.isAttached() ? Infinity : 0;
 		const server = createServer(listener => {
@@ -61,7 +66,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
 				writeMessage(({ method, params, sessionId }));
 
-			codeWindow.win.on('close', () => {
+			win.on('close', () => {
 				debug.removeListener('message', onMessage);
 				listener.end();
 				closed = true;
@@ -103,7 +108,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		});
 
 		await new Promise<void>(r => server.listen(0, r));
-		codeWindow.win.on('close', () => server.close());
+		win.on('close', () => server.close());
 
 		return { rendererDebugPort: (server.address() as AddressInfo).port };
 	}

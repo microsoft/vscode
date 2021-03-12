@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -15,7 +15,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { localize } from 'vs/nls';
 import { FoldingRegion } from 'vs/editor/contrib/folding/foldingRanges';
 
@@ -23,11 +23,9 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 	static id: string = 'workbench.notebook.findController';
 
 	private _foldingModel: FoldingModel | null = null;
-	private _localStore: DisposableStore = new DisposableStore();
-	constructor(
-		private readonly _notebookEditor: INotebookEditor
+	private readonly _localStore = this._register(new DisposableStore());
 
-	) {
+	constructor(private readonly _notebookEditor: INotebookEditor) {
 		super();
 
 		this._register(this._notebookEditor.onMouseUp(e => { this.onMouseUp(e); }));
@@ -39,7 +37,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 				return;
 			}
 
-			this._localStore.add(this._notebookEditor.viewModel!.eventDispatcher.onDidChangeCellState(e => {
+			this._localStore.add(this._notebookEditor.viewModel.eventDispatcher.onDidChangeCellState(e => {
 				if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markdown) {
 					this._foldingModel?.recompute();
 					// this._updateEditorFoldingRanges();
@@ -48,7 +46,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 
 			this._foldingModel = new FoldingModel();
 			this._localStore.add(this._foldingModel);
-			this._foldingModel.attachViewModel(this._notebookEditor.viewModel!);
+			this._foldingModel.attachViewModel(this._notebookEditor.viewModel);
 
 			this._localStore.add(this._foldingModel.onDidFoldingRegionChanged(() => {
 				this._updateEditorFoldingRanges();
@@ -134,6 +132,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 			}
 
 			this.setFoldingStateUp(modelIndex, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed, 1);
+			this._notebookEditor.focusElement(cellViewModel);
 		}
 
 		return;
@@ -197,7 +196,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}
@@ -225,7 +224,7 @@ registerAction2(class extends Action2 {
 			}
 
 			const viewIndex = editor.viewModel!.getNearestVisibleCellIndexUpwards(index);
-			editor.selectElement(editor.viewModel!.viewCells[viewIndex]);
+			editor.focusElement(editor.viewModel!.viewCells[viewIndex]);
 		}
 	}
 });
@@ -281,7 +280,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
-		const editor = getActiveNotebookEditor(editorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor) {
 			return;
 		}

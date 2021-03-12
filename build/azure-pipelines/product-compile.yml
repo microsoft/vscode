@@ -50,6 +50,7 @@ steps:
     displayName: Extract node_modules cache
 
   - script: |
+      set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
@@ -136,3 +137,15 @@ steps:
       targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
       artifactName: Compilation
     displayName: Publish compilation artifact
+
+  - script: |
+      set -e
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+        yarn download-builtin-extensions-cg
+    displayName: Built-in extensions component details
+
+  - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+    displayName: "Component Detection"
+    inputs:
+      sourceScanPath: $(Build.SourcesDirectory)
+    continueOnError: true

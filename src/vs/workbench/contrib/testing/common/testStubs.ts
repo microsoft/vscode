@@ -3,26 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestItem, TestRunState, TestState } from 'vs/workbench/api/common/extHostTypes';
+import { TestItem, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
-export const stubTest = (label: string): TestItem => ({
-	label,
-	location: undefined,
-	state: new TestState(TestRunState.Unset),
-	debuggable: true,
-	runnable: true,
-	description: ''
-});
+export const stubTest = (label: string, idPrefix = 'id-', children: TestItem[] = []): TestItem => {
+	const t = new TestItem(idPrefix + label, label);
+	t.children = children;
+	return t;
+};
 
 export const testStubs = {
 	test: stubTest,
-	nested: () => ({
-		...stubTest('root'),
-		children: [
-			{ ...stubTest('a'), children: [stubTest('aa'), stubTest('ab')] },
-			stubTest('b'),
-		],
-	}),
+	nested: (idPrefix = 'id-') => stubTest('root', idPrefix, [
+		stubTest('a', idPrefix, [stubTest('aa', idPrefix), stubTest('ab', idPrefix)]),
+		stubTest('b', idPrefix),
+	]),
 };
 
-export const ReExportedTestRunState = TestRunState;
+export const ReExportedTestRunState = TestResult;

@@ -225,13 +225,16 @@ export class IconLabel extends Disposable {
 		let mouseX: number | undefined;
 		let isHovering = false;
 		let tokenSource: CancellationTokenSource;
+		let hoverDisposable: IDisposable | undefined;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
 			if (isHovering) {
 				return;
 			}
 			tokenSource = new CancellationTokenSource();
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
-				if ((<any>e).fromElement === htmlElement) {
+				if ((e.type === dom.EventType.MOUSE_DOWN) || (<any>e).fromElement === htmlElement) {
+					hoverDisposable?.dispose();
+					hoverDisposable = undefined;
 					isHovering = false;
 					hoverOptions = undefined;
 					tokenSource.dispose(true);
@@ -260,7 +263,7 @@ export class IconLabel extends Disposable {
 							target,
 							anchorPosition: AnchorPosition.BELOW
 						};
-						const hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+						hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 
 						const resolvedTooltip = (await tooltip(tokenSource.token)) ?? (!isString(markdownTooltip) ? markdownTooltip.markdownNotSupportedFallback : undefined);
 						if (resolvedTooltip) {
@@ -270,9 +273,10 @@ export class IconLabel extends Disposable {
 								anchorPosition: AnchorPosition.BELOW
 							};
 							// awaiting the tooltip could take a while. Make sure we're still hovering.
-							IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
+							hoverDisposable = IconLabel.adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 						} else if (hoverDisposable) {
 							hoverDisposable.dispose();
+							hoverDisposable = undefined;
 						}
 					}
 

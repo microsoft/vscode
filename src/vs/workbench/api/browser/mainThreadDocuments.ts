@@ -13,7 +13,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
@@ -47,8 +46,8 @@ export class BoundModelReferenceCollection {
 		}
 	}
 
-	add(uri: URI, ref: IReference<ITextEditorModel>): void {
-		const length = ref.object.textEditorModel.getValueLength();
+	add(uri: URI, ref: IReference<any>, length: number = 0): void {
+		// const length = ref.object.textEditorModel.getValueLength();
 		let handle: any;
 		let entry: { uri: URI, length: number, dispose(): void };
 		const dispose = () => {
@@ -203,12 +202,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
-		let { model, oldModeId } = event;
+		let { model } = event;
 		const modelUrl = model.uri;
 		if (!this._modelIsSynced.has(modelUrl.toString())) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, oldModeId, model.getLanguageIdentifier().language);
+		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageIdentifier().language);
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {
@@ -267,7 +266,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private _handleAsResourceInput(uri: URI): Promise<URI> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
-			this._modelReferenceCollection.add(uri, ref);
+			this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
 			return ref.object.textEditorModel.uri;
 		});
 	}

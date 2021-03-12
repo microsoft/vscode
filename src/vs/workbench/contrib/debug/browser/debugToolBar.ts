@@ -92,7 +92,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 
 			const actions: IAction[] = [];
-			const disposable = createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions, () => false);
+			const disposable = createAndFillInActionBarActions(this.debugToolBarMenu, { shouldForwardArgs: true }, actions);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -162,7 +162,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			});
 		}));
 
-		this._register(this.layoutService.onPartVisibilityChange(() => this.setYCoordinate()));
+		this._register(this.layoutService.onDidChangePartVisibility(() => this.setYCoordinate()));
 		this._register(browser.onDidChangeZoomLevel(() => this.setYCoordinate()));
 	}
 

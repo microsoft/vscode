@@ -198,16 +198,20 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 
 	private readonly _environment: IEnvironmentService = Object.create(null);
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
+	private _autoDetectHighContrast: boolean;
 	private _codiconCSS: string;
 	private _themeCSS: string;
 	private _allCSS: string;
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
 	private _colorMapOverride: Color[] | null;
+	private _desiredTheme!: IStandaloneTheme;
 	private _theme!: IStandaloneTheme;
 
 	constructor() {
 		super();
+
+		this._autoDetectHighContrast = true;
 
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
@@ -227,6 +231,10 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		iconsStyleSheet.onDidChange(() => {
 			this._codiconCSS = iconsStyleSheet.getCSS();
 			this._updateCSS();
+		});
+
+		window.matchMedia('(forced-colors: active)').addEventListener('change', () => {
+			this._updateActualTheme();
 		});
 	}
 
@@ -281,7 +289,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 				}
 			});
 		}
-		if (this._theme && this._theme.themeName === themeName) {
+		if (this._theme.themeName === themeName) {
 			this.setTheme(themeName); // refresh theme
 		}
 	}
@@ -295,20 +303,34 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._updateThemeOrColorMap();
 	}
 
-	public setTheme(themeName: string): string {
+	public setTheme(themeName: string): void {
 		let theme: StandaloneTheme;
 		if (this._knownThemes.has(themeName)) {
 			theme = this._knownThemes.get(themeName)!;
 		} else {
 			theme = this._knownThemes.get(VS_THEME_NAME)!;
 		}
+		this._desiredTheme = theme;
+		this._updateActualTheme();
+	}
+
+	private _updateActualTheme(): void {
+		const theme = (
+			this._autoDetectHighContrast && window.matchMedia(`(forced-colors: active)`).matches
+				? this._knownThemes.get(HC_BLACK_THEME_NAME)!
+				: this._desiredTheme
+		);
 		if (this._theme === theme) {
 			// Nothing to do
-			return theme.id;
+			return;
 		}
 		this._theme = theme;
 		this._updateThemeOrColorMap();
-		return theme.id;
+	}
+
+	public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
+		this._autoDetectHighContrast = autoDetectHighContrast;
+		this._updateActualTheme();
 	}
 
 	private _updateThemeOrColorMap(): void {

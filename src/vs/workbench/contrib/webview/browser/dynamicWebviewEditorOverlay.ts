@@ -60,10 +60,13 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		return !!this._webview.value?.isFocused;
 	}
 
+	private _isDisposed = false;
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public onDidDispose = this._onDidDispose.event;
 
 	dispose() {
+		this._isDisposed = true;
 		this.container.remove();
 		this._onDidDispose.fire();
 		super.dispose();
@@ -138,6 +141,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	}
 
 	private show() {
+		if (this._isDisposed) {
+			throw new Error('Webview overlay is disposed');
+		}
+
 		if (!this._webview.value) {
 			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;

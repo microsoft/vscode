@@ -27,13 +27,10 @@
 	margin-left: 0;
 }
 
-/* TODO @misolori make this a color token */
-.extension-ratings .codicon-extensions-star-full,
-.extension-ratings .codicon-extensions-star-half {
-	color: #FF8E00 !important;
-}
-
 .extension-install-count .codicon,
+.extension-action.codicon-extensions-info-message,
+.extension-action.codicon-extensions-warning-message,
+.extension-action.codicon-extension-workspace-trust,
 .extension-action.codicon-extensions-manage {
 	color: inherit;
 }

@@ -400,7 +400,7 @@ suite('UserDataSyncService', () => {
 
 
 		const syncTask = (await testObject.createSyncTask());
-		syncTask.run();
+		syncTask.run().then(null, () => null /* ignore error */);
 		await syncTask.stop();
 
 		assert.deepEqual(testObject.status, SyncStatus.Idle);

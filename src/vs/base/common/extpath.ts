@@ -28,7 +28,6 @@ export function toSlashes(osPath: string) {
  * or `getRoot('\\server\shares\path') === \\server\shares\`
  */
 export function getRoot(path: string, sep: string = posix.sep): string {
-
 	if (!path) {
 		return '';
 	}

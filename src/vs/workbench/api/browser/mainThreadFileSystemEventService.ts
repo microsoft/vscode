@@ -129,13 +129,13 @@ export class MainThreadFileSystemEventService {
 						}
 					} else {
 						if (operation === FileOperation.CREATE) {
-							message = localize('ask.N.create', "{0} extensions want to make refactoring changes with this file creation", data.extensionNames.length);
+							message = localize({ key: 'ask.N.create', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file creation", data.extensionNames.length);
 						} else if (operation === FileOperation.COPY) {
-							message = localize('ask.N.copy', "{0} extensions want to make refactoring changes with this file copy", data.extensionNames.length);
+							message = localize({ key: 'ask.N.copy', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file copy", data.extensionNames.length);
 						} else if (operation === FileOperation.MOVE) {
-							message = localize('ask.N.move', "{0} extensions want to make refactoring changes with this file move", data.extensionNames.length);
+							message = localize({ key: 'ask.N.move', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file move", data.extensionNames.length);
 						} else /* if (operation === FileOperation.DELETE) */ {
-							message = localize('ask.N.delete', "{0} extensions want to make refactoring changes with this file deletion", data.extensionNames.length);
+							message = localize({ key: 'ask.N.delete', comment: ['{0} is a number, e.g "3 extensions want..."'] }, "{0} extensions want to make refactoring changes with this file deletion", data.extensionNames.length);
 						}
 					}
 
