@@ -12,6 +12,7 @@ import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -50,6 +51,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private headerDescription!: HTMLElement;
 	private headerButtons!: HTMLElement;
 
+	private bodyScrollBar!: DomScrollableElement;
+
 	// Affected Features Section
 	private affectedFeaturesContainer!: HTMLElement;
 	private extensionsContainer!: HTMLElement;
@@ -76,8 +79,17 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '-1' }));
 
 		this.createHeaderElement(this.rootElement);
-		this.createAffectedFeaturesElement(this.rootElement);
-		this.createConfigurationElement(this.rootElement);
+
+		const scrollableContent = $('.workspace-trust-editor-body');
+		this.bodyScrollBar = this._register(new DomScrollableElement(scrollableContent, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Visible,
+		}));
+
+		append(this.rootElement, this.bodyScrollBar.getDomNode());
+
+		this.createAffectedFeaturesElement(scrollableContent);
+		this.createConfigurationElement(scrollableContent);
 
 		this._register(attachStylerCallback(this.themeService, { trustedForegroundColor, untrustedForegroundColor }, colors => {
 			this.rootElement.style.setProperty('--workspace-trust-state-trusted-color', colors.trustedForegroundColor?.toString() || '');
@@ -226,6 +238,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		// Configuration Tree
 		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
+
+		this.bodyScrollBar.scanDomNode();
 	}
 
 	private async getExtensionsByTrustRequirement(extensions: IExtensionStatus[], trustRequirement: ExtensionWorkspaceTrustRequirement): Promise<IExtension[]> {
@@ -321,13 +335,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 			return;
 		}
 
-		const listHeight = dimension.height - this.configurationContainer.offsetTop;
-		this.configurationContainer.style.height = `${listHeight}`;
-
-		this.trustSettingsTree.layout(listHeight, dimension.width);
+		this.trustSettingsTree.layout(dimension.height, dimension.width);
 
 		this.layoutParticipants.forEach(participant => {
 			participant.layout();
 		});
+
+		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
+
+		this.bodyScrollBar.scanDomNode();
 	}
 }

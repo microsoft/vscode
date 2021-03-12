@@ -14,6 +14,7 @@
 	padding-left: 15px;
 	padding-right: 15px;
 	margin: auto;
+	height: calc(100% - 11px);
 }
 
 .workspace-trust-editor > .workspace-trust-header {
@@ -82,25 +83,29 @@
 	padding-bottom: 5px;
 }
 
+.workspace-trust-editor .workspace-trust-editor-body {
+	height: 100%;
+}
+
 /** Features List */
-.workspace-trust-editor > .workspace-trust-features {
+.workspace-trust-editor .workspace-trust-features {
 	padding: 14px;
 	cursor: default;
 	user-select: text;
 }
 
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extensions-list {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extensions-list {
 	padding-bottom: 10px;
 }
 
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extension-list-title {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-title {
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 32px;
 }
 
 
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extension-list-description {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-description {
 	padding-bottom: 15px;
 }
 
@@ -134,23 +139,23 @@
 }
 
 
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extension-list-entry {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry {
 	display: flex;
 	margin-bottom: 10px;
 	align-items: center;
 }
 
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-text {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-text {
 	display: flex;
 	flex-direction: column;
 	margin-left: 5px;
 }
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon,
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon .icon {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon,
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon .icon {
 	height: 42px;
 }
 
-.workspace-trust-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-name {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-name {
 	font-weight: 600;
 }
 

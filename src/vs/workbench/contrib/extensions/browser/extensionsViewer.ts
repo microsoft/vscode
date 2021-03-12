@@ -44,7 +44,7 @@ export class ExtensionsGridView extends Disposable {
 		this.element = dom.append(parent, dom.$('.extensions-grid-view'));
 		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None });
 		this.delegate = new Delegate();
-		this.disposableStore = new DisposableStore();
+		this.disposableStore = this._register(new DisposableStore());
 	}
 
 	setExtensions(extensions: IExtension[]): void {
