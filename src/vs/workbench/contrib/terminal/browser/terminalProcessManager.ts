@@ -29,7 +29,6 @@ import { URI } from 'vs/base/common/uri';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
-import { timeout } from 'vs/base/common/async';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -74,7 +73,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _hasWrittenData: boolean = false;
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
-	private _relaunchRecorder: TerminalRecorder | undefined;
+	private _dataFilter: SeamlessRelaunchDataFilter;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
@@ -135,15 +134,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 		this.getLatency();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
-		// TODO: Fix resize - we don't want to consider these events
-		this._relaunchRecorder = new TerminalRecorder(80, 30);
-		const relaunchDisposable = this.onProcessData(e => this._relaunchRecorder?.recordData('data' in e ? e.data : e));
-		// setTimeout(() => {
-		// 	const replay = this._relaunchRecorder?.generateReplayEvent();
-		// 	const dataEvents = replay?.events.filter(e => !!e.data);
-		// 	console.log('data events', dataEvents);
-		// relaunchDisposable.dispose();
-		// }, 5000);
+		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
+		this._dataFilter.onProcessData(ev => {
+			const data = (typeof ev === 'string' ? ev : ev.data);
+			const sync = (typeof ev === 'string' ? false : ev.sync);
+			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
+			this._onBeforeProcessData.fire(beforeProcessDataEvent);
+			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
+				this._onProcessData.fire({ data: beforeProcessDataEvent.data, sync });
+			}
+		});
 	}
 
 	public dispose(immediate: boolean = false): void {
@@ -169,7 +169,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
-		isScreenReaderModeEnabled: boolean
+		isScreenReaderModeEnabled: boolean,
+		reset: boolean = true
 	): Promise<ITerminalLaunchError | undefined> {
 		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			this._processType = ProcessType.ExtensionTerminal;
@@ -250,19 +251,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		this.processState = ProcessState.LAUNCHING;
 
-		this._process.onProcessData(ev => {
-			const data = (typeof ev === 'string' ? ev : ev.data);
-			const sync = (typeof ev === 'string' ? false : ev.sync);
-			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
-			this._onBeforeProcessData.fire(beforeProcessDataEvent);
-			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire({ data: beforeProcessDataEvent.data, sync });
-			}
-		});
-
-		// TODO: Fix resize - we don't want to consider these events
-		this._relaunchRecorder = new TerminalRecorder(80, 30);
-		const relaunchDisposable = this.onProcessData(e => this._relaunchRecorder?.recordData('data' in e ? e.data : e));
+		this._dataFilter.newProcess(this._process, reset);
 
 		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
 			this.shellProcessId = e.pid;
@@ -301,7 +290,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return undefined;
 	}
 
-	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined> {
+	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
+		console.log('time', performance.now());
 		this.ptyProcessReady = new Promise<void>(c => {
 			this.onProcessReady(() => {
 				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
@@ -309,34 +299,47 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			});
 		});
 		console.log('relaunch!');
-		const lastRecorder = this._relaunchRecorder;
-		const process = this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled);
-		if (!lastRecorder) {
-			return process;
-		}
+		// this._relaunchDisposable?.dispose();
+		// this._relaunchDisposable = undefined;
+		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
 
-		await timeout(3000);
+		// if (!reset || !this._relaunchRecorder) {
+		// 	return process;
+		// }
+		// const initialData = this._getDataFromRecorder(this._relaunchRecorder);
 
-		if (!this._relaunchRecorder) {
-			return process;
-		}
-		const firstReplay = lastRecorder.generateReplayEvent();
-		const firstData = firstReplay.events.filter(e => !!e.data).map(e => e.data).join('');
-		const secondReplay = this._relaunchRecorder.generateReplayEvent();
-		const secondData = secondReplay.events.filter(e => !!e.data).map(e => e.data).join('');
-
-		console.log('first data', firstData);
-		console.log('secondReplay events', secondReplay.events);
-		console.log('second data', secondData);
-		console.log('equal?', firstData === secondData);
-		if (firstData !== secondData) {
-			console.log('not equal, replaying instantly after 2 seconds');
-			await timeout(2000);
-			// Fire full reset (RIS) followed by the new data so the update happens in the same frame
-			this._onProcessData.fire({ data: `\x1bc${secondData}2`, sync: false });
-		}
-		return process;
+		// await timeout(3000);
+		// this._swapProcesses(initialData);
+		// return process;
 	}
+
+	// private _getDataFromRecorder(recorder: TerminalRecorder): string {
+	// 	return recorder.generateReplayEvent().events.filter(e => !!e.data).map(e => e.data).join('');
+	// }
+
+	// private _swapProcesses(initialData: string) {
+	// 	// TODO: Trigger immediately on input
+	// 	// TODO: Is this right? What can unset this?
+	// 	if (!this._relaunchRecorder) {
+	// 		return process;
+	// 	}
+	// 	const secondReplay = this._relaunchRecorder.generateReplayEvent();
+	// 	const secondData = secondReplay.events.filter(e => !!e.data).map(e => e.data).join('');
+
+	// 	console.log('first data', initialData);
+	// 	console.log('secondReplay events', secondReplay.events);
+	// 	console.log('second data', secondData);
+	// 	console.log('equal?', initialData === secondData);
+	// 	// Re-write the terminal if the data differs
+	// 	if (initialData === secondData) {
+	// 		this._logService.trace(`Relaunching terminal "${this._instanceId}" to update environment - identical content`);
+	// 	} else {
+	// 		this._logService.trace(`Relaunching terminal "${this._instanceId}" to update environment - resetting content`);
+	// 		// Fire full reset (RIS) followed by the new data so the update happens in the same frame
+	// 		this._onProcessData.fire({ data: `\x1bc${secondData}`, sync: false });
+	// 	}
+	// 	return process;
+	// }
 
 	// Fetch any extension environment additions and apply them
 	private async _setupEnvVariableInfo(activeWorkspaceRootUri: URI | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<platform.IProcessEnvironment> {
@@ -474,6 +477,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	public async write(data: string): Promise<void> {
 		await this.ptyProcessReady;
+		this._dataFilter.triggerSwap();
 		this._hasWrittenData = true;
 		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
 			if (this._process) {
@@ -557,5 +561,161 @@ class AckDataBufferer {
 			this._unsentCharCount -= FlowControlConstants.CharCountAckSize;
 			this._callback(FlowControlConstants.CharCountAckSize);
 		}
+	}
+}
+
+const enum SeamlessRelaunchConstants {
+	/**
+	 * How long to record data events for new terminals.
+	 */
+	RecordTerminalDuration = 10000,
+	/**
+	 * The maximum duration after a relaunch occurs to trigger a swap.
+	 */
+	SwapWaitMaximumDuration = 3000
+
+	// TODO: Need 2 times: How long to hold onto the first recorder for and how long to wait until diffing the 2 procs
+}
+
+/**
+ * Filters data events from the process and supports seamlessly restarting swapping out the process
+ * with another, delaying the swap in output in order to minimize flickering/clearing of the
+ * terminal.
+ */
+class SeamlessRelaunchDataFilter extends Disposable {
+	private _firstRecorder?: TerminalRecorder;
+	private _secondRecorder?: TerminalRecorder;
+	private _firstDisposable?: IDisposable;
+	private _secondDisposable?: IDisposable;
+	private _dataListener?: IDisposable;
+	private _activeProcess?: ITerminalChildProcess;
+
+	private _recordingTimeout?: number;
+	private _swapTimeout?: number;
+
+	private readonly _onProcessData = this._register(new Emitter<string | IProcessDataEvent>());
+	public get onProcessData(): Event<string | IProcessDataEvent> { return this._onProcessData.event; }
+
+	constructor(
+		@ILogService private readonly _logService: ILogService
+	) {
+		super();
+	}
+
+	newProcess(process: ITerminalChildProcess, reset: boolean) {
+		// TODO: Disable recorder for reconnected terminals
+		this._activeProcess = process;
+
+		// Stop listening to the old process
+		this._dataListener?.dispose();
+
+		// If the process is new, relaunch has timed out or the terminal should not reset, start
+		// listening and firing data events immediately
+		console.log('relaunch newProcess', this._firstRecorder, reset);
+		if (!this._firstRecorder || !reset) {
+			this._firstDisposable?.dispose();
+			[this._firstRecorder, this._firstDisposable] = this._createRecorder(process);
+			this._dataListener = process.onProcessData(e => this._onProcessData.fire(e));
+			if (this._recordingTimeout) {
+				window.clearTimeout(this._recordingTimeout);
+			}
+			this._recordingTimeout = window.setTimeout(() => this._stopRecording(), SeamlessRelaunchConstants.RecordTerminalDuration);
+			return;
+		}
+
+		// Trigger a swap if there was a recent relaunch
+		if (this._secondRecorder) {
+			this.triggerSwap();
+		}
+
+		this._swapTimeout = window.setTimeout(() => this.triggerSwap(), SeamlessRelaunchConstants.SwapWaitMaximumDuration);
+
+		// Pause all outgoing data events
+		this._dataListener?.dispose();
+
+		this._firstDisposable?.dispose();
+		const recorder = this._createRecorder(process);
+		[this._secondRecorder, this._secondDisposable] = recorder;
+	}
+
+	/**
+	 * Trigger the swap of the processes if needed (eg. timeout, input)
+	 */
+	triggerSwap() {
+		console.trace('trigger swap');
+		// Clear the swap timeout if it exists
+		if (this._swapTimeout) {
+			window.clearTimeout(this._swapTimeout);
+			this._swapTimeout = undefined;
+		}
+
+		// Do nothing if there's nothing being recorder
+		if (!this._firstRecorder) {
+			console.log('no first');
+			return;
+		}
+
+		// Clear the first recorder if no second process was attached before the swap trigger
+		if (!this._secondRecorder) {
+			console.log('no second');
+			this._firstRecorder = undefined;
+			this._firstDisposable?.dispose();
+			return;
+		}
+
+		// Generate data for each recorder
+		const firstData = this._getDataFromRecorder(this._firstRecorder);
+		const secondData = this._getDataFromRecorder(this._secondRecorder);
+
+		// Re-write the terminal if the data differs
+		if (firstData === secondData) {
+			this._logService.trace(`Relaunching terminal to update environment - identical content`);
+		} else {
+			this._logService.trace(`Relaunching terminal to update environment - resetting content`);
+			// Fire full reset (RIS) followed by the new data so the update happens in the same frame
+			this._onProcessData.fire({ data: `\x1bc${secondData}`, sync: false });
+		}
+
+		// Set up the new data listener
+		this._dataListener?.dispose();
+		this._dataListener = this._activeProcess!.onProcessData(e => this._onProcessData.fire(e));
+
+		// Replace first recorder with second
+		this._firstRecorder = this._secondRecorder;
+		this._firstDisposable?.dispose();
+		this._firstDisposable = this._secondDisposable;
+		if (this._recordingTimeout) {
+			window.clearTimeout(this._recordingTimeout);
+		}
+		this._recordingTimeout = window.setTimeout(() => this._stopRecording(), SeamlessRelaunchConstants.RecordTerminalDuration);
+	}
+
+	private _stopRecording() {
+		// Continue recording if a swap is coming
+		if (this._swapTimeout) {
+			return;
+		}
+
+		// Clear the timeout
+		if (this._recordingTimeout) {
+			window.clearTimeout(this._recordingTimeout);
+			this._recordingTimeout = undefined;
+		}
+
+		// Stop recording
+		this._firstRecorder = undefined;
+		this._firstDisposable?.dispose();
+		this._secondRecorder = undefined;
+		this._secondDisposable?.dispose();
+	}
+
+	private _createRecorder(process: ITerminalChildProcess): [TerminalRecorder, IDisposable] {
+		const recorder = new TerminalRecorder(0, 0);
+		const disposable = process.onProcessData(e => recorder.recordData(typeof e === 'string' ? e : e.data));
+		return [recorder, disposable];
+	}
+
+	private _getDataFromRecorder(recorder: TerminalRecorder): string {
+		return recorder.generateReplayEvent().events.filter(e => !!e.data).map(e => e.data).join('');
 	}
 }
