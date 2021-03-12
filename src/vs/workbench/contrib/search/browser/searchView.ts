@@ -715,7 +715,7 @@ export class SearchView extends ViewPane {
 				accessibilityProvider: this.treeAccessibilityProvider,
 				dnd: this.instantiationService.createInstance(SearchDND),
 				multipleSelectionSupport: false,
-				openOnFocus: true,
+				selectionNavigation: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				}
