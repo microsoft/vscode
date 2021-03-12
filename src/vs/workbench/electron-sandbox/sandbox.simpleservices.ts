@@ -15,8 +15,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -151,7 +149,7 @@ export const simpleFileSystemProvider = new SimpleFileSystemProvider();
 simpleFileSystemProvider.mkdir(userDataDir);
 
 function createWorkspaceFile(parent: string, name: string, content: string = ''): void {
-	simpleFileSystemProvider.writeFile(joinPath(simpleWorkspace.uri, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true });
+	simpleFileSystemProvider.writeFile(joinPath(simpleWorkspace.uri, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true, unlock: false });
 }
 
 function createWorkspaceFolder(name: string): void {
@@ -366,17 +364,6 @@ class SimpleWebviewService implements IWebviewService {
 }
 
 registerSingleton(IWebviewService, SimpleWebviewService);
-
-//#endregion
-
-
-//#region Textfiles
-
-class SimpleTextFileService extends AbstractTextFileService {
-	declare readonly _serviceBrand: undefined;
-}
-
-registerSingleton(ITextFileService, SimpleTextFileService);
 
 //#endregion
 
