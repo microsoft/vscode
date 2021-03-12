@@ -22,8 +22,8 @@ suite('NotebookSelection', () => {
 suite('NotebookCellList focus/selection', () => {
 	const instantiationService = setupInstantiationService();
 
-	test('notebook cell list setFocus', function () {
-		withTestNotebook(
+	test('notebook cell list setFocus', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
@@ -43,8 +43,8 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
-	test('notebook cell list setSelections', function () {
-		withTestNotebook(
+	test('notebook cell list setSelections', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
@@ -65,8 +65,8 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
-	test('notebook cell list setFocus', function () {
-		withTestNotebook(
+	test('notebook cell list setFocus', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
@@ -89,8 +89,8 @@ suite('NotebookCellList focus/selection', () => {
 	});
 
 
-	test('notebook cell list focus/selection from UI', function () {
-		withTestNotebook(
+	test('notebook cell list focus/selection from UI', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
@@ -108,8 +108,8 @@ suite('NotebookCellList focus/selection', () => {
 				// arrow down, move both focus and selections
 				cellList.setFocus([1], new KeyboardEvent('keydown'), undefined);
 				cellList.setSelection([1], new KeyboardEvent('keydown'), undefined);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 
 				// shift+arrow down, expands selection
 				cellList.setFocus([2], new KeyboardEvent('keydown'), undefined);
@@ -125,8 +125,8 @@ suite('NotebookCellList focus/selection', () => {
 	});
 
 
-	test('notebook cell list focus/selection with folding regions', function () {
-		withTestNotebook(
+	test('notebook cell list focus/selection with folding regions', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
@@ -198,8 +198,8 @@ suite('NotebookCellList focus/selection', () => {
 	});
 
 
-	test('notebook validate range', () => {
-		withTestNotebook(
+	test('notebook validate range', async () => {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
@@ -218,8 +218,8 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
-	test('notebook updateSelectionState', function () {
-		withTestNotebook(
+	test('notebook updateSelectionState', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
@@ -231,8 +231,8 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
-	test('notebook cell selection w/ cell deletion', function () {
-		withTestNotebook(
+	test('notebook cell selection w/ cell deletion', async function () {
+		await withTestNotebook(
 			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
