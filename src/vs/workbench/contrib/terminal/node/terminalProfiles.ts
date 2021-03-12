@@ -10,6 +10,7 @@ import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
+import * as cp from 'child_process';
 
 export interface IStatProvider {
 	stat(path: string): boolean,
@@ -34,7 +35,7 @@ async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promi
 		useWSLexe = true;
 	}
 
-	const expectedLocations: { [key: string]: string[] } = {
+	let expectedLocations: { [key: string]: string[] } = {
 		'Command Prompt': [`${system32Path}\\cmd.exe`],
 		'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 		'Git Bash': [
@@ -57,16 +58,32 @@ async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promi
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key], statProvider)));
 	const shells = await Promise.all(promises);
-	//TODO@meganrogge fix this up
+	let output = '';
+	cp.exec('wsl.exe -l', (err, stdout) => {
+		output = stdout;
+	});
+	let wslDistros: string[] = [];
+	if (output && output.length > 0) {
+		let wslArgs = ' -d ';
+		output.split('\n').forEach(distro => {
+			cp.exec(`wsl.exe -d ${distro}`, (err, stdout) => {
+				wslArgs += stdout;
+				wslDistros.push(wslArgs);
+			});
+		});
+	}
 	let cygwin = shells.find(shell => shell?.profileName === 'Cygwin');
-	let wsl = shells.find(shell => shell?.path.endsWith('wsl.exe'));
+	let wslShells = shells.filter(shell => shell?.path.endsWith('wsl.exe'));
 	let bashZsh = shells.find(shell => shell?.profileName === 'Git Bash' || shell?.path.endsWith('zsh.exe'));
 	if (cygwin) {
 		cygwin.args = ['-l'];
-	} else if (wsl) {
-		wsl.args = ['-l'];
 	} else if (bashZsh) {
 		bashZsh.args = ['--login'];
+	} else if (wslShells && useWSLexe && wslShells.length > 0 && wslDistros.length > 0) {
+		// to do check the order is correct
+		for (let i = 0; i < wslDistros.length; i++) {
+			wslShells[i]!.args = [wslDistros[i]];
+		}
 	}
 	return coalesce(shells);
 }
@@ -125,4 +142,16 @@ async function validateShellPaths(label: string, potentialPaths: string[], statP
 		}
 	}
 	return validateShellPaths(label, potentialPaths, statProvider);
+}
+
+export function createStatProvider(expectedPaths: string[]): IStatProvider {
+	const provider = {
+		stat(path: string) {
+			return expectedPaths.includes(path);
+		},
+		lstat(path: string) {
+			return expectedPaths.includes(path);
+		}
+	};
+	return provider;
 }

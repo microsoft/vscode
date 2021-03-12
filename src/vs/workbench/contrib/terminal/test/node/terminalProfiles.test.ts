@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { detectAvailableShells, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
+import { createStatProvider, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
 
 suite('Workbench - TerminalProfiles', () => {
@@ -40,15 +40,3 @@ suite('Workbench - TerminalProfiles', () => {
 		}
 	});
 });
-
-function createStatProvider(expectedPaths: string[]): IStatProvider {
-	const provider = {
-		stat(path: string) {
-			return expectedPaths.includes(path);
-		},
-		lstat(path: string) {
-			return expectedPaths.includes(path);
-		}
-	};
-	return provider;
-}
