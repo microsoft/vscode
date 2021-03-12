@@ -17,7 +17,8 @@
   "activationEvents": [
     "*",
     "onAuthenticationRequest:gitpod",
-    "onAuthenticationRequest:github"
+    "onAuthenticationRequest:github",
+    "onCommand:gitpod.api.preview"
   ],
   "main": "./out/extension.js",
   "contributes": {

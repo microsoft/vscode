@@ -398,6 +398,9 @@ export async function activate(context: vscode.ExtensionContext) {
 			openPreview(port);
 		}
 	}));
+	context.subscriptions.push(vscode.commands.registerCommand('gitpod.api.preview', (url: string) =>
+		previewUrl(url)
+	));
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.ports.openBrowser', (port: GitpodWorkspacePort) => {
 		if (isExposedServedGitpodWorkspacePort(port)) {
 			vscode.env.openExternal(vscode.Uri.parse(port.status.exposed.url));
@@ -465,7 +468,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 	async function openPreview(port: ExposedServedGitpodWorkspacePort): Promise<void> {
-		await vscode.commands.executeCommand('simpleBrowser.api.open', port.status.exposed.url, {
+		await previewUrl(port.status.exposed.url);
+	}
+	async function previewUrl(url: string): Promise<void> {
+		await vscode.commands.executeCommand('simpleBrowser.api.open', url, {
 			viewColumn: vscode.ViewColumn.Beside,
 			preserveFocus: true
 		});
