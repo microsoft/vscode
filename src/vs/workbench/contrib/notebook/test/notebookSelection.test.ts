@@ -88,6 +88,43 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
+
+	test('notebook cell list focus/selection from UI', function () {
+		withTestNotebook(
+			instantiationService,
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markdown, [], {}]
+			],
+			(editor, viewModel) => {
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
+
+				// arrow down, move both focus and selections
+				cellList.setFocus([1], new KeyboardEvent('keydown'), undefined);
+				cellList.setSelection([1], new KeyboardEvent('keydown'), undefined);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }]);
+
+				// shift+arrow down, expands selection
+				cellList.setFocus([2], new KeyboardEvent('keydown'), undefined);
+				cellList.setSelection([1, 2]);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
+
+				// arrow down, will move focus but not expand selection
+				cellList.setFocus([3], new KeyboardEvent('keydown'), undefined);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 3, end: 4 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
+			});
+	});
+
+
 	test('notebook cell list focus/selection with folding regions', function () {
 		withTestNotebook(
 			instantiationService,
