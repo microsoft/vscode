@@ -566,6 +566,23 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
+	 * Get the view index of a cell
+	 */
+	getViewIndex(cell: ICellViewModel): number;
+
+	/**
+	 * @param startIndex Inclusive
+	 * @param endIndex Exclusive
+	 */
+	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined;
+
+	/**
+	 * @param startIndex Inclusive
+	 * @param endIndex Exclusive
+	 */
+	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[];
+
+	/**
 	 * Set hidden areas on cell text models.
 	 */
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
@@ -634,6 +651,9 @@ export interface INotebookCellList {
 	attachViewModel(viewModel: NotebookViewModel): void;
 	clear(): void;
 	getViewIndex(cell: ICellViewModel): number | undefined;
+	getViewIndex2(modelIndex: number): number | undefined;
+	getModelIndex(cell: CellViewModel): number | undefined;
+	getModelIndex2(viewIndex: number): number | undefined;
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];

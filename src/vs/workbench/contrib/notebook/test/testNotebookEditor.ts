@@ -67,6 +67,15 @@ export class TestNotebookEditor implements INotebookEditor {
 	creationOptions: INotebookEditorCreationOptions = { isEmbedded: false };
 
 	constructor(readonly viewModel: NotebookViewModel) { }
+	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
+		throw new Error('Method not implemented.');
+	}
+	getViewIndex(cell: ICellViewModel): number {
+		throw new Error('Method not implemented.');
+	}
+	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
+		throw new Error('Method not implemented.');
+	}
 
 	getFocus(): ICellRange | undefined {
 		throw new Error('Method not implemented.');

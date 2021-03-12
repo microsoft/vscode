@@ -170,6 +170,34 @@ suite('NotebookCellList focus/selection', () => {
 			});
 	});
 
+	test('notebook cell list view/model api', function () {
+		withTestNotebook(
+			instantiationService,
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['# header c', 'markdown', CellKind.Markdown, [], {}]
+			],
+			(editor, viewModel) => {
+				const foldingModel = new FoldingModel();
+				foldingModel.attachViewModel(viewModel);
+
+				const cellList = createNotebookCellList(instantiationService);
+				cellList.attachViewModel(viewModel);
+
+				updateFoldingStateAtIndex(foldingModel, 0, true);
+				updateFoldingStateAtIndex(foldingModel, 2, true);
+
+				assert.deepStrictEqual(cellList.getModelIndex2(-1), undefined);
+				assert.deepStrictEqual(cellList.getModelIndex2(0), 0);
+				assert.deepStrictEqual(cellList.getModelIndex2(1), 2);
+				assert.deepStrictEqual(cellList.getModelIndex2(2), 4);
+			});
+	});
+
+
 	test('notebook validate range', () => {
 		withTestNotebook(
 			instantiationService,
