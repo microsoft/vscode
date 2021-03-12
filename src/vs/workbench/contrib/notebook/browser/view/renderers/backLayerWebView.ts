@@ -1107,9 +1107,6 @@ var requirejs = (function() {
 				contentVersion: contentVersion,
 				top: cellTop
 			});
-
-		} else {
-			console.log('skip');
 		}
 
 		entry.visible = true;
