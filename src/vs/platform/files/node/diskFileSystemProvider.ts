@@ -214,9 +214,9 @@ export class DiskFileSystemProvider extends Disposable implements
 			// Determine wether to unlock the file (write only)
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
 				try {
-					const { stat } = await SymlinkSupport.stat(this.toFilePath(resource));
+					const { stat } = await SymlinkSupport.stat(filePath);
 					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-						await promises.chmod(resource.fsPath, stat.mode | 0o200);
+						await promises.chmod(filePath, stat.mode | 0o200);
 					}
 				} catch (error) {
 					this.logService.trace(error); // ignore any errors here and try to just write
