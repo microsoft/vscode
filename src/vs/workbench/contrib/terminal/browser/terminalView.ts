@@ -373,6 +373,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onInstanceTitleChanged(async () => await this._updateItems(), this));
 		this._register(_terminalService.onTabDisposed(async () => await this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(async () => await this._updateItems(), this));
+		this._register(_terminalService.onProfilesConfigChanged(async () => await this._updateItems(), this));
 		this._register(_terminalService.onRequestAvailableProfiles(async () => await this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
@@ -444,20 +445,16 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 async function getProfileSelectOptionItems(terminalService: ITerminalService): Promise<ISelectOptionItem[]> {
 	const detectedProfiles = await terminalService.getAvailableProfiles();
 	const userProfiles = terminalService.configHelper.config.profiles;
-	const customProfiles = (platform.isWindows ? userProfiles.windows : platform.isIOS ? userProfiles.osx : userProfiles.linux);
+	const profileConfig = (platform.isWindows ? userProfiles.windows : platform.isIOS ? userProfiles.osx : userProfiles.linux);
 	let labels: ISelectOptionItem[] = [];
-	if (customProfiles && customProfiles.length > 0) {
-		labels = customProfiles.map(shell => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
-	} else if (detectedProfiles) {
-		const profilesToDisplay = platform.isWindows ? ['Git Bash', 'Command Prompt', 'PowerShell', 'Cygwin', 'WSL Bash'] : ['bash', 'zsh', 'fish', 'tmux'];
-		const hasOnlyWindowsPowershell = detectedProfiles?.find(t => t.profileName === 'Windows PowerShell') && !detectedProfiles?.find(t => t.profileName.toLowerCase() === 'powershell');
-		if (hasOnlyWindowsPowershell) {
-			// fall back since this is the only powershell installed
-			profilesToDisplay.push('Windows PowerShell');
+	const profilesToDisplay = profileConfig.map(profile => profile.profileName);
+	const validProfiles = detectedProfiles?.filter(profile => profilesToDisplay.find(name => name === profile.profileName));
+	if (terminalService.configHelper.config.detectWslProfiles) {
+		const wslDistros = detectedProfiles?.filter(p => p.profileName.startsWith('WSL'));
+		if (wslDistros) {
+			validProfiles?.push(...wslDistros);
 		}
-		const filtered = detectedProfiles?.filter(term => profilesToDisplay.find(t => t === term.profileName));
-		filtered.push(...detectedProfiles.filter(profile => profile.profileName.startsWith('WSL')));
-		labels = filtered.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem));
 	}
+	labels = validProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
 	return labels;
 }

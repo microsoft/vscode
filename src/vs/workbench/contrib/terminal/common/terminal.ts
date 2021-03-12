@@ -100,6 +100,7 @@ export interface ITerminalConfiguration {
 		osx: ITerminalProfile[];
 		windows: ITerminalProfile[];
 	};
+	detectWslProfiles: boolean;
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;

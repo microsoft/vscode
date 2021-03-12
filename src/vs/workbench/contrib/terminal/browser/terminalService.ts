@@ -158,7 +158,10 @@ export class TerminalService implements ITerminalService {
 			this._connectionState = TerminalConnectionState.Connected;
 		}
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration('terminal.integrated.profiles') || e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
+			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
+				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
+				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
+				e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
 				this._onProfilesConfigChanged.fire();
 			}
 		});
