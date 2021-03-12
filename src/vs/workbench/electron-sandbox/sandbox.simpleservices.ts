@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
@@ -83,6 +84,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	isExtensionDevelopment: boolean = false;
 	disableExtensions: boolean | string[] = [];
 	extensionDevelopmentLocationURI?: URI[] | undefined;
+	extensionDevelopmentKind?: ExtensionKind[] | undefined;
 	extensionTestsLocationURI?: URI | undefined;
 	logLevel?: string | undefined;
 
