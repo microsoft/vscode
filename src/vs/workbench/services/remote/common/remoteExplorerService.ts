@@ -154,10 +154,10 @@ interface PortAttributes extends Attributes {
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
+	private static DEFAULTS = 'remote.portsAttributes.defaults';
 	private static RANGE = /^(\d+)\-(\d+)$/;
-	private static OTHERS = 'others';
 	private portsAttributes: PortAttributes[] = [];
-	private otherPortAttributes: Attributes | undefined;
+	private defaultPortAttributes: Attributes | undefined;
 	private _onDidChangeAttributes = new Emitter<void>();
 	public readonly onDidChangeAttributes = this._onDidChangeAttributes.event;
 
@@ -241,12 +241,6 @@ export class PortsAttributes extends Disposable {
 			let key: number | { start: number, end: number } | RegExp | undefined = undefined;
 			if (Number(attributesKey)) {
 				key = Number(attributesKey);
-			} else if (attributesKey === PortsAttributes.OTHERS) {
-				this.otherPortAttributes = {
-					elevateIfNeeded: setting.elevateIfPrivileged,
-					onAutoForward: setting.onAutoForward,
-					label: setting.label
-				};
 			} else if (isString(attributesKey)) {
 				if (PortsAttributes.RANGE.test(attributesKey)) {
 					const match = (<string>attributesKey).match(PortsAttributes.RANGE);
@@ -269,6 +263,15 @@ export class PortsAttributes extends Disposable {
 			});
 		}
 
+		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
+		if (defaults) {
+			this.defaultPortAttributes = {
+				elevateIfNeeded: defaults.elevateIfNeeded,
+				label: defaults.label,
+				onAutoForward: defaults.onAutoForward
+			};
+		}
+
 		return this.sortAttributes(attributes);
 	}
 
@@ -289,7 +292,7 @@ export class PortsAttributes extends Disposable {
 	}
 
 	private getOtherAttributes() {
-		return this.otherPortAttributes;
+		return this.defaultPortAttributes;
 	}
 
 	static providedActionToAction(providedAction: ProvidedOnAutoForward | undefined) {
