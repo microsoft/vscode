@@ -8,13 +8,13 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { expandCellRangesWithHiddenCells, getNotebookEditorFromEditorPane, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as UUID from 'vs/base/common/uuid';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, cellRangesToIndexes, ICellEditOperation, ICellRange, reduceRanges, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, ICellRange, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 class NotebookClipboardContribution extends Disposable {
@@ -57,7 +57,7 @@ class NotebookClipboardContribution extends Disposable {
 
 				const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 				const notebookService = accessor.get<INotebookService>(INotebookService);
-				const selectionRanges = this._getModelRangesFromViewRanges(editor, editor.viewModel, editor.viewModel.getSelections());
+				const selectionRanges = expandCellRangesWithHiddenCells(editor, editor.viewModel, editor.viewModel.getSelections());
 				const selectedCells = this._cellRangeToViewCells(editor.viewModel, selectionRanges);
 
 				if (!selectedCells.length) {
@@ -172,7 +172,7 @@ class NotebookClipboardContribution extends Disposable {
 
 				const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 				const notebookService = accessor.get<INotebookService>(INotebookService);
-				const selectionRanges = this._getModelRangesFromViewRanges(editor, viewModel, viewModel.getSelections());
+				const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel, viewModel.getSelections());
 				const selectedCells = this._cellRangeToViewCells(viewModel, selectionRanges);
 
 				if (!selectedCells.length) {
@@ -213,40 +213,6 @@ class NotebookClipboardContribution extends Disposable {
 		});
 
 		return cells;
-	}
-
-	/**
-	 * It will include hidden cells
-	 * @param editor
-	 * @param viewModel
-	 * @param ranges
-	 * @returns
-	 */
-	private _getModelRangesFromViewRanges(editor: INotebookEditor, viewModel: NotebookViewModel, ranges: ICellRange[]) {
-		// assuming ranges are sorted and no overlap
-		const indexes = cellRangesToIndexes(ranges);
-		let modelRanges: ICellRange[] = [];
-		indexes.forEach(index => {
-			const viewCell = viewModel.viewCells[index];
-
-			if (!viewCell) {
-				return;
-			}
-
-			const viewIndex = editor.getViewIndex(viewCell);
-			if (viewIndex < 0) {
-				return;
-			}
-
-			const nextViewIndex = viewIndex + 1;
-			const range = editor.getCellRangeFromViewRange(viewIndex, nextViewIndex);
-
-			if (range) {
-				modelRanges.push(range);
-			}
-		});
-
-		return reduceRanges(modelRanges);
 	}
 }
 

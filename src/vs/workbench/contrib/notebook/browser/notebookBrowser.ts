@@ -896,3 +896,30 @@ export function updateEditorTopPadding(top: number) {
 export function getEditorTopPadding() {
 	return EDITOR_TOP_PADDING;
 }
+
+export function expandCellRangesWithHiddenCells(editor: INotebookEditor, viewModel: NotebookViewModel, ranges: ICellRange[]) {
+	// assuming ranges are sorted and no overlap
+	const indexes = cellRangesToIndexes(ranges);
+	let modelRanges: ICellRange[] = [];
+	indexes.forEach(index => {
+		const viewCell = viewModel.viewCells[index];
+
+		if (!viewCell) {
+			return;
+		}
+
+		const viewIndex = editor.getViewIndex(viewCell);
+		if (viewIndex < 0) {
+			return;
+		}
+
+		const nextViewIndex = viewIndex + 1;
+		const range = editor.getCellRangeFromViewRange(viewIndex, nextViewIndex);
+
+		if (range) {
+			modelRanges.push(range);
+		}
+	});
+
+	return reduceRanges(modelRanges);
+}
