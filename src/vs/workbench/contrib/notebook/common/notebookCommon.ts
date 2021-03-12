@@ -789,7 +789,7 @@ export interface INotebookDecorationRenderOptions {
 
 
 export function cellIndexesToRanges(indexes: number[]) {
-	indexes.sort();
+	indexes.sort((a, b) => a - b);
 	const first = indexes.shift();
 
 	if (first === undefined) {
