@@ -966,12 +966,6 @@ declare module 'vscode' {
 	export interface NotebookCellPreviousExecutionResult {
 		success?: boolean;
 		duration?: number;
-		executionOrder?: number;
-	}
-
-	export enum NotebookRunState {
-		Running = 1,
-		Idle = 2
 	}
 
 	export class NotebookCellMetadata {
@@ -1047,11 +1041,9 @@ declare module 'vscode' {
 		// todo@API is this a kernel property?
 		readonly cellHasExecutionOrder: boolean;
 
-		readonly runState: NotebookRunState;
+		constructor(editable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
 
-		constructor(editable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
-
-		with(change: { editable?: boolean | null, cellEditable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, cellEditable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1240,6 +1232,7 @@ declare module 'vscode' {
 		language: string;
 		outputs?: NotebookCellOutput[];
 		metadata?: NotebookCellMetadata;
+		previousResult?: NotebookCellPreviousExecutionResult;
 		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata)
 	}
 
@@ -1516,7 +1509,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCellExecuteStartContext {
-		executionOrder?: number;
+		// Maybe needs to be not an absolute time due to clock issues
 		startTime?: number;
 	}
 
@@ -1528,10 +1521,22 @@ declare module 'vscode' {
 	 * modified with the methods on the run task.
 	 */
 	export interface NotebookCellExecutionTask {
-		start(context?: NotebookCellExecuteStartContext): void;
-		end(result: NotebookCellPreviousExecutionResult): void;
-		token: CancellationToken;
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
 
+		start(context?: NotebookCellExecuteStartContext): void;
+		setExecutionOrder(order: number): void;
+		end(result: NotebookCellPreviousExecutionResult): void;
+		readonly token: CancellationToken;
+
+		getOutputEdit(): NotebookCellOutputEdit;
+		applyOutputEdit(edit: NotebookCellOutputEdit): Thenable<boolean>;
+	}
+
+	/**
+	 * TODO@rob Similar to WorkspaceEdit, does it need other methods from that?
+	 */
+	export interface NotebookCellOutputEdit {
 		clearOutput(): void;
 		appendOutput(out: NotebookCellOutput[]): void;
 		replaceOutput(out: NotebookCellOutput[]): void;
@@ -1542,11 +1547,7 @@ declare module 'vscode' {
 	export enum NotebookCellExecutionState {
 		Executing,
 		Idle,
-		Pending,
-
-		// TODO@rob
-		Success,
-		Error
+		Pending
 	}
 
 	export namespace notebook {

@@ -1431,7 +1431,7 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.runState, data.trusted);
+		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.trusted);
 	}
 
 }

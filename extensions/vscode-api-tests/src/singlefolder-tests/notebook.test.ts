@@ -53,6 +53,10 @@ async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) =>
 	await callback(e);
 }
 
+async function applyEditWithRetry(task: vscode.NotebookCellExecutionTask, edit: vscode.NotebookCellOutputEdit) {
+	while (!await task.applyOutputEdit(edit)) { }
+}
+
 const kernel1 = new class implements vscode.NotebookKernel {
 	readonly id = 'mainKernel';
 	readonly label = 'Notebook Test Kernel';
@@ -68,9 +72,11 @@ const kernel1 = new class implements vscode.NotebookKernel {
 			}
 
 			task.start();
-			task.replaceOutput([new vscode.NotebookCellOutput([
+			const edit = task.getOutputEdit();
+			edit.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
 			])]);
+			await applyEditWithRetry(task, edit);
 			task.end({ success: true });
 			return;
 		}
@@ -89,16 +95,19 @@ const kernel1 = new class implements vscode.NotebookKernel {
 		}
 
 		task.start();
+		const edit = task.getOutputEdit();
 		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-			task.replaceOutput([new vscode.NotebookCellOutput([
+			edit.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
 			])]);
+			await applyEditWithRetry(task, edit);
 			return;
 		}
 
-		task.replaceOutput([new vscode.NotebookCellOutput([
+		edit.replaceOutput([new vscode.NotebookCellOutput([
 			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
 		])]);
+		await applyEditWithRetry(task, edit);
 		task.end({ success: true });
 	}
 };
@@ -118,9 +127,11 @@ const kernel2 = new class implements vscode.NotebookKernel {
 			}
 
 			task.start();
-			task.replaceOutput([new vscode.NotebookCellOutput([
+			const edit = task.getOutputEdit();
+			edit.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
 			])]);
+			await applyEditWithRetry(task, edit);
 			task.end({ success: true });
 			return;
 		}
@@ -139,17 +150,20 @@ const kernel2 = new class implements vscode.NotebookKernel {
 		}
 
 		task.start();
+		const edit = task.getOutputEdit();
 		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-			task.replaceOutput([new vscode.NotebookCellOutput([
+			edit.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/custom', ['test 2'], undefined)
 			])]);
+			await applyEditWithRetry(task, edit);
 			task.end({ success: true });
 			return;
 		}
 
-		task.replaceOutput([new vscode.NotebookCellOutput([
+		edit.replaceOutput([new vscode.NotebookCellOutput([
 			new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
 		])]);
+		await applyEditWithRetry(task, edit);
 		task.end({ success: true });
 	}
 };
@@ -169,10 +183,12 @@ const cancelableKernel = new class implements vscode.NotebookKernel {
 		}
 
 		task.start();
-		task.token.onCancellationRequested(() => {
-			task.replaceOutput([new vscode.NotebookCellOutput([
+		const edit = task.getOutputEdit();
+		task.token.onCancellationRequested(async () => {
+			edit.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/plain', ['Canceled'], undefined)
 			])]);
+			await applyEditWithRetry(task, edit);
 			task.end({});
 		});
 	}
@@ -197,10 +213,12 @@ const interruptableKernel = new class implements vscode.NotebookKernel {
 		this._task.start();
 	}
 
-	interrupt(_document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]): void {
-		this._task!.replaceOutput([new vscode.NotebookCellOutput([
+	async interrupt(_document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]) {
+		const edit = this._task!.getOutputEdit();
+		edit!.replaceOutput([new vscode.NotebookCellOutput([
 			new vscode.NotebookCellOutputItem('text/plain', ['Interrupted'], undefined)
 		])]);
+		await applyEditWithRetry(this._task!, edit);
 		this._task!.end({});
 	}
 };

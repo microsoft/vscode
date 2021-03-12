@@ -3050,7 +3050,6 @@ export class NotebookDocumentMetadata {
 		readonly cellEditable: boolean = true,
 		readonly cellHasExecutionOrder: boolean = true,
 		readonly custom: { [key: string]: any; } = {},
-		readonly runState: NotebookRunState = NotebookRunState.Idle,
 		readonly trusted: boolean = true,
 	) { }
 
@@ -3059,11 +3058,10 @@ export class NotebookDocumentMetadata {
 		cellEditable?: boolean | null,
 		cellHasExecutionOrder?: boolean | null,
 		custom?: { [key: string]: any; } | null,
-		runState?: NotebookRunState | null,
 		trusted?: boolean | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, cellEditable, cellHasExecutionOrder, custom, runState, trusted } = change;
+		let { editable, cellEditable, cellHasExecutionOrder, custom, trusted } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -3085,11 +3083,6 @@ export class NotebookDocumentMetadata {
 		} else if (custom === null) {
 			custom = undefined;
 		}
-		if (runState === undefined) {
-			runState = this.runState;
-		} else if (runState === null) {
-			runState = undefined;
-		}
 		if (trusted === undefined) {
 			trusted = this.trusted;
 		} else if (trusted === null) {
@@ -3100,7 +3093,6 @@ export class NotebookDocumentMetadata {
 			cellEditable === this.cellEditable &&
 			cellHasExecutionOrder === this.cellHasExecutionOrder &&
 			custom === this.custom &&
-			runState === this.runState &&
 			trusted === this.trusted
 		) {
 			return this;
@@ -3112,7 +3104,6 @@ export class NotebookDocumentMetadata {
 			cellEditable,
 			cellHasExecutionOrder,
 			custom,
-			runState,
 			trusted
 		);
 	}
@@ -3195,11 +3186,6 @@ export enum NotebookCellRunState {
 	// TODO@rob
 	Success = 4,
 	Error = 5
-}
-
-export enum NotebookRunState {
-	Running = 1,
-	Idle = 2
 }
 
 export enum NotebookCellStatusBarAlignment {

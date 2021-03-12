@@ -178,145 +178,6 @@ async function retryAsync(fn: () => Promise<boolean>): Promise<void> {
 	while (!await fn()) { }
 }
 
-// TODO@rob not sure whether this is the same as NotebookCellExecutionState
-enum NotebookCellExecutionTaskState {
-	Init,
-	Started,
-	Resolved
-}
-
-class NotebookCellExecutionTask extends Disposable {
-	private _onDidChangeState = new Emitter<void>();
-	readonly onDidChangeState = this._onDidChangeState.event;
-
-	private _state = NotebookCellExecutionTaskState.Init;
-	get state(): NotebookCellExecutionTaskState { return this._state; }
-
-	private readonly _tokenSource: CancellationTokenSource;
-
-	constructor(
-		private readonly _uri: vscode.Uri,
-		private readonly _index: number,
-		private readonly _document: ExtHostNotebookDocument,
-		private readonly _cell: ExtHostCell,
-		private readonly _proxy: MainThreadNotebookShape) {
-		super();
-		this._tokenSource = this._register(new CancellationTokenSource());
-	}
-
-	cancel(): void {
-		this._tokenSource.cancel();
-	}
-
-	private applyEdits(edits: ICellEditOperation[]): void {
-		retryAsync(() => this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, edits));
-	}
-
-	private verifyStateForOutput() {
-		if (this._state === NotebookCellExecutionTaskState.Init) {
-			throw new Error('Must call start before modifying cell output');
-		}
-
-		if (this._state === NotebookCellExecutionTaskState.Resolved) {
-			throw new Error('Cannot modify cell output after calling resolve');
-		}
-	}
-
-	asApiObject(): vscode.NotebookCellExecutionTask {
-		const that = this;
-		return Object.freeze(<vscode.NotebookCellExecutionTask>{
-			end(result: vscode.NotebookCellPreviousExecutionResult): void {
-				if (that._state === NotebookCellExecutionTaskState.Resolved) {
-					throw new Error('Cannot call resolve twice');
-				}
-
-				if (that._state === NotebookCellExecutionTaskState.Init) {
-					throw new Error('Must call start before calling resolve');
-				}
-
-				that._state = NotebookCellExecutionTaskState.Resolved;
-				that._onDidChangeState.fire();
-
-				const metadata: NotebookCellMetadata = {
-					...that._cell.internalMetadata,
-					...{
-						runState: result.success === true ? NotebookCellRunState.Success :
-							result.success === false ? NotebookCellRunState.Error :
-								NotebookCellRunState.Idle,
-						lastRunDuration: result.duration,
-					}
-				};
-
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Metadata, index: that._index, metadata }
-				];
-				that.applyEdits(edits);
-			},
-
-			start(): void {
-				if (that._state === NotebookCellExecutionTaskState.Resolved || that._state === NotebookCellExecutionTaskState.Started) {
-					throw new Error('Cannot call start again');
-				}
-
-				that._state = NotebookCellExecutionTaskState.Started;
-				that._onDidChangeState.fire();
-
-				const metadata: NotebookCellMetadata = {
-					...that._cell.internalMetadata,
-					...{
-						runState: extHostTypes.NotebookCellRunState.Running
-					}
-				};
-
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Metadata, index: that._index, metadata }
-				];
-				that.applyEdits(edits);
-			},
-
-			clearOutput(): void {
-				that.verifyStateForOutput();
-				this.replaceOutput([]);
-			},
-
-			appendOutput(outputs: vscode.NotebookCellOutput[]): void {
-				that.verifyStateForOutput();
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Output, index: that._index, append: true, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }
-				];
-				that.applyEdits(edits);
-			},
-
-			replaceOutput(outputs: vscode.NotebookCellOutput[]): void {
-				that.verifyStateForOutput();
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Output, index: that._index, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }
-				];
-				that.applyEdits(edits);
-			},
-
-			appendOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): void {
-				that.verifyStateForOutput();
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.OutputItems, index: that._index, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }
-				];
-				that.applyEdits(edits);
-			},
-
-			replaceOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): void {
-				that.verifyStateForOutput();
-				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.OutputItems, index: that._index, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }
-				];
-				that.applyEdits(edits);
-
-			},
-
-			token: that._tokenSource.token
-		});
-	}
-}
-
 export class NotebookEditorDecorationType {
 
 	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
@@ -1187,4 +1048,174 @@ function createNotebookCellStatusBarApiItem(internalItem: NotebookCellStatusBarI
 		hide() { internalItem.hide(); },
 		dispose() { internalItem.dispose(); }
 	});
+}
+
+// TODO@rob not sure whether this is the same as NotebookCellExecutionState
+enum NotebookCellExecutionTaskState {
+	Init,
+	Started,
+	Resolved
+}
+
+class NotebookCellExecutionTask extends Disposable {
+	private _onDidChangeState = new Emitter<void>();
+	readonly onDidChangeState = this._onDidChangeState.event;
+
+	private _state = NotebookCellExecutionTaskState.Init;
+	get state(): NotebookCellExecutionTaskState { return this._state; }
+
+	private readonly _tokenSource: CancellationTokenSource;
+
+	constructor(
+		private readonly _uri: vscode.Uri,
+		private readonly _index: number,
+		private readonly _document: ExtHostNotebookDocument,
+		private readonly _cell: ExtHostCell,
+		private readonly _proxy: MainThreadNotebookShape) {
+		super();
+		this._tokenSource = this._register(new CancellationTokenSource());
+	}
+
+	cancel(): void {
+		this._tokenSource.cancel();
+	}
+
+	private applyEdits(edits: ICellEditOperation[]): void {
+		retryAsync(() => this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, edits));
+	}
+
+	private verifyStateForOutput() {
+		if (this._state === NotebookCellExecutionTaskState.Init) {
+			throw new Error('Must call start before modifying cell output');
+		}
+
+		if (this._state === NotebookCellExecutionTaskState.Resolved) {
+			throw new Error('Cannot modify cell output after calling resolve');
+		}
+	}
+
+	asApiObject(): vscode.NotebookCellExecutionTask {
+		const that = this;
+		return Object.freeze(<vscode.NotebookCellExecutionTask>{
+			get document() { return that._document.notebookDocument; },
+			get cell() { return that._cell.cell; },
+
+			start(): void {
+				if (that._state === NotebookCellExecutionTaskState.Resolved || that._state === NotebookCellExecutionTaskState.Started) {
+					throw new Error('Cannot call start again');
+				}
+
+				that._state = NotebookCellExecutionTaskState.Started;
+				that._onDidChangeState.fire();
+
+				const metadata: NotebookCellMetadata = {
+					...that._cell.internalMetadata,
+					...{
+						runState: NotebookCellRunState.Running
+					}
+				};
+
+				const edits: ICellEditOperation[] = [
+					{ editType: CellEditType.Metadata, index: that._index, metadata }
+				];
+				that.applyEdits(edits);
+			},
+
+			setExecutionOrder(order: number): void {
+				const metadata: NotebookCellMetadata = {
+					...that._cell.internalMetadata,
+					...{
+						executionOrder: order
+					}
+				};
+
+				const edits: ICellEditOperation[] = [
+					{ editType: CellEditType.Metadata, index: that._index, metadata }
+				];
+				that.applyEdits(edits);
+			},
+
+			end(result: vscode.NotebookCellPreviousExecutionResult): void {
+				if (that._state === NotebookCellExecutionTaskState.Resolved) {
+					throw new Error('Cannot call resolve twice');
+				}
+
+				if (that._state === NotebookCellExecutionTaskState.Init) {
+					throw new Error('Must call start before calling resolve');
+				}
+
+				that._state = NotebookCellExecutionTaskState.Resolved;
+				that._onDidChangeState.fire();
+
+				const metadata: NotebookCellMetadata = {
+					...that._cell.internalMetadata,
+					...{
+						runState: result.success === true ? NotebookCellRunState.Success :
+							result.success === false ? NotebookCellRunState.Error :
+								NotebookCellRunState.Idle,
+						lastRunDuration: result.duration,
+					}
+				};
+
+				const edits: ICellEditOperation[] = [
+					{ editType: CellEditType.Metadata, index: that._index, metadata }
+				];
+				that.applyEdits(edits);
+			},
+
+			getOutputEdit() {
+				return new NotebookCellOutputEdit(that._index).asApiObject();
+			},
+
+			async applyOutputEdit(edit: vscode.NotebookCellOutputEdit): Promise<boolean> {
+				that.verifyStateForOutput();
+				const edits: ICellEditOperation[] = (edit as any)._entries(); // TODO@roblou figure out the real shape of this
+				return that._proxy.$tryApplyEdits('n/a', that._uri, that._document.notebookDocument.version, edits);
+			},
+
+			token: that._tokenSource.token
+		});
+	}
+}
+
+export class NotebookCellOutputEdit {
+
+	private readonly _edits: ICellEditOperation[] = [];
+
+	constructor(
+		private readonly _index: number
+	) { }
+
+	asApiObject(): vscode.NotebookCellOutputEdit {
+		const that = this;
+		return Object.freeze({
+			_entries() {
+				return that._edits;
+			},
+
+			clearOutput(): void {
+				this.replaceOutput([]);
+			},
+
+			appendOutput(outputs: vscode.NotebookCellOutput[]): void {
+				that._edits.push({ editType: CellEditType.Output, index: that._index, append: true, outputs: outputs.map(typeConverters.NotebookCellOutput.from) });
+			},
+
+			replaceOutput(outputs: vscode.NotebookCellOutput[]): void {
+				that._edits.push({ editType: CellEditType.Output, index: that._index, outputs: outputs.map(typeConverters.NotebookCellOutput.from) });
+			},
+
+			appendOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): void {
+				that._edits.push({ editType: CellEditType.OutputItems, index: that._index, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId });
+			},
+
+			replaceOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): void {
+				that._edits.push({ editType: CellEditType.OutputItems, index: that._index, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId });
+			}
+		});
+	}
+
+	_allEntries(): ReadonlyArray<ICellEditOperation> {
+		return this._edits;
+	}
 }
