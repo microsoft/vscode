@@ -105,6 +105,11 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			}
 		},
+		'terminal.integrated.detectWslProfiles': {
+			description: localize('terminal.integrated.detectWslProfiles', 'whether or not wsl distros are detected as default shells'),
+			type: 'boolean',
+			default: false
+		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',

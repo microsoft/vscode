@@ -1461,7 +1461,7 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const detectedShells = await terminalService.getDetectedProfiles();
+			const detectedShells = await terminalService.getAvailableShells();
 			const userProfiles = terminalService.configHelper.config.profiles;
 			const customProfiles = isWindows ? userProfiles.windows : isIOS ? userProfiles.osx : userProfiles.linux;
 

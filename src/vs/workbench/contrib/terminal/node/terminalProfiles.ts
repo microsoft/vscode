@@ -17,11 +17,11 @@ export interface IStatProvider {
 	lstat(path: string): boolean
 }
 
-export function detectAvailableShells(statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsShells(statProvider) : detectAvailableUnixShells();
+export function detectAvailableShells(detectWslShells?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsShells(detectWslShells, statProvider) : detectAvailableUnixShells();
 }
 
-async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsShells(detectWslShells?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -64,7 +64,7 @@ async function detectAvailableWindowsShells(statProvider?: IStatProvider): Promi
 	});
 
 	let wslShell = shells.find(shell => shell?.path.endsWith('wsl.exe'));
-	if (wslShell && output && output.length > 0) {
+	if (detectWslShells && wslShell && output && output.length > 0) {
 		output.split('\n').forEach(distro => {
 			wslShell!.profileName += ` ${distro}`;
 			wslShell!.args = `-d ${distro}`;

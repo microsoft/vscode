@@ -373,9 +373,8 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onInstanceTitleChanged(async () => await this._updateItems(), this));
 		this._register(_terminalService.onTabDisposed(async () => await this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(async () => await this._updateItems(), this));
+		this._register(_terminalService.onProfilesConfigChanged(async () => await this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
-		// this._configurationService.onDidChangeConfiguration(e => e.change.keys.find('terminal.integrated.profiles'))
-		console.log('created');
 	}
 
 	render(container: HTMLElement): void {
@@ -399,18 +398,15 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 async function getTerminalSelectOpenItemsAsync(terminalService: ITerminalService, contributions: ITerminalContributionService): Promise<ISelectOptionItem[]> {
 	let items: ISelectOptionItem[];
-	console.log(terminalService.connectionState);
 	if (terminalService.connectionState === TerminalConnectionState.Connected) {
 		items = terminalService.getTabLabels().map(label => {
 			return { text: label };
 		});
-		console.log('connected', items);
 	} else {
 		items = [{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
 	}
 
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-
 
 	const profiles = await getProfileSelectOptionItems(terminalService);
 	if (profiles) {
@@ -422,17 +418,15 @@ async function getTerminalSelectOpenItemsAsync(terminalService: ITerminalService
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 	items.push({ text: selectDefaultShellTitle });
 	items.push({ text: configureTerminalSettingsTitle });
-	console.log(items);
 	return items;
 }
+
 function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
 	let items: ISelectOptionItem[];
-	console.log(terminalService.connectionState);
 	if (terminalService.connectionState === TerminalConnectionState.Connected) {
 		items = terminalService.getTabLabels().map(label => {
 			return { text: label };
 		});
-		console.log('connected', items);
 	} else {
 		items = [{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
 	}
@@ -444,12 +438,11 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 	items.push({ text: selectDefaultShellTitle });
 	items.push({ text: configureTerminalSettingsTitle });
-	console.log(items);
 	return items;
 }
 
 async function getProfileSelectOptionItems(terminalService: ITerminalService): Promise<ISelectOptionItem[]> {
-	const detectedProfiles = await terminalService.getDetectedProfiles();
+	const detectedProfiles = await terminalService.getAvailableShells();
 	const userProfiles = terminalService.configHelper.config.profiles;
 	const customProfiles = (platform.isWindows ? userProfiles.windows : platform.isIOS ? userProfiles.osx : userProfiles.linux);
 	let labels: ISelectOptionItem[] = [];

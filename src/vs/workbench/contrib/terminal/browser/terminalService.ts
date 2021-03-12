@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
+import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
@@ -69,6 +69,8 @@ export class TerminalService implements ITerminalService {
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
 
+	private _availableShells: ITerminalProfile[] | undefined;
+
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
 	private readonly _onActiveTabChanged = new Emitter<void>();
@@ -102,7 +104,8 @@ export class TerminalService implements ITerminalService {
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
-
+	private readonly _onProfileConfigChanged = new Emitter<void>();
+	public get onProfilesConfigChanged(): Event<void> { return this._onProfileConfigChanged.event; }
 	private readonly _localTerminalService?: ILocalTerminalService;
 
 	constructor(
@@ -154,6 +157,11 @@ export class TerminalService implements ITerminalService {
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
 		}
+		this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('terminal.integrated.profiles') || e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
+				this._onProfileConfigChanged.fire();
+			}
+		});
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -271,6 +279,26 @@ export class TerminalService implements ITerminalService {
 	public async extHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
 		this._extHostsReady[remoteAuthority]!.resolve();
+	}
+
+	public async getAvailableShells(): Promise<ITerminalProfile[] | undefined> {
+		await this._updateAvailableShells();
+		return this._availableShells?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile));
+	}
+
+	@throttle(2000)
+	private async _updateAvailableShells(): Promise<void> {
+		this._availableShells = await this._detectShells();
+	}
+
+	private async _detectShells(): Promise<ITerminalProfile[]> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		// Wait for the remoteAuthority to be ready (and listening for events) before firing
+		// the event to spawn the ext host process
+		const conn = this._remoteAgentService.getConnection();
+		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+		await this._whenExtHostReady(remoteAuthority);
+		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
 	}
 
 	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
@@ -739,13 +767,6 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public async getDetectedProfiles(): Promise<ITerminalProfile[] | undefined> {
-		const shells = await this._detectShells();
-		console.log('profiles detected', shells);
-		// default terminal profiles to select from in the dropdown
-		return shells.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile));
-	}
-
 	public async selectDefaultShell(): Promise<void> {
 		const shells = await this._detectShells();
 		const options: IPickOptions<IQuickPickItem> = {
@@ -767,16 +788,6 @@ export class TerminalService implements ITerminalService {
 			platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		}
 		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER);
-	}
-
-	private async _detectShells(): Promise<ITerminalProfile[]> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-		// Wait for the remoteAuthority to be ready (and listening for events) before firing
-		// the event to spawn the ext host process
-		const conn = this._remoteAgentService.getConnection();
-		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
-		await this._whenExtHostReady(remoteAuthority);
-		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
 	}
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {

@@ -99,6 +99,7 @@ export interface ITerminalService {
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
+	onProfilesConfigChanged: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -157,9 +158,9 @@ export interface ITerminalService {
 	selectDefaultShell(): Promise<void>;
 
 	/**
-	 * gets the detected terminal profiles for the platform
+	 * Gets the detected terminal profiles for the platform
 	 */
-	getDetectedProfiles(): Promise<ITerminalProfile[] | undefined>;
+	getAvailableShells(): Promise<ITerminalProfile[] | undefined>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
