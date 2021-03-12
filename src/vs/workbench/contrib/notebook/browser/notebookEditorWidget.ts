@@ -1768,6 +1768,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async createMarkdownPreview(cell: MarkdownCellViewModel) {
+		const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
+		if (!useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
