@@ -1053,7 +1053,6 @@ function createNotebookCellStatusBarApiItem(internalItem: NotebookCellStatusBarI
 	});
 }
 
-// TODO@rob not sure whether this is the same as NotebookCellExecutionState
 enum NotebookCellExecutionTaskState {
 	Init,
 	Started,
@@ -1080,7 +1079,8 @@ class NotebookCellExecutionTask extends Disposable {
 		this._tokenSource = this._register(new CancellationTokenSource());
 
 		this.mixinMetadata({
-			runState: NotebookCellExecutionState.Pending
+			runState: NotebookCellExecutionState.Pending,
+			lastRunDuration: undefined
 		});
 	}
 

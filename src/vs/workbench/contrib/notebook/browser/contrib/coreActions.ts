@@ -240,7 +240,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 
 const executeCellCondition = ContextKeyExpr.or(
 	ContextKeyExpr.and(
-		ContextKeyExpr.notEquals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellExecutionState[NotebookCellExecutionState.Executing]),
+		ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellExecutionState[NotebookCellExecutionState.Idle]),
 		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0)),
 	NOTEBOOK_CELL_TYPE.isEqualTo('markdown'));
 
@@ -344,16 +344,21 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 	}
 });
 
+const cellCancelCondition = ContextKeyExpr.or(
+	ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellExecutionState[NotebookCellExecutionState.Executing]),
+	ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellExecutionState[NotebookCellExecutionState.Pending]),
+);
+
 registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 	constructor() {
 		super({
 			id: CANCEL_CELL_COMMAND_ID,
-			precondition: ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellExecutionState[NotebookCellExecutionState.Executing]),
+			precondition: cellCancelCondition,
 			title: localize('notebookActions.cancel', "Stop Cell Execution"),
 			icon: icons.stopIcon,
 			menu: {
 				id: MenuId.NotebookCellExecute,
-				when: ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellExecutionState[NotebookCellExecutionState.Executing]),
+				when: cellCancelCondition,
 				group: 'inline'
 			},
 			description: {

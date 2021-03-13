@@ -780,7 +780,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('cancel cell execution', async () => {
+	test('set outputs on cancel', async () => {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
@@ -802,7 +802,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('interrupt cell execution', async () => {
+	test('set outputs on interrupt', async () => {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
@@ -824,7 +824,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('cell execution state event is fired', async () => {
+	test('onDidChangeCellExecutionState is fired', async () => {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
@@ -1201,7 +1201,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(resource);
 	});
 
-	test.only('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
 		const openedEditor = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.notebook.openNotebookDocument(resource);
