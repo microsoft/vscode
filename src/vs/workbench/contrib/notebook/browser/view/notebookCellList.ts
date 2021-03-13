@@ -53,6 +53,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
 	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
 	private _viewModel: NotebookViewModel | null = null;
+	get viewModel(): NotebookViewModel | null {
+		return this._viewModel;
+	}
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 

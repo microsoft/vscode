@@ -69,6 +69,118 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 
 const $ = DOM.$;
 
+export class ListViewInfoAccessor extends Disposable {
+	constructor(
+		readonly list: INotebookCellList
+	) {
+		super();
+	}
+
+	revealCellRangeInView(range: ICellRange) {
+		return this.list.revealElementsInView(range);
+	}
+
+	revealInView(cell: ICellViewModel) {
+		this.list.revealElementInView(cell);
+	}
+
+	revealInViewAtTop(cell: ICellViewModel) {
+		this.list.revealElementInViewAtTop(cell);
+	}
+
+	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
+		this.list.revealElementInCenterIfOutsideViewport(cell);
+	}
+
+	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
+		return this.list.revealElementInCenterIfOutsideViewportAsync(cell);
+	}
+
+	revealInCenter(cell: ICellViewModel) {
+		this.list.revealElementInCenter(cell);
+	}
+
+	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list.revealElementLineInViewAsync(cell, line);
+	}
+
+	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list.revealElementLineInCenterAsync(cell, line);
+	}
+
+	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
+		return this.list.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
+	}
+
+	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list.revealElementRangeInViewAsync(cell, range);
+	}
+
+	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list.revealElementRangeInCenterAsync(cell, range);
+	}
+
+	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
+		return this.list.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
+	}
+
+	getViewIndex(cell: ICellViewModel): number {
+		return this.list.getViewIndex(cell) ?? -1;
+	}
+
+	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
+		if (!this.list.viewModel) {
+			return undefined;
+		}
+
+		const modelIndex = this.list.getModelIndex2(startIndex);
+		if (modelIndex === undefined) {
+			throw new Error(`startIndex ${startIndex} out of boundary`);
+		}
+
+		if (endIndex >= this.list.length) {
+			// it's the end
+			const endModelIndex = this.list.viewModel.length;
+			return { start: modelIndex, end: endModelIndex };
+		} else {
+			const endModelIndex = this.list.getModelIndex2(endIndex);
+			if (endModelIndex === undefined) {
+				throw new Error(`endIndex ${endIndex} out of boundary`);
+			}
+			return { start: modelIndex, end: endModelIndex };
+		}
+	}
+
+	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
+		if (!this.list.viewModel) {
+			return [];
+		}
+
+		const range = this.getCellRangeFromViewRange(startIndex, endIndex);
+		if (!range) {
+			return [];
+		}
+
+		return this.list.viewModel.viewCells.slice(range.start, range.end);
+	}
+
+	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
+		this.list.setCellSelection(cell, range);
+	}
+
+	setHiddenAreas(_ranges: ICellRange[]): boolean {
+		return this.list.setHiddenAreas(_ranges, true);
+	}
+
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[] {
+		return this.list?.getVisibleRangesPlusViewportAboveBelow() ?? [];
+	}
+
+	triggerScroll(event: IMouseWheelEvent) {
+		this.list.triggerScrollFromMouseWheelEvent(event);
+	}
+}
+
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;
@@ -78,6 +190,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo> | null> | null = null;
 	private _webviewTransparentCover: HTMLElement | null = null;
 	private _list!: INotebookCellList;
+	private _listViewInfoAccessor!: ListViewInfoAccessor;
 	private _dndController: CellDragAndDropController | null = null;
 	private _listTopCellToolbar: ListTopCellToolbar | null = null;
 	private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
@@ -463,6 +576,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// create Webview
 
 		this._register(this._list);
+		this._listViewInfoAccessor = new ListViewInfoAccessor(this._list);
+		this._register(this._listViewInfoAccessor);
+
 		this._register(combinedDisposable(...renderers));
 
 		// top cell toolbar
@@ -1238,110 +1354,82 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	revealCellRangeInView(range: ICellRange) {
-		return this._list.revealElementsInView(range);
+		return this._listViewInfoAccessor.revealCellRangeInView(range);
 	}
 
 	revealInView(cell: ICellViewModel) {
-		this._list.revealElementInView(cell);
+		this._listViewInfoAccessor.revealInView(cell);
 	}
 
 	revealInViewAtTop(cell: ICellViewModel) {
-		this._list.revealElementInViewAtTop(cell);
+		this._listViewInfoAccessor.revealInViewAtTop(cell);
 	}
 
 	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this._list.revealElementInCenterIfOutsideViewport(cell);
+		this._listViewInfoAccessor.revealInCenterIfOutsideViewport(cell);
 	}
 
 	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
-		return this._list.revealElementInCenterIfOutsideViewportAsync(cell);
+		return this._listViewInfoAccessor.revealInCenterIfOutsideViewportAsync(cell);
 	}
 
 	revealInCenter(cell: ICellViewModel) {
-		this._list.revealElementInCenter(cell);
+		this._listViewInfoAccessor.revealInCenter(cell);
 	}
 
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealElementLineInViewAsync(cell, line);
+		return this._listViewInfoAccessor.revealLineInViewAsync(cell, line);
 	}
 
 	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealElementLineInCenterAsync(cell, line);
+		return this._listViewInfoAccessor.revealLineInCenterAsync(cell, line);
 	}
 
 	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
+		return this._listViewInfoAccessor.revealLineInCenterIfOutsideViewportAsync(cell, line);
 	}
 
 	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this._list.revealElementRangeInViewAsync(cell, range);
+		return this._listViewInfoAccessor.revealRangeInViewAsync(cell, range);
 	}
 
 	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this._list.revealElementRangeInCenterAsync(cell, range);
+		return this._listViewInfoAccessor.revealRangeInCenterAsync(cell, range);
 	}
 
 	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this._list.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
+		return this._listViewInfoAccessor.revealRangeInCenterIfOutsideViewportAsync(cell, range);
 	}
 
 	getViewIndex(cell: ICellViewModel): number {
-		if (!this._list) {
+		if (!this._listViewInfoAccessor) {
 			return -1;
 		}
-		return this._list.getViewIndex(cell) ?? -1;
+		return this._listViewInfoAccessor.getViewIndex(cell);
 	}
 
 	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
-		if (!this.viewModel) {
-			return undefined;
-		}
-
-		const modelIndex = this._list.getModelIndex2(startIndex);
-		if (modelIndex === undefined) {
-			throw new Error(`startIndex ${startIndex} out of boundary`);
-		}
-
-		if (endIndex >= this._list.length) {
-			// it's the end
-			const endModelIndex = this.viewModel.length;
-			return { start: modelIndex, end: endModelIndex };
-		} else {
-			const endModelIndex = this._list.getModelIndex2(endIndex);
-			if (endModelIndex === undefined) {
-				throw new Error(`endIndex ${endIndex} out of boundary`);
-			}
-			return { start: modelIndex, end: endModelIndex };
-		}
+		return this._listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex);
 	}
 
 	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
-		if (!this.viewModel) {
-			return [];
-		}
-
-		const range = this.getCellRangeFromViewRange(startIndex, endIndex);
-		if (!range) {
-			return [];
-		}
-
-		return this.viewModel.viewCells.slice(range.start, range.end);
+		return this._listViewInfoAccessor.getCellsFromViewRange(startIndex, endIndex);
 	}
 
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
-		this._list.setCellSelection(cell, range);
-	}
-
-	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
-		return this.viewModel?.changeModelDecorations<T>(callback) || null;
+		this._listViewInfoAccessor.setCellEditorSelection(cell, range);
 	}
 
 	setHiddenAreas(_ranges: ICellRange[]): boolean {
-		return this._list.setHiddenAreas(_ranges, true);
+		return this._listViewInfoAccessor.setHiddenAreas(_ranges);
 	}
 
 	getVisibleRangesPlusViewportAboveBelow(): ICellRange[] {
-		return this._list?.getVisibleRangesPlusViewportAboveBelow() ?? [];
+		return this._listViewInfoAccessor.getVisibleRangesPlusViewportAboveBelow();
+	}
+
+	triggerScroll(event: IMouseWheelEvent) {
+		this._listViewInfoAccessor.triggerScroll(event);
 	}
 
 	//#endregion
@@ -1410,6 +1498,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
+	}
+
+	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
+		return this.viewModel?.changeModelDecorations<T>(callback) || null;
 	}
 
 	//#endregion
@@ -1808,10 +1900,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			height: this._dimension!.height,
 			fontInfo: this._fontInfo!
 		};
-	}
-
-	triggerScroll(event: IMouseWheelEvent) {
-		this._list.triggerScrollFromMouseWheelEvent(event);
 	}
 
 	async createMarkdownPreview(cell: MarkdownCellViewModel) {
