@@ -27,6 +27,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
@@ -38,6 +39,10 @@ import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/comm
 const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.workspaceUntrusted);
 const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceTrusted);
 const unknownIcon = registerCodicon('workspace-unknown-icon', Codicon.workspaceUnknown);
+
+class WorkspaceTrustExtensionDelegate extends Delegate {
+	getHeight() { return super.getHeight() + 36; }
+}
 
 export class WorkspaceTrustEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.workspaceTrust';
@@ -265,7 +270,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content);
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new WorkspaceTrustExtensionDelegate());
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();
 
