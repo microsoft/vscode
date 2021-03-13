@@ -226,9 +226,11 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	readonly onDidChangeTrustState = this._onDidChangeTrustState.event;
 
 	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
-	private _inFlightResolver?: (trustState: WorkspaceTrustState) => void;
-	private _inFlightRejecter?: (error: Error) => void;
 	private _trustRequestPromise?: Promise<WorkspaceTrustState>;
+	private _inFlightResolver?: (trustState: WorkspaceTrustState) => void;
+	private _modalTrustRequestPromise?: Promise<WorkspaceTrustState>;
+	private _modalTrustRequestResolver?: (trustState: WorkspaceTrustState) => void;
+	private _modalTrustRequestRejecter?: (error: Error) => void;
 	private _workspace: IWorkspace;
 
 	private readonly _ctxWorkspaceTrustState: IContextKey<WorkspaceTrustState>;
@@ -369,13 +371,19 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	private onTrustRequestCompleted(trustState?: WorkspaceTrustState): void {
+		if (this._modalTrustRequestResolver) {
+			this._modalTrustRequestResolver(trustState === undefined ? this.currentTrustState : trustState);
+		}
 		if (this._inFlightResolver) {
 			this._inFlightResolver(trustState === undefined ? this.currentTrustState : trustState);
 		}
 
 		this._inFlightResolver = undefined;
-		this._inFlightRejecter = undefined;
 		this._trustRequestPromise = undefined;
+
+		this._modalTrustRequestResolver = undefined;
+		this._modalTrustRequestRejecter = undefined;
+		this._modalTrustRequestPromise = undefined;
 
 		if (trustState === undefined) {
 			return;
@@ -390,13 +398,19 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	private onTrustRequestCancelled(): void {
-		if (this._inFlightRejecter) {
-			this._inFlightRejecter(canceled());
+		if (this._modalTrustRequestRejecter) {
+			this._modalTrustRequestRejecter(canceled());
+		}
+		if (this._trustRequestPromise && this._inFlightResolver) {
+			this._inFlightResolver(this.currentTrustState);
 		}
 
 		this._inFlightResolver = undefined;
-		this._inFlightRejecter = undefined;
 		this._trustRequestPromise = undefined;
+
+		this._modalTrustRequestResolver = undefined;
+		this._modalTrustRequestRejecter = undefined;
+		this._modalTrustRequestPromise = undefined;
 
 		this._ctxWorkspaceTrustPendingRequest.set(false);
 	}
@@ -410,32 +424,42 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	async requireWorkspaceTrust(request: WorkspaceTrustRequest = { modal: true }): Promise<WorkspaceTrustState> {
+		// Trusted workspace
 		if (this.currentTrustState === WorkspaceTrustState.Trusted) {
 			return this.currentTrustState;
 		}
+		// Untrusted workspace - soft request
 		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request.modal) {
 			return this.currentTrustState;
 		}
 
-		if (this._trustRequestPromise) {
-			if (request.modal &&
-				this.requestModel.trustRequest &&
-				!this.requestModel.trustRequest.modal) {
-				this.requestModel.initiateRequest(request);
+		if (request.modal) {
+			// Modal request
+			if (!this._modalTrustRequestPromise) {
+				// Create promise
+				this._modalTrustRequestPromise = new Promise((resolve, reject) => {
+					this._modalTrustRequestResolver = resolve;
+					this._modalTrustRequestRejecter = reject;
+				});
+			} else {
+				// Return existing promises
+				return this._modalTrustRequestPromise;
 			}
-
-			return this._trustRequestPromise;
+		} else {
+			// Soft soft
+			if (!this._trustRequestPromise) {
+				this._trustRequestPromise = new Promise(resolve => {
+					this._inFlightResolver = resolve;
+				});
+			} else {
+				return this._trustRequestPromise;
+			}
 		}
-
-		this._trustRequestPromise = new Promise((resolve, reject) => {
-			this._inFlightResolver = resolve;
-			this._inFlightRejecter = reject;
-		});
 
 		this.requestModel.initiateRequest(request);
 		this._ctxWorkspaceTrustPendingRequest.set(true);
 
-		return this._trustRequestPromise;
+		return request.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
 	}
 }
 
