@@ -19,7 +19,7 @@ import { ICellViewModel, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_HAS_MULTIP
 import { configureKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { cellIndexesToRanges, CellKind, ICellRange, INotebookKernel, NotebookCellRunState, NotebookRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellIndexesToRanges, CellKind, ICellRange, INotebookKernel, NotebookCellExecutionState, NotebookRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
 const NotebookEditorActiveKernelCache = 'workbench.editor.notebook.activeKernel';
@@ -401,7 +401,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		const metadata = cell.getEvaluatedMetadata(this._delegate.viewModel.metadata);
-		if (metadata.runState !== NotebookCellRunState.Running) {
+		if (metadata.runState !== NotebookCellExecutionState.Executing) {
 			return;
 		}
 

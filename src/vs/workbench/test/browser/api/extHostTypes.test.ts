@@ -682,22 +682,4 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(newObj.custom, undefined);
 
 	});
-
-	test('Unable to reset executionOrder of cells #116956', function () {
-
-		let obj = new types.NotebookCellMetadata();
-		assert.strictEqual(obj.executionOrder, undefined);
-
-		obj = obj.with({ executionOrder: 23 });
-		assert.strictEqual(obj.executionOrder, 23);
-
-		obj = obj.with({ executionOrder: undefined });
-		assert.strictEqual(obj.executionOrder, 23);
-
-		obj = obj.with({});
-		assert.strictEqual(obj.executionOrder, 23);
-
-		obj = obj.with({ executionOrder: null });
-		assert.strictEqual(obj.executionOrder, undefined);
-	});
 });

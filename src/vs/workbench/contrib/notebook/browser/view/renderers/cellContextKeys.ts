@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INotebookTextModel, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_FOCUSED, INotebookEditor, NOTEBOOK_CELL_EDITOR_FOCUSED, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
@@ -115,8 +115,8 @@ export class CellContextKeyManager extends Disposable {
 		const metadata = this.element.getEvaluatedMetadata(this.notebookTextModel.metadata);
 		this.cellEditable.set(!!metadata.editable);
 
-		const runState = metadata.runState ?? NotebookCellRunState.Idle;
-		this.cellRunState.set(NotebookCellRunState[runState]);
+		const runState = metadata.runState ?? NotebookCellExecutionState.Idle;
+		this.cellRunState.set(NotebookCellExecutionState[runState]);
 	}
 
 	private updateForEditState() {

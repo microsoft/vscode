@@ -2930,11 +2930,7 @@ export class NotebookCellMetadata {
 		readonly editable?: boolean,
 		readonly breakpointMargin?: boolean,
 		readonly hasExecutionOrder?: boolean,
-		readonly executionOrder?: number,
-		readonly runState?: NotebookCellRunState,
-		readonly runStartTime?: number,
 		readonly statusMessage?: string,
-		readonly lastRunDuration?: number,
 		readonly inputCollapsed?: boolean,
 		readonly outputCollapsed?: boolean,
 		readonly custom?: Record<string, any>,
@@ -2944,17 +2940,13 @@ export class NotebookCellMetadata {
 		editable?: boolean | null,
 		breakpointMargin?: boolean | null,
 		hasExecutionOrder?: boolean | null,
-		executionOrder?: number | null,
-		runState?: NotebookCellRunState | null,
-		runStartTime?: number | null,
 		statusMessage?: string | null,
-		lastRunDuration?: number | null,
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
 		custom?: Record<string, any> | null,
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, hasExecutionOrder, executionOrder, runState, runStartTime, statusMessage, lastRunDuration, inputCollapsed, outputCollapsed, custom } = change;
+		let { editable, breakpointMargin, hasExecutionOrder, statusMessage, inputCollapsed, outputCollapsed, custom } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -2971,30 +2963,10 @@ export class NotebookCellMetadata {
 		} else if (hasExecutionOrder === null) {
 			hasExecutionOrder = undefined;
 		}
-		if (executionOrder === undefined) {
-			executionOrder = this.executionOrder;
-		} else if (executionOrder === null) {
-			executionOrder = undefined;
-		}
-		if (runState === undefined) {
-			runState = this.runState;
-		} else if (runState === null) {
-			runState = undefined;
-		}
-		if (runStartTime === undefined) {
-			runStartTime = this.runStartTime;
-		} else if (runStartTime === null) {
-			runStartTime = undefined;
-		}
 		if (statusMessage === undefined) {
 			statusMessage = this.statusMessage;
 		} else if (statusMessage === null) {
 			statusMessage = undefined;
-		}
-		if (lastRunDuration === undefined) {
-			lastRunDuration = this.lastRunDuration;
-		} else if (lastRunDuration === null) {
-			lastRunDuration = undefined;
 		}
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
@@ -3015,11 +2987,7 @@ export class NotebookCellMetadata {
 		if (editable === this.editable &&
 			breakpointMargin === this.breakpointMargin &&
 			hasExecutionOrder === this.hasExecutionOrder &&
-			executionOrder === this.executionOrder &&
-			runState === this.runState &&
-			runStartTime === this.runStartTime &&
 			statusMessage === this.statusMessage &&
-			lastRunDuration === this.lastRunDuration &&
 			inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
 			custom === this.custom
@@ -3031,11 +2999,7 @@ export class NotebookCellMetadata {
 			editable,
 			breakpointMargin,
 			hasExecutionOrder,
-			executionOrder,
-			runState,
-			runStartTime,
 			statusMessage,
-			lastRunDuration,
 			inputCollapsed,
 			outputCollapsed,
 			custom,
@@ -3178,14 +3142,10 @@ export enum NotebookCellKind {
 	Code = 2
 }
 
-export enum NotebookCellRunState {
-	Running = 1,
-	Idle = 2,
-	Pending = 3,
-
-	// TODO@rob
-	Success = 4,
-	Error = 5
+export enum NotebookCellExecutionState {
+	Idle = 1,
+	Pending = 2,
+	Executing = 3,
 }
 
 export enum NotebookCellStatusBarAlignment {

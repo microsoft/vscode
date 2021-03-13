@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { deepFreeze } from 'vs/base/common/objects';
+import { deepFreeze, equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -126,6 +126,7 @@ export interface INotebookEventEmitter {
 	emitModelChange(events: vscode.NotebookCellsChangeEvent): void;
 	emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void;
 	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
+	emitCellExecutionStateChange(event: vscode.NotebookCellExecutionStateChangeEvent): void;
 }
 
 
@@ -318,8 +319,21 @@ export class ExtHostNotebookDocument extends Disposable {
 
 	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata | undefined): void {
 		const cell = this._cells[index];
+
+		const originalInternalMetadata = cell.internalMetadata;
+		const originalExtMetadata = cell.cell.metadata;
 		cell.setMetadata(newMetadata || {});
-		this._emitter.emitCellMetadataChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell }));
+		const newExtMetadata = cell.cell.metadata;
+
+		if (!equals(originalExtMetadata, newExtMetadata)) {
+			this._emitter.emitCellMetadataChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell }));
+		}
+
+		if (originalInternalMetadata.runState !== newMetadata?.runState) {
+			// TODO@roblou why is metadata optional?
+			const executionState = newMetadata?.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
+			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell, executionState }));
+		}
 	}
 
 	getCellFromIndex(index: number): ExtHostCell | undefined {
@@ -328,10 +342,6 @@ export class ExtHostNotebookDocument extends Disposable {
 
 	getCell(cellHandle: number): ExtHostCell | undefined {
 		return this._cells.find(cell => cell.handle === cellHandle);
-	}
-
-	getCellByIndex(index: number): ExtHostCell | undefined {
-		return this._cells[index];
 	}
 
 	getCellIndex(cell: ExtHostCell): number {

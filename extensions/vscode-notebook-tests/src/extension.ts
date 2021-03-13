@@ -73,9 +73,11 @@ export function activate(context: vscode.ExtensionContext): any {
 			}
 
 			task.start();
-			task.replaceOutput([new vscode.NotebookCellOutput([
+			const edit = task.getOutputEdit();
+			edit.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
 			])]);
+			task.applyOutputEdit(edit);
 		}
 	};
 

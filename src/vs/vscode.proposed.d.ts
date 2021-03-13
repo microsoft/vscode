@@ -996,13 +996,10 @@ declare module 'vscode' {
 
 		// run related API, will be removed
 		readonly hasExecutionOrder?: boolean;
-		readonly executionOrder?: number;
-		readonly runStartTime?: number;
-		readonly lastRunDuration?: number;
 
 		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
-		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, executionOrder?: number | null, runStartTime?: number | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1545,9 +1542,9 @@ declare module 'vscode' {
 	}
 
 	export enum NotebookCellExecutionState {
-		Executing,
-		Idle,
-		Pending
+		Idle = 1,
+		Pending = 2,
+		Executing = 3,
 	}
 
 	export namespace notebook {
@@ -1559,7 +1556,7 @@ declare module 'vscode' {
 		 */
 		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
 
-		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
+		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };

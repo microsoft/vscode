@@ -1078,9 +1078,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
 			},
-			onDidChangeNotebookCellExecutionState(listener, thisArgs?, disposables?) {
+			onDidChangeCellExecutionState(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookCellRunState(listener, thisArgs, disposables);
+				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
 			},
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
@@ -1239,7 +1239,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TimelineItem: extHostTypes.TimelineItem,
 			NotebookCellRange: extHostTypes.NotebookCellRange,
 			NotebookCellKind: extHostTypes.NotebookCellKind,
-			NotebookCellExecutionState: extHostTypes.NotebookCellRunState as any,
+			NotebookCellExecutionState: extHostTypes.NotebookCellExecutionState,
 			NotebookDocumentMetadata: extHostTypes.NotebookDocumentMetadata,
 			NotebookCellMetadata: extHostTypes.NotebookCellMetadata,
 			NotebookCellData: extHostTypes.NotebookCellData,

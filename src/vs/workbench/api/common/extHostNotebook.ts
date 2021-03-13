@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellStatusbarAlignment, CellUri, ICellEditOperation, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellRunState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellStatusbarAlignment, CellUri, ICellEditOperation, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -227,8 +227,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	readonly onDidChangeCellMetadata = this._onDidChangeCellMetadata.event;
 	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
-	private readonly _onDidChangeNotebookCellRunState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
-	readonly onDidChangeNotebookCellRunState = this._onDidChangeNotebookCellRunState.event;
+	private readonly _onDidChangeCellExecutionState = new Emitter<vscode.NotebookCellExecutionStateChangeEvent>();
+	readonly onDidChangeNotebookCellExecutionState = this._onDidChangeCellExecutionState.event;
 
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
 	get activeNotebookEditor(): vscode.NotebookEditor | undefined {
@@ -534,7 +534,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		for (let range of cellRange) {
 			for (let i = range.start; i < range.end; i++) {
-				const cell = document.getCellByIndex(i);
+				const cell = document.getCellFromIndex(i);
 				if (cell) {
 					this.cancelOneNotebookCellExecution(cell);
 				}
@@ -735,6 +735,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
 							that._onDidChangeCellMetadata.fire(event);
 						},
+						emitCellExecutionStateChange(event: vscode.NotebookCellExecutionStateChangeEvent): void {
+							that._onDidChangeCellExecutionState.fire(event);
+						}
 					},
 					viewType,
 					modelData.metadata ? typeConverters.NotebookDocumentMetadata.to(modelData.metadata) : new extHostTypes.NotebookDocumentMetadata(),
@@ -850,7 +853,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new Error(`Invalid cell uri/index: ${docUri}, ${index}`);
 		}
 
-		const cell = document.getCellByIndex(index);
+		const cell = document.getCellFromIndex(index);
 		if (!cell) {
 			throw new Error(`Invalid cell uri/index: ${docUri}, ${index}`);
 		}
@@ -1065,7 +1068,7 @@ class NotebookCellExecutionTask extends Disposable {
 	get state(): NotebookCellExecutionTaskState { return this._state; }
 
 	private readonly _tokenSource: CancellationTokenSource;
-	private _editsQueue = Promise.resolve<void>(undefined);
+	private _editsQueue = Promise.resolve<void | boolean>(undefined);
 
 	constructor(
 		private readonly _uri: vscode.Uri,
@@ -1077,7 +1080,7 @@ class NotebookCellExecutionTask extends Disposable {
 		this._tokenSource = this._register(new CancellationTokenSource());
 
 		this.mixinMetadata({
-			runState: NotebookCellRunState.Pending
+			runState: NotebookCellExecutionState.Pending
 		});
 	}
 
@@ -1085,9 +1088,19 @@ class NotebookCellExecutionTask extends Disposable {
 		this._tokenSource.cancel();
 	}
 
-	private applyEdits(getEdits: () => ICellEditOperation[]): void {
+	private async applyEditsWithRetry(getEdits: () => ICellEditOperation[]): Promise<void> {
 		this._editsQueue = this._editsQueue.finally(() =>
 			retryAsync(() => this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, getEdits())));
+		await this._editsQueue;
+	}
+
+	private applyEdits(getEdits: () => ICellEditOperation[]): Promise<boolean> {
+		const next = this._editsQueue
+			.catch(() => { })
+			.then(() =>
+				this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, getEdits()));
+		this._editsQueue = next;
+		return next;
 	}
 
 	private verifyStateForOutput() {
@@ -1101,7 +1114,7 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private mixinMetadata(mixinMetadata: NotebookCellMetadata) {
-		this.applyEdits(() => {
+		this.applyEditsWithRetry(() => {
 			const metadata: NotebookCellMetadata = {
 				...this._cell.internalMetadata,
 				...mixinMetadata
@@ -1129,7 +1142,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: NotebookCellRunState.Running,
+					runState: NotebookCellExecutionState.Executing,
 					lastRunDuration: undefined,
 					runStartTime: context?.startTime
 				});
@@ -1154,7 +1167,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: NotebookCellRunState.Idle,
+					runState: NotebookCellExecutionState.Idle,
 					lastRunSuccess: result.success,
 					lastRunDuration: result.duration,
 				});
@@ -1167,7 +1180,7 @@ class NotebookCellExecutionTask extends Disposable {
 			async applyOutputEdit(edit: vscode.NotebookCellOutputEdit): Promise<boolean> {
 				that.verifyStateForOutput();
 				const edits: ICellEditOperation[] = (edit as any)._entries(); // TODO@roblou figure out the real shape of this
-				return that._proxy.$tryApplyEdits('n/a', that._uri, that._document.notebookDocument.version, edits);
+				return that.applyEdits(() => edits);
 			},
 
 			token: that._tokenSource.token
