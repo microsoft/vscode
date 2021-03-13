@@ -1554,6 +1554,10 @@
         {
           "command": "git.publish",
           "group": "branch@6"
+        },
+        {
+          "command": "git.deleteBranch",
+          "group": "branch@7"
         }
       ],
       "git.remotes": [
