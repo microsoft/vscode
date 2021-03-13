@@ -94,34 +94,41 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				});
 
 				if (this.requestModel.trustRequest.modal) {
+					// Message
+					const message = this.requestModel.trustRequest.message ?? 'A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.';
+
+					// Buttons
+					const buttons = this.requestModel.trustRequest.buttons ?? [
+						{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'TrustAndContinue' },
+						{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
+					];
+					buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
+
+					// Dialog
 					const result = await this.dialogService.show(
 						Severity.Warning,
 						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
-						[
-							localize('grantWorkspaceTrustButton', "Trust"),
-							localize('denyWorkspaceTrustButton', "Don't Trust"),
-							localize('manageWorkspaceTrustButton', "Manage"),
-							localize('cancelWorkspaceTrustButton', "Cancel"),
-						],
+						buttons.map(b => b.label),
 						{
-							cancelId: 3,
-							detail: localize('immediateTrustRequestDetail', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information."),
+							cancelId: buttons.length - 1,
+							detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information.", message),
 						}
 					);
 
-					switch (result.choice) {
-						case 0: // Trust
+					// Dialog result
+					switch (buttons[result.choice].type) {
+						case 'TrustAndContinue':
 							this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
 							break;
-						case 1: // Don't Trust
-							this.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
-							break;
-						case 2: // Manage
+						case 'Continue':
 							this.requestModel.completeRequest(undefined);
+							break;
+						case 'Manage':
+							this.requestModel.cancelRequest();
 							await this.commandService.executeCommand('workbench.trust.manage');
 							break;
-						default: // Cancel
-							this.requestModel.completeRequest(undefined);
+						case 'Cancel':
+							this.requestModel.cancelRequest();
 							break;
 					}
 				}

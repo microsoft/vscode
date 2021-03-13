@@ -16,6 +16,7 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { dirname, resolve } from 'vs/base/common/path';
+import { canceled } from 'vs/base/common/errors';
 
 export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
@@ -191,6 +192,9 @@ export class WorkspaceTrustRequestModel extends Disposable implements IWorkspace
 	private readonly _onDidCompleteRequest = this._register(new Emitter<WorkspaceTrustState | undefined>());
 	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
 
+	private readonly _onDidCancelRequest = this._register(new Emitter<void>());
+	readonly onDidCancelRequest = this._onDidCancelRequest.event;
+
 	initiateRequest(request: WorkspaceTrustRequest): void {
 		if (this.trustRequest && (!request.modal || this.trustRequest.modal)) {
 			return;
@@ -203,6 +207,11 @@ export class WorkspaceTrustRequestModel extends Disposable implements IWorkspace
 	completeRequest(trustState?: WorkspaceTrustState): void {
 		this.trustRequest = undefined;
 		this._onDidCompleteRequest.fire(trustState);
+	}
+
+	cancelRequest(): void {
+		this.trustRequest = undefined;
+		this._onDidCancelRequest.fire();
 	}
 }
 
@@ -218,6 +227,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
 	private _inFlightResolver?: (trustState: WorkspaceTrustState) => void;
+	private _inFlightRejecter?: (error: Error) => void;
 	private _trustRequestPromise?: Promise<WorkspaceTrustState>;
 	private _workspace: IWorkspace;
 
@@ -243,6 +253,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 		this._register(this.dataModel.onDidChangeTrustState(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
+		this._register(this.requestModel.onDidCancelRequest(() => this.onTrustRequestCancelled()));
 
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.TrustState.bindTo(contextKeyService);
 		this._ctxWorkspaceTrustPendingRequest = WorkspaceTrustContext.PendingRequest.bindTo(contextKeyService);
@@ -363,6 +374,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		}
 
 		this._inFlightResolver = undefined;
+		this._inFlightRejecter = undefined;
 		this._trustRequestPromise = undefined;
 
 		if (trustState === undefined) {
@@ -375,6 +387,18 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 		this._ctxWorkspaceTrustPendingRequest.set(false);
 		this._ctxWorkspaceTrustState.set(trustState);
+	}
+
+	private onTrustRequestCancelled(): void {
+		if (this._inFlightRejecter) {
+			this._inFlightRejecter(canceled());
+		}
+
+		this._inFlightResolver = undefined;
+		this._inFlightRejecter = undefined;
+		this._trustRequestPromise = undefined;
+
+		this._ctxWorkspaceTrustPendingRequest.set(false);
 	}
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
@@ -403,8 +427,9 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 			return this._trustRequestPromise;
 		}
 
-		this._trustRequestPromise = new Promise(resolve => {
+		this._trustRequestPromise = new Promise((resolve, reject) => {
 			this._inFlightResolver = resolve;
+			this._inFlightRejecter = reject;
 		});
 
 		this.requestModel.initiateRequest(request);
