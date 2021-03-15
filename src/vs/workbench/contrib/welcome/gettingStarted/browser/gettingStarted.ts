@@ -39,9 +39,10 @@ import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { coalesce } from 'vs/base/common/arrays';
 import { isMacintosh } from 'vs/base/common/platform';
-
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
+
+const hiddenEntriesConfigurationKey = 'gettingStarted.hiddenCategories';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -134,7 +135,13 @@ export class GettingStartedPage extends EditorPane {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
 
-		this.container = $('.gettingStartedContainer');
+		this.container = $('.gettingStartedContainer',
+			{
+				role: 'document',
+				tabindex: 0,
+				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+			});
+
 		this.tasExperimentService = tasExperimentService;
 
 		this.contextService = this._register(contextService.createScoped(this.container));
@@ -224,9 +231,20 @@ export class GettingStartedPage extends EditorPane {
 							}
 							break;
 						}
+						case 'hideCategory': {
+							const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
+							if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
+							this.configurationService.updateValue(hiddenEntriesConfigurationKey,
+								[...(this.configurationService.getValue<string[]>(hiddenEntriesConfigurationKey) ?? []), argument]);
+							element.parentElement?.remove();
+							break;
+						}
 						case 'selectTask': {
 							this.selectTask(argument);
-							e.stopPropagation();
+							break;
+						}
+						case 'completeTask': {
+							this.gettingStartedService.progressTask(argument);
 							break;
 						}
 						case 'runTaskAction': {
@@ -242,7 +260,6 @@ export class GettingStartedPage extends EditorPane {
 							} else {
 								throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
 							}
-							e.stopPropagation();
 							break;
 						}
 						default: {
@@ -250,6 +267,7 @@ export class GettingStartedPage extends EditorPane {
 							break;
 						}
 					}
+					e.stopPropagation();
 				}));
 			}
 		});
@@ -331,9 +349,7 @@ export class GettingStartedPage extends EditorPane {
 			);
 
 		const gettingStartedPage =
-			$('.gettingStarted.welcomePageFocusElement', {
-				role: 'document',
-				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+			$('.gettingStarted', {
 			},
 				$('.gettingStartedSlideCategory.gettingStartedSlide.categories'),
 				tasksSlide
@@ -350,30 +366,39 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
-		const categoryElements = this.gettingStartedCategories.filter(entry => entry.content.type === 'items').map(
-			category => {
-				const categoryDescriptionElement =
-					category.content.type === 'items' ?
-						$('.category-description-container', {},
-							$('h3.category-title', {}, category.title),
-							// $('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
-							$('.category-progress', { 'x-data-category-id': category.id, },
-								// $('.message'),
-								$('.progress-bar-outer', { 'role': 'progressbar' },
-									$('.progress-bar-inner'))))
-						:
-						$('.category-description-container', {},
-							$('h3.category-title', {}, category.title),
-							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
+		const hiddenCategories = new Set(this.configurationService.getValue(hiddenEntriesConfigurationKey) ?? []);
+		const categoryElements = this.gettingStartedCategories
+			.filter(entry => entry.content.type === 'items')
+			.filter(entry => !hiddenCategories.has(entry.id))
+			.map(
+				category => {
+					const categoryDescriptionElement =
+						category.content.type === 'items' ?
+							$('.category-description-container', {},
+								$('h3.category-title', {}, category.title),
+								// $('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
+								$('.category-progress', { 'x-data-category-id': category.id, },
+									// $('.message'),
+									$('.progress-bar-outer', { 'role': 'progressbar' },
+										$('.progress-bar-inner'))))
+							:
+							$('.category-description-container', {},
+								$('h3.category-title', {}, category.title),
+								$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
 
-				return $('button.getting-started-category',
-					{
-						'x-dispatch': 'selectCategory:' + category.id,
-						'role': 'listitem',
-					},
-					this.iconWidgetFor(category),
-					categoryDescriptionElement);
-			});
+					return $('button.getting-started-category',
+						{
+							'x-dispatch': 'selectCategory:' + category.id,
+							'role': 'listitem',
+							'title': category.description
+						},
+						this.iconWidgetFor(category),
+						$('a.codicon.codicon-close.hide-category-button', {
+							'x-dispatch': 'hideCategory:' + category.id,
+							'title': localize('close', "Hide"),
+						}),
+						categoryDescriptionElement);
+				});
 
 		const categoryScrollContainer = $('.getting-started-categories-scrolling-container');
 		const categoriesContainer = $('ul.getting-started-categories-container', { 'role': 'list' });
@@ -542,8 +567,8 @@ export class GettingStartedPage extends EditorPane {
 
 			if (entry.content.type === 'items') { return undefined; }
 
-			const li = $('li', { 'x-dispatch': 'selectCategory:' + entry.id }, this.iconWidgetFor(entry));
-			const button = $<HTMLAnchorElement>('button.button-link');
+			const li = $('li', {}, this.iconWidgetFor(entry));
+			const button = $<HTMLAnchorElement>('button.button-link', { 'x-dispatch': 'selectCategory:' + entry.id });
 
 			button.innerText = entry.title;
 			button.title = entry.description;
@@ -597,8 +622,8 @@ export class GettingStartedPage extends EditorPane {
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + numDone);
 			bar.setAttribute('aria-valuemax', '' + numTotal);
-
-			bar.style.width = `${(numDone / numTotal) * 100}%`;
+			const progress = Math.max((numDone / numTotal) * 100, 3);
+			bar.style.width = `${progress}%`;
 
 			if (numTotal === numDone) {
 				bar.title = `All items complete!`;
@@ -657,7 +682,11 @@ export class GettingStartedPage extends EditorPane {
 					'aria-checked': '' + task.done,
 					'role': 'listitem',
 				},
-				$('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)), { 'data-done-task-id': task.id }),
+				$('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
+					{
+						'data-done-task-id': task.id,
+						'x-dispatch': 'completeTask:' + task.id,
+					}),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
@@ -751,15 +780,6 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private focusFirstUncompletedCategory() {
-		let toFocus!: HTMLElement;
-		this.container.querySelectorAll('.category-progress').forEach(progress => {
-			const progressAmount = assertIsDefined(progress.querySelector('.progress-bar-inner') as HTMLDivElement).style.width;
-			if (!toFocus && progressAmount !== '100%') { toFocus = assertIsDefined(progress.parentElement?.parentElement); }
-		});
-		(toFocus ?? assertIsDefined(this.container.querySelector('button.getting-started-category')) as HTMLButtonElement)?.focus();
-	}
-
 	private setSlide(toEnable: 'details' | 'categories') {
 		const slideManager = assertIsDefined(this.container.querySelector('.gettingStarted'));
 		if (toEnable === 'categories') {
@@ -767,7 +787,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.add('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			this.focusFirstUncompletedCategory();
+			this.container.focus();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
@@ -870,7 +890,8 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { border-color: ${border}; border: 1px solid; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { border: 1px solid ${border}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link { border: inherit; }`);
 	}
 	const activeBorder = theme.getColor(activeContrastBorder);
 	if (activeBorder) {

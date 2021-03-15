@@ -315,6 +315,34 @@ suite('EditorGroupsService', () => {
 		part.dispose();
 	});
 
+	test('merge all groups', async () => {
+		const [part] = createPart();
+
+		const rootGroup = part.groups[0];
+
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
+
+		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		await rightGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+
+		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
+		await downGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+
+		part.activateGroup(rootGroup);
+
+		assert.strictEqual(rootGroup.count, 1);
+
+		const result = part.mergeAllGroups();
+		assert.strictEqual(result.id, rootGroup.id);
+		assert.strictEqual(rootGroup.count, 3);
+
+		part.dispose();
+	});
+
 	test('whenRestored', async () => {
 		const [part] = createPart();
 

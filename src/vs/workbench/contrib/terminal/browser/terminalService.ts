@@ -144,11 +144,10 @@ export class TerminalService implements ITerminalService {
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
+		this._connectionState = TerminalConnectionState.Connecting;
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
-			this._connectionState = TerminalConnectionState.Connecting;
 			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {
-			this._connectionState = TerminalConnectionState.Connecting;
 			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;

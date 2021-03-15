@@ -17,6 +17,8 @@ import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { TernarySearchTree } from 'vs/base/common/map';
 
+//#region file service & providers
+
 export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
@@ -170,13 +172,13 @@ export interface IFileService {
 	 * move the file to trash. The optional recursive parameter allows to delete
 	 * non-empty folders recursively.
 	 */
-	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
+	del(resource: URI, options?: Partial<FileDeleteOptions>): Promise<void>;
 
 	/**
 	 * Find out if a delete operation is possible given the arguments. No changes on disk will
 	 * be performed. Returns an Error if the operation cannot be done.
 	 */
-	canDelete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<Error | true>;
+	canDelete(resource: URI, options?: Partial<FileDeleteOptions>): Promise<Error | true>;
 
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
@@ -192,7 +194,22 @@ export interface IFileService {
 }
 
 export interface FileOverwriteOptions {
+
+	/**
+	 * Set to `true` to overwrite a file if it exists. Will
+	 * throw an error otherwise if the file does exist.
+	 */
 	overwrite: boolean;
+}
+
+export interface FileUnlockOptions {
+
+	/**
+	 * Set to `true` to try to remove any write locks the file might
+	 * have. A file that is write locked will throw an error for any
+	 * attempt to write to unless `unlock: true` is provided.
+	 */
+	unlock: boolean;
 }
 
 export interface FileReadStreamOptions {
@@ -218,28 +235,86 @@ export interface FileReadStreamOptions {
 	};
 }
 
-export interface FileWriteOptions {
-	overwrite: boolean;
+export interface FileWriteOptions extends FileOverwriteOptions, FileUnlockOptions {
+
+	/**
+	 * Set to `true` to create a file when it does not exist. Will
+	 * throw an error otherwise if the file does not exist.
+	 */
 	create: boolean;
 }
 
-export interface FileOpenOptions {
-	create: boolean;
+export type FileOpenOptions = FileOpenForReadOptions | FileOpenForWriteOptions;
+
+export function isFileOpenForWriteOptions(options: FileOpenOptions): options is FileOpenForWriteOptions {
+	return options.create === true;
+}
+
+export interface FileOpenForReadOptions {
+
+	/**
+	 * A hint that the file should be opened for reading only.
+	 */
+	create: false;
+}
+
+export interface FileOpenForWriteOptions extends FileUnlockOptions {
+
+	/**
+	 * A hint that the file should be opened for reading and writing.
+	 */
+	create: true;
 }
 
 export interface FileDeleteOptions {
+
+	/**
+	 * Set to `true` to recursively delete any children of the file. This
+	 * only applies to folders and can lead to an error unless provided
+	 * if the folder is not empty.
+	 */
 	recursive: boolean;
+
+	/**
+	 * Set to `true` to attempt to move the file to trash
+	 * instead of deleting it permanently from disk. This
+	 * option maybe not be supported on all providers.
+	 */
 	useTrash: boolean;
 }
 
 export enum FileType {
+
+	/**
+	 * File is unknown (neither file, directory nor symbolic link).
+	 */
 	Unknown = 0,
+
+	/**
+	 * File is a normal file.
+	 */
 	File = 1,
+
+	/**
+	 * File is a directory.
+	 */
 	Directory = 2,
+
+	/**
+	 * File is a symbolic link.
+	 *
+	 * Note: even when the file is a symbolic link, you can test for
+	 * `FileType.File` and `FileType.Directory` to know the type of
+	 * the target the link points to.
+	 */
 	SymbolicLink = 64
 }
 
 export interface IStat {
+
+	/**
+	 * The file type.
+	 */
 	type: FileType;
 
 	/**
@@ -252,25 +327,67 @@ export interface IStat {
 	 */
 	ctime: number;
 
+	/**
+	 * The size of the file in bytes.
+	 */
 	size: number;
 }
 
 export interface IWatchOptions {
+
+	/**
+	 * Set to `true` to watch for changes recursively in a folder
+	 * and all of its children.
+	 */
 	recursive: boolean;
+
+	/**
+	 * A set of paths to exclude from watching.
+	 */
 	excludes: string[];
 }
 
 export const enum FileSystemProviderCapabilities {
+
+	/**
+	 * Provider supports unbuffered read/write.
+	 */
 	FileReadWrite = 1 << 1,
+
+	/**
+	 * Provider supports open/read/write/close low level file operations.
+	 */
 	FileOpenReadWriteClose = 1 << 2,
+
+	/**
+	 * Provider supports stream based reading.
+	 */
 	FileReadStream = 1 << 4,
 
+	/**
+	 * Provider supports copy operation.
+	 */
 	FileFolderCopy = 1 << 3,
 
+	/**
+	 * Provider is path case sensitive.
+	 */
 	PathCaseSensitive = 1 << 10,
+
+	/**
+	 * All files of the provider are readonly.
+	 */
 	Readonly = 1 << 11,
 
-	Trash = 1 << 12
+	/**
+	 * Provider supports to delete via trash.
+	 */
+	Trash = 1 << 12,
+
+	/**
+	 * Provider support to unlock files for writing.
+	 */
+	FileWriteUnlock = 1 << 13
 }
 
 export interface IFileSystemProvider {
@@ -345,6 +462,7 @@ export enum FileSystemProviderErrorCode {
 	FileIsADirectory = 'EntryIsADirectory',
 	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
 	FileTooLarge = 'EntryTooLarge',
+	FileWriteLocked = 'EntryWriteLocked',
 	NoPermissions = 'NoPermissions',
 	Unavailable = 'Unavailable',
 	Unknown = 'Unknown'
@@ -404,6 +522,7 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
 		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
+		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
 		case FileSystemProviderErrorCode.Unavailable: return FileSystemProviderErrorCode.Unavailable;
 	}
@@ -426,6 +545,8 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_IS_DIRECTORY;
 		case FileSystemProviderErrorCode.FileNotADirectory:
 			return FileOperationResult.FILE_NOT_DIRECTORY;
+		case FileSystemProviderErrorCode.FileWriteLocked:
+			return FileOperationResult.FILE_WRITE_LOCKED;
 		case FileSystemProviderErrorCode.NoPermissions:
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
@@ -479,9 +600,9 @@ export class FileOperationEvent {
  * Possible changes that can occur to a file.
  */
 export const enum FileChangeType {
-	UPDATED = 0,
-	ADDED = 1,
-	DELETED = 2
+	UPDATED,
+	ADDED,
+	DELETED
 }
 
 /**
@@ -744,12 +865,7 @@ interface IBaseStat {
 	etag?: string;
 }
 
-export interface IBaseStatWithMetadata extends IBaseStat {
-	mtime: number;
-	ctime: number;
-	etag: string;
-	size: number;
-}
+export interface IBaseStatWithMetadata extends Required<IBaseStat> { }
 
 /**
  * A file resource with meta information.
@@ -767,7 +883,10 @@ export interface IFileStat extends IBaseStat {
 	isDirectory: boolean;
 
 	/**
-	 * The resource is a symbolic link.
+	 * The resource is a symbolic link. Note: even when the
+	 * file is a symbolic link, you can test for `FileType.File`
+	 * and `FileType.Directory` to know the type of the target
+	 * the link points to.
 	 */
 	isSymbolicLink: boolean;
 
@@ -854,6 +973,11 @@ export interface IWriteFileOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	readonly etag?: string;
+
+	/**
+	 * Whether to attempt to unlock a file before writing.
+	 */
+	readonly unlock?: boolean;
 }
 
 export interface IResolveFileOptions {
@@ -905,7 +1029,7 @@ export const enum FileOperationResult {
 	FILE_NOT_MODIFIED_SINCE,
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
-	FILE_READ_ONLY,
+	FILE_WRITE_LOCKED,
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
@@ -913,6 +1037,10 @@ export const enum FileOperationResult {
 	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
+
+//#endregion
+
+//#region Settings
 
 export const AutoSaveConfiguration = {
 	OFF: 'off',
@@ -947,6 +1075,10 @@ export interface IFilesConfiguration {
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
 	};
 }
+
+//#endregion
+
+//#region Utilities
 
 export enum FileKind {
 	FILE,
@@ -1042,3 +1174,5 @@ export function getPlatformLimits(arch: Arch): IArchLimits {
 		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
 	};
 }
+
+//#endregion

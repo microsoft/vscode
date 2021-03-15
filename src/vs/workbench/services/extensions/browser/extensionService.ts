@@ -50,7 +50,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
-				manifest => this._getExtensionKind(manifest),
+				(extension) => this._getExtensionKind(extension),
 				(extensionKinds, isInstalledLocally, isInstalledRemotely) => ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely)
 			),
 			instantiationService,

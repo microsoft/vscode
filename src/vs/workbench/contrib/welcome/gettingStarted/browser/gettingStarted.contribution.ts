@@ -15,6 +15,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
@@ -128,3 +130,18 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+
+		...workbenchConfigurationNodeBase,
+		'properties': {
+			'gettingStarted.hiddenCategories': {
+				'scope': ConfigurationScope.APPLICATION,
+				'type': 'array',
+				'items': { type: 'string' },
+				'default': [],
+				'description': localize('gettingStarted.hiddenCategories', "Hide categories of the welcome page's getting started section that are not relevant to you.")
+			},
+		}
+	});

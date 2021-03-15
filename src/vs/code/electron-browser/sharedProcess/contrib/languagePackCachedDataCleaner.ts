@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { IStringDictionary } from 'vs/base/common/collections';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -34,7 +34,8 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 
 	constructor(
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 		// We have no Language pack support for dev version (run from source)
@@ -48,7 +49,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			this._logService.info('Starting to clean up unused language packs.');
-			const maxAge = product.nameLong.indexOf('Insiders') >= 0
+			const maxAge = this._productService.quality !== 'stable'
 				? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {

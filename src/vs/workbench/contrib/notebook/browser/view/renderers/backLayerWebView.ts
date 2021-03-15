@@ -236,6 +236,7 @@ export interface ICustomRendererMessage extends BaseToWebviewMessage {
 export interface ICreateMarkdownMessage {
 	type: 'createMarkdownPreview',
 	id: string;
+	handle: number;
 	content: string;
 	top: number;
 }
@@ -257,7 +258,8 @@ export interface IUnhideMarkdownMessage {
 export interface IShowMarkdownMessage {
 	type: 'showMarkdownPreview',
 	id: string;
-	content: string;
+	handle: number;
+	content: string | undefined;
 	top: number;
 }
 
@@ -269,7 +271,7 @@ export interface IUpdateMarkdownPreviewSelectionState {
 
 export interface IInitializeMarkdownMessage {
 	type: 'initializeMarkdownPreview';
-	cells: Array<{ cellId: string, content: string }>;
+	cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>;
 }
 
 export type FromWebviewMessage =
@@ -343,7 +345,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	markdownPreviewMapping: Set<string> = new Set();
+	markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -363,6 +365,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public options: {
 			outputNodePadding: number,
 			outputNodeLeftPadding: number,
+			previewNodePadding: number,
 			leftMargin: number,
 			cellMargin: number,
 			runGutter: number,
@@ -415,6 +418,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						color: var(--vscode-foreground);
 						width: calc(100% - ${this.options.cellMargin}px);
 						padding-left: ${this.options.leftMargin}px;
+						padding-top: ${this.options.previewNodePadding}px;
+						padding-bottom: ${this.options.previewNodePadding}px;
 					}
 
 					#container > div > div.preview.selected {
@@ -449,11 +454,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div.preview h1 {
-						padding-bottom: 0.3em;
-						line-height: 1.2;
+						font-size: 26px;
+						padding-bottom: 8px;
+						line-height: 31px;
 						border-bottom-width: 1px;
 						border-bottom-style: solid;
 						border-color: var(--vscode-foreground);
+						margin: 0;
+						margin-bottom: 13px;
+					}
+
+					#container > div > div.preview h2 {
+						font-size: 19px;
+						margin: 0;
+						margin-bottom: 10px;
 					}
 
 					#container > div > div.preview h1,
@@ -485,7 +499,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					/* makes all markdown cells consistent */
 					#container > div > div.preview div {
-						min-height: 24px;
+						min-height: ${this.options.previewNodePadding * 2}px;
 					}
 
 					#container > div > div.preview table {
@@ -620,7 +634,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<script>${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
-			previewNodePadding: 8,
+			previewNodePadding: this.options.previewNodePadding,
 			leftMargin: this.options.leftMargin
 		})}</script>
 				${markdownRenderersSrc}
@@ -1051,33 +1065,57 @@ var requirejs = (function() {
 		});
 	}
 
-	async createMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
 		}
 
+		if (this.markdownPreviewMapping.has(cellId)) {
+			console.error('Trying to create markdown preview that already exists');
+			return;
+		}
+
 		const initialTop = cellTop;
-		this.markdownPreviewMapping.add(cellId);
+		this.markdownPreviewMapping.set(cellId, { version: contentVersion, visible: true });
 
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
 			id: cellId,
+			handle: cellHandle,
 			content: content,
 			top: initialTop,
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'showMarkdownPreview',
-			id: cellId,
-			content: content,
-			top: cellTop
-		});
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentVersion);
+		}
+
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.error('Try to show a preview that does not exist');
+			return;
+		}
+
+		if (entry.version !== contentVersion || !entry.visible) {
+			this._sendMessageToWebview({
+				type: 'showMarkdownPreview',
+				id: cellId,
+				handle: cellHandle,
+				// If the content has not changed, we still want to make sure the
+				// preview is visible but don't need to send anything over
+				content: entry.version === contentVersion ? undefined : content,
+				top: cellTop
+			});
+		}
+
+		entry.version = contentVersion;
+		entry.visible = true;
 	}
 
 	async hideMarkdownPreview(cellId: string,) {
@@ -1085,10 +1123,20 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'hideMarkdownPreview',
-			id: cellId
-		});
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			// TODO: this currently seems expected on first load
+			// console.error(`Try to hide a preview that does not exist: ${cellId}`);
+			return;
+		}
+
+		if (entry.visible) {
+			this._sendMessageToWebview({
+				type: 'hideMarkdownPreview',
+				id: cellId
+			});
+			entry.visible = false;
+		}
 	}
 
 	async unhideMarkdownPreview(cellId: string,) {
@@ -1096,14 +1144,28 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'unhideMarkdownPreview',
-			id: cellId
-		});
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.error(`Try to unhide a preview that does not exist: ${cellId}`);
+			return;
+		}
+
+		if (!entry.visible) {
+			this._sendMessageToWebview({
+				type: 'unhideMarkdownPreview',
+				id: cellId
+			});
+			entry.visible = true;
+		}
 	}
 
 	async removeMarkdownPreview(cellId: string,) {
 		if (this._disposed) {
+			return;
+		}
+
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			console.error(`Try to delete a preview that does not exist: ${cellId}`);
 			return;
 		}
 
@@ -1120,15 +1182,9 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'updateMarkdownPreviewSelectionState',
-			id: cellId,
-			isSelected
-		});
-	}
-
-	async updateMarkdownPreviewDecpratopms(cellId: any, isSelected: boolean) {
-		if (this._disposed) {
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			// TODO: this currently seems expected on first load
+			// console.error(`Try to update selection state for preview that does not exist: ${cellId}`);
 			return;
 		}
 
@@ -1139,8 +1195,12 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkdown(cells: Array<{ cellId: string, content: string }>) {
+	async initializeMarkdown(cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>) {
 		await this._loaded;
+
+		if (this._disposed) {
+			return;
+		}
 
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
@@ -1152,7 +1212,7 @@ var requirejs = (function() {
 		});
 
 		for (const cell of cells) {
-			this.markdownPreviewMapping.add(cell.cellId);
+			this.markdownPreviewMapping.set(cell.cellId, { version: 0, visible: false });
 		}
 
 		this._sendMessageToWebview({

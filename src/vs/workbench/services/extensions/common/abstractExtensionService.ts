@@ -21,7 +21,7 @@ import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensi
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription, ExtensionType, ITranslatedScannedExtension, IExtension, ExtensionKind, IExtensionContributions, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, ExtensionType, ITranslatedScannedExtension, IExtension, ExtensionKind, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -173,8 +173,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}));
 	}
 
-	protected _getExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
-		return this._extensionKindController.getExtensionKind(manifest);
+	protected _getExtensionKind(extensionDescription: IExtensionDescription): ExtensionKind[] {
+		if (extensionDescription.isUnderDevelopment && this._environmentService.extensionDevelopmentKind) {
+			return this._environmentService.extensionDevelopmentKind;
+		}
+
+		return this._extensionKindController.getExtensionKind(extensionDescription);
 	}
 
 	protected _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {
@@ -211,13 +215,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
 
-			if (!this._canAddExtension(extension)) {
-				continue;
-			}
-
 			const extensionDescription = await this._scanSingleExtension(extension);
 			if (!extensionDescription) {
 				// could not scan extension...
+				continue;
+			}
+
+			if (!this.canAddExtension(extensionDescription)) {
 				continue;
 			}
 
@@ -310,24 +314,20 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await Promise.all(promises);
 	}
 
-	public canAddExtension(extensionDescription: IExtensionDescription): boolean {
-		return this._canAddExtension(toExtension(extensionDescription));
-	}
-
-	private _canAddExtension(extension: IExtension): boolean {
-		const extensionDescription = this._registry.getExtensionDescription(extension.identifier.id);
-		if (extensionDescription) {
+	public canAddExtension(extension: IExtensionDescription): boolean {
+		const existing = this._registry.getExtensionDescription(extension.identifier);
+		if (existing) {
 			// this extension is already running (most likely at a different version)
 			return false;
 		}
 
 		// Check if extension is renamed
-		if (extension.identifier.uuid && this._registry.getAllExtensionDescriptions().some(e => e.uuid === extension.identifier.uuid)) {
+		if (extension.uuid && this._registry.getAllExtensionDescriptions().some(e => e.uuid === extension.uuid)) {
 			return false;
 		}
 
-		const extensionKind = this._getExtensionKind(extension.manifest);
-		const isRemote = extension.location.scheme === Schemas.vscodeRemote;
+		const extensionKind = this._getExtensionKind(extension);
+		const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
 		const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote);
 		if (runningLocation === ExtensionRunningLocation.None) {
 			return false;
@@ -420,6 +420,43 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await this._scanAndHandleExtensions();
 		this._releaseBarrier();
 		perf.mark('code/didLoadExtensions');
+		await this._handleExtensionTests();
+	}
+
+	private async _handleExtensionTests(): Promise<void> {
+		if (!this._environmentService.extensionDevelopmentLocationURI || !this._environmentService.extensionTestsLocationURI) {
+			return;
+		}
+
+		// TODO: Use `this._registry` and `this._runningLocation` to better determine which extension host should launch the test runner
+		let extensionHostManager: ExtensionHostManager | null = null;
+		if (this._environmentService.extensionTestsLocationURI.scheme === Schemas.vscodeRemote) {
+			extensionHostManager = this._getExtensionHostManager(ExtensionHostKind.Remote);
+		}
+		if (!extensionHostManager) {
+			// When a debugger attaches to the extension host, it will surface all console.log messages from the extension host,
+			// but not necessarily from the window. So it would be best if any errors get printed to the console of the extension host.
+			// That is why here we use the local process extension host even for non-file URIs
+			extensionHostManager = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
+		}
+
+		if (!extensionHostManager) {
+			const msg = nls.localize('extensionTestError', "No extension host found that can launch the test runner at {0}.", this._environmentService.extensionTestsLocationURI.toString());
+			console.error(msg);
+			this._notificationService.error(msg);
+			return;
+		}
+
+		let exitCode: number;
+		try {
+			exitCode = await extensionHostManager.extensionTestsExecute();
+		} catch (err) {
+			console.error(err);
+			exitCode = 1 /* ERROR */;
+		}
+
+		await extensionHostManager.extensionTestsSendExit(exitCode);
+		this._onExtensionHostExit(exitCode);
 	}
 
 	private _releaseBarrier(): void {
@@ -779,7 +816,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 export class ExtensionRunningLocationClassifier {
 	constructor(
-		public readonly getExtensionKind: (manifest: IExtensionManifest) => ExtensionKind[],
+		public readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
 		public readonly pickRunningLocation: (extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean) => ExtensionRunningLocation,
 	) {
 	}

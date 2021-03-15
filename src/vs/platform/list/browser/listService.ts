@@ -578,10 +578,6 @@ export interface IOpenResourceOptions {
 	payload: any;
 }
 
-export interface IResourceResultsNavigationOptions {
-	openOnFocus: boolean;
-}
-
 export interface IOpenEvent<T> {
 	editorOptions: IEditorOptions;
 	sideBySide: boolean;
@@ -591,7 +587,6 @@ export interface IOpenEvent<T> {
 
 export interface IResourceNavigatorOptions {
 	readonly configurationService?: IConfigurationService;
-	readonly openOnFocus?: boolean;
 	readonly openOnSingleClick?: boolean;
 }
 
@@ -612,7 +607,6 @@ export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: b
 
 abstract class ResourceNavigator<T> extends Disposable {
 
-	private readonly openOnFocus: boolean;
 	private openOnSingleClick: boolean;
 
 	private readonly _onDidOpen = this._register(new Emitter<IOpenEvent<T | undefined>>());
@@ -624,15 +618,9 @@ abstract class ResourceNavigator<T> extends Disposable {
 	) {
 		super();
 
-		this.openOnFocus = options?.openOnFocus ?? false;
-
 		this._register(Event.filter(this.widget.onDidChangeSelection, e => e.browserEvent instanceof KeyboardEvent)(e => this.onSelectionFromKeyboard(e)));
 		this._register(this.widget.onPointer((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onPointer(e.element, e.browserEvent)));
 		this._register(this.widget.onMouseDblClick((e: { browserEvent: MouseEvent, element: T | undefined }) => this.onMouseDblClick(e.element, e.browserEvent)));
-
-		if (this.openOnFocus) {
-			this._register(Event.filter(this.widget.onDidChangeFocus, e => e.browserEvent instanceof KeyboardEvent)(e => this.onFocusFromKeyboard(e)));
-		}
 
 		if (typeof options?.openOnSingleClick !== 'boolean' && options?.configurationService) {
 			this.openOnSingleClick = options?.configurationService!.getValue(openModeSettingKey) !== 'doubleClick';
@@ -642,18 +630,6 @@ abstract class ResourceNavigator<T> extends Disposable {
 		} else {
 			this.openOnSingleClick = options?.openOnSingleClick ?? true;
 		}
-	}
-
-	private onFocusFromKeyboard(event: ITreeEvent<any>): void {
-		const focus = this.widget.getFocus();
-		this.widget.setSelection(focus, event.browserEvent);
-
-		const selectionKeyboardEvent = event.browserEvent as SelectionKeyboardEvent;
-		const preserveFocus = typeof selectionKeyboardEvent.preserveFocus === 'boolean' ? selectionKeyboardEvent.preserveFocus! : true;
-		const pinned = typeof selectionKeyboardEvent.pinned === 'boolean' ? selectionKeyboardEvent.pinned! : !preserveFocus;
-		const sideBySide = false;
-
-		this._open(this.getSelectedElement(), preserveFocus, pinned, sideBySide, event.browserEvent);
 	}
 
 	private onSelectionFromKeyboard(event: ITreeEvent<any>): void {

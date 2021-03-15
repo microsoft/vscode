@@ -11,7 +11,7 @@ import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybinding
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel } from 'vs/base/common/labels';
@@ -73,7 +73,8 @@ export class Menubar {
 		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -123,22 +124,22 @@ export class Menubar {
 		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.workspacesHistoryMainService.clearRecentlyOpened();
 
 		// Help Menu Items
-		const twitterUrl = product.twitterUrl;
+		const twitterUrl = this.productService.twitterUrl;
 		if (twitterUrl) {
 			this.fallbackMenuHandlers['workbench.action.openTwitterUrl'] = () => this.openUrl(twitterUrl, 'openTwitterUrl');
 		}
 
-		const requestFeatureUrl = product.requestFeatureUrl;
+		const requestFeatureUrl = this.productService.requestFeatureUrl;
 		if (requestFeatureUrl) {
 			this.fallbackMenuHandlers['workbench.action.openRequestFeatureUrl'] = () => this.openUrl(requestFeatureUrl, 'openUserVoiceUrl');
 		}
 
-		const reportIssueUrl = product.reportIssueUrl;
+		const reportIssueUrl = this.productService.reportIssueUrl;
 		if (reportIssueUrl) {
 			this.fallbackMenuHandlers['workbench.action.openIssueReporter'] = () => this.openUrl(reportIssueUrl, 'openReportIssues');
 		}
 
-		const licenseUrl = product.licenseUrl;
+		const licenseUrl = this.productService.licenseUrl;
 		if (licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openLicenseUrl'] = () => {
 				if (language) {
@@ -150,7 +151,7 @@ export class Menubar {
 			};
 		}
 
-		const privacyStatementUrl = product.privacyStatementUrl;
+		const privacyStatementUrl = this.productService.privacyStatementUrl;
 		if (privacyStatementUrl && licenseUrl) {
 			this.fallbackMenuHandlers['workbench.action.openPrivacyStatementUrl'] = () => {
 				if (language) {
@@ -268,7 +269,7 @@ export class Menubar {
 		let macApplicationMenuItem: MenuItem;
 		if (isMacintosh) {
 			const applicationMenu = new Menu();
-			macApplicationMenuItem = new MenuItem({ label: product.nameShort, submenu: applicationMenu });
+			macApplicationMenuItem = new MenuItem({ label: this.productService.nameShort, submenu: applicationMenu });
 			this.setMacApplicationMenu(applicationMenu);
 			menubar.append(macApplicationMenuItem);
 		}
@@ -362,7 +363,7 @@ export class Menubar {
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Menu): void {
-		const about = this.createMenuItem(nls.localize('mAbout', "About {0}", product.nameLong), 'workbench.action.showAboutDialog');
+		const about = this.createMenuItem(nls.localize('mAbout', "About {0}", this.productService.nameLong), 'workbench.action.showAboutDialog');
 		const checkForUpdates = this.getUpdateMenuItems();
 
 		let preferences;
@@ -374,11 +375,11 @@ export class Menubar {
 
 		const servicesMenu = new Menu();
 		const services = new MenuItem({ label: nls.localize('mServices', "Services"), role: 'services', submenu: servicesMenu });
-		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
+		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", this.productService.nameLong), role: 'hide', accelerator: 'Command+H' });
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideOthers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
-			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
+			label: nls.localize('miQuit', "Quit {0}", this.productService.nameLong), click: () => {
 				const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 				if (
 					this.windowsMainService.getWindowCount() === 0 || 	// allow to quit when no more windows are open

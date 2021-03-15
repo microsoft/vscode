@@ -27,9 +27,9 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IProductService private readonly productService: IProductService
+		@IProductService productService: IProductService
 	) {
-		super();
+		super(productService);
 
 		this.urlService = ProxyChannel.toService<IURLService>(mainProcessService.getChannel('url'));
 

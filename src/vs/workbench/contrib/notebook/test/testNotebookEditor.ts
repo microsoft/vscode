@@ -67,7 +67,21 @@ export class TestNotebookEditor implements INotebookEditor {
 	creationOptions: INotebookEditorCreationOptions = { isEmbedded: false };
 
 	constructor(readonly viewModel: NotebookViewModel) { }
-
+	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
+		throw new Error('Method not implemented.');
+	}
+	getViewIndex(cell: ICellViewModel): number {
+		throw new Error('Method not implemented.');
+	}
+	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
+		throw new Error('Method not implemented.');
+	}
+	getFocus(): ICellRange | undefined {
+		return undefined;
+	}
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[] {
+		throw new Error('Method not implemented.');
+	}
 	getSelection(): ICellRange | undefined {
 		throw new Error('Method not implemented.');
 	}
@@ -132,6 +146,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	multipleKernelsAvailable: boolean = false;
+	onDidScroll: Event<void> = new Emitter<void>().event;
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
 	onDidChangeVisibleRanges: Event<void> = new Emitter<void>().event;

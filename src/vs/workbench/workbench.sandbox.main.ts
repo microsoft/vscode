@@ -26,6 +26,7 @@ import 'vs/workbench/electron-sandbox/parts/dialogs/dialog.contribution';
 
 //#region --- workbench services
 
+import 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
 import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
