@@ -35,7 +35,7 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
 	// module doesn't work if this is not the case. See #27915.
-
+	console.trace(configProfiles);
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
@@ -150,17 +150,16 @@ async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean): Pro
 			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
-			distroNames.forEach(distro => {
+			for (const distroName of distroNames) {
 				let s = '';
 				let counter = 0;
-				Array.from(distro).forEach(c => {
+				for (const c of Array.from(distroName)) {
 					if (counter % 2 === 1) {
 						// every other character is junk / a rectangle
 						s += c;
 					}
 					counter++;
 				}
-				);
 				if (s.endsWith('(Default)')) {
 					// Ubuntu (Default) -> Ubuntu bc (Default) won't work
 					s = s.substring(0, s.length - 10);
@@ -169,7 +168,7 @@ async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean): Pro
 					let profile = { profileName: `${s} (WSL)`, paths: [wslPath], args: [`-d`, `${s}`] };
 					profiles.push(profile);
 				}
-			});
+			}
 			return profiles;
 		}
 	}
