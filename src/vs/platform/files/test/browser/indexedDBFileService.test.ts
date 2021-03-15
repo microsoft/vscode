@@ -15,8 +15,6 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
-let fail = true;
-
 suite.only('IndexedDB File Service', function () {
 
 	// IDB sometimes under pressure in build machines.
