@@ -35,7 +35,6 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
 	// module doesn't work if this is not the case. See #27915.
-	console.trace(configProfiles);
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
@@ -77,13 +76,8 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 	expectedProfiles.forEach(profile => promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider, profile.args)));
 	const profiles = await Promise.all(promises);
 
-	// todo what's the expected path of zsh? add to expected profiles
-	let zsh = profiles.find(shell => shell?.path.endsWith('zsh.exe'));
-	if (zsh) {
-		zsh.args = ['--login'];
-	}
-
 	const detectedProfiles = coalesce(profiles);
+
 	let validProfiles: ITerminalProfile[] = [];
 
 	if (detectedProfiles && configProfiles) {
@@ -120,7 +114,6 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 				}
 			}
 		}
-
 		if (detectWslProfiles) {
 			const wslDistros = detectedProfiles?.filter(p => p.path.includes('wsl.exe'));
 			if (wslDistros) {
@@ -142,7 +135,6 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 
 async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
 	let profiles: IPotentialTerminalProfile[] = [];
-	profiles.push({ profileName: `WSL Bash`, paths: [wslPath] });
 	if (detectWslProfiles) {
 		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? console.trace('problem occurred when getting wsl distros', err) : r(stdout)));
 		if (distroOutput) {
