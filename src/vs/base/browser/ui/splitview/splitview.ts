@@ -131,6 +131,10 @@ abstract class ViewItem<TLayoutContext> {
 			this._size = 0;
 			this._cachedVisibleSize = size.cachedVisibleSize;
 		}
+
+		if (view.maximumSize < view.minimumSize) {
+			throw new Error('splitview view minimum size must be <= maximum size');
+		}
 	}
 
 	layout(offset: number, layoutContext: TLayoutContext | undefined): void {
