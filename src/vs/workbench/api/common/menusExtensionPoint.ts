@@ -97,6 +97,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'menuBar/edit/copy',
+		id: MenuId.MenubarCopy,
+		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
