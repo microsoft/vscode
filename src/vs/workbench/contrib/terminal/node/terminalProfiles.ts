@@ -70,7 +70,7 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, statP
 	];
 
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
-	expectedProfiles.forEach(profile => promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider)));
+	expectedProfiles.forEach(profile => promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider, profile.args)));
 	const profiles = await Promise.all(promises);
 
 	// todo what's the expected path of zsh? add to expected profiles
@@ -96,12 +96,29 @@ async function getWslProfiles(path: string, useWSLexe: boolean, detectWslProfile
 		profiles.push({ profileName: `WSL Bash`, paths: [`${path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`] });
 		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? console.trace('problem occurred when getting wsl distros', err) : r(stdout)));
 		if (distroOutput) {
-			let distroNames = distroOutput.split('\r').map(name => name.trim()).filter(item => item.trim().length > 0 && item !== '').map(item => item.substring(3)).filter(item => item.length > 1);
+			let regex = new RegExp(/[\r\n]/);
+			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
+			// don't need the Windows Subsystem for Linux Distributions: header
 			distroNames.shift();
 			distroNames.forEach(distro => {
-				let n = Buffer.from(distro).toString('utf8');
-				let profile = { profileName: `WSL Bash ${n}`, paths: [`${path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`], args: [` -d ${n}`] };
-				profiles.push(profile);
+				let s = '';
+				let counter = 0;
+				Array.from(distro).forEach(c => {
+					if (counter % 2 === 1) {
+						// every other character is junk / a rectangle
+						s += c;
+					}
+					counter++;
+				}
+				);
+				if (s.endsWith('(Default)')) {
+					// Ubuntu (Default) -> Ubuntu
+					s = s.substring(0, s.length - 9);
+				}
+				if (s !== '') {
+					let profile = { profileName: `${s}`, paths: [`${path}\\${useWSLexe ? `wsl.exe` : `bash.exe`}`], args: [` -d ${s}`] };
+					profiles.push(profile);
+				}
 			});
 			return profiles;
 		}
@@ -120,7 +137,7 @@ async function detectAvailableUnixProfiles(): Promise<ITerminalProfile[]> {
 	});
 }
 
-async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[]): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -132,7 +149,8 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 		if (statProvider.stat(current)) {
 			return {
 				profileName: label,
-				path: current
+				path: current,
+				args: args
 			};
 		}
 	} else {
@@ -141,7 +159,8 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 			if (result.isFile() || result.isSymbolicLink()) {
 				return {
 					profileName: label,
-					path: current
+					path: current,
+					args: args
 				};
 			}
 		} catch (e) {
@@ -153,7 +172,8 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 				if (result.isFile() || result.isSymbolicLink()) {
 					return {
 						profileName: label,
-						path: current
+						path: current,
+						args: args
 					};
 				}
 			}

@@ -1468,13 +1468,14 @@ export function registerTerminalActions() {
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
 
-			if (customProfiles) {
-				let launchConfig = customProfiles.find(profile => profile.profileName === profileSelection);
-				if (launchConfig) {
-					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
-					terminalService.setActiveInstance(instance);
-				}
-			} else if (detectedProfiles) {
+			// if (customProfiles) {
+			// 	let launchConfig = customProfiles.find(profile => profile.profileName === profileSelection);
+			// 	if (launchConfig) {
+			// 		const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
+			// 		terminalService.setActiveInstance(instance);
+			// 	}
+			// } else
+			if (detectedProfiles) {
 				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
 				if (launchConfig) {
 					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });

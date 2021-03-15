@@ -96,9 +96,9 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: {
-		linux: ITerminalProfile[];
-		osx: ITerminalProfile[];
-		windows: ITerminalProfile[];
+		linux: Map<ProfileName, ITerminalProfileObject>;
+		osx: Map<ProfileName, ITerminalProfileObject>;
+		windows: Map<ProfileName, ITerminalProfileObject>;
 	};
 	detectWslProfiles: boolean;
 	altClickMovesCursor: boolean;
@@ -228,6 +228,20 @@ export interface ITerminalProfile {
 	path: string;
 	args?: string | string[] | undefined;
 }
+
+enum ProfileGenerator {
+	'WSL Bash',
+	'Git Bash',
+	'PowerShell'
+}
+
+export interface ITerminalProfileGenerator {
+	generator: ProfileGenerator;
+}
+
+export type ProfileName = string;
+
+export type ITerminalProfileObject = ITerminalProfile | ITerminalProfileGenerator | null;
 
 export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;
