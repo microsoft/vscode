@@ -5,26 +5,26 @@
 
 import { isWindows, isMacintosh, setImmediate, globals, INodeProcess } from 'vs/base/common/platform';
 
-declare const process: INodeProcess;
-
-let safeProcess: INodeProcess;
+let safeProcess: INodeProcess & { nextTick: (callback: (...args: any[]) => void) => void; };
 
 // Native node.js environment
+declare const process: INodeProcess;
 if (typeof process !== 'undefined') {
 	safeProcess = {
-		get platform(): 'win32' | 'linux' | 'darwin' { return process.platform; },
+		get platform() { return process.platform; },
 		get env() { return process.env; },
-		cwd(): string { return process.env['VSCODE_CWD'] || process.cwd(); },
-		nextTick(callback: (...args: any[]) => void): void { return process.nextTick(callback); }
+		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); },
+		nextTick(callback: (...args: any[]) => void): void { return process.nextTick!(callback); }
 	};
 }
 
 // Native sandbox environment
 else if (typeof globals.vscode !== 'undefined') {
+	const sandboxProcess: INodeProcess = globals.vscode.process;
 	safeProcess = {
-		get platform(): 'win32' | 'linux' | 'darwin' { return globals.vscode.process.platform; },
-		get env() { return globals.vscode.process.env; },
-		cwd(): string { return globals.vscode.process.env['VSCODE_CWD'] || globals.vscode.process.execPath.substr(0, globals.vscode.process.execPath.lastIndexOf(globals.vscode.process.platform === 'win32' ? '\\' : '/')); },
+		get platform() { return sandboxProcess.platform; },
+		get env() { return sandboxProcess.env; },
+		cwd() { return sandboxProcess.cwd(); },
 		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
 	};
 }
@@ -34,12 +34,12 @@ else {
 	safeProcess = {
 
 		// Supported
-		get platform(): 'win32' | 'linux' | 'darwin' { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
+		get platform() { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
 		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); },
 
 		// Unsupported
 		get env() { return Object.create(null); },
-		cwd(): string { return '/'; }
+		cwd() { return '/'; }
 	};
 }
 
