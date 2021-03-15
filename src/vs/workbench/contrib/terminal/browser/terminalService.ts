@@ -144,14 +144,23 @@ export class TerminalService implements ITerminalService {
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
+		// Connect to the extension host if it's there, set the connection state to connected when
+		// it's done. This should happen even when there is no extension host.
 		this._connectionState = TerminalConnectionState.Connecting;
+		let initPromise: Promise<any>;
 		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
-			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
+			initPromise = this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {
-			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
+			initPromise = this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
 		} else {
-			this._connectionState = TerminalConnectionState.Connected;
+			initPromise = Promise.resolve();
 		}
+		initPromise.then(() => this._setConnected());
+	}
+
+	private _setConnected() {
+		this._connectionState = TerminalConnectionState.Connected;
+		this._onDidChangeConnectionState.fire();
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -167,11 +176,9 @@ export class TerminalService implements ITerminalService {
 			count: reconnectCounter
 		};
 		this._telemetryService.publicLog('terminalReconnection', data);
-		this._connectionState = TerminalConnectionState.Connected;
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
 		this.attachProcessLayoutListeners(true);
-		this._onDidChangeConnectionState.fire();
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
@@ -186,8 +193,6 @@ export class TerminalService implements ITerminalService {
 		// now that terminals have been restored,
 		// attach listeners to update local state when terminals are changed
 		this.attachProcessLayoutListeners(false);
-		this._connectionState = TerminalConnectionState.Connected;
-		this._onDidChangeConnectionState.fire();
 	}
 
 	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
@@ -563,7 +568,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => {
 			this._onInstanceDimensionsChanged.fire(instance);
-			if (this.configHelper.config.enablePersistentSessions) {
+			if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
 				!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
 			}
 		}));
@@ -773,7 +778,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		if (!this.isProcessSupportRegistered) {
+		if (!shell.isExtensionCustomPtyTerminal && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shell.hideFromUser) {
