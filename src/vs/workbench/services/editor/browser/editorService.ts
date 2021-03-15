@@ -40,6 +40,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IKeyMods, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
+// eslint-disable-next-line code-import-patterns
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -589,6 +591,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// If the override option is provided we want to open that specific editor or show a picker
 			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
 				return this.openEditorWith(resolvedOptions.override, resolvedEditor, resolvedOptions, resolvedGroup);
+			} else if (resolvedEditor.resource && resolvedOptions?.override !== EditorOverride.DISABLED) {
+				// If the override option is undefined we want to find out if there's any custom editors associated with that resource and pass it in
+				const resolvedOverride = CustomEditorInput.resolveViewType(this.instantiationService, resolvedEditor.resource);
+				if (resolvedOverride) {
+					return this.openEditor(resolvedEditor, { ...resolvedOptions, override: resolvedOverride }, group);
+				}
 			}
 
 			// Otherwise proceed to open normally
@@ -1103,7 +1111,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const canonicalResource = this.asCanonicalEditorResource(preferredResource);
 
 			return this.createOrGetCached(canonicalResource, () => {
-
 				// File
 				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
 					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
