@@ -257,6 +257,18 @@
           "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
           "scope": "resource"
         },
+        "javascript.suggest.includeCompletionsForImportStatements": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+          "scope": "resource"
+        },
+        "typescript.suggest.includeCompletionsForImportStatements": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+          "scope": "resource"
+        },
         "typescript.reportStyleChecksAsWarnings": {
           "type": "boolean",
           "default": true,

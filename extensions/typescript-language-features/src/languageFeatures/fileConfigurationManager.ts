@@ -183,6 +183,8 @@ export default class FileConfigurationManager extends Disposable {
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
+			// @ts-expect-error until 4.3 protocol update
+			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 		};
 
 		return preferences;
