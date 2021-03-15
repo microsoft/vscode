@@ -174,10 +174,6 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 	}
 }
 
-async function retryAsync(fn: () => Promise<boolean>): Promise<void> {
-	while (!await fn()) { }
-}
-
 export class NotebookEditorDecorationType {
 
 	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
@@ -1088,19 +1084,9 @@ class NotebookCellExecutionTask extends Disposable {
 		this._tokenSource.cancel();
 	}
 
-	private async applyEditsWithRetry(getEdits: () => ICellEditOperation[]): Promise<void> {
-		this._editsQueue = this._editsQueue.finally(() =>
-			retryAsync(() => this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, getEdits())));
+	private async applyEdits(getEdits: () => ICellEditOperation[]): Promise<void> {
+		this._editsQueue = this._editsQueue.finally(() => this._proxy.$applyEdits(this._uri, getEdits()));
 		await this._editsQueue;
-	}
-
-	private applyEdits(getEdits: () => ICellEditOperation[]): Promise<boolean> {
-		const next = this._editsQueue
-			.catch(() => { })
-			.then(() =>
-				this._proxy.$tryApplyEdits('n/a', this._uri, this._document.notebookDocument.version, getEdits()));
-		this._editsQueue = next;
-		return next;
 	}
 
 	private verifyStateForOutput() {
@@ -1114,7 +1100,7 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private mixinMetadata(mixinMetadata: NotebookCellMetadata) {
-		this.applyEditsWithRetry(() => {
+		this.applyEdits(() => {
 			const metadata: NotebookCellMetadata = {
 				...this._cell.internalMetadata,
 				...mixinMetadata
@@ -1173,59 +1159,32 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			getOutputEdit() {
-				return new NotebookCellOutputEdit(that._index).asApiObject();
+			clearOutput(): Thenable<void> {
+				that.verifyStateForOutput();
+				return this.replaceOutput([]);
 			},
 
-			async applyOutputEdit(edit: vscode.NotebookCellOutputEdit): Promise<boolean> {
+			appendOutput(outputs: vscode.NotebookCellOutput[]): Thenable<void> {
 				that.verifyStateForOutput();
-				const edits: ICellEditOperation[] = (edit as any)._entries(); // TODO@roblou figure out the real shape of this
-				return that.applyEdits(() => edits);
+				return that.applyEdits(() => [{ editType: CellEditType.Output, index: that._index, append: true, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
+			},
+
+			replaceOutput(outputs: vscode.NotebookCellOutput[]): Thenable<void> {
+				that.verifyStateForOutput();
+				return that.applyEdits(() => [{ editType: CellEditType.Output, index: that._index, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
+			},
+
+			appendOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): Thenable<void> {
+				that.verifyStateForOutput();
+				return that.applyEdits(() => [{ editType: CellEditType.OutputItems, index: that._index, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
+			},
+
+			replaceOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): Thenable<void> {
+				that.verifyStateForOutput();
+				return that.applyEdits(() => [{ editType: CellEditType.OutputItems, index: that._index, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
 			},
 
 			token: that._tokenSource.token
 		});
-	}
-}
-
-export class NotebookCellOutputEdit {
-
-	private readonly _edits: ICellEditOperation[] = [];
-
-	constructor(
-		private readonly _index: number
-	) { }
-
-	asApiObject(): vscode.NotebookCellOutputEdit {
-		const that = this;
-		return Object.freeze({
-			_entries() {
-				return that._edits;
-			},
-
-			clearOutput(): void {
-				this.replaceOutput([]);
-			},
-
-			appendOutput(outputs: vscode.NotebookCellOutput[]): void {
-				that._edits.push({ editType: CellEditType.Output, index: that._index, append: true, outputs: outputs.map(typeConverters.NotebookCellOutput.from) });
-			},
-
-			replaceOutput(outputs: vscode.NotebookCellOutput[]): void {
-				that._edits.push({ editType: CellEditType.Output, index: that._index, outputs: outputs.map(typeConverters.NotebookCellOutput.from) });
-			},
-
-			appendOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): void {
-				that._edits.push({ editType: CellEditType.OutputItems, index: that._index, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId });
-			},
-
-			replaceOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): void {
-				that._edits.push({ editType: CellEditType.OutputItems, index: that._index, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId });
-			}
-		});
-	}
-
-	_allEntries(): ReadonlyArray<ICellEditOperation> {
-		return this._edits;
 	}
 }

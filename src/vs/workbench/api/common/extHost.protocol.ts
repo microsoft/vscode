@@ -849,6 +849,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$onNotebookKernelChange(handle: number, uri: UriComponents | undefined): void;
 	$trySaveDocument(uri: UriComponents): Promise<boolean>;
 	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
+	$applyEdits(resource: UriComponents, edits: ICellEditOperation[]): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
 	$tryOpenDocument(uriComponents: UriComponents): Promise<UriComponents>;

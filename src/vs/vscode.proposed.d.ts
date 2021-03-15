@@ -1526,19 +1526,11 @@ declare module 'vscode' {
 		end(result: NotebookCellPreviousExecutionResult): void;
 		readonly token: CancellationToken;
 
-		getOutputEdit(): NotebookCellOutputEdit;
-		applyOutputEdit(edit: NotebookCellOutputEdit): Thenable<boolean>;
-	}
-
-	/**
-	 * TODO@rob Similar to WorkspaceEdit, does it need other methods from that?
-	 */
-	export interface NotebookCellOutputEdit {
-		clearOutput(): void;
-		appendOutput(out: NotebookCellOutput[]): void;
-		replaceOutput(out: NotebookCellOutput[]): void;
-		appendOutputItems(outputId: string, items: NotebookCellOutputItem[]): void;
-		replaceOutputItems(outputId: string, items: NotebookCellOutputItem[]): void;
+		clearOutput(): Thenable<void>;
+		appendOutput(out: NotebookCellOutput[]): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput[]): Thenable<void>;
+		appendOutputItems(outputId: string, items: NotebookCellOutputItem[]): Thenable<void>;
+		replaceOutputItems(outputId: string, items: NotebookCellOutputItem[]): Thenable<void>;
 	}
 
 	export enum NotebookCellExecutionState {
