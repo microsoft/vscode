@@ -43,7 +43,30 @@ else {
 	};
 }
 
+/**
+ * Provides safe access to the `cwd` property in node.js, sandboxed or web
+ * environments.
+ *
+ * Note: in web, this property is hardcoded to be `/`.
+ */
 export const cwd = safeProcess.cwd;
+
+/**
+ * Provides safe access to the `env` property in node.js, sandboxed or web
+ * environments.
+ *
+ * Note: in web, this property is hardcoded to be `{}`.
+ */
 export const env = safeProcess.env;
+
+/**
+ * Provides safe access to the `platform` property in node.js, sandboxed or web
+ * environments.
+ */
 export const platform = safeProcess.platform;
+
+/**
+ * Provides safe access to the `nextTick` method in node.js, sandboxed or web
+ * environments.
+ */
 export const nextTick = safeProcess.nextTick;
