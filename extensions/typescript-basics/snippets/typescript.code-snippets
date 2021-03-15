@@ -305,5 +305,21 @@
 			"}"
 		],
 		"description": "Async Function Expression"
+	},
+	"new Interface": {
+		"prefix": "new interface",
+		"body": [
+			"export interface ${1: name} {",
+			"\t$0",
+			"}"
+		]
+	},
+	"new Type Alias": {
+		"prefix": "new type alias",
+		"body": [
+			"export type ${1: name} = {",
+			"\t$0",
+			"};"
+		]
 	}
 }
