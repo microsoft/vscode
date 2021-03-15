@@ -161,17 +161,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			});
 			const hostname = gitpodApi.getHost();
 			const uri = `https://${hostname}#snapshot/${snapshotId}`;
-			const copyAction = await vscode.window.showInformationMessage(`The current state is captured in a snapshot. Sharing the link '${uri}' allows anybody to create their own copy of this workspace.`,
-				'Copy URL to Clipboard', 'Copy Markdown button', 'Copy HTML button');
-			switch (copyAction) {
-				case 'Copy URL to Clipboard':
-					await vscode.env.clipboard.writeText(uri);
-					break;
-				case 'Copy Markdown button':
-					await vscode.env.clipboard.writeText(`[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](${uri})`);
-					break;
-				case 'Copy HTML button':
-					await vscode.env.clipboard.writeText(`<a href="${uri}"><img alt="Open in Gitpod" src="https://gitpod.io/button/open-in-gitpod.svg"></a>`);
+			const copyAction = await vscode.window.showInformationMessage(`The current state is captured in a snapshot. Using '${uri}' anybody can create their own copy of this workspace.`,
+				'Copy URL to Clipboard');
+			if (copyAction === 'Copy URL to Clipboard') {
+				await vscode.env.clipboard.writeText(uri);
 			}
 		} catch (err) {
 			console.error('cannot capture workspace snapshot', err);
