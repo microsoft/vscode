@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { simpleFileSystemProvider, SimpleNativeWorkbenchEnvironmentService, SimpleLogService, simpleWorkspace } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { simpleHomeDir, simpleFileSystemProvider, SimpleLogService, simpleWorkspace, simpleTmpDir, simpleUserDataDir } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
+import { productService, SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 
 class DesktopMain extends SharedDesktopMain {
 
 	constructor(configuration: INativeWorkbenchConfiguration) {
-		super({ ...configuration, workspace: simpleWorkspace }, new SimpleNativeWorkbenchEnvironmentService(configuration));
+		super({ ...configuration, workspace: simpleWorkspace }, new NativeWorkbenchEnvironmentService(configuration, productService, { homeDir: simpleHomeDir.fsPath, tmpDir: simpleTmpDir.fsPath, userDataDir: simpleUserDataDir.fsPath }));
 	}
 
 	protected createLogService(loggerService: LoggerChannelClient, mainProcessService: IMainProcessService): ILogService {

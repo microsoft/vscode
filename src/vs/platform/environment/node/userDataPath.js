@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../typings/require.d.ts" />
+/// <reference path="../../../../typings/require.d.ts" />
 
 //@ts-check
 (function () {
@@ -16,12 +16,38 @@
 	 */
 	function factory(path, os, productName) {
 
-		function getDefaultUserDataPath() {
+		/**
+		 * @param {import('../../environment/common/argv').NativeParsedArgs} cliArgs
+		 *
+		 * @returns {string}
+		 */
+		function getUserDataPath(cliArgs) {
+			return path.resolve(doGetUserDataPath(cliArgs));
+		}
 
-			// Support global VSCODE_APPDATA environment variable
+		/**
+		 * @param {import('../../environment/common/argv').NativeParsedArgs} cliArgs
+		 *
+		 * @returns {string}
+		 */
+		function doGetUserDataPath(cliArgs) {
+
+			// 1. Support portable mode
+			const portablePath = process.env['VSCODE_PORTABLE'];
+			if (portablePath) {
+				return path.join(portablePath, 'user-data');
+			}
+
+			// 2. Support explicit --user-data-dir
+			const cliPath = cliArgs['user-data-dir'];
+			if (cliPath) {
+				return cliPath;
+			}
+
+			// 3. Support global VSCODE_APPDATA environment variable
 			let appDataPath = process.env['VSCODE_APPDATA'];
 
-			// Otherwise check per platform
+			// 4. Otherwise check per platform
 			if (!appDataPath) {
 				switch (process.platform) {
 					case 'win32':
@@ -31,6 +57,7 @@
 							if (typeof userProfile !== 'string') {
 								throw new Error('Windows: Unexpected undefined %USERPROFILE% environment variable');
 							}
+
 							appDataPath = path.join(userProfile, 'AppData', 'Roaming');
 						}
 						break;
@@ -49,19 +76,19 @@
 		}
 
 		return {
-			getDefaultUserDataPath
+			getUserDataPath
 		};
 	}
 
 	if (typeof define === 'function') {
-		define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources'], function (require, /** @type {typeof import('path')} */ path, /** @type {typeof import('os')} */ os, /** @type {typeof import('../common/network')} */ network, /** @type {typeof import("../common/resources")} */ resources) {
+		define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources'], function (require, /** @type {typeof import('path')} */ path, /** @type {typeof import('os')} */ os, /** @type {typeof import('../../../base/common/network')} */ network, /** @type {typeof import("../../../base/common/resources")} */ resources) {
 			const rootPath = resources.dirname(network.FileAccess.asFileUri('', require));
 			const pkg = require.__$__nodeRequire(resources.joinPath(rootPath, 'package.json').fsPath);
 
 			return factory(path, os, pkg.name);
 		}); // amd
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
-		const pkg = require('../../../../package.json');
+		const pkg = require('../../../../../package.json');
 		const path = require('path');
 		const os = require('os');
 

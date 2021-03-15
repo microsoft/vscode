@@ -54,16 +54,16 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', product.version); }
 
 	@memoize
-	get sandbox(): boolean { return !!this._args['__sandbox']; }
+	get sandbox(): boolean { return !!this.args['__sandbox']; }
 
 	@memoize
-	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
+	get driverVerbose(): boolean { return !!this.args['driver-verbose']; }
 
 	@memoize
-	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
+	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
 
 	@memoize
-	get disableKeytar(): boolean { return !!this._args['disable-keytar']; }
+	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
 
 	@memoize
 	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }

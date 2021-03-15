@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as os from 'os';
 import { gracefulify } from 'graceful-fs';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
+import { INativeWorkbenchConfiguration, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -23,7 +24,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 class DesktopMain extends SharedDesktopMain {
 
 	constructor(configuration: INativeWorkbenchConfiguration) {
-		super(configuration, new NativeWorkbenchEnvironmentService(configuration, productService));
+		super(configuration, new NativeWorkbenchEnvironmentService(configuration, productService, { homeDir: os.homedir(), tmpDir: os.tmpdir(), userDataDir: getUserDataPath(configuration) }));
 
 		// Enable gracefulFs
 		gracefulify(fs);

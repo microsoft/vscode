@@ -5,7 +5,8 @@
 
 import * as assert from 'assert';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { NativeEnvironmentService, parseExtensionHostPort } from 'vs/platform/environment/node/environmentService';
+import { parseExtensionHostPort } from 'vs/platform/environment/common/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 suite('EnvironmentService', () => {
 
