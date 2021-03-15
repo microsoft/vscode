@@ -343,6 +343,7 @@ export class TunnelModel extends Disposable {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
 		this.tunnelRestoreValue = this.getTunnelRestoreValue();
+		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
 		this.tunnelService.tunnels.then(tunnels => {
@@ -394,8 +395,6 @@ export class TunnelModel extends Disposable {
 				this._onClosePort.fire(address);
 			}
 		}));
-
-		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 	}
 
 	private makeTunnelPrivacy(isPublic: boolean) {
@@ -453,14 +452,14 @@ export class TunnelModel extends Disposable {
 
 	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean, isPublic?: boolean, restore: boolean = true): Promise<RemoteTunnel | void> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
+		const port = local !== undefined ? local : remote.port;
+		const attributes = (await this.getAttributes([port]))?.get(port);
+
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
-
-			const port = local !== undefined ? local : remote.port;
-			const attributes = (await this.getAttributes([port]))?.get(port);
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
@@ -469,7 +468,7 @@ export class TunnelModel extends Disposable {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localPort: tunnel.tunnelLocalPort,
-					name: name ?? attributes?.label,
+					name: attributes?.label ?? name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					runningProcess: matchingCandidate?.detail,
@@ -486,8 +485,8 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			if (name) {
-				existingTunnel.name = name;
+			if (attributes?.label ?? name) {
+				existingTunnel.name = attributes?.label ?? name;
 			}
 			this._onForwardPort.fire();
 			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
