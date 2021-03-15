@@ -66,6 +66,8 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { insane } from 'vs/base/common/insane/insane';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	return insane(documentContent, {
@@ -999,7 +1001,7 @@ export class ExtensionEditor extends EditorPane {
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content);
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
 		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();
@@ -1514,7 +1516,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 }
 
-const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus'));
+const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), EditorContextKeys.focus.toNegated());
 registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 	constructor() {
 		super({

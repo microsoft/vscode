@@ -519,7 +519,7 @@ class WelcomePage extends Disposable {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
 				e.preventDefault();
 				e.stopPropagation();
 			});

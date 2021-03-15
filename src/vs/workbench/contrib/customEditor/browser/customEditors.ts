@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -28,6 +30,7 @@ import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/comm
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -58,6 +61,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
 	) {
 		super();
 
@@ -155,7 +159,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}
 		}
 
-		const input = this.createInput(resource, viewType, group?.id);
+		// If it's an untitled file we must populate the untitledDocumentData
+		const untitledString = this.untitledTextEditorService.getValue(resource);
+		let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+
+		const input = this.createInput(resource, viewType, group?.id, { untitledDocumentData });
 		return this.openEditorForResource(resource, input, options, group);
 	}
 
@@ -163,7 +171,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		resource: URI,
 		viewType: string,
 		group: GroupIdentifier | undefined,
-		options?: { readonly customClasses: string; },
+		options?: { readonly customClasses?: string, readonly untitledDocumentData?: VSBuffer },
 	): IEditorInput {
 		if (viewType === defaultCustomEditor.id) {
 			return this.editorService.createEditorInput({ resource, forceFile: true });
@@ -171,7 +179,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		const id = generateUuid();
 		const webview = this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
-		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, {});
+		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: options?.untitledDocumentData });
 		if (typeof group !== 'undefined') {
 			input.updateGroup(group);
 		}
@@ -197,6 +205,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				await this.editorService.replaceEditors([{
 					editor: existing,
 					replacement: input,
+					forceReplaceDirty: existing.resource?.scheme === Schemas.untitled,
 					options: options ? EditorOptions.create(options) : undefined,
 				}], targetGroup);
 

@@ -544,7 +544,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				absoluteIcon = ThemeIcon.fromString(icon) ?? { dark: resources.joinPath(extension.description.extensionLocation, icon), light: resources.joinPath(extension.description.extensionLocation, icon) };
 
 			} else {
 				absoluteIcon = {

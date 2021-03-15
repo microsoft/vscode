@@ -47,7 +47,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
-import { TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions } from 'vs/platform/remote/common/tunnel';
+import { TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, ProvidedPortAttributes } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
 import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -592,11 +592,11 @@ export interface MainThreadTelemetryShape extends IDisposable {
 }
 
 export interface MainThreadEditorInsetsShape extends IDisposable {
-	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: modes.IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
+	$createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void>;
 	$disposeEditorInset(handle: number): void;
 
 	$setHtml(handle: number, value: string): void;
-	$setOptions(handle: number, options: modes.IWebviewOptions): void;
+	$setOptions(handle: number, options: IWebviewOptions): void;
 	$postMessage(handle: number, value: any): Promise<boolean>;
 }
 
@@ -646,18 +646,45 @@ export enum WebviewEditorCapabilities {
 	SupportsHotExit,
 }
 
+export interface IWebviewPortMapping {
+	readonly webviewPort: number;
+	readonly extensionHostPort: number;
+}
+
+export interface IWebviewOptions {
+	readonly enableScripts?: boolean;
+	readonly enableCommandUris?: boolean;
+	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
+	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
+}
+
+export interface IWebviewPanelOptions {
+	readonly enableFindWidget?: boolean;
+	readonly retainContextWhenHidden?: boolean;
+}
+
 export interface CustomTextEditorCapabilities {
 	readonly supportsMove?: boolean;
 }
 
 export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewHandle, value: string): void;
-	$setOptions(handle: WebviewHandle, options: modes.IWebviewOptions): void;
+	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
 	$postMessage(handle: WebviewHandle, value: any): Promise<boolean>
 }
 
 export interface MainThreadWebviewPanelsShape extends IDisposable {
-	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
+	$createWebviewPanel(
+		extension: WebviewExtensionDescription,
+		handle: WebviewHandle,
+		viewType: string,
+		initData: {
+			title: string;
+			webviewOptions: IWebviewOptions;
+			panelOptions: IWebviewPanelOptions;
+		},
+		showOptions: WebviewPanelShowOptions,
+	): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, showOptions: WebviewPanelShowOptions): void;
 	$setTitle(handle: WebviewHandle, value: string): void;
@@ -668,8 +695,8 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 }
 
 export interface MainThreadCustomEditorsShape extends IDisposable {
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities): void;
-	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities): void;
+	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
@@ -702,12 +729,33 @@ export interface ExtHostWebviewsShape {
 export interface ExtHostWebviewPanelsShape {
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewHandle): Promise<void>;
-	$deserializeWebviewPanel(newWebviewHandle: WebviewHandle, viewType: string, title: string, state: any, position: EditorGroupColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+	$deserializeWebviewPanel(
+		newWebviewHandle: WebviewHandle,
+		viewType: string,
+		initData: {
+			title: string;
+			state: any;
+			webviewOptions: IWebviewOptions;
+			panelOptions: IWebviewPanelOptions;
+		},
+		position: EditorGroupColumn,
+	): Promise<void>;
 }
 
 export interface ExtHostCustomEditorsShape {
-	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewHandle, viewType: string, title: string, position: EditorGroupColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, cancellation: CancellationToken): Promise<void>;
-	$createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken): Promise<{ editable: boolean }>;
+	$resolveWebviewEditor(
+		resource: UriComponents,
+		newWebviewHandle: WebviewHandle,
+		viewType: string,
+		initData: {
+			title: string;
+			webviewOptions: IWebviewOptions;
+			panelOptions: IWebviewPanelOptions;
+		},
+		position: EditorGroupColumn,
+		cancellation: CancellationToken
+	): Promise<void>;
+	$createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, cancellation: CancellationToken): Promise<{ editable: boolean }>;
 	$disposeCustomDocument(resource: UriComponents, viewType: string): Promise<void>;
 
 	$undo(resource: UriComponents, viewType: string, editId: number, isDirty: boolean): Promise<void>;
@@ -795,7 +843,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
-	$tryOpenDocument(uriComponents: UriComponents, viewType?: string): Promise<URI>;
+	$tryOpenDocument(uriComponents: UriComponents): Promise<UriComponents>;
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
@@ -890,7 +938,6 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
-	$onExtensionHostExit(code: number): Promise<void>;
 	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
 }
 
@@ -1000,6 +1047,11 @@ export enum CandidatePortSource {
 	Output = 2
 }
 
+export interface PortAttributesProviderSelector {
+	pid?: number;
+	portRange?: [number, number];
+}
+
 export interface MainThreadTunnelServiceShape extends IDisposable {
 	$openTunnel(tunnelOptions: TunnelOptions, source: string | undefined): Promise<TunnelDto | undefined>;
 	$closeTunnel(remote: { host: string, port: number }): Promise<void>;
@@ -1009,6 +1061,8 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<void>;
 	$setCandidatePortSource(source: CandidatePortSource): Promise<void>;
+	$registerPortsAttributesProvider(selector: PortAttributesProviderSelector, providerHandle: number): Promise<void>;
+	$unregisterPortsAttributesProvider(providerHandle: number): Promise<void>;
 }
 
 export interface MainThreadTimelineShape extends IDisposable {
@@ -1046,7 +1100,7 @@ export interface IModelAddedData {
 	isDirty: boolean;
 }
 export interface ExtHostDocumentsShape {
-	$acceptModelModeChanged(strURL: UriComponents, oldModeId: string, newModeId: string): void;
+	$acceptModelModeChanged(strURL: UriComponents, newModeId: string): void;
 	$acceptModelSaved(strURL: UriComponents): void;
 	$acceptDirtyStateChanged(strURL: UriComponents, isDirty: boolean): void;
 	$acceptModelChanged(strURL: UriComponents, e: IModelChangedEvent, isDirty: boolean): void;
@@ -1141,6 +1195,7 @@ export interface ExtHostAuthenticationShape {
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
+	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
 }
 
 export interface ExtHostSecretStateShape {
@@ -1172,6 +1227,8 @@ export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAut
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	$extensionTestsExecute(): Promise<number>;
+	$extensionTestsExit(code: number): Promise<void>;
 	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	$setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void>;
@@ -1751,12 +1808,12 @@ export interface INotebookVisibleRangesEvent {
 }
 
 export interface INotebookEditorPropertiesChangeData {
-	visibleRanges: INotebookVisibleRangesEvent | null;
-	selections: INotebookSelectionChangeEvent | null;
+	visibleRanges?: INotebookVisibleRangesEvent;
+	selections?: INotebookSelectionChangeEvent;
 }
 
 export interface INotebookDocumentPropertiesChangeData {
-	metadata: NotebookDocumentMetadata | null;
+	metadata?: NotebookDocumentMetadata;
 }
 
 export interface INotebookModelAddedData {
@@ -1765,7 +1822,6 @@ export interface INotebookModelAddedData {
 	cells: IMainCellDto[],
 	viewType: string;
 	metadata?: NotebookDocumentMetadata;
-	contentOptions: { transientOutputs: boolean; transientMetadata: TransientMetadata; }
 }
 
 export interface INotebookEditorAddData {
@@ -1773,6 +1829,7 @@ export interface INotebookEditorAddData {
 	documentUri: UriComponents;
 	selections: ICellRange[];
 	visibleRanges: ICellRange[];
+	viewColumn?: number
 }
 
 export interface INotebookDocumentsAndEditorsDelta {
@@ -1806,7 +1863,7 @@ export interface ExtHostNotebookShape {
 	$executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void>;
 	$cancelNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void>;
 	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
-	$openNotebook(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto>;
+	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<NotebookDataDto>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
@@ -1835,6 +1892,7 @@ export interface ExtHostTunnelServiceShape {
 	$onDidTunnelsChange(): Promise<void>;
 	$registerCandidateFinder(enable: boolean): Promise<void>;
 	$applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]>;
+	$providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: CancellationToken): Promise<ProvidedPortAttributes[]>;
 }
 
 export interface ExtHostTimelineShape {

@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/browser/requestService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
@@ -81,9 +81,12 @@ import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/err
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { join } from 'vs/base/common/path';
 import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
-import { LocalPtyService } from 'vs/platform/terminal/electron-browser/localPtyService';
+import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
+import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
+import { ChecksumService } from 'vs/platform/checksum/node/checksumService';
+import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 
 class SharedProcessMain extends Disposable {
 
@@ -141,8 +144,12 @@ class SharedProcessMain extends Disposable {
 	private async initServices(): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
+		// Product
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
+
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.configuration.args);
+		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Log
@@ -180,11 +187,11 @@ class SharedProcessMain extends Disposable {
 		await storageService.initialize();
 		this._register(toDisposable(() => storageService.flush()));
 
-		// Product
-		services.set(IProductService, { _serviceBrand: undefined, ...product });
-
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
+
+		// Checksum
+		services.set(IChecksumService, new SyncDescriptor(ChecksumService));
 
 		// Native Host
 		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: this.configuration.windowId });
@@ -207,19 +214,19 @@ class SharedProcessMain extends Disposable {
 
 		let telemetryService: ITelemetryService;
 		let telemetryAppender: ITelemetryAppender;
-		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
+		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && productService.enableTelemetry) {
 			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
 
 			// Application Insights
-			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, product.aiConfig.asimovKey);
+			if (productService.aiConfig && productService.aiConfig.asimovKey && isBuilt) {
+				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				telemetryAppender = combinedAppender(appInsightsAppender, telemetryAppender);
 			}
 
 			telemetryService = new TelemetryService({
 				appender: telemetryAppender,
-				commonProperties: resolveCommonProperties(fileService, release(), process.arch, product.commit, product.version, this.configuration.machineId, product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: [appRoot, extensionsPath]
 			}, configurationService);
@@ -230,6 +237,10 @@ class SharedProcessMain extends Disposable {
 
 		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(telemetryAppender));
 		services.set(ITelemetryService, telemetryService);
+
+		// Custom Endpoint Telemetry
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService);
+		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
@@ -262,8 +273,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
 		// Terminal
-		const localPtyService = this._register(new LocalPtyService(logService));
-		services.set(ILocalPtyService, localPtyService);
+		services.set(ILocalPtyService, this._register(new PtyHostService(logService)));
 
 		return new InstantiationService(services);
 	}
@@ -286,9 +296,17 @@ class SharedProcessMain extends Disposable {
 		const extensionTipsChannel = new ExtensionTipsChannel(accessor.get(IExtensionTipsService));
 		this.server.registerChannel('extensionTipsService', extensionTipsChannel);
 
+		// Checksum
+		const checksumChannel = ProxyChannel.fromService(accessor.get(IChecksumService));
+		this.server.registerChannel('checksum', checksumChannel);
+
 		// Settings Sync
 		const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(accessor.get(IUserDataSyncMachinesService));
 		this.server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
+
+		// Custom Endpoint Telemetry
+		const customEndpointTelemetryChannel = ProxyChannel.fromService(accessor.get(ICustomEndpointTelemetryService));
+		this.server.registerChannel('customEndpointTelemetry', customEndpointTelemetryChannel);
 
 		const userDataSyncAccountChannel = new UserDataSyncAccountServiceChannel(accessor.get(IUserDataSyncAccountService));
 		this.server.registerChannel('userDataSyncAccount', userDataSyncAccountChannel);

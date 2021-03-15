@@ -94,9 +94,12 @@ export class GitHubServer {
 
 		return Promise.race([
 			codeExchangePromise.promise,
-			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined): string => {
-				if (!token) { throw new Error('Cancelled'); }
-				return token;
+			promiseFromEvent<string | undefined, string>(onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
+				if (!token) {
+					reject('Cancelled');
+				} else {
+					resolve(token);
+				}
 			}).promise
 		]).finally(() => {
 			this._pendingStates.delete(scopes);

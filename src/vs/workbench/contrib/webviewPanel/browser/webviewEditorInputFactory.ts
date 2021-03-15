@@ -7,10 +7,12 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
-import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { WebviewInput } from './webviewEditorInput';
-import { IWebviewWorkbenchService, WebviewInputOptions } from './webviewWorkbenchService';
+import { IWebviewWorkbenchService } from './webviewWorkbenchService';
+
+export type SerializedWebviewOptions = WebviewOptions & WebviewContentOptions;
 
 interface SerializedIconPath {
 	light: string | UriComponents;
@@ -21,7 +23,7 @@ export interface SerializedWebview {
 	readonly id: string;
 	readonly viewType: string;
 	readonly title: string;
-	readonly options: WebviewInputOptions;
+	readonly options: SerializedWebviewOptions;
 	readonly extensionLocation: UriComponents | undefined;
 	readonly extensionId: string | undefined;
 	readonly state: any;
@@ -33,7 +35,8 @@ export interface DeserializedWebview {
 	readonly id: string;
 	readonly viewType: string;
 	readonly title: string;
-	readonly options: WebviewInputOptions;
+	readonly webviewOptions: WebviewOptions;
+	readonly contentOptions: WebviewContentOptions;
 	readonly extension: WebviewExtensionDescription | undefined;
 	readonly state: any;
 	readonly iconPath: WebviewIcons | undefined;
@@ -76,7 +79,8 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			title: data.title,
 			iconPath: data.iconPath,
 			state: data.state,
-			options: data.options,
+			webviewOptions: data.webviewOptions,
+			contentOptions: data.contentOptions,
 			extension: data.extension,
 			group: data.group
 		});
@@ -88,7 +92,8 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			extension: reviveWebviewExtensionDescription(data.extensionId, data.extensionLocation),
 			iconPath: reviveIconPath(data.iconPath),
 			state: reviveState(data.state),
-			options: reviveOptions(data.options)
+			webviewOptions: restoreWebviewOptions(data.options),
+			contentOptions: restoreWebviewContentOptions(data.options),
 		};
 	}
 
@@ -157,7 +162,11 @@ function reviveState(state: unknown | undefined): undefined | string {
 	return typeof state === 'string' ? state : undefined;
 }
 
-function reviveOptions(options: WebviewInputOptions): WebviewInputOptions {
+export function restoreWebviewOptions(options: SerializedWebviewOptions): WebviewOptions {
+	return options;
+}
+
+export function restoreWebviewContentOptions(options: SerializedWebviewOptions): WebviewContentOptions {
 	return {
 		...options,
 		localResourceRoots: options.localResourceRoots?.map(uri => reviveUri(uri)),

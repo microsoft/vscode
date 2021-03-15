@@ -99,6 +99,13 @@ export interface IUntitledTextEditorModelManager {
 	get(resource: URI): IUntitledTextEditorModel | undefined;
 
 	/**
+	 * Returns the value of the untitled editor, undefined if none exists
+	 * @param resource The URI of the untitled file
+	 * @returns The content, or undefined
+	 */
+	getValue(resource: URI): string | undefined;
+
+	/**
 	 * Resolves an untitled editor model from the provided options. If the `untitledResource`
 	 * property is provided and the untitled editor exists, it will return that existing
 	 * instance instead of creating a new one.
@@ -140,6 +147,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	get(resource: URI): UntitledTextEditorModel | undefined {
 		return this.mapResourceToModel.get(resource);
+	}
+
+	getValue(resource: URI): string | undefined {
+		return this.get(resource)?.textEditorModel?.getValue();
 	}
 
 	resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {

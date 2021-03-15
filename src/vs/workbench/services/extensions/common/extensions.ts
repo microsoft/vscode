@@ -253,7 +253,6 @@ export interface IExtensionService {
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
-	_onExtensionHostExit(code: number): void;
 }
 
 export interface ProfileSession {

@@ -57,7 +57,7 @@ export interface IGetTerminalLayoutInfoArgs {
 	workspaceId: string;
 }
 
-export interface IPtyHostDescriptionDto {
+export interface IProcessDetails {
 	id: number;
 	pid: number;
 	title: string;
@@ -67,7 +67,7 @@ export interface IPtyHostDescriptionDto {
 	isOrphan: boolean;
 }
 
-export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IPtyHostDescriptionDto>;
+export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
 
 export interface ReplayEntry { cols: number; rows: number; data: string; }
 export interface IPtyHostProcessReplayEvent {

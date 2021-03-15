@@ -122,10 +122,6 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		}
 	}
 
-	async $onExtensionHostExit(code: number): Promise<void> {
-		this._extensionService._onExtensionHostExit(code);
-	}
-
 	async $setPerformanceMarks(marks: PerformanceMark[]): Promise<void> {
 		if (this._extensionHostKind === ExtensionHostKind.LocalProcess) {
 			this._timerService.setPerformanceMarks('localExtHost', marks);

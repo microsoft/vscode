@@ -159,7 +159,7 @@
 
 				// Wait for process environment being fully resolved
 				performance.mark('code/willWaitForShellEnv');
-				if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
 					await whenEnvResolved;
 				}
 				performance.mark('code/didWaitForShellEnv');

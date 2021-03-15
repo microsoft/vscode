@@ -5,7 +5,7 @@
 
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugModel, IDataBreakpoint, BREAKPOINTS_VIEW_ID, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, IBaseBreakpoint, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_INPUT_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -342,6 +342,7 @@ interface IExceptionBreakpointInputTemplateData {
 	toDispose: IDisposable[];
 }
 
+const breakpointIdToActionBarDomeNode = new Map<string, HTMLElement>();
 class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTemplateData> {
 
 	constructor(
@@ -414,6 +415,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: breakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
+		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
 	}
 
 	disposeElement(_element: IBreakpoint, _index: number, templateData: IBreakpointTemplateData): void {
@@ -478,6 +480,7 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: exceptionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
+		breakpointIdToActionBarDomeNode.set(exceptionBreakpoint.getId(), data.actionBar.domNode);
 	}
 
 	disposeElement(_element: IExceptionBreakpoint, _index: number, templateData: IExceptionBreakpointTemplateData): void {
@@ -558,6 +561,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: functionBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline'));
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
+		breakpointIdToActionBarDomeNode.set(functionBreakpoint.getId(), data.actionBar.domNode);
 	}
 
 	disposeElement(_element: IFunctionBreakpoint, _index: number, templateData: IFunctionBreakpointTemplateData): void {
@@ -1207,6 +1211,19 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 				if (isCodeEditor(codeEditor)) {
 					codeEditor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
 				}
+			}
+		} else if (breakpoint instanceof FunctionBreakpoint) {
+			const contextMenuService = accessor.get(IContextMenuService);
+			const actions: IAction[] = [new Action('breakpoint.editCondition', localize('editCondition', "Edit Condition..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'condition' })),
+			new Action('breakpoint.editCondition', localize('editHitCount', "Edit Hit Count..."), undefined, true, async () => view.renderInputBox({ breakpoint, type: 'hitCount' }))];
+			const domNode = breakpointIdToActionBarDomeNode.get(breakpoint.getId());
+
+			if (domNode) {
+				contextMenuService.showContextMenu({
+					getActions: () => actions,
+					getAnchor: () => domNode,
+					onHide: () => dispose(actions)
+				});
 			}
 		} else {
 			view.renderInputBox({ breakpoint, type: 'condition' });

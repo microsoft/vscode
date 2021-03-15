@@ -1420,7 +1420,7 @@ export namespace NotebookCellRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.runnable, data.hasExecutionOrder, data.executionOrder, data.runState, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.executionOrder, data.runState, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
 
@@ -1431,7 +1431,7 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.runnable, data.cellEditable, data.cellRunnable, data.cellHasExecutionOrder, data.custom, data.runState, data.trusted);
+		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.runState, data.trusted);
 	}
 
 }
@@ -1462,19 +1462,11 @@ export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
 		return {
-			cellKind: NotebookCellKind.from(data.cellKind),
+			cellKind: NotebookCellKind.from(data.kind),
 			language: data.language,
 			source: data.source,
 			metadata: data.metadata,
-			outputs: data.outputs.map(output => ({
-				outputId: output.id,
-				metadata: output.metadata,
-				outputs: (output.outputs || []).map(op => ({
-					mime: op.mime,
-					value: op.value,
-					metadata: op.metadata
-				}))
-			}))
+			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
 	}
 }

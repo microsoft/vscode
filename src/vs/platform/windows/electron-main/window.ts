@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -119,7 +119,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -144,7 +145,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
 				show: !isFullscreenOrMaximized,
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
@@ -196,7 +197,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const useNativeTabs = isMacintosh && windowConfig?.nativeTabs === true;
 			if (useNativeTabs) {
-				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
+				options.tabbingIdentifier = this.productService.nameShort; // this opts in to sierra tabs
 			}
 
 			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -263,7 +264,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentMainService, this.fileService, {
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.environmentMainService, this.fileService, {
 			get: key => storageMainService.globalStorage.get(key),
 			store: (key, value) => storageMainService.globalStorage.set(key, value)
 		});
@@ -575,7 +576,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Show Dialog
 			const result = await this.dialogMainService.showMessageBox({
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appStalled', "The window is no longer responding"),
@@ -605,7 +606,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			const result = await this.dialogMainService.showMessageBox({
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message,
@@ -731,7 +732,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this.setRepresentedFilename('');
 			}
 
-			this._win.setTitle(product.nameLong);
+			this._win.setTitle(this.productService.nameLong);
 		}
 
 		// Load URL

@@ -22,7 +22,6 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerData } from 'vs/workbench/api/common/extHostTask';
 import { Schemas } from 'vs/base/common/network';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 
 export class ExtHostTask extends ExtHostTaskBase {
@@ -122,7 +121,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	private async getVariableResolver(workspaceFolders: vscode.WorkspaceFolder[]): Promise<ExtHostVariableResolverService> {
 		if (this._variableResolver === undefined) {
 			const configProvider = await this._configurationService.getConfigProvider();
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, process.env as IProcessEnvironment, this.workspaceService);
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, this.workspaceService);
 		}
 		return this._variableResolver;
 	}

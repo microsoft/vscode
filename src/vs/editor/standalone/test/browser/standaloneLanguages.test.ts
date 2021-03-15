@@ -38,6 +38,9 @@ suite('TokenizationSupport2Adapter', () => {
 		public setTheme(themeName: string): string {
 			throw new Error('Not implemented');
 		}
+		public setAutoDetectHighContrast(autoDetectHighContrast: boolean): void {
+			throw new Error('Not implemented');
+		}
 		public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 			throw new Error('Not implemented');
 		}

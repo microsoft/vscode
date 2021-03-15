@@ -209,26 +209,30 @@ export class TextAreaInput extends Disposable {
 
 			if (
 				platform.isMacintosh
-				&& lastKeyDown
-				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
 				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
-				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
-				// Handling long press case on macOS + arrow key => pretend the character was selected
-				if (_debugComposition) {
-					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
-				}
-				this._textAreaState = new TextAreaState(
-					this._textAreaState.value,
-					this._textAreaState.selectionStart - 1,
-					this._textAreaState.selectionEnd,
-					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
-					this._textAreaState.selectionEndPosition
+				const isArrowKey = (
+					lastKeyDown && lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
+					&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 				);
-				this._onCompositionStart.fire({ revealDeltaColumns: -1 });
-				return;
+				if (isArrowKey || browser.isFirefox) {
+					// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected
+					// or long press case on Firefox on macOS
+					if (_debugComposition) {
+						console.log(`[compositionstart] Handling long press case on macOS + arrow key or Firefox`, e);
+					}
+					this._textAreaState = new TextAreaState(
+						this._textAreaState.value,
+						this._textAreaState.selectionStart - 1,
+						this._textAreaState.selectionEnd,
+						this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
+						this._textAreaState.selectionEndPosition
+					);
+					this._onCompositionStart.fire({ revealDeltaColumns: -1 });
+					return;
+				}
 			}
 
 			if (browser.isAndroid) {

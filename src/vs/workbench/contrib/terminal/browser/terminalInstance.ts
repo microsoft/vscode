@@ -25,12 +25,12 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -47,7 +47,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -99,7 +99,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _cols: number = 0;
 	private _rows: number = 0;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _windowsShellHelper: IWindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
@@ -648,7 +647,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
-
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
 
@@ -773,8 +771,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 
-		dispose(this._windowsShellHelper);
-		this._windowsShellHelper = undefined;
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
@@ -863,8 +859,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
-		await this._processManager.ptyProcessReady;
-		this._processManager.write(text);
+		return this._processManager.write(text);
 	}
 
 	public setVisible(visible: boolean): void {
@@ -942,24 +937,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onPtyDisconnect(() => {
-			this._safeSetOption('disableStdin', true);
-			this._onTitleChanged.fire(this);
-		});
-		this._processManager.onPtyReconnect(() => {
-			this._safeSetOption('disableStdin', false);
-			this._onTitleChanged.fire(this);
-		});
-
+		this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		} else {
 			// Only listen for process title changes when a name is not provided
 			if (this._configHelper.config.experimentalUseTitleEvent) {
-				this._processManager.ptyProcessReady.then(() => {
-					this._terminalInstanceService.getDefaultShellAndArgs(false).then(e => {
-						this.setTitle(e.shell, TitleEventSource.Sequence);
-					});
+				// Set the title to the first event if the sequence hasn't set it yet
+				Event.once(this._processManager.onProcessTitle)(e => {
+					if (!this._title) {
+						this.setTitle(this._title, TitleEventSource.Sequence);
+					}
+				});
+				// Listen to xterm.js' sequence title change event, trigger this async to ensure
+				// xterm is constructed since this is called from TerminalInstance's ctor
+				setTimeout(() => {
 					this._xtermReadyPromise.then(xterm => {
 						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
 					});
@@ -970,55 +962,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		if (platform.isWindows) {
-			this._processManager.ptyProcessReady.then(() => {
-				if (this._processManager.remoteAuthority) {
-					return;
-				}
-				this._xtermReadyPromise.then(xterm => {
-					if (!this._isDisposed && this._processManager && this._processManager.shellProcessId) {
-						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, xterm);
-						this._windowsShellHelper.onShellNameChange(title => {
-							this.setShellType(this.getShellType(title));
-							if (this.isTitleSetByProcess && !this._configHelper.config.experimentalUseTitleEvent) {
-								this.setTitle(title, TitleEventSource.Process);
-							}
-						});
-					}
-				});
-			});
-		}
+		this._processManager.onPtyDisconnect(() => {
+			this._safeSetOption('disableStdin', true);
+			this._onTitleChanged.fire(this);
+		});
+		this._processManager.onPtyReconnect(() => {
+			this._safeSetOption('disableStdin', false);
+			this._onTitleChanged.fire(this);
+		});
 	}
 
 	private _createProcess(): void {
+		if (this._isDisposed) {
+			return;
+		}
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
 		});
-	}
-
-	private getShellType(executable: string): TerminalShellType {
-		switch (executable.toLowerCase()) {
-			case 'cmd.exe':
-				return WindowsShellType.CommandPrompt;
-			case 'powershell.exe':
-			case 'pwsh.exe':
-				return WindowsShellType.PowerShell;
-			case 'bash.exe':
-			case 'git-cmd.exe':
-				return WindowsShellType.GitBash;
-			case 'wsl.exe':
-			case 'ubuntu.exe':
-			case 'ubuntu1804.exe':
-			case 'kali.exe':
-			case 'debian.exe':
-			case 'opensuse-42.exe':
-			case 'sles-12.exe':
-				return WindowsShellType.Wsl;
-			default:
-				return undefined;
-		}
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
@@ -1206,20 +1168,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager.dispose();
-
-		// Launch the process unless this is only a renderer.
-		// In the renderer only cases, we still need to set the title correctly.
-		const oldTitle = this._title;
-		this._createProcessManager();
-
-		if (oldTitle !== this._title) {
-			this.setTitle(this._title, TitleEventSource.Process);
-		}
-
-		this._processManager.onProcessData(data => this._onProcessData(data));
-		this._createProcess();
+		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
 
 		this._xtermTypeAhead?.reset(this._processManager);
 	}
@@ -1312,7 +1261,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', config.rendererType);
+			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
@@ -1496,10 +1445,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (immediate) {
 			// do not await, call setDimensions synchronously
-			this._processManager.setDimensions(cols, rows);
+			this._processManager.setDimensions(cols, rows, true);
 		} else {
-			await this._processManager.ptyProcessReady;
-			this._processManager.setDimensions(cols, rows);
+			await this._processManager.setDimensions(cols, rows);
 		}
 	}
 
@@ -1541,8 +1489,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// automatically updates the terminal name
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
-				dispose(this._windowsShellHelper);
-				this._windowsShellHelper = undefined;
 				break;
 		}
 		const didTitleChange = title !== this._title;
@@ -1608,7 +1554,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
 		// special terminal (eg. task, extension terminal)
-		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionCustomPtyTerminal && !this._shellLaunchConfig.isExtensionOwnedTerminal && !this._shellLaunchConfig.attachPersistentProcess) {
+		if (
+			info.requiresAction &&
+			this._configHelper.config.environmentChangesRelaunch &&
+			!this._processManager.hasWrittenData &&
+			!this._shellLaunchConfig.isFeatureTerminal &&
+			!this._shellLaunchConfig.isExtensionCustomPtyTerminal
+			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
+			!this._shellLaunchConfig.attachPersistentProcess
+		) {
 			this.relaunch();
 			return;
 		}
