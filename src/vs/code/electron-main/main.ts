@@ -83,7 +83,7 @@ class CodeMain {
 		const args = this.resolveArgs();
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentService, configurationService, stateService, bufferLogService] = this.createServices(args);
+		const [instantiationService, instanceEnvironment, environmentService, configurationService, stateService, bufferLogService, productService] = this.createServices(args);
 
 		try {
 
@@ -93,7 +93,7 @@ class CodeMain {
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentService, error);
+				this.handleStartupDataDirError(environmentService, productService.nameLong, error);
 
 				throw error;
 			}
@@ -107,7 +107,7 @@ class CodeMain {
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
 				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, true);
+				const mainProcessNodeIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, productService, true);
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
 				bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, 'main.log'), true, bufferLogService.getLevel());
@@ -125,7 +125,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: NativeParsedArgs): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogService] {
+	private createServices(args: NativeParsedArgs): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogService, IProductService] {
 		const services = new ServiceCollection();
 
 		// Environment
@@ -171,12 +171,13 @@ class CodeMain {
 		services.set(ISignService, new SyncDescriptor(SignService));
 
 		// Product
-		services.set(IProductService, { _serviceBrand: undefined, ...product });
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
 
 		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogService, productService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -217,7 +218,7 @@ class CodeMain {
 		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
 	}
 
-	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<NodeIPCServer> {
+	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -233,7 +234,7 @@ class CodeMain {
 			if (error.code !== 'EADDRINUSE') {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentMainService, error);
+				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
 
 				// Any other runtime error is just printed to the console
 				throw error;
@@ -249,8 +250,9 @@ class CodeMain {
 				if (!retry || isWindows || error.code !== 'ECONNREFUSED') {
 					if (error.code === 'EPERM') {
 						this.showStartupWarningDialog(
-							localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", product.nameShort),
-							localize('secondInstanceAdminDetail', "Please close the other instance and try again.")
+							localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", productService.nameShort),
+							localize('secondInstanceAdminDetail', "Please close the other instance and try again."),
+							productService.nameLong
 						);
 					}
 
@@ -268,7 +270,7 @@ class CodeMain {
 					throw error;
 				}
 
-				return this.doStartup(args, logService, environmentMainService, lifecycleMainService, instantiationService, false);
+				return this.doStartup(args, logService, environmentMainService, lifecycleMainService, instantiationService, productService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
@@ -287,8 +289,9 @@ class CodeMain {
 			if (!args.wait && !args.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
-						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
-						localize('secondInstanceNoResponseDetail', "Please close all other instances and try again.")
+						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", productService.nameShort),
+						localize('secondInstanceNoResponseDetail', "Please close all other instances and try again."),
+						productService.nameLong
 					);
 				}, 10000);
 			}
@@ -298,7 +301,7 @@ class CodeMain {
 			// Process Info
 			if (args.status) {
 				return instantiationService.invokeFunction(async () => {
-					const diagnosticsService = new DiagnosticsService(NullTelemetryService);
+					const diagnosticsService = new DiagnosticsService(NullTelemetryService, productService);
 					const mainProcessInfo = await launchService.getMainProcessInfo();
 					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
@@ -342,23 +345,24 @@ class CodeMain {
 		return mainProcessNodeIpcServer;
 	}
 
-	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, error: NodeJS.ErrnoException): void {
+	private handleStartupDataDirError(environmentMainService: IEnvironmentMainService, title: string, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
 			const directories = coalesce([environmentMainService.userDataPath, environmentMainService.extensionsPath, XDG_RUNTIME_DIR]).map(folder => getPathLabel(folder, environmentMainService));
 
 			this.showStartupWarningDialog(
 				localize('startupDataDirError', "Unable to write program user data."),
-				localize('startupUserDataAndExtensionsDirErrorDetail', "{0}\n\nPlease make sure the following directories are writeable:\n\n{1}", toErrorMessage(error), directories.join('\n'))
+				localize('startupUserDataAndExtensionsDirErrorDetail', "{0}\n\nPlease make sure the following directories are writeable:\n\n{1}", toErrorMessage(error), directories.join('\n')),
+				title
 			);
 		}
 	}
 
-	private showStartupWarningDialog(message: string, detail: string): void {
+	private showStartupWarningDialog(message: string, detail: string, title: string): void {
 		// use sync variant here because we likely exit after this method
 		// due to startup issues and otherwise the dialog seems to disappear
 		// https://github.com/microsoft/vscode/issues/104493
 		dialog.showMessageBoxSync({
-			title: product.nameLong,
+			title,
 			type: 'warning',
 			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 			message,

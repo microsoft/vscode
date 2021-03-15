@@ -184,7 +184,8 @@ class SharedProcessMain extends Disposable {
 		this._register(toDisposable(() => storageService.flush()));
 
 		// Product
-		services.set(IProductService, { _serviceBrand: undefined, ...product });
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
@@ -213,19 +214,19 @@ class SharedProcessMain extends Disposable {
 
 		let telemetryService: ITelemetryService;
 		let telemetryAppender: ITelemetryAppender;
-		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
+		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && productService.enableTelemetry) {
 			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
 
 			// Application Insights
-			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, product.aiConfig.asimovKey);
+			if (productService.aiConfig && productService.aiConfig.asimovKey && isBuilt) {
+				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				telemetryAppender = combinedAppender(appInsightsAppender, telemetryAppender);
 			}
 
 			telemetryService = new TelemetryService({
 				appender: telemetryAppender,
-				commonProperties: resolveCommonProperties(fileService, release(), process.arch, product.commit, product.version, this.configuration.machineId, product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: [appRoot, extensionsPath]
 			}, configurationService);

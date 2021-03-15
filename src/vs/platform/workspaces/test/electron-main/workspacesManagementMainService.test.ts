@@ -22,6 +22,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMain
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
+import product from 'vs/platform/product/common/product';
 
 suite('WorkspacesManagementMainService', () => {
 
@@ -103,7 +104,7 @@ suite('WorkspacesManagementMainService', () => {
 			}
 		};
 
-		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService());
+		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService(), { _serviceBrand: undefined, ...product });
 
 		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});

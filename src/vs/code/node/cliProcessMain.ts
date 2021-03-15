@@ -131,7 +131,8 @@ class CliMain extends Disposable {
 		services.set(IStateService, stateService);
 
 		// Product
-		services.set(IProductService, { _serviceBrand: undefined, ...product });
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
 
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 
@@ -148,15 +149,15 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
-		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
-			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender('monacoworkbench', null, product.aiConfig.asimovKey));
+		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && productService.enableTelemetry) {
+			if (productService.aiConfig && productService.aiConfig.asimovKey) {
+				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(fileService, release(), process.arch, product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), process.arch, productService.commit, productService.version, stateService.getItem('telemetry.machineId'), productService.msftInternalDomains, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 

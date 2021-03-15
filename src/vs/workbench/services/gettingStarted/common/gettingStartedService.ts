@@ -20,7 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -79,6 +79,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IContextKeyService private readonly contextService: IContextKeyService,
 		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -138,7 +139,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (!this.trackedExtensions.has(ExtensionIdentifier.toKey(extension.identifier))) {
 			this.trackedExtensions.add(ExtensionIdentifier.toKey(extension.identifier));
 
-			if ((extension.contributes?.welcomeCategories || extension.contributes?.welcomeItems) && product.quality === 'stable') {
+			if ((extension.contributes?.welcomeCategories || extension.contributes?.welcomeItems) && this.productService.quality === 'stable') {
 				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but this is a Stable build and extension contributions are only available in Insiders. The contributed content will be disregarded.');
 				return;
 			}
