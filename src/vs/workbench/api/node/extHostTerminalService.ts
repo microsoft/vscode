@@ -134,7 +134,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public async $getAvailableProfiles(): Promise<ITerminalProfile[]> {
 		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
-		return detectAvailableProfiles(config as ITerminalConfiguration);
+		return detectAvailableProfiles(config as ITerminalConfiguration, this._variableResolver, this._lastActiveWorkspace);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {

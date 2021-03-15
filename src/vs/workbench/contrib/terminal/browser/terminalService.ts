@@ -147,6 +147,15 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
+		this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
+				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
+				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
+				e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
+				this._onProfilesConfigChanged.fire();
+			}
+		});
+
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
 		this._connectionState = TerminalConnectionState.Connecting;
@@ -157,14 +166,6 @@ export class TerminalService implements ITerminalService {
 		} else {
 			this._connectionState = TerminalConnectionState.Connected;
 		}
-		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
-				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
-				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
-				e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
-				this._onProfilesConfigChanged.fire();
-			}
-		});
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {

@@ -88,58 +88,31 @@ export const terminalConfiguration: IConfigurationNode = {
 				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1}, {2}, and optional {3}", '`generator`', '`path`', '`profileName`', '`args`.'),
 			type: 'object',
 			default: {
-				gitbash: {
+				'PowerShell': {
+					generator: 'PowerShell'
+				},
+				'Git Bash': {
 					generator: 'Git Bash'
-				}
+				},
+				'Command Prompt': {
+					path:
+						[
+							'${env:windir}/Sysnative/cmd.exe',
+							'${env:windir}/System32/cmd.exe'
+						],
+					args: []
+				},
+				'Windows Powershell': {
+					path:
+						[
+							'${env:windir}/Sysnative/WindowsPowerShell/v1.0/powershell.exe',
+							'${env:windir}/System32/WindowsPowerShell/v1.0/powershell.exe'
+						],
+					args: []
+				},
+				'WSL': null,
+				'Cygwin': null
 			},
-			// properties: {
-			// 	'powershell': {
-			// 		markdownDescription: 'powershell',
-			// 		type: ['object', 'null'],
-			// 		default: { 'generator': 'PowerShell' }
-			// 	},
-			// 	'gitbash': {
-			// 		markdownDescription: 'gitbash',
-			// 		type: ['object', 'null'],
-			// 		default: { 'generator': 'Git Bash' }
-			// 	},
-			// 	'cmd': {
-			// 		markdownDescription: 'cmd',
-			// 		type: ['object', 'null'],
-			// 		default: {
-			// 			'profileName': 'Command Prompt',
-			// 			'path':
-			// 				[
-			// 					'${env:windir}/Sysnative/cmd.exe',
-			// 					'${env:windir}/System32/cmd.exe'
-			// 				],
-			// 			'args': []
-			// 		}
-			// 	},
-			// 	'windowsPowershell': {
-			// 		markdownDescription: 'windowsPowershell',
-			// 		type: ['object', 'null'],
-			// 		default: {
-			// 			'profileName': 'Windows Powershell',
-			// 			'path':
-			// 				[
-			// 					'${env:windir}/Sysnative/WindowsPowerShell/v1.0/powershell.exe',
-			// 					'${env:windir}/System32/WindowsPowerShell/v1.0/powershell.exe'
-			// 				],
-			// 			'args': []
-			// 		}
-			// 	},
-			// 	'wsl': {
-			// 		markdownDescription: 'wsl',
-			// 		type: ['object', 'null'],
-			// 		default: { 'generator': 'WSL Bash' }
-			// 	},
-			// 	'cygwin': {
-			// 		markdownDescription: 'cygwin',
-			// 		type: ['object', 'null'],
-			// 		default: null
-			// 	},
-			// }
 		},
 		'terminal.integrated.profiles.osx': {
 			markdownDescription: localize({
@@ -147,59 +120,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				comment: ['{0}, {1}, and {2} are the `path`, `profileName`, and optional `args` settings keys']
 			},
 				"The osx shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`path`', '`profileName`', '`args`.'),
-			type: 'object',
-			default: {
-				gitbash: {
-					generator: 'Git Bash'
-				}
-			},
-			// properties: {
-			// 	'gitbash': {
-			// 		markdownDescription: 'gitbash',
-			// 		type: ['object', 'null'],
-			// 	},
-			// 	'powershell': {
-			// 		markdownDescription: 'powershell',
-			// 		type: ['object', 'null'],
-			// 		default: { 'generator': 'PowerShell' }
-			// 	},
-			// 	'cmd': {
-			// 		markdownDescription: 'cmd',
-			// 		type: ['object', 'null'],
-			// 		default: {
-			// 			'profileName': 'Command Prompt',
-			// 			'path':
-			// 				[
-			// 					'${env:windir}/Sysnative/cmd.exe',
-			// 					'${env:windir}/System32/cmd.exe'
-			// 				],
-			// 			'args': []
-			// 		}
-			// 	},
-			// 	'windowsPowershell': {
-			// 		markdownDescription: 'windowsPowershell',
-			// 		type: ['object', 'null'],
-			// 		default: {
-			// 			'profileName': 'Windows Powershell',
-			// 			'path':
-			// 				[
-			// 					'${env:windir}/Sysnative/WindowsPowerShell/v1.0/powershell.exe',
-			// 					'${env:windir}/System32/WindowsPowerShell/v1.0/powershell.exe'
-			// 				],
-			// 			'args': []
-			// 		}
-			// 	},
-			// 	'wsl': {
-			// 		markdownDescription: 'wsl',
-			// 		type: ['object', 'null'],
-			// 		default: { 'generator': 'WSL Bash' }
-			// 	},
-			// 	'cygwin': {
-			// 		markdownDescription: 'cygwin',
-			// 		type: ['object', 'null'],
-			// 		default: null
-			// 	},
-
+			type: 'object'
 		},
 		'terminal.integrated.profiles.linux': {
 			markdownDescription: localize({
@@ -207,12 +128,12 @@ export const terminalConfiguration: IConfigurationNode = {
 				comment: ['{0}, {1}, and {2} are the `path`, `profileName`, and optional `args` settings keys']
 			},
 				"The linux shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`path`', '`profileName`', '`args`.'),
-			type: 'array'
+			type: 'object'
 		},
 		'terminal.integrated.detectWslProfiles': {
 			description: localize('terminal.integrated.detectWslProfiles', 'whether or not wsl distros are detected as default profiles'),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),

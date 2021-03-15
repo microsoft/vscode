@@ -235,7 +235,7 @@ enum ProfileGenerator {
 }
 
 export interface ITerminalExecutable {
-	path: string;
+	path: string | string[];
 	args?: string | string[] | undefined;
 }
 
@@ -397,7 +397,7 @@ export const enum TERMINAL_COMMAND_ID {
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
 	FOCUS_PREVIOUS = 'workbench.action.terminal.focusPrevious',
 	PASTE = 'workbench.action.terminal.paste',
-	SELECT_DEFAULT_PROFILE = 'workbench.action.terminal.selectDefaultProfile',
+	SELECT_DEFAULT_PROFILE = 'workbench.action.terminal.selectDefaultShell',
 	RUN_SELECTED_TEXT = 'workbench.action.terminal.runSelectedText',
 	RUN_ACTIVE_FILE = 'workbench.action.terminal.runActiveFile',
 	SWITCH_TERMINAL = 'workbench.action.terminal.switchTerminal',

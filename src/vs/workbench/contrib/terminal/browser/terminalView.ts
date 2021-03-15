@@ -28,7 +28,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ITerminalProfile, ITerminalProfileGenerator, ITerminalProfileObject, ProfileName, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -444,37 +444,5 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 
 async function getProfileSelectOptionItems(terminalService: ITerminalService): Promise<ISelectOptionItem[]> {
 	const detectedProfiles = await terminalService.getAvailableProfiles();
-	const userProfiles = terminalService.configHelper.config.profiles;
-	const profileConfig: Map<ProfileName, ITerminalProfileObject> = (platform.isWindows ? userProfiles.windows : platform.isMacintosh ? userProfiles.osx : userProfiles.linux);
-	let labels: ISelectOptionItem[] = [];
-	let validProfiles: ITerminalProfile[] = [];
-	for (const [key, value] of Object.entries(profileConfig)) {
-		if (value !== null) {
-			if ((value as ITerminalProfile).path) {
-				// custom profile
-
-				const customProfile = (value as ITerminalProfile);
-				const profile = detectedProfiles?.find(profile => customProfile.path.includes(profile.path));
-				if (profile) {
-					validProfiles?.push({ profileName: key, path: customProfile.path, args: customProfile.args });
-				}
-			} else if ((value as ITerminalProfileGenerator).generator) {
-				// generator
-				let name = (value as ITerminalProfileGenerator).generator;
-				const profile = detectedProfiles?.find(profile => profile.profileName === name.toString());
-				if (profile) {
-					validProfiles?.push(profile);
-				}
-			}
-		}
-	}
-
-	if (terminalService.configHelper.config.detectWslProfiles) {
-		const wslDistros = detectedProfiles?.filter(p => p.path.includes('wsl.exe'));
-		if (wslDistros) {
-			validProfiles?.push(...wslDistros);
-		}
-	}
-	labels = validProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
-	return labels;
+	return detectedProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
 }

@@ -9,9 +9,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalConfiguration, ITerminalProfile, ITerminalProfileObject } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileGenerator, ITerminalProfileObject } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ITestTerminalConfiguration } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
+import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface IStatProvider {
 	stat(path: string): boolean,
@@ -24,11 +26,11 @@ interface IPotentialTerminalProfile {
 	args?: string[]
 }
 
-export function detectAvailableProfiles(config?: ITerminalConfiguration | ITestTerminalConfiguration, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(config?.detectWslProfiles, config?.profiles.windows, statProvider) : detectAvailableUnixProfiles();
+export function detectAvailableProfiles(config?: ITerminalConfiguration | ITestTerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsProfiles(config?.detectWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles();
 }
 
-async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, configProfiles?: Map<string, ITerminalProfileObject>, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, configProfiles?: Map<string, ITerminalProfileObject>, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -67,7 +69,7 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 			],
 			args: ['-l']
 		},
-		... await getWslProfiles(system32Path, useWSLexe, detectWslProfiles),
+		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, detectWslProfiles),
 		... await getPowershellProfiles()
 	];
 
@@ -80,7 +82,53 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 	if (zsh) {
 		zsh.args = ['--login'];
 	}
-	return coalesce(profiles);
+
+	const detectedProfiles = coalesce(profiles);
+	let validProfiles: ITerminalProfile[] = [];
+
+	if (detectedProfiles && configProfiles) {
+		for (const [profileKey, value] of Object.entries(configProfiles)) {
+			console.trace(profileKey, value);
+			if (value !== null) {
+				if ((value as ITerminalExecutable).path) {
+					let profile;
+					const customProfile = (value as ITerminalExecutable);
+					if (Array.isArray(customProfile.path)) {
+						let resolvedPaths: string[] = [];
+						for (const p of customProfile.path) {
+							const resolved = variableResolver?.resolve(workspaceFolder, p);
+							if (resolved) {
+								resolvedPaths.push(resolved);
+							}
+						}
+						profile = detectedProfiles?.find(profile => resolvedPaths.includes(profile.path));
+					} else {
+						let resolved = variableResolver?.resolve(workspaceFolder, customProfile.path);
+						profile = detectedProfiles?.find(profile => profile.path === resolved);
+					}
+					if (profile) {
+						validProfiles?.push({ profileName: profileKey, path: profile.path, args: customProfile.args });
+					}
+				} else if ((value as ITerminalProfileGenerator).generator) {
+					// generator
+					let generatorKey = (value as ITerminalProfileGenerator).generator;
+					const profile = detectedProfiles?.find(profile => profile.profileName === generatorKey.toString());
+					if (profile) {
+						profile.profileName = profileKey;
+						validProfiles?.push(profile);
+					}
+				}
+			}
+		}
+
+		if (detectWslProfiles) {
+			const wslDistros = detectedProfiles?.filter(p => p.path.includes('wsl.exe'));
+			if (wslDistros) {
+				validProfiles?.push(...wslDistros);
+			}
+		}
+	}
+	return validProfiles || detectedProfiles;
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
@@ -92,13 +140,13 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(path: string, useWSLexe: boolean, detectWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
+async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
 	let profiles: IPotentialTerminalProfile[] = [];
-	profiles.push({ profileName: `WSL Bash`, paths: [`${path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`] });
+	profiles.push({ profileName: `WSL Bash`, paths: [wslPath] });
 	if (detectWslProfiles) {
 		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? console.trace('problem occurred when getting wsl distros', err) : r(stdout)));
 		if (distroOutput) {
-			let regex = new RegExp(/[\r\n]/);
+			let regex = new RegExp(/[\r?\n]/);
 			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
@@ -118,7 +166,7 @@ async function getWslProfiles(path: string, useWSLexe: boolean, detectWslProfile
 					s = s.substring(0, s.length - 10);
 				}
 				if (s !== '' && s !== 'docker-desktop-data') {
-					let profile = { profileName: `${s} (WSL)`, paths: [`${path}\\${useWSLexe ? `wsl.exe` : `bash.exe`}`], args: [`-d`, `${s}`] };
+					let profile = { profileName: `${s} (WSL)`, paths: [wslPath], args: [`-d`, `${s}`] };
 					profiles.push(profile);
 				}
 			});
@@ -206,16 +254,4 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 		}
 	}
 	return validateProfilePaths(label, potentialPaths, statProvider);
-}
-
-export function createStatProvider(expectedPaths: string[]): IStatProvider {
-	const provider = {
-		stat(path: string) {
-			return expectedPaths.includes(path);
-		},
-		lstat(path: string) {
-			return expectedPaths.includes(path);
-		}
-	};
-	return provider;
 }
