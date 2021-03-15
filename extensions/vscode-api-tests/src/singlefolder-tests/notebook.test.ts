@@ -1132,12 +1132,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
 	});
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
-		const openedEditor = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		await vscode.notebook.openNotebookDocument(resource);
-		assert.ok(await openedEditor);
-	});
+
+
 
 	// });
 
