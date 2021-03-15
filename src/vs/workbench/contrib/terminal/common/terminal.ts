@@ -229,7 +229,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 }
 
-enum ProfileGenerator {
+export const enum ProfileGenerator {
 	'Git Bash',
 	'PowerShell'
 }

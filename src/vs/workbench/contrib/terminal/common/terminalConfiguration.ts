@@ -97,16 +97,16 @@ export const terminalConfiguration: IConfigurationNode = {
 				'Command Prompt': {
 					path:
 						[
-							'${env:windir}/Sysnative/cmd.exe',
-							'${env:windir}/System32/cmd.exe'
+							'${env:windir}\\Sysnative\\cmd.exe',
+							'${env:windir}\\System32\\cmd.exe'
 						],
 					args: []
 				},
 				'Windows Powershell': {
 					path:
 						[
-							'${env:windir}/Sysnative/WindowsPowerShell/v1.0/powershell.exe',
-							'${env:windir}/System32/WindowsPowerShell/v1.0/powershell.exe'
+							'${env:windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+							'${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 						],
 					args: []
 				},

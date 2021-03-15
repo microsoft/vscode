@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { ITerminalExecutable, ITerminalProfileObject } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalExecutable, ITerminalProfileObject, ProfileGenerator } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
 
@@ -15,7 +15,7 @@ export interface ITestTerminalConfiguration {
 		windows: Map<string, ITerminalProfileObject>
 	}
 }
-const config: ITestTerminalConfiguration = { detectWslProfiles: false, profiles: { windows: new Map<string, ITerminalProfileObject>() } };
+let config: ITestTerminalConfiguration = { detectWslProfiles: false, profiles: { windows: new Map<string, ITerminalProfileObject>() } };
 
 suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
@@ -29,18 +29,9 @@ suite('Workbench - TerminalProfiles', () => {
 					const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
 					assert.deepStrictEqual(expected, profiles);
 				});
-				test('should detect cygwin and provide args', async () => {
-					const _paths = ['C:\\cygwin64\\bin\\bash.exe'];
-					let exec = ({ path: _paths } as ITerminalExecutable);
-					config.profiles.windows.set('Cygwin', exec);
-					const profiles = await detectAvailableProfiles(config, undefined, undefined, createStatProvider(_paths));
-					const expected = [{ profileName: 'Cygwin', path: _paths[0] }];
-					assert.deepStrictEqual(expected, profiles);
-				});
 				test('should detect Git Bash and provide login args', async () => {
-					const _paths = ['C:\\Program Files\\Git\\bin\\bash.exe'];
-					let exec = ({ path: _paths } as ITerminalExecutable);
-					config.profiles.windows.set('Git Bash', exec);
+					const _paths = [`Program Files\\Git\\bin\\bash.exe`];
+					config.profiles.windows.set('Git Bash', { generator: ProfileGenerator['Git Bash'] });
 					const profiles = await detectAvailableProfiles(config, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
 					assert.deepStrictEqual(expected, profiles);
