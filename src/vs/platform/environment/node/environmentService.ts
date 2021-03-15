@@ -15,6 +15,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { cwd, env } from 'vs/base/common/process';
 
 export class NativeEnvironmentService implements INativeEnvironmentService {
 
@@ -32,12 +33,12 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get userDataPath(): string {
-		const vscodePortable = process.env['VSCODE_PORTABLE'];
+		const vscodePortable = env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
 			return join(vscodePortable, 'user-data');
 		}
 
-		return parseUserDataDir(this._args, process);
+		return parsePathArg(this._args['user-data-dir']) || resolve(getDefaultUserDataPath());
 	}
 
 	@memoize
@@ -78,7 +79,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get argvResource(): URI {
-		const vscodePortable = process.env['VSCODE_PORTABLE'];
+		const vscodePortable = env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
 			return URI.file(join(vscodePortable, 'argv.json'));
 		}
@@ -100,7 +101,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get builtinExtensionsPath(): string {
-		const fromArgs = parsePathArg(this._args['builtin-extensions-dir'], process);
+		const fromArgs = parsePathArg(this._args['builtin-extensions-dir']);
 		if (fromArgs) {
 			return fromArgs;
 		} else {
@@ -109,7 +110,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	}
 
 	get extensionsDownloadPath(): string {
-		const fromArgs = parsePathArg(this._args['extensions-download-dir'], process);
+		const fromArgs = parsePathArg(this._args['extensions-download-dir']);
 		if (fromArgs) {
 			return fromArgs;
 		} else {
@@ -119,18 +120,18 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get extensionsPath(): string {
-		const fromArgs = parsePathArg(this._args['extensions-dir'], process);
+		const fromArgs = parsePathArg(this._args['extensions-dir']);
 
 		if (fromArgs) {
 			return fromArgs;
 		}
 
-		const vscodeExtensions = process.env['VSCODE_EXTENSIONS'];
+		const vscodeExtensions = env['VSCODE_EXTENSIONS'];
 		if (vscodeExtensions) {
 			return vscodeExtensions;
 		}
 
-		const vscodePortable = process.env['VSCODE_PORTABLE'];
+		const vscodePortable = env['VSCODE_PORTABLE'];
 		if (vscodePortable) {
 			return join(vscodePortable, 'extensions');
 		}
@@ -189,7 +190,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
 	get debugRenderer(): boolean { return !!this._args.debugRenderer; }
 
-	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
+	get isBuilt(): boolean { return !env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }
 	get logLevel(): string | undefined { return this._args.log; }
 
@@ -230,22 +231,17 @@ function parseDebugPort(debugArg: string | undefined, debugBrkArg: string | unde
 	return { port, break: brk, debugId };
 }
 
-export function parsePathArg(arg: string | undefined, process: NodeJS.Process): string | undefined {
+function parsePathArg(arg: string | undefined): string | undefined {
 	if (!arg) {
 		return undefined;
 	}
 
-	// Determine if the arg is relative or absolute, if relative use the original CWD
-	// (VSCODE_CWD), not the potentially overridden one (process.cwd()).
+	// Determine if the arg is relative or absolute,
+	// and if it is relative, resolve it with the cwd()
 	const resolved = resolve(arg);
-
 	if (normalize(arg) === resolved) {
 		return resolved;
 	}
 
-	return resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
-}
-
-export function parseUserDataDir(args: NativeParsedArgs, process: NodeJS.Process): string {
-	return parsePathArg(args['user-data-dir'], process) || resolve(getDefaultUserDataPath());
+	return resolve(cwd(), arg);
 }

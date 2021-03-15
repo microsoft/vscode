@@ -41,6 +41,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileService } from 'vs/platform/files/common/files';
+import { cwd } from 'vs/base/common/process';
 
 //#region Helper Interfaces
 
@@ -885,7 +886,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Ensure the path is normalized and absolute
-		path = sanitizeFilePath(normalize(path), process.env['VSCODE_CWD'] || process.cwd());
+		path = sanitizeFilePath(normalize(path), cwd());
 
 		try {
 			const pathStat = statSync(path);

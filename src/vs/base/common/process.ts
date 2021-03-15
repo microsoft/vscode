@@ -11,20 +11,21 @@ let safeProcess: INodeProcess;
 
 // Native node.js environment
 if (typeof process !== 'undefined') {
-	safeProcess = process;
+	safeProcess = {
+		get platform(): 'win32' | 'linux' | 'darwin' { return process.platform; },
+		get env() { return process.env; },
+		cwd(): string { return process.env['VSCODE_CWD'] || process.cwd(); },
+		nextTick(callback: (...args: any[]) => void): void { return process.nextTick(callback); }
+	};
 }
 
 // Native sandbox environment
 else if (typeof globals.vscode !== 'undefined') {
 	safeProcess = {
-
-		// Supported
 		get platform(): 'win32' | 'linux' | 'darwin' { return globals.vscode.process.platform; },
 		get env() { return globals.vscode.process.env; },
-		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); },
-
-		// Unsupported
-		cwd(): string { return globals.vscode.process.env['VSCODE_CWD'] || globals.vscode.process.execPath.substr(0, globals.vscode.process.execPath.lastIndexOf(globals.vscode.process.platform === 'win32' ? '\\' : '/')); }
+		cwd(): string { return globals.vscode.process.env['VSCODE_CWD'] || globals.vscode.process.execPath.substr(0, globals.vscode.process.execPath.lastIndexOf(globals.vscode.process.platform === 'win32' ? '\\' : '/')); },
+		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
 	};
 }
 

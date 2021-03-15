@@ -53,6 +53,7 @@ import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/env
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { cwd } from 'vs/base/common/process';
 
 /**
  * The main VS Code entry point.
@@ -453,7 +454,7 @@ class CodeMain {
 	}
 
 	private doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
-		const cwd = process.env['VSCODE_CWD'] || process.cwd();
+		const currentWorkingDir = cwd();
 		const result = args.map(arg => {
 			let pathCandidate = String(arg);
 
@@ -464,10 +465,10 @@ class CodeMain {
 			}
 
 			if (pathCandidate) {
-				pathCandidate = this.preparePath(cwd, pathCandidate);
+				pathCandidate = this.preparePath(currentWorkingDir, pathCandidate);
 			}
 
-			const sanitizedFilePath = sanitizeFilePath(pathCandidate, cwd);
+			const sanitizedFilePath = sanitizeFilePath(pathCandidate, currentWorkingDir);
 
 			const filePathBasename = basename(sanitizedFilePath);
 			if (filePathBasename /* can be empty if code is opened on root */ && !isValidBasename(filePathBasename)) {

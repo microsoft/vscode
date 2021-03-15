@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { parseExtensionHostPort, parseUserDataDir } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService, parseExtensionHostPort } from 'vs/platform/environment/node/environmentService';
 
 suite('EnvironmentService', () => {
 
@@ -44,15 +43,6 @@ suite('EnvironmentService', () => {
 		assert.deepStrictEqual(parse(['--inspect-extensions=1234', '--inspect-brk-extensions=5678', '--debugId=7']), { port: 5678, break: true, debugId: '7' });
 	});
 
-	test('userDataPath', () => {
-		const parse = (a: string[], b: { cwd: () => string, env: { [key: string]: string } }) => parseUserDataDir(parseArgs(a, OPTIONS), <any>b);
-
-		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: {} }), path.resolve('/foo/dir'),
-			'should use cwd when --user-data-dir is specified');
-		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: { 'VSCODE_CWD': '/bar' } }), path.resolve('/bar/dir'),
-			'should use VSCODE_CWD as the cwd when --user-data-dir is specified');
-	});
-
 	// https://github.com/microsoft/vscode/issues/78440
 	test('careful with boolean file names', function () {
 		let actual = parseArgs(['-r', 'arg.txt'], OPTIONS);
@@ -62,5 +52,16 @@ suite('EnvironmentService', () => {
 		actual = parseArgs(['-r', 'true.txt'], OPTIONS);
 		assert(actual['reuse-window']);
 		assert.deepStrictEqual(actual._, ['true.txt']);
+	});
+
+	test('userDataDir', () => {
+		const service1 = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS));
+		assert.ok(service1.userDataPath.length > 0);
+
+		const args = parseArgs(process.argv, OPTIONS);
+		args['user-data-dir'] = '/userDataDir/folder';
+
+		const service2 = new NativeEnvironmentService(args);
+		assert.notStrictEqual(service1.userDataPath, service2.userDataPath);
 	});
 });

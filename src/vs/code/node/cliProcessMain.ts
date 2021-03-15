@@ -46,6 +46,7 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { cwd } from 'vs/base/common/process';
 
 class CliMain extends Disposable {
 
@@ -217,7 +218,7 @@ class CliMain extends Disposable {
 	}
 
 	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
-		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(process.cwd(), input)) : input);
+		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 	}
 
 	private async setInstallSource(environmentService: INativeEnvironmentService, fileService: IFileService, installSource: string): Promise<void> {
