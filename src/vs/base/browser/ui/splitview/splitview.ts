@@ -675,6 +675,10 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			throw new Error('Cant modify splitview');
 		}
 
+		if (view.maximumSize < view.minimumSize) {
+			throw new Error('splitview view minimum size must be <= maximum size');
+		}
+
 		this.state = State.Busy;
 
 		// Add view
