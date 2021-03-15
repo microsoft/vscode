@@ -733,7 +733,10 @@ export async function activate(context: vscode.ExtensionContext) {
 						});
 					});
 				} catch (err) {
-					if (!('code' in err && err.code === grpc.status.CANCELLED)) {
+					if ('code' in err && err.code === grpc.status.UNIMPLEMENTED) {
+						console.warn('supervisor does not implement the notification server');
+						run = false;
+					} else if (!('code' in err && err.code === grpc.status.CANCELLED)) {
 						console.error('cannot maintain connection to supervisor', err);
 					}
 				} finally {
