@@ -15,7 +15,9 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
-suite('IndexedDB File Service', function () {
+let fail = true;
+
+suite.only('IndexedDB File Service', function () {
 
 	// IDB sometimes under pressure in build machines.
 	this.retries(3);
@@ -78,7 +80,8 @@ suite('IndexedDB File Service', function () {
 		disposables.add(userdataFileProvider);
 	};
 
-	setup(async () => {
+	setup(async function () {
+		this.timeout(15000);
 		await reload();
 	});
 
