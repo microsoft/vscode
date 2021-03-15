@@ -68,7 +68,7 @@ suite('Notebook Editor', function () {
 
 	});
 
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	test.skip('Opening a notebook should fire activeNotebook event changed only once', async function () {
 		const openedEditor = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const editor = await vscode.window.showNotebookDocument(resource);
