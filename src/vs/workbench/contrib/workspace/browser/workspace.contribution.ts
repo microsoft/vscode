@@ -99,10 +99,13 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 					// Buttons
 					const buttons = this.requestModel.trustRequest.buttons ?? [
-						{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'TrustAndContinue' },
+						{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
 						{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
 					];
-					buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
+					// Add Cancel button if not provided
+					if (!buttons.some(b => b.type === 'Cancel')) {
+						buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
+					}
 
 					// Dialog
 					const result = await this.dialogService.show(
@@ -110,17 +113,17 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
 						buttons.map(b => b.label),
 						{
-							cancelId: buttons.length - 1,
+							cancelId: buttons.findIndex(b => b.type === 'Cancel'),
 							detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information.", message),
 						}
 					);
 
 					// Dialog result
 					switch (buttons[result.choice].type) {
-						case 'TrustAndContinue':
+						case 'ContinueWithTrust':
 							this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
 							break;
-						case 'Continue':
+						case 'ContinueWithoutTrust':
 							this.requestModel.completeRequest(undefined);
 							break;
 						case 'Manage':
