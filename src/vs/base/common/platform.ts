@@ -28,15 +28,15 @@ export interface IProcessEnvironment {
 }
 
 export interface INodeProcess {
-	platform: 'win32' | 'linux' | 'darwin';
+	platform: string;
 	env: IProcessEnvironment;
-	nextTick: Function;
+	nextTick?: (callback: (...args: any[]) => void) => void;
 	versions?: {
 		electron?: string;
 	};
-	sandboxed?: boolean; // Electron
+	sandboxed?: boolean;
 	type?: string;
-	cwd(): string;
+	cwd: () => string;
 }
 declare const process: INodeProcess;
 declare const global: any;
@@ -235,7 +235,7 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 			globals.postMessage({ vscodeSetImmediateId: myId }, '*');
 		};
 	}
-	if (nodeProcess && typeof nodeProcess.nextTick === 'function') {
+	if (typeof nodeProcess?.nextTick === 'function') {
 		return nodeProcess.nextTick.bind(nodeProcess);
 	}
 	const _promise = Promise.resolve();

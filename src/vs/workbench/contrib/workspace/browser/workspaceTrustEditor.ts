@@ -12,6 +12,7 @@ import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -26,6 +27,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
@@ -38,6 +40,10 @@ const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.worksp
 const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceTrusted);
 const unknownIcon = registerCodicon('workspace-unknown-icon', Codicon.workspaceUnknown);
 
+class WorkspaceTrustExtensionDelegate extends Delegate {
+	getHeight() { return super.getHeight() + 36; }
+}
+
 export class WorkspaceTrustEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.workspaceTrust';
 	private rootElement!: HTMLElement;
@@ -49,6 +55,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private headerTitleText!: HTMLElement;
 	private headerDescription!: HTMLElement;
 	private headerButtons!: HTMLElement;
+
+	private bodyScrollBar!: DomScrollableElement;
 
 	// Affected Features Section
 	private affectedFeaturesContainer!: HTMLElement;
@@ -73,11 +81,20 @@ export class WorkspaceTrustEditor extends EditorPane {
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
-		this.rootElement = append(parent, $('.workspace-trust-editor.settings-editor', { tabindex: '-1' }));
+		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '-1' }));
 
 		this.createHeaderElement(this.rootElement);
-		this.createAffectedFeaturesElement(this.rootElement);
-		this.createConfigurationElement(this.rootElement);
+
+		const scrollableContent = $('.workspace-trust-editor-body');
+		this.bodyScrollBar = this._register(new DomScrollableElement(scrollableContent, {
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Visible,
+		}));
+
+		append(this.rootElement, this.bodyScrollBar.getDomNode());
+
+		this.createAffectedFeaturesElement(scrollableContent);
+		this.createConfigurationElement(scrollableContent);
 
 		this._register(attachStylerCallback(this.themeService, { trustedForegroundColor, untrustedForegroundColor }, colors => {
 			this.rootElement.style.setProperty('--workspace-trust-state-trusted-color', colors.trustedForegroundColor?.toString() || '');
@@ -226,6 +243,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		// Configuration Tree
 		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
+
+		this.bodyScrollBar.scanDomNode();
 	}
 
 	private async getExtensionsByTrustRequirement(extensions: IExtensionStatus[], trustRequirement: ExtensionWorkspaceTrustRequirement): Promise<IExtension[]> {
@@ -251,7 +270,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content);
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new WorkspaceTrustExtensionDelegate());
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();
 
@@ -272,12 +291,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private createConfigurationElement(parent: HTMLElement): void {
-		this.configurationContainer = append(parent, $('.workspace-trust-settings.settings-body'));
+		this.configurationContainer = append(parent, $('.workspace-trust-settings.settings-editor'));
 
 		const titleContainer = append(this.configurationContainer, $('.workspace-trust-section-title'));
 		titleContainer.innerText = localize('configurationSectionTitle', "Configure All Workspaces");
 
-		const workspaceTrustTreeContainer = append(this.configurationContainer, $('.workspace-trust-settings-tree-container.settings-tree-container'));
+		const settingsBody = append(this.configurationContainer, $('.workspace-trust-settings-body.settings-body'));
+
+		const workspaceTrustTreeContainer = append(settingsBody, $('.workspace-trust-settings-tree-container.settings-tree-container'));
 		const renderer = this.instantiationService.createInstance(WorkspaceTrustSettingArrayRenderer,);
 
 		this.trustSettingsTree = this._register(this.instantiationService.createInstance(WorkspaceTrustTree,
@@ -319,13 +340,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 			return;
 		}
 
-		const listHeight = dimension.height - this.configurationContainer.offsetTop;
-		this.configurationContainer.style.height = `${listHeight}`;
-
-		this.trustSettingsTree.layout(listHeight, dimension.width);
+		this.trustSettingsTree.layout(dimension.height, dimension.width);
 
 		this.layoutParticipants.forEach(participant => {
 			participant.layout();
 		});
+
+		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
+
+		this.bodyScrollBar.scanDomNode();
 	}
 }

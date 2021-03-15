@@ -319,8 +319,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.getSelections() ?? [];
 	}
 
-	getSelection() {
-		return this.viewModel?.getSelection();
+	getFocus() {
+		return this.viewModel?.getFocus() ?? { start: 0, end: 0 };
 	}
 
 	getSelectionViewModels(): ICellViewModel[] {
@@ -424,6 +424,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				keyboardSupport: false,
 				mouseSupport: true,
 				multipleSelectionSupport: true,
+				selectionNavigation: true,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
@@ -1039,6 +1040,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else if (this._list.length > 0) {
 			this.viewModel?.updateSelectionsState({
 				kind: SelectionStateType.Index,
+				focus: { start: 0, end: 1 },
 				selections: [{ start: 0, end: 1 }]
 			});
 		}
@@ -1281,6 +1283,49 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
 		return this._list.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
+	}
+
+	getViewIndex(cell: ICellViewModel): number {
+		if (!this._list) {
+			return -1;
+		}
+		return this._list.getViewIndex(cell) ?? -1;
+	}
+
+	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
+		if (!this.viewModel) {
+			return undefined;
+		}
+
+		const modelIndex = this._list.getModelIndex2(startIndex);
+		if (modelIndex === undefined) {
+			throw new Error(`startIndex ${startIndex} out of boundary`);
+		}
+
+		if (endIndex >= this._list.length) {
+			// it's the end
+			const endModelIndex = this.viewModel.length;
+			return { start: modelIndex, end: endModelIndex };
+		} else {
+			const endModelIndex = this._list.getModelIndex2(endIndex);
+			if (endModelIndex === undefined) {
+				throw new Error(`endIndex ${endIndex} out of boundary`);
+			}
+			return { start: modelIndex, end: endModelIndex };
+		}
+	}
+
+	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
+		if (!this.viewModel) {
+			return [];
+		}
+
+		const range = this.getCellRangeFromViewRange(startIndex, endIndex);
+		if (!range) {
+			return [];
+		}
+
+		return this.viewModel.viewCells.slice(range.start, range.end);
 	}
 
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {

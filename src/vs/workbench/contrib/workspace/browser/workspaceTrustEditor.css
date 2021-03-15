@@ -8,22 +8,23 @@
 	content: '\eb53';
 }
 
-.workspace-trust-editor.settings-editor {
+.workspace-trust-editor {
 	max-width: 1000px;
 	padding-top: 11px;
 	padding-left: 15px;
 	padding-right: 15px;
 	margin: auto;
+	height: calc(100% - 11px);
 }
 
-.workspace-trust-editor.settings-editor > .workspace-trust-header {
+.workspace-trust-editor > .workspace-trust-header {
 	padding: 14px;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title {
 	font-size: 24px;
 	font-weight: 600;
 	line-height: 32px;
@@ -31,27 +32,27 @@
 	display: flex;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
 	font-size: 32px;
 	margin-right: 8px;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-trusted-icon {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-trusted-icon {
 	color: var(--workspace-trust-state-trusted-color) !important;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-untrusted-icon {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon.codicon-workspace-untrusted-icon {
 	color: var(--workspace-trust-state-untrusted-color) !important;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-description {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-description {
 	cursor: default;
 	user-select: text;
 	max-width: 500px;
 }
 
 /** Buttons Container */
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-buttons-row {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-buttons-row {
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
@@ -61,12 +62,12 @@
 }
 
 /** Buttons */
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-buttons-row .workspace-trust-buttons {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-buttons-row .workspace-trust-buttons {
 	display: flex;
 	overflow: hidden;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-header .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button {
+.workspace-trust-editor .workspace-trust-header .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button {
 	width: fit-content;
 	width: -moz-fit-content;
 	padding: 5px 10px;
@@ -76,71 +77,129 @@
 	outline-offset: 2px !important;
 }
 
-.workspace-trust-editor.settings-editor .workspace-trust-section-title {
+.workspace-trust-editor .workspace-trust-section-title {
 	font-weight: 600;
 	font-size: 18px;
 	padding-bottom: 5px;
 }
 
+.workspace-trust-editor .workspace-trust-editor-body {
+	height: 100%;
+}
+
 /** Features List */
-.workspace-trust-editor.settings-editor > .workspace-trust-features {
+.workspace-trust-editor .workspace-trust-features {
 	padding: 14px;
 	cursor: default;
 	user-select: text;
 }
 
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extensions-list {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extensions-list {
 	padding-bottom: 10px;
 }
 
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-title {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-title {
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 32px;
 }
 
 
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-description {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-description {
 	padding-bottom: 15px;
 }
 
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry {
+
+.workspace-trust-editor .extensions-grid-view {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.workspace-trust-editor .extensions-grid-view > .extension-container {
+	width: 310px;
+	margin: 0 10px 20px 0;
+}
+
+.workspace-trust-editor .extensions-grid-view .extension-list-item {
+	padding-left: 0;
+	cursor: default;
+}
+
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details {
+	display: flex;
+	flex-direction: column;
+}
+
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details .header > .name {
+	cursor: pointer;
+}
+
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .footer,
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .header-container {
+	flex-grow: 0;
+}
+
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .version,
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .ratings,
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .install-count {
+	display: none;
+}
+
+.workspace-trust-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name,
+.workspace-trust-editor .extensions-grid-view > .extension-container:focus > .extension-list-item > .details .header > .name:hover {
+	text-decoration: underline;
+}
+
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .description {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	flex-grow: 1;
+	white-space: break-spaces;
+}
+
+
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry {
 	display: flex;
 	margin-bottom: 10px;
 	align-items: center;
 }
 
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-text {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-text {
 	display: flex;
 	flex-direction: column;
 	margin-left: 5px;
 }
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon,
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon .icon {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon,
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-icon .icon {
 	height: 42px;
 }
 
-.workspace-trust-editor.settings-editor > .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-name {
+.workspace-trust-editor .workspace-trust-features  .workspace-trust-extension-list-entry .workspace-trust-extension-name {
 	font-weight: 600;
 }
 
 /** Settings */
-.workspace-trust-editor.settings-editor .workspace-trust-settings .workspace-trust-section-title {
+.workspace-trust-editor .workspace-trust-settings .workspace-trust-section-title {
 	padding: 14px;
 }
 
-.workspace-trust-editor.settings-editor > .settings-body > .settings-tree-container .shadow.top {
+.workspace-trust-editor .settings-editor .settings-body {
+	margin-top: 0;
+}
+
+.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .shadow.top {
 	left: initial;
 	margin-left: initial;
 	max-width: initial;
 }
 
-.workspace-trust-editor.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
+.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
 	padding-left: 0;
 	padding-right: 0;
 }
 
-.workspace-trust-editor.settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents .setting-list-edit-row > .setting-list-valueInput {
+.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents .setting-list-edit-row > .setting-list-valueInput {
 	width: 100%;
 	max-width: 100%;
 }

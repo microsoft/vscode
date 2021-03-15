@@ -24,7 +24,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState, cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState, cellIndexesToRanges, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -353,8 +353,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
-	getSelection() {
-		return this._selectionCollection.selection;
+	getFocus() {
+		return this._selectionCollection.focus;
 	}
 
 	getSelections() {
@@ -396,13 +396,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				const selections = cellIndexesToRanges(state.selections.map(sel => this.getCellIndexByHandle(sel)))
 					.map(range => this.validateRange(range))
 					.filter(range => range !== null) as ICellRange[];
-				this._selectionCollection.setState(primarySelection, selections, true, source);
+				this._selectionCollection.setState(primarySelection, reduceRanges(selections), true, source);
 			} else {
-				const primarySelection = this.validateRange(state.selections[0]);
+				const primarySelection = this.validateRange(state.focus);
 				const selections = state.selections
 					.map(range => this.validateRange(range))
 					.filter(range => range !== null) as ICellRange[];
-				this._selectionCollection.setState(primarySelection, selections, true, source);
+				this._selectionCollection.setState(primarySelection, reduceRanges(selections), true, source);
 			}
 		}
 	}
@@ -715,14 +715,14 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean = true) {
-		const primarySelectionIndex = this.getSelection()?.start ?? null;
+		const focusSelectionIndex = this.getFocus()?.start ?? null;
 		let endPrimarySelection: number | null = null;
 
-		if (index === primarySelectionIndex) {
-			if (primarySelectionIndex < this.length - 1) {
-				endPrimarySelection = this._viewCells[primarySelectionIndex + 1].handle;
-			} else if (primarySelectionIndex === this.length - 1 && this.length > 1) {
-				endPrimarySelection = this._viewCells[primarySelectionIndex - 1].handle;
+		if (index === focusSelectionIndex) {
+			if (focusSelectionIndex < this.length - 1) {
+				endPrimarySelection = this._viewCells[focusSelectionIndex + 1].handle;
+			} else if (focusSelectionIndex === this.length - 1 && this.length > 1) {
+				endPrimarySelection = this._viewCells[focusSelectionIndex - 1].handle;
 			}
 		}
 
@@ -736,7 +736,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				cells: []
 			}],
 			synchronous,
-			{ kind: SelectionStateType.Index, selections: this.getSelections() },
+			{ kind: SelectionStateType.Index, focus: this.getFocus(), selections: this.getSelections() },
 			() => ({ kind: SelectionStateType.Handle, primary: endPrimarySelection, selections: endSelections }),
 			undefined,
 			pushUndoStop
@@ -764,7 +764,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				length,
 				newIdx
 			}
-		], synchronous, { kind: SelectionStateType.Index, selections: this.getSelections() }, () => ({ kind: SelectionStateType.Index, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
+		], synchronous, { kind: SelectionStateType.Index, focus: this.getFocus(), selections: this.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: { start: newIdx, end: newIdx + 1 }, selections: [{ start: newIdx, end: newIdx + 1 }] }), undefined);
 		return true;
 	}
 

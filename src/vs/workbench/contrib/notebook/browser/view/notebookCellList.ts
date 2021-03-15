@@ -293,7 +293,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// convert model selections to view selections
 			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
-			const primary = cellRangesToIndexes([model.getSelection()]).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			const primary = cellRangesToIndexes([model.getFocus()]).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 
 			if (primary.length) {
 				this.setFocus(primary, undefined, true);
@@ -363,6 +363,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			if (!hasDifference) {
+				// they call 'setHiddenAreas' for a reason, even if the ranges are still the same, it's possible that the hiddenRangeSum is not update to date
+				this._updateHiddenRangePrefixSum(newRanges);
 				return false;
 			}
 		}
@@ -373,6 +375,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._hiddenRangeIds = hiddenAreaIds;
 
 		// set hidden ranges prefix sum
+		this._updateHiddenRangePrefixSum(newRanges);
+
+		if (triggerViewUpdate) {
+			this.updateHiddenAreasInView(oldRanges, newRanges);
+		}
+
+		return true;
+	}
+
+	private _updateHiddenRangePrefixSum(newRanges: ICellRange[]) {
 		let start = 0;
 		let index = 0;
 		const ret: number[] = [];
@@ -397,12 +409,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		this.hiddenRangesPrefixSum = new PrefixSumComputer(values);
-
-		if (triggerViewUpdate) {
-			this.updateHiddenAreasInView(oldRanges, newRanges);
-		}
-
-		return true;
 	}
 
 	/**
@@ -445,12 +451,30 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
-			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] });
+			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 		}
+	}
+
+	getModelIndex(cell: CellViewModel): number | undefined {
+		const viewIndex = this.indexOf(cell);
+		return this.getModelIndex2(viewIndex);
+	}
+
+	getModelIndex2(viewIndex: number): number | undefined {
+		if (!this.hiddenRangesPrefixSum) {
+			return viewIndex;
+		}
+
+		const modelIndex = this.hiddenRangesPrefixSum.getAccumulatedValue(viewIndex - 1);
+		return modelIndex;
 	}
 
 	getViewIndex(cell: ICellViewModel) {
 		const modelIndex = this._viewModel!.getCellIndex(cell);
+		return this.getViewIndex2(modelIndex);
+	}
+
+	getViewIndex2(modelIndex: number): number | undefined {
 		if (!this.hiddenRangesPrefixSum) {
 			return modelIndex;
 		}
@@ -598,30 +622,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusNext(() => {
 			super.focusNext(n, loop, browserEvent, filter);
-			const focus = this.getFocus();
-			if (focus.length) {
-				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: focusedElementHandle,
-					selections: [focusedElementHandle]
-				}, 'view');
-			}
 		});
 	}
 
 	focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusPrevious(() => {
 			super.focusPrevious(n, loop, browserEvent, filter);
-			const focus = this.getFocus();
-			if (focus.length) {
-				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: focusedElementHandle,
-					selections: [focusedElementHandle]
-				}, 'view');
-			}
 		});
 	}
 
@@ -701,7 +707,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const endElementHeight = this.view.elementHeight(endIndex);
 
 			if (endElementTop >= wrapperBottom) {
-				return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+				return this._revealInternal(endIndex, false, CellRevealPosition.Bottom);
 			}
 
 			if (endElementTop < wrapperBottom) {
