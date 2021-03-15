@@ -45,6 +45,7 @@ import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 
 export const productService = { _serviceBrand: undefined, ...product };
 
@@ -131,7 +132,6 @@ export abstract class SharedDesktopMain extends Disposable {
 		this._register(workbench.onShutdown(() => this.dispose()));
 	}
 
-	protected abstract createLogService(loggerService: ILoggerService, mainProcessService: IMainProcessService): ILogService;
 	protected abstract registerFileSystemProviders(fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void;
 	protected joinOpen(instantiationService: IInstantiationService): void { }
 
@@ -167,7 +167,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
-		const logService = this.createLogService(loggerService, mainProcessService);
+		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, loggerService, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote

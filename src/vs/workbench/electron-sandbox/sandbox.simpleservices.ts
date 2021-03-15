@@ -15,7 +15,6 @@ import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
 import { LinkedMap } from 'vs/base/common/map';
@@ -26,7 +25,14 @@ import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
+import { SearchService } from 'vs/workbench/services/search/common/searchService';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 //#region Environment
 
@@ -36,20 +42,7 @@ export const simpleUserDataDir = URI.file(isWindows ? '\\sandbox-user-data-dir' 
 
 //#region Workspace
 
-export const simpleWorkspace: ISingleFolderWorkspaceIdentifier = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: URI.file(isWindows ? '\\simpleWorkspace' : '/simpleWorkspace') };
-
-//#endregion
-
-
-//#region Logger
-
-export class SimpleLogService extends LogService {
-
-	constructor() {
-		super(new ConsoleLogger());
-	}
-
-}
+export const simpleWorkspaceDir = URI.file(isWindows ? '\\simpleWorkspace' : '/simpleWorkspace');
 
 //#endregion
 
@@ -63,13 +56,25 @@ export const simpleFileSystemProvider = new SimpleFileSystemProvider();
 simpleFileSystemProvider.mkdir(simpleHomeDir);
 simpleFileSystemProvider.mkdir(simpleTmpDir);
 simpleFileSystemProvider.mkdir(simpleUserDataDir);
+simpleFileSystemProvider.mkdir(joinPath(simpleUserDataDir, 'User'));
+simpleFileSystemProvider.writeFile(joinPath(simpleUserDataDir, 'User', 'settings.json'), VSBuffer.fromString(JSON.stringify({
+	'window.zoomLevel': 1,
+	'workbench.colorTheme': 'Default Light+',
+
+}, undefined, '\t')).buffer, { create: true, overwrite: true, unlock: false });
+simpleFileSystemProvider.writeFile(joinPath(simpleUserDataDir, 'User', 'keybindings.json'), VSBuffer.fromString(JSON.stringify([
+	{
+		'key': 'f12',
+		'command': 'workbench.action.toggleDevTools'
+	}
+], undefined, '\t')).buffer, { create: true, overwrite: true, unlock: false });
 
 function createWorkspaceFile(parent: string, name: string, content: string = ''): void {
-	simpleFileSystemProvider.writeFile(joinPath(simpleWorkspace.uri, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true, unlock: false });
+	simpleFileSystemProvider.writeFile(joinPath(simpleWorkspaceDir, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true, unlock: false });
 }
 
 function createWorkspaceFolder(name: string): void {
-	simpleFileSystemProvider.mkdir(joinPath(simpleWorkspace.uri, name));
+	simpleFileSystemProvider.mkdir(joinPath(simpleWorkspaceDir, name));
 }
 
 createWorkspaceFolder('');
@@ -360,5 +365,26 @@ registerSingleton(ITaskService, SimpleTaskService);
 class SimpleTerminalInstanceService extends TerminalInstanceService { }
 
 registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);
+
+//#endregion
+
+
+//#region Search Service
+
+class SimpleSearchService extends SearchService {
+	constructor(
+		@IModelService modelService: IModelService,
+		@IEditorService editorService: IEditorService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
+		@IExtensionService extensionService: IExtensionService,
+		@IFileService fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+	) {
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
+	}
+}
+
+registerSingleton(ISearchService, SimpleSearchService);
 
 //#endregion

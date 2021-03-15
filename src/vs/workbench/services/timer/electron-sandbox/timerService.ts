@@ -86,7 +86,7 @@ registerSingleton(ITimerService, TimerService);
 //#region cached data logic
 
 export function didUseCachedData(): boolean {
-	// TODO@bpasero TODO@jrieken need a different way to figure out if cached data was used
+	// TODO@sandbox need a different way to figure out if cached data was used
 	if (context.sandbox) {
 		return true;
 	}

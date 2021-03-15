@@ -158,7 +158,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// TODO@bpasero remove me once testing is done on `vscode-file` protocol
+		// TODO@sandbox remove me once testing is done on `vscode-file` protocol
 		// (all traces of `enable-browser-code-loading` and `ENABLE_VSCODE_BROWSER_CODE_LOADING`)
 		'enable-browser-code-loading'
 	];
