@@ -9,8 +9,9 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProfile, ITerminalProfileObject } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
+import { ITestTerminalConfiguration } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
 
 export interface IStatProvider {
 	stat(path: string): boolean,
@@ -23,15 +24,16 @@ interface IPotentialTerminalProfile {
 	args?: string[]
 }
 
-export function detectAvailableProfiles(detectWslProfiles?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(detectWslProfiles, statProvider) : detectAvailableUnixProfiles();
+export function detectAvailableProfiles(config?: ITerminalConfiguration | ITestTerminalConfiguration, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsProfiles(config?.detectWslProfiles, config?.profiles.windows, statProvider) : detectAvailableUnixProfiles();
 }
 
-async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, configProfiles?: Map<string, ITerminalProfileObject>, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
 	// module doesn't work if this is not the case. See #27915.
+
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
@@ -91,14 +93,14 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 }
 
 async function getWslProfiles(path: string, useWSLexe: boolean, detectWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
+	let profiles: IPotentialTerminalProfile[] = [];
+	profiles.push({ profileName: `WSL Bash`, paths: [`${path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`] });
 	if (detectWslProfiles) {
-		let profiles: IPotentialTerminalProfile[] = [];
-		profiles.push({ profileName: `WSL Bash`, paths: [`${path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`] });
 		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? console.trace('problem occurred when getting wsl distros', err) : r(stdout)));
 		if (distroOutput) {
 			let regex = new RegExp(/[\r\n]/);
 			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
-			// don't need the Windows Subsystem for Linux Distributions: header
+			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
 			distroNames.forEach(distro => {
 				let s = '';
@@ -112,11 +114,11 @@ async function getWslProfiles(path: string, useWSLexe: boolean, detectWslProfile
 				}
 				);
 				if (s.endsWith('(Default)')) {
-					// Ubuntu (Default) -> Ubuntu
-					s = s.substring(0, s.length - 9);
+					// Ubuntu (Default) -> Ubuntu bc (Default) won't work
+					s = s.substring(0, s.length - 10);
 				}
-				if (s !== '') {
-					let profile = { profileName: `${s}`, paths: [`${path}\\${useWSLexe ? `wsl.exe` : `bash.exe`}`], args: [` -d ${s}`] };
+				if (s !== '' && s !== 'docker-desktop-data') {
+					let profile = { profileName: `${s} (WSL)`, paths: [`${path}\\${useWSLexe ? `wsl.exe` : `bash.exe`}`], args: [`-d`, `${s}`] };
 					profiles.push(profile);
 				}
 			});
@@ -147,21 +149,35 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 	}
 	if (statProvider) {
 		if (statProvider.stat(current)) {
-			return {
-				profileName: label,
-				path: current,
-				args: args
-			};
-		}
-	} else {
-		try {
-			const result = await fs.promises.stat(normalize(current));
-			if (result.isFile() || result.isSymbolicLink()) {
+			if (args) {
 				return {
 					profileName: label,
 					path: current,
 					args: args
 				};
+			} else {
+				return {
+					profileName: label,
+					path: current
+				};
+			}
+		}
+	} else {
+		try {
+			const result = await fs.promises.stat(normalize(current));
+			if (result.isFile() || result.isSymbolicLink()) {
+				if (args) {
+					return {
+						profileName: label,
+						path: current,
+						args: args
+					};
+				} else {
+					return {
+						profileName: label,
+						path: current
+					};
+				}
 			}
 		} catch (e) {
 			// Also try using lstat as some symbolic links on Windows
@@ -170,11 +186,18 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 			try {
 				const result = await fs.promises.lstat(normalize(current));
 				if (result.isFile() || result.isSymbolicLink()) {
-					return {
-						profileName: label,
-						path: current,
-						args: args
-					};
+					if (args) {
+						return {
+							profileName: label,
+							path: current,
+							args: args
+						};
+					} else {
+						return {
+							profileName: label,
+							path: current
+						};
+					}
 				}
 			}
 			catch (e) {

@@ -445,16 +445,16 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 async function getProfileSelectOptionItems(terminalService: ITerminalService): Promise<ISelectOptionItem[]> {
 	const detectedProfiles = await terminalService.getAvailableProfiles();
 	const userProfiles = terminalService.configHelper.config.profiles;
-	const profileConfig: Map<ProfileName, ITerminalProfileObject> = (platform.isWindows ? userProfiles.windows : platform.isIOS ? userProfiles.osx : userProfiles.linux);
-	console.log(profileConfig);
+	const profileConfig: Map<ProfileName, ITerminalProfileObject> = (platform.isWindows ? userProfiles.windows : platform.isMacintosh ? userProfiles.osx : userProfiles.linux);
 	let labels: ISelectOptionItem[] = [];
 	let validProfiles: ITerminalProfile[] = [];
 	for (const [key, value] of Object.entries(profileConfig)) {
 		if (value !== null) {
 			if ((value as ITerminalProfile).path) {
 				// custom profile
+
 				const customProfile = (value as ITerminalProfile);
-				const profile = detectedProfiles?.find(profile => profile.path === customProfile.path);
+				const profile = detectedProfiles?.find(profile => customProfile.path.includes(profile.path));
 				if (profile) {
 					validProfiles?.push({ profileName: key, path: customProfile.path, args: customProfile.args });
 				}

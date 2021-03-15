@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
-import { isIOS, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -1462,19 +1462,10 @@ export function registerTerminalActions() {
 				return terminalService.showPanel(true);
 			}
 			const detectedProfiles = await terminalService.getAvailableProfiles();
-			const userProfiles = terminalService.configHelper.config.profiles;
-			const customProfiles = isWindows ? userProfiles.windows : isIOS ? userProfiles.osx : userProfiles.linux;
 
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
 
-			// if (customProfiles) {
-			// 	let launchConfig = customProfiles.find(profile => profile.profileName === profileSelection);
-			// 	if (launchConfig) {
-			// 		const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
-			// 		terminalService.setActiveInstance(instance);
-			// 	}
-			// } else
 			if (detectedProfiles) {
 				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
 				if (launchConfig) {

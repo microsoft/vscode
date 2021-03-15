@@ -16,7 +16,7 @@ import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/work
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 import type * as vscode from 'vscode';
@@ -133,8 +133,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public async $getAvailableProfiles(): Promise<ITerminalProfile[]> {
-		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		return detectAvailableProfiles(configProvider.getConfiguration().get('terminal.integrated.detectWslProfiles'));
+		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
+		return detectAvailableProfiles(config as ITerminalConfiguration);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
