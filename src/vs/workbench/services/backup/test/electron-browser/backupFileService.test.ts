@@ -35,7 +35,7 @@ import { isEqual } from 'vs/base/common/resources';
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(testDir: string, backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestProductService, TestEnvironmentPaths);
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestEnvironmentPaths, TestProductService);
 	}
 }
 

@@ -106,9 +106,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	constructor(
 		readonly configuration: INativeWorkbenchConfiguration,
-		private readonly productService: IProductService,
-		paths: INativeEnvironmentPaths
+		paths: INativeEnvironmentPaths,
+		productService: IProductService
 	) {
-		super(configuration, paths);
+		super(configuration, paths, productService);
 	}
 }

@@ -63,7 +63,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 
 export const TestEnvironmentPaths: INativeEnvironmentPaths = { homeDir: homedir(), tmpDir: tmpdir(), userDataDir: getUserDataPath(TestWorkbenchConfiguration) };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService, TestEnvironmentPaths);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestEnvironmentPaths, TestProductService);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;

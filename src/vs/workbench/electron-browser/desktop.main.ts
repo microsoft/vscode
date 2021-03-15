@@ -21,7 +21,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 class DesktopMain extends SharedDesktopMain {
 
 	constructor(configuration: INativeWorkbenchConfiguration) {
-		super(configuration, new NativeWorkbenchEnvironmentService(configuration, productService, { homeDir: os.homedir(), tmpDir: os.tmpdir(), userDataDir: getUserDataPath(configuration) }));
+		super(configuration, new NativeWorkbenchEnvironmentService(configuration, { homeDir: os.homedir(), tmpDir: os.tmpdir(), userDataDir: getUserDataPath(configuration) }, productService));
 
 		// Enable gracefulFs
 		gracefulify(fs);

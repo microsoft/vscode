@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { parseExtensionHostPort } from 'vs/platform/environment/common/environmentService';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import product from 'vs/platform/product/common/product';
 
 suite('EnvironmentService', () => {
 
@@ -56,13 +57,13 @@ suite('EnvironmentService', () => {
 	});
 
 	test('userDataDir', () => {
-		const service1 = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS));
+		const service1 = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
 		assert.ok(service1.userDataPath.length > 0);
 
 		const args = parseArgs(process.argv, OPTIONS);
 		args['user-data-dir'] = '/userDataDir/folder';
 
-		const service2 = new NativeEnvironmentService(args);
+		const service2 = new NativeEnvironmentService(args, { _serviceBrand: undefined, ...product });
 		assert.notStrictEqual(service1.userDataPath, service2.userDataPath);
 	});
 });

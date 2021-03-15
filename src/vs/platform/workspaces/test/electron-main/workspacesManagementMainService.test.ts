@@ -23,6 +23,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 suite('WorkspacesManagementMainService', () => {
 
@@ -93,10 +94,12 @@ suite('WorkspacesManagementMainService', () => {
 		testDir = getRandomTestPath(tmpDir, 'vsctests', 'workspacesmanagementmainservice');
 		untitledWorkspacesHomePath = path.join(testDir, 'Workspaces');
 
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
+
 		environmentMainService = new class TestEnvironmentService extends EnvironmentMainService {
 
 			constructor() {
-				super(parseArgs(process.argv, OPTIONS));
+				super(parseArgs(process.argv, OPTIONS), productService);
 			}
 
 			get untitledWorkspacesHome(): URI {
@@ -104,7 +107,7 @@ suite('WorkspacesManagementMainService', () => {
 			}
 		};
 
-		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService(), { _serviceBrand: undefined, ...product });
+		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService(), productService);
 
 		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});

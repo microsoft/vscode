@@ -15,7 +15,7 @@ import { productService, SharedDesktopMain } from 'vs/workbench/electron-sandbox
 class DesktopMain extends SharedDesktopMain {
 
 	constructor(configuration: INativeWorkbenchConfiguration) {
-		super({ ...configuration, workspace: { id: configuration.workspace?.id ?? '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: simpleWorkspaceDir } }, new NativeWorkbenchEnvironmentService(configuration, productService, { homeDir: simpleHomeDir.fsPath, tmpDir: simpleTmpDir.fsPath, userDataDir: simpleUserDataDir.fsPath }));
+		super({ ...configuration, workspace: { id: configuration.workspace?.id ?? '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: simpleWorkspaceDir } }, new NativeWorkbenchEnvironmentService(configuration, { homeDir: simpleHomeDir.fsPath, tmpDir: simpleTmpDir.fsPath, userDataDir: simpleUserDataDir.fsPath }, productService));
 	}
 
 	protected registerFileSystemProviders(fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {

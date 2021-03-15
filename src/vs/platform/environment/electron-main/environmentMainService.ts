@@ -9,7 +9,6 @@ import { refineServiceDecorator } from 'vs/platform/instantiation/common/instant
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import product from 'vs/platform/product/common/product';
 
 export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
 
@@ -51,7 +50,7 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get backupWorkspacesPath(): string { return join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', product.version); }
+	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', this.productService.version); }
 
 	@memoize
 	get sandbox(): boolean { return !!this.args['__sandbox']; }

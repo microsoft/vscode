@@ -95,8 +95,12 @@ class CliMain extends Disposable {
 	private async initServices(): Promise<[IInstantiationService, AppInsightsAppender[]]> {
 		const services = new ServiceCollection();
 
+		// Product
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
+
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.argv);
+		const environmentService = new NativeEnvironmentService(this.argv, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
@@ -130,10 +134,6 @@ class CliMain extends Disposable {
 		// State
 		const stateService = new StateService(environmentService, logService);
 		services.set(IStateService, stateService);
-
-		// Product
-		const productService = { _serviceBrand: undefined, ...product };
-		services.set(IProductService, productService);
 
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 

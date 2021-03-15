@@ -49,7 +49,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			this._logService.info('Starting to clean up unused language packs.');
-			const maxAge = this._productService.nameLong.indexOf('Insiders') >= 0
+			const maxAge = this._productService.quality !== 'stable'
 				? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {

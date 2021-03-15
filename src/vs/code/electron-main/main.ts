@@ -129,8 +129,12 @@ class CodeMain {
 	private createServices(args: NativeParsedArgs): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogService, IProductService] {
 		const services = new ServiceCollection();
 
+		// Product
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
+
 		// Environment
-		const environmentMainService = new EnvironmentMainService(args);
+		const environmentMainService = new EnvironmentMainService(args, productService);
 		const instanceEnvironment = this.patchEnvironment(environmentMainService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentMainService, environmentMainService);
 
@@ -170,10 +174,6 @@ class CodeMain {
 
 		// Signing
 		services.set(ISignService, new SyncDescriptor(SignService));
-
-		// Product
-		const productService = { _serviceBrand: undefined, ...product };
-		services.set(IProductService, productService);
 
 		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));

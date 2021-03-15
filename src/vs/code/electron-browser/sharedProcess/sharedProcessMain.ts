@@ -144,8 +144,12 @@ class SharedProcessMain extends Disposable {
 	private async initServices(): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
+		// Product
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
+
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.configuration.args);
+		const environmentService = new NativeEnvironmentService(this.configuration.args, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Log
@@ -182,10 +186,6 @@ class SharedProcessMain extends Disposable {
 
 		await storageService.initialize();
 		this._register(toDisposable(() => storageService.flush()));
-
-		// Product
-		const productService = { _serviceBrand: undefined, ...product };
-		services.set(IProductService, productService);
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { dirname, join, normalize, resolve } from 'vs/base/common/path';
@@ -103,7 +103,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return URI.file(join(vscodePortable, 'argv.json'));
 		}
 
-		return joinPath(this.userHome, product.dataFolderName, 'argv.json');
+		return joinPath(this.userHome, this.productService.dataFolderName, 'argv.json');
 	}
 
 	@memoize
@@ -154,7 +154,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 			return join(vscodePortable, 'extensions');
 		}
 
-		return joinPath(this.userHome, product.dataFolderName, 'extensions').fsPath;
+		return joinPath(this.userHome, this.productService.dataFolderName, 'extensions').fsPath;
 	}
 
 	@memoize
@@ -233,7 +233,11 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	get args(): NativeParsedArgs { return this._args; }
 
-	constructor(private readonly _args: NativeParsedArgs, private paths: INativeEnvironmentPaths) { }
+	constructor(
+		private readonly _args: NativeParsedArgs,
+		private readonly paths: INativeEnvironmentPaths,
+		protected readonly productService: IProductService
+	) { }
 }
 
 export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
