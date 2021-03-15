@@ -631,6 +631,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 export interface INotebookCellList {
 	isDisposed: boolean;
+	viewModel: NotebookViewModel | null;
 	readonly contextKeyService: IContextKeyService;
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
@@ -903,6 +904,10 @@ export function getEditorTopPadding() {
 	return EDITOR_TOP_PADDING;
 }
 
+/**
+ * ranges: model selections
+ * this will convert model selections to view indexes first, and then include the hidden ranges in the list view
+ */
 export function expandCellRangesWithHiddenCells(editor: INotebookEditor, viewModel: NotebookViewModel, ranges: ICellRange[]) {
 	// assuming ranges are sorted and no overlap
 	const indexes = cellRangesToIndexes(ranges);
