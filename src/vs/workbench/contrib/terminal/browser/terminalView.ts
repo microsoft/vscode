@@ -413,7 +413,11 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 		items.push({ text: contributed.title });
 	}
 
-	items.push({ text: selectDefaultShellTitle });
+	// Only show the select default shell command if process support is registered (ie. not web)
+	if (terminalService.isProcessSupportRegistered) {
+		items.push({ text: selectDefaultShellTitle });
+	}
+
 	items.push({ text: configureTerminalSettingsTitle });
 	return items;
 }
