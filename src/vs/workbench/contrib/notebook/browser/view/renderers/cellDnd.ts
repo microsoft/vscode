@@ -191,8 +191,6 @@ export class CellDragAndDropController extends Disposable {
 
 		this.dragCleanup();
 
-		const isCopy = (event.browserEvent.ctrlKey && !platform.isMacintosh) || (event.browserEvent.altKey && platform.isMacintosh);
-
 		const dropDirection = this.getDropInsertDirection(event.dragPosRatio);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? event.cellTop : event.cellTop + event.cellHeight;
 		const insertionIndicatorTop = insertionIndicatorAbsolutePos - this.list.scrollTop + BOTTOM_CELL_TOOLBAR_GAP / 2;
@@ -201,6 +199,12 @@ export class CellDragAndDropController extends Disposable {
 			// Ignore drop, insertion point is off-screen
 			return;
 		}
+
+		this._dropImpl(draggedCells, dropDirection, event.browserEvent, event, { index: draggedCellRange[0], length: draggedCellRange[1] });
+	}
+
+	private _dropImpl(draggedCells: ICellViewModel[], dropDirection: 'above' | 'below', ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }, event: { draggedOverCell: ICellViewModel }, moveCellContext: { index: number, length: number }) {
+		const isCopy = (ctx.ctrlKey && !platform.isMacintosh) || (ctx.altKey && platform.isMacintosh);
 
 		if (isCopy) {
 			this.copyCells(draggedCells, event.draggedOverCell, dropDirection);
@@ -213,7 +217,7 @@ export class CellDragAndDropController extends Disposable {
 				originalToIdx = newIdx;
 			}
 
-			this.notebookEditor.moveCellsToIdx(draggedCellRange[0], draggedCellRange[1], originalToIdx);
+			this.notebookEditor.moveCellsToIdx(moveCellContext.index, moveCellContext.length, originalToIdx);
 		}
 	}
 
@@ -308,24 +312,10 @@ export class CellDragAndDropController extends Disposable {
 
 		const cellTop = this.list.getAbsoluteTopOfElement(target);
 		const cellHeight = this.list.elementHeight(target);
-
 		const dropDirection = this.getExplicitDragDropDirection(ctx.clientY, cellTop, cellHeight);
 
-		const isCopy = (ctx.ctrlKey && !platform.isMacintosh) || (ctx.altKey && platform.isMacintosh);
-		if (isCopy) {
-			this.copyCells([cell], target, dropDirection);
-		} else {
-			const viewModel = this.notebookEditor.viewModel!;
-			let originalToIdx = viewModel.getCellIndex(target);
-			if (dropDirection === 'below') {
-				const relativeToIndex = viewModel.getCellIndex(target);
-				const newIdx = viewModel.getNextVisibleCellIndex(relativeToIndex);
-				originalToIdx = newIdx;
-			}
-
-			const draggedCellRange = [this.notebookEditor.viewModel!.getCellIndex(cell), 1];
-			this.notebookEditor.moveCellsToIdx(draggedCellRange[0], draggedCellRange[1], originalToIdx);
-		}
+		const draggedCellRange = [this.notebookEditor.viewModel!.getCellIndex(cell), 1];
+		this._dropImpl([cell], dropDirection, ctx, { draggedOverCell: target }, { index: draggedCellRange[0], length: draggedCellRange[1] });
 	}
 
 	private getExplicitDragDropDirection(clientY: number, cellTop: number, cellHeight: number) {
