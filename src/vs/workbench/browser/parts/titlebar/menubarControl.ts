@@ -594,6 +594,7 @@ export class CustomMenubarControl extends MenubarControl {
 		const updateActions = (menu: IMenu, target: IAction[], topLevelTitle: string) => {
 			target.splice(0);
 			let groups = menu.getActions();
+
 			for (let group of groups) {
 				const [, actions] = group;
 
@@ -622,7 +623,10 @@ export class CustomMenubarControl extends MenubarControl {
 
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions, topLevelTitle);
-						target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
+
+						if (submenuActions.length > 0) {
+							target.push(new SubmenuAction(action.id, mnemonicMenuLabel(title), submenuActions));
+						}
 					} else {
 						const newAction = new Action(action.id, mnemonicMenuLabel(title), action.class, action.enabled, () => this.commandService.executeCommand(action.id));
 						newAction.tooltip = action.tooltip;

@@ -3,182 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable code-no-standalone-editor */
 /* eslint-disable code-import-patterns */
 
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { Event } from 'vs/base/common/event';
 import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
-import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
 import { LinkedMap } from 'vs/base/common/map';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
-import { Schemas } from 'vs/base/common/network';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
-
+import { SearchService } from 'vs/workbench/services/search/common/searchService';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 //#region Environment
 
-export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		readonly configuration: INativeWorkbenchConfiguration
-	) { }
-
-	get userRoamingDataHome(): URI { return URI.file('/sandbox-user-data-dir').with({ scheme: Schemas.userData }); }
-	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
-	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
-	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
-	get globalStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'globalStorage'); }
-	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
-	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
-	get logFile(): URI { return joinPath(this.userRoamingDataHome, 'window.log'); }
-	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
-	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
-	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
-	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
-	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
-
-	sessionId = this.configuration.sessionId;
-	machineId = this.configuration.machineId;
-	remoteAuthority = this.configuration.remoteAuthority;
-	os = { release: 'unknown' };
-
-	options?: IWorkbenchConstructionOptions | undefined;
-	logExtensionHostCommunication?: boolean | undefined;
-	extensionEnabledProposedApi?: string[] | undefined;
-	webviewExternalEndpoint: string = undefined!;
-	webviewResourceRoot: string = undefined!;
-	webviewCspSource: string = undefined!;
-	skipReleaseNotes: boolean = undefined!;
-	keyboardLayoutResource: URI = undefined!;
-	sync: 'on' | 'off' | undefined;
-	debugExtensionHost: IExtensionHostDebugParams = undefined!;
-	debugRenderer = false;
-	isExtensionDevelopment: boolean = false;
-	disableExtensions: boolean | string[] = [];
-	extensionDevelopmentLocationURI?: URI[] | undefined;
-	extensionTestsLocationURI?: URI | undefined;
-	logLevel?: string | undefined;
-
-	args: NativeParsedArgs = Object.create(null);
-
-	execPath: string = undefined!;
-	appRoot: string = undefined!;
-	userHome: URI = undefined!;
-	appSettingsHome: URI = undefined!;
-	userDataPath: string = undefined!;
-	machineSettingsResource: URI = undefined!;
-
-	log?: string | undefined;
-	extHostLogsPath: URI = undefined!;
-
-	installSourcePath: string = undefined!;
-
-	extensionsPath: string = undefined!;
-	extensionsDownloadPath: string = undefined!;
-	builtinExtensionsPath: string = undefined!;
-
-	driverHandle?: string | undefined;
-
-	crashReporterDirectory?: string | undefined;
-	crashReporterId?: string | undefined;
-
-	nodeCachedDataDir?: string | undefined;
-
-	verbose = false;
-	isBuilt = false;
-
-	get telemetryLogResource(): URI { return joinPath(this.userRoamingDataHome, 'telemetry.log'); }
-	disableTelemetry = false;
-}
-
-//#endregion
-
+export const simpleHomeDir = URI.file(isWindows ? '\\sandbox-home-dir' : '/sandbox-home-dir');
+export const simpleTmpDir = URI.file(isWindows ? '\\sandbox-tmp-dir' : '/sandbox-tmp-dir');
+export const simpleUserDataDir = URI.file(isWindows ? '\\sandbox-user-data-dir' : '/sandbox-user-data-dir');
 
 //#region Workspace
 
-export const workspaceResource = URI.file(isWindows ? '\\simpleWorkspace' : '/simpleWorkspace');
-
-export class SimpleWorkspaceService implements IWorkspaceContextService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly onDidChangeWorkspaceName = Event.None;
-	readonly onDidChangeWorkspaceFolders = Event.None;
-	readonly onDidChangeWorkbenchState = Event.None;
-
-	private readonly workspace: IWorkspace;
-
-	constructor() {
-		this.workspace = { id: '4064f6ec-cb38-4ad0-af64-ee6467e63c82', folders: [new WorkspaceFolder({ uri: workspaceResource, name: '', index: 0 })] };
-	}
-
-	async getCompleteWorkspace(): Promise<IWorkspace> { return this.getWorkspace(); }
-
-	getWorkspace(): IWorkspace { return this.workspace; }
-
-	getWorkbenchState(): WorkbenchState {
-		if (this.workspace) {
-			if (this.workspace.configuration) {
-				return WorkbenchState.WORKSPACE;
-			}
-			return WorkbenchState.FOLDER;
-		}
-		return WorkbenchState.EMPTY;
-	}
-
-	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null { return resource && resource.scheme === workspaceResource.scheme ? this.workspace.folders[0] : null; }
-	isInsideWorkspace(resource: URI): boolean { return resource && resource.scheme === workspaceResource.scheme; }
-	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean { return true; }
-}
-
-//#endregion
-
-
-//#region Configuration
-
-export class SimpleConfigurationService extends BaseSimpleConfigurationService implements IWorkbenchConfigurationService {
-	async whenRemoteConfigurationLoaded() { }
-}
-
-//#endregion
-
-
-//#region Logger
-
-export class SimpleLogService extends LogService {
-
-	constructor() {
-		super(new ConsoleLogger());
-	}
-
-}
+export const simpleWorkspaceDir = URI.file(isWindows ? '\\simpleWorkspace' : '/simpleWorkspace');
 
 //#endregion
 
@@ -189,25 +53,41 @@ class SimpleFileSystemProvider extends InMemoryFileSystemProvider { }
 
 export const simpleFileSystemProvider = new SimpleFileSystemProvider();
 
-function createFile(parent: string, name: string, content: string = ''): void {
-	simpleFileSystemProvider.writeFile(joinPath(workspaceResource, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true });
+simpleFileSystemProvider.mkdir(simpleHomeDir);
+simpleFileSystemProvider.mkdir(simpleTmpDir);
+simpleFileSystemProvider.mkdir(simpleUserDataDir);
+simpleFileSystemProvider.mkdir(joinPath(simpleUserDataDir, 'User'));
+simpleFileSystemProvider.writeFile(joinPath(simpleUserDataDir, 'User', 'settings.json'), VSBuffer.fromString(JSON.stringify({
+	'window.zoomLevel': 1,
+	'workbench.colorTheme': 'Default Light+',
+
+}, undefined, '\t')).buffer, { create: true, overwrite: true, unlock: false });
+simpleFileSystemProvider.writeFile(joinPath(simpleUserDataDir, 'User', 'keybindings.json'), VSBuffer.fromString(JSON.stringify([
+	{
+		'key': 'f12',
+		'command': 'workbench.action.toggleDevTools'
+	}
+], undefined, '\t')).buffer, { create: true, overwrite: true, unlock: false });
+
+function createWorkspaceFile(parent: string, name: string, content: string = ''): void {
+	simpleFileSystemProvider.writeFile(joinPath(simpleWorkspaceDir, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true, unlock: false });
 }
 
-function createFolder(name: string): void {
-	simpleFileSystemProvider.mkdir(joinPath(workspaceResource, name));
+function createWorkspaceFolder(name: string): void {
+	simpleFileSystemProvider.mkdir(joinPath(simpleWorkspaceDir, name));
 }
 
-createFolder('');
-createFolder('src');
-createFolder('test');
+createWorkspaceFolder('');
+createWorkspaceFolder('src');
+createWorkspaceFolder('test');
 
-createFile('', '.gitignore', `out
+createWorkspaceFile('', '.gitignore', `out
 node_modules
 .vscode-test/
 *.vsix
 `);
 
-createFile('', '.vscodeignore', `.vscode/**
+createWorkspaceFile('', '.vscodeignore', `.vscode/**
 .vscode-test/**
 out/test/**
 src/**
@@ -218,14 +98,14 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts`);
 
-createFile('', 'CHANGELOG.md', `# Change Log
+createWorkspaceFile('', 'CHANGELOG.md', `# Change Log
 All notable changes to the "test-ts" extension will be documented in this file.
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [Unreleased]
 - Initial release`);
-createFile('', 'package.json', `{
+createWorkspaceFile('', 'package.json', `{
 	"name": "test-ts",
 	"displayName": "test-ts",
 	"description": "",
@@ -265,7 +145,7 @@ createFile('', 'package.json', `{
 }
 `);
 
-createFile('', 'tsconfig.json', `{
+createWorkspaceFile('', 'tsconfig.json', `{
 	"compilerOptions": {
 		"module": "commonjs",
 		"target": "es6",
@@ -288,7 +168,7 @@ createFile('', 'tsconfig.json', `{
 }
 `);
 
-createFile('', 'tslint.json', `{
+createWorkspaceFile('', 'tslint.json', `{
 	"rules": {
 		"no-string-throw": true,
 		"no-unused-expression": true,
@@ -305,7 +185,7 @@ createFile('', 'tslint.json', `{
 }
 `);
 
-createFile('src', 'extension.ts', `// The module 'vscode' contains the VS Code extensibility API
+createWorkspaceFile('src', 'extension.ts', `// The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
@@ -334,7 +214,7 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 `);
 
-createFile('test', 'extension.test.ts', `//
+createWorkspaceFile('test', 'extension.test.ts', `//
 // Note: This example test is leveraging the Mocha test framework.
 // Please refer to their documentation on https://mochajs.org/ for help.
 //
@@ -357,7 +237,7 @@ suite("Extension Tests", function () {
 	});
 });`);
 
-createFile('test', 'index.ts', `//
+createWorkspaceFile('test', 'index.ts', `//
 // PLEASE DO NOT MODIFY / DELETE UNLESS YOU KNOW WHAT YOU ARE DOING
 //
 // This file is providing the test runner to use when running extension tests.
@@ -405,17 +285,6 @@ class SimpleWebviewService implements IWebviewService {
 }
 
 registerSingleton(IWebviewService, SimpleWebviewService);
-
-//#endregion
-
-
-//#region Textfiles
-
-class SimpleTextFileService extends AbstractTextFileService {
-	declare readonly _serviceBrand: undefined;
-}
-
-registerSingleton(ITextFileService, SimpleTextFileService);
 
 //#endregion
 
@@ -496,3 +365,26 @@ registerSingleton(ITaskService, SimpleTaskService);
 class SimpleTerminalInstanceService extends TerminalInstanceService { }
 
 registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);
+
+//#endregion
+
+
+//#region Search Service
+
+class SimpleSearchService extends SearchService {
+	constructor(
+		@IModelService modelService: IModelService,
+		@IEditorService editorService: IEditorService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILogService logService: ILogService,
+		@IExtensionService extensionService: IExtensionService,
+		@IFileService fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+	) {
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
+	}
+}
+
+registerSingleton(ISearchService, SimpleSearchService);
+
+//#endregion

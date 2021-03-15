@@ -14,19 +14,6 @@ module.exports = {
 			{
 				test: /\.tsx?$/,
 				use: 'ts-loader',
-				exclude: /node_modules/
-			},
-			{
-				test: /\.css$/i,
-				use: ['style-loader', 'css-loader'],
-			},
-			{
-				test: /\.(woff2)$/i,
-				use: ['url-loader?limit=100000']
-			},
-			{
-				test: /\.(woff|eot|ttf|otf)$/i,
-				use: ['null-loader']
 			},
 		],
 	},

@@ -23,6 +23,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
 
+	private _version = 0;
+
 	get layoutInfo() {
 		return this._layoutInfo;
 	}
@@ -79,6 +81,10 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	public set cellIsHovered(v: boolean) {
 		this._hoveringCell = v;
 		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
+	}
+
+	public get version(): number {
+		return this._version;
 	}
 
 	constructor(
@@ -158,7 +164,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
-		if (totalHeight !== undefined) {
+		// we might already warmup the viewport so the cell has a total height computed
+		if (totalHeight !== undefined && this._layoutInfo.totalHeight === 0) {
 			this._layoutInfo = {
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
@@ -212,9 +219,14 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		if (!this.textModel) {
 			const ref = await this.model.resolveTextModelRef();
 			this.textModel = ref.object.textEditorModel;
+			this._version = this.textModel.getVersionId();
+
 			this._register(ref);
 			this._register(this.textModel.onDidChangeContent(() => {
 				this._html = null;
+				if (this.textModel) {
+					this._version = this.textModel.getVersionId();
+				}
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}

@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
-import * as env from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
@@ -133,7 +132,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._workspaceService);
 	}
 }
 

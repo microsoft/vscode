@@ -144,25 +144,34 @@ function webviewPreloads() {
 				}
 
 				if (entry.target.id === id && entry.contentRect) {
-					if (entry.contentRect.height !== 0) {
-						const padding = output ? __outputNodePadding__ : __previewNodePadding__;
-
-						entry.target.style.padding = `${padding}px ${padding}px ${padding}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-						postNotebookMessage<IDimensionMessage>('dimension', {
-							id: id,
-							data: {
-								height: entry.contentRect.height + padding * 2
-							},
-							isOutput: output
-						});
+					if (output) {
+						if (entry.contentRect.height !== 0) {
+							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+							postNotebookMessage<IDimensionMessage>('dimension', {
+								id: id,
+								data: {
+									height: entry.contentRect.height + __outputNodePadding__ * 2
+								},
+								isOutput: true
+							});
+						} else {
+							entry.target.style.padding = `0px`;
+							postNotebookMessage<IDimensionMessage>('dimension', {
+								id: id,
+								data: {
+									height: entry.contentRect.height
+								},
+								isOutput: true
+							});
+						}
 					} else {
-						entry.target.style.padding = `0px`;
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
 							data: {
-								height: entry.contentRect.height
+								// entry.contentRect does not include padding
+								height: entry.contentRect.height + __previewNodePadding__ * 2
 							},
-							isOutput: output
+							isOutput: false
 						});
 					}
 				}
@@ -403,7 +412,12 @@ function webviewPreloads() {
 		switch (event.data.type) {
 			case 'initializeMarkdownPreview':
 				for (const cell of event.data.cells) {
-					createMarkdownPreview(cell.cellId, cell.content, -10000);
+					createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+
+					const cellContainer = document.getElementById(cell.cellId);
+					if (cellContainer) {
+						cellContainer.style.visibility = 'hidden';
+					}
 				}
 
 				postNotebookMessage('initializedMarkdownPreview', {});
@@ -414,15 +428,18 @@ function webviewPreloads() {
 			case 'showMarkdownPreview':
 				{
 					const data = event.data;
-					let cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.display = 'block';
-					}
 					const previewNode = document.getElementById(`${data.id}_container`);
 					if (previewNode) {
 						previewNode.style.top = `${data.top}px`;
 					}
-					updateMarkdownPreview(data.id, data.content);
+					const cellContainer = document.getElementById(data.id);
+					if (cellContainer) {
+						cellContainer.style.visibility = 'visible';
+					}
+
+					if (typeof data.content === 'string') {
+						updateMarkdownPreview(data.id, data.content);
+					}
 				}
 				break;
 			case 'hideMarkdownPreview':
@@ -430,7 +447,7 @@ function webviewPreloads() {
 					const data = event.data;
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = 'none';
+						cellContainer.style.visibility = 'hidden';
 					}
 				}
 				break;
@@ -439,7 +456,7 @@ function webviewPreloads() {
 					const data = event.data;
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
-						cellContainer.style.display = '';
+						cellContainer.style.visibility = 'visible';
 					}
 				}
 				break;
@@ -574,7 +591,7 @@ function webviewPreloads() {
 			case 'view-scroll-markdown':
 				{
 					// const date = new Date();
-					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
+					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: view-scroll-markdown', event.data.cells);
 					event.data.cells.map(cell => {
 						const widget = document.getElementById(`${cell.id}_preview`)!;
 
@@ -582,6 +599,11 @@ function webviewPreloads() {
 							widget.style.top = `${cell.top}px`;
 						}
 
+						const markdownPreview = document.getElementById(`${cell.id}`);
+
+						if (markdownPreview) {
+							markdownPreview.style.display = 'block';
+						}
 					});
 
 					break;
@@ -698,88 +720,82 @@ function webviewPreloads() {
 	});
 
 	function createMarkdownPreview(cellId: string, content: string, top: number) {
-		let cellContainer = document.getElementById(cellId);
-		if (!cellContainer) {
-			const container = document.getElementById('container')!;
-			const newElement = document.createElement('div');
+		const container = document.getElementById('container')!;
+		const cellContainer = document.createElement('div');
 
-			newElement.id = `${cellId}`;
-			container.appendChild(newElement);
-			cellContainer = newElement;
+		cellContainer.id = `${cellId}`;
+		container.appendChild(cellContainer);
 
-			const previewContainerNode = document.createElement('div');
-			previewContainerNode.style.position = 'absolute';
-			previewContainerNode.style.top = top + 'px';
-			previewContainerNode.id = `${cellId}_preview`;
-			previewContainerNode.classList.add('preview');
+		const previewContainerNode = document.createElement('div');
+		previewContainerNode.style.position = 'absolute';
+		previewContainerNode.style.top = top + 'px';
+		previewContainerNode.id = `${cellId}_preview`;
+		previewContainerNode.classList.add('preview');
 
-			previewContainerNode.addEventListener('dblclick', () => {
-				postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
+		previewContainerNode.addEventListener('dblclick', () => {
+			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
+		});
+
+		previewContainerNode.addEventListener('click', () => {
+			postNotebookMessage<IFocusMarkdownPreviewMessage>('focusMarkdownPreview', { cellId });
+		});
+
+		previewContainerNode.addEventListener('mouseenter', () => {
+			postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
+		});
+
+		previewContainerNode.addEventListener('mouseleave', () => {
+			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
+		});
+
+		previewContainerNode.setAttribute('draggable', 'true');
+
+		previewContainerNode.addEventListener('dragstart', e => {
+			if (!e.dataTransfer) {
+				return;
+			}
+			e.dataTransfer.setData(markdownCellDragDataType, JSON.stringify({ cellId }));
+
+			(e.target as HTMLElement).classList.add('dragging');
+
+			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
+				cellId: cellId,
+				position: { clientX: e.clientX, clientY: e.clientY },
 			});
+		});
 
-			previewContainerNode.addEventListener('click', () => {
-				postNotebookMessage<IFocusMarkdownPreviewMessage>('focusMarkdownPreview', { cellId });
+		previewContainerNode.addEventListener('drag', e => {
+			postNotebookMessage<ICellDragMessage>('cell-drag', {
+				cellId: cellId,
+				position: { clientX: e.clientX, clientY: e.clientY },
 			});
+		});
 
-			previewContainerNode.addEventListener('mouseenter', () => {
-				postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
-			});
+		previewContainerNode.addEventListener('dragend', e => {
+			(e.target as HTMLElement).classList.remove('dragging');
+		});
 
-			previewContainerNode.addEventListener('mouseleave', () => {
-				postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
-			});
+		cellContainer.appendChild(previewContainerNode);
 
-			previewContainerNode.setAttribute('draggable', 'true');
+		const previewNode = document.createElement('div');
+		previewContainerNode.appendChild(previewNode);
 
-			previewContainerNode.addEventListener('dragstart', e => {
-				if (!e.dataTransfer) {
-					return;
-				}
-				e.dataTransfer.setData(markdownCellDragDataType, JSON.stringify({ cellId }));
+		// TODO: handle namespace
+		onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+			element: previewNode,
+			content: content
+		}]);
 
-				(e.target as HTMLElement).classList.add('dragging');
+		resizeObserve(previewContainerNode, `${cellId}_preview`, false);
 
-				postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
-					cellId: cellId,
-					position: { clientX: e.clientX, clientY: e.clientY },
-				});
-			});
-
-			previewContainerNode.addEventListener('drag', e => {
-				postNotebookMessage<ICellDragMessage>('cell-drag', {
-					cellId: cellId,
-					position: { clientX: e.clientX, clientY: e.clientY },
-				});
-			});
-
-			previewContainerNode.addEventListener('dragend', e => {
-				(e.target as HTMLElement).classList.remove('dragging');
-			});
-
-			cellContainer.appendChild(previewContainerNode);
-
-			const previewNode = document.createElement('div');
-			previewContainerNode.appendChild(previewNode);
-
-			// TODO: handle namespace
-			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-				element: previewNode,
-				content: content
-			}]);
-
-			resizeObserve(previewContainerNode, `${cellId}_preview`, false);
-
-			postNotebookMessage<IDimensionMessage>('dimension', {
-				id: `${cellId}_preview`,
-				init: true,
-				data: {
-					height: previewContainerNode.clientHeight,
-				},
-				isOutput: false
-			});
-		} else {
-			updateMarkdownPreview(cellId, content);
-		}
+		postNotebookMessage<IDimensionMessage>('dimension', {
+			id: `${cellId}_preview`,
+			init: true,
+			data: {
+				height: previewContainerNode.clientHeight,
+			},
+			isOutput: false
+		});
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -795,21 +811,23 @@ function webviewPreloads() {
 
 	function updateMarkdownPreview(cellId: string, content: string) {
 		const previewContainerNode = document.getElementById(`${cellId}_preview`);
-		if (previewContainerNode) {
-			// TODO: handle namespace
-			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-				element: previewContainerNode,
-				content: content
-			}]);
-
-			postNotebookMessage<IDimensionMessage>('dimension', {
-				id: `${cellId}_preview`,
-				data: {
-					height: previewContainerNode.clientHeight,
-				},
-				isOutput: false
-			});
+		if (!previewContainerNode) {
+			return;
 		}
+
+		// TODO: handle namespace
+		onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+			element: previewContainerNode,
+			content: content
+		}]);
+
+		postNotebookMessage<IDimensionMessage>('dimension', {
+			id: `${cellId}_preview`,
+			data: {
+				height: previewContainerNode.clientHeight,
+			},
+			isOutput: false
+		});
 	}
 }
 

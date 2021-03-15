@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {

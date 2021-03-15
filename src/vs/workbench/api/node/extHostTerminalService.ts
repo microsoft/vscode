@@ -128,7 +128,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	private async _updateVariableResolver(): Promise<void> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, process.env as platform.IProcessEnvironment);
+		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
 	}
 
 	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {

@@ -340,15 +340,16 @@ export class StatefulMarkdownCell extends Disposable {
 			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+			this._register(editorContextKeyService);
 
-			this.editor = editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
+			this.editor = this._register(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 				...this.editorOptions,
 				dimension: {
 					width: width,
 					height: editorHeight
 				},
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
-			}, {});
+			}, {}));
 			this.templateData.currentEditor = this.editor;
 
 			const cts = new CancellationTokenSource();
