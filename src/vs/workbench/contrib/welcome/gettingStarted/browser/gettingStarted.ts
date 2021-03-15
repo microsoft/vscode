@@ -218,7 +218,7 @@ export class GettingStartedPage extends EditorPane {
 							break;
 						}
 						case 'openFolder': {
-							this.commandService.executeCommand(isMacintosh ? 'workbench.action.openFileFolder' : 'workbench.action.openFolder');
+							this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 							break;
 						}
 						case 'selectCategory': {
@@ -538,7 +538,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 			if (!workspaces.length) {
 				this.container.classList.add('emptyRecent');
-				ul.append($('.empty-recent', {}, 'You hve no recent folders,', $('button.button-link', {}, 'open a folder'), 'to start.'));
+				ul.append($('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'));
 				return;
 			}
 
@@ -556,7 +556,7 @@ export class GettingStartedPage extends EditorPane {
 				updateEntries();
 				this.registerDispatchListeners();
 			}));
-		}).then(undefined, onUnexpectedError);
+		}).then(() => this.registerDispatchListeners(), onUnexpectedError);
 
 		return container;
 	}
