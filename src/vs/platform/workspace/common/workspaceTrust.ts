@@ -46,7 +46,7 @@ export interface IWorkspaceTrustModel {
 
 export interface WorkspaceTrustRequestButton {
 	label: string;
-	type: 'TrustAndContinue' | 'Continue' | 'Manage' | 'Cancel'
+	type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
 }
 
 export interface WorkspaceTrustRequest {

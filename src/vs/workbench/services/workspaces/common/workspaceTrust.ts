@@ -401,18 +401,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		if (this._modalTrustRequestRejecter) {
 			this._modalTrustRequestRejecter(canceled());
 		}
-		if (this._trustRequestPromise && this._inFlightResolver) {
-			this._inFlightResolver(this.currentTrustState);
-		}
-
-		this._inFlightResolver = undefined;
-		this._trustRequestPromise = undefined;
 
 		this._modalTrustRequestResolver = undefined;
 		this._modalTrustRequestRejecter = undefined;
 		this._modalTrustRequestPromise = undefined;
-
-		this._ctxWorkspaceTrustPendingRequest.set(false);
 	}
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
@@ -451,14 +443,13 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 				this._trustRequestPromise = new Promise(resolve => {
 					this._inFlightResolver = resolve;
 				});
+				this._ctxWorkspaceTrustPendingRequest.set(true);
 			} else {
 				return this._trustRequestPromise;
 			}
 		}
 
 		this.requestModel.initiateRequest(request);
-		this._ctxWorkspaceTrustPendingRequest.set(true);
-
 		return request.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
 	}
 }
