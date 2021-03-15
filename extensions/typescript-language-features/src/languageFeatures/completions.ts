@@ -706,7 +706,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		const line = document.lineAt(position.line);
 		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
 
-		if (!this.shouldTrigger(context, line, position)) {
+		if (!this.shouldTrigger(context, line, position, completionConfiguration)) {
 			return undefined;
 		}
 
