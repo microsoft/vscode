@@ -48,15 +48,15 @@ if [ "@@NAME@@" != "code-oss" ]; then
 		# Write source list if it was disabled by OS upgrade
 		WRITE_SOURCE=1
 	fi
+
 	if [ "$WRITE_SOURCE" -eq "1" ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.
 deb [arch=amd64,arm64,armhf] http://packages.microsoft.com/repos/code stable main" > $CODE_SOURCE_PART
-	fi
 
-	# Sourced from https://packages.microsoft.com/keys/microsoft.asc
-	if [ ! -f $CODE_TRUSTED_PART ] && [ "$WRITE_SOURCE" -eq "1" ]; then
-		echo "-----BEGIN PGP PUBLIC KEY BLOCK-----
+		# Sourced from https://packages.microsoft.com/keys/microsoft.asc
+		if [ ! -f $CODE_TRUSTED_PART ]; then
+			echo "-----BEGIN PGP PUBLIC KEY BLOCK-----
 Version: GnuPG v1.4.7 (GNU/Linux)
 
 mQENBFYxWIwBCADAKoZhZlJxGNGWzqV+1OG1xiQeoowKhssGAKvd+buXCGISZJwT
@@ -75,7 +75,7 @@ XdNgj4Jd2/g6T9InmWT0hASljur+dJnzNiNCkbn9KbX7J/qK1IbR8y560yRmFsU+
 NdCFTW7wY0Fb1fWJ+/KTsC4=
 =J6gs
 -----END PGP PUBLIC KEY BLOCK-----
-" | gpg --dearmor > microsoft.gpg
-		mv microsoft.gpg $CODE_TRUSTED_PART
+" | gpg --dearmor > $CODE_TRUSTED_PART
+		fi
 	fi
 fi
