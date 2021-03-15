@@ -42,7 +42,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
-const hiddenEntriesConfigurationKey = 'gettingStarted.hiddenCategories';
+const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
