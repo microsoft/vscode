@@ -285,9 +285,9 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
-	public async getAvailableProfiles(): Promise<ITerminalProfile[] | undefined> {
+	public async getAvailableProfiles(): Promise<ITerminalProfile[]> {
 		await this._updateAvailableProfiles();
-		return this._availableProfiles?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile));
+		return this._availableProfiles?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile)) || [];
 	}
 
 	@throttle(10000)

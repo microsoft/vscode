@@ -160,7 +160,7 @@ export interface ITerminalService {
 	/**
 	 * Gets the detected terminal profiles for the platform
 	 */
-	getAvailableProfiles(): Promise<ITerminalProfile[] | undefined>;
+	getAvailableProfiles(): Promise<ITerminalProfile[]>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
