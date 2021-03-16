@@ -95,7 +95,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				if (this.requestModel.trustRequest.modal) {
 					// Message
-					const message = this.requestModel.trustRequest.message ?? 'A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.';
+					const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
+					const message = this.requestModel.trustRequest.message ?? defaultMessage;
 
 					// Buttons
 					const buttons = this.requestModel.trustRequest.buttons ?? [

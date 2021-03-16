@@ -438,18 +438,19 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 				return this._modalTrustRequestPromise;
 			}
 		} else {
-			// Soft soft
+			// Soft request
 			if (!this._trustRequestPromise) {
 				this._trustRequestPromise = new Promise(resolve => {
 					this._inFlightResolver = resolve;
 				});
-				this._ctxWorkspaceTrustPendingRequest.set(true);
 			} else {
 				return this._trustRequestPromise;
 			}
 		}
 
 		this.requestModel.initiateRequest(request);
+		this._ctxWorkspaceTrustPendingRequest.set(true);
+
 		return request.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
 	}
 }
