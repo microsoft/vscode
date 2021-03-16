@@ -1133,9 +1133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._pressAnyKeyToCloseListener = undefined;
 
 		if (this._xterm) {
-			if (reset) {
-				this._xterm.reset();
-			} else {
+			if (!reset) {
 				// Ensure new processes' output starts at start of new line
 				this._xterm.write('\n\x1b[G');
 			}
@@ -1167,12 +1165,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
+		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
 		this._xtermTypeAhead?.reset(this._processManager);
 	}
 
-	@debounce(500)
+	@debounce(1000)
 	public relaunch(): void {
 		this.reuseTerminal(this._shellLaunchConfig, true);
 	}
