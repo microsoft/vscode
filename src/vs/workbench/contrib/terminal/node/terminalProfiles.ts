@@ -77,10 +77,15 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	expectedProfiles.forEach(profile => promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider, profile.args)));
 	const profiles = await Promise.all(promises);
 
-	const detectedProfiles = coalesce(profiles);
+	let detectedProfiles = coalesce(profiles);
 
 	if (!quickLaunchOnly) {
 		return detectedProfiles;
+	}
+
+	// only show the windows powershell profile if no other powershell profile exists
+	if (detectedProfiles.find(p => p.profileName === 'PowerShell')) {
+		detectedProfiles = detectedProfiles.filter(p => p.profileName !== 'Windows PowerShell');
 	}
 
 	let validProfiles: ITerminalProfile[] = [];
