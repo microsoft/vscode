@@ -741,7 +741,9 @@ export class TunnelPanel extends ViewPane {
 					this.table.reveal(this.table.indexOf(this.viewModel.input));
 				}
 			} else {
-				this.table.setFocus(this.lastFocus);
+				if (e && (e.tunnel.tunnelType !== TunnelType.Add)) {
+					this.table.setFocus(this.lastFocus);
+				}
 				this.focus();
 			}
 		}));
