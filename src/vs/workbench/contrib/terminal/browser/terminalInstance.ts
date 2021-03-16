@@ -1167,7 +1167,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
-		this._xtermTypeAhead?.reset(this._processManager);
+		this._xtermTypeAhead?.reset();
 	}
 
 	@debounce(1000)
