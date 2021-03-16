@@ -195,7 +195,9 @@ export class StatefulMarkdownCell extends Disposable {
 
 		if (this.useRenderer) {
 			// the markdown preview's height might already be updated after the renderer calls `element.getHeight()`
-			this.relayoutCell();
+			if (this.viewCell.layoutInfo.totalHeight > 0) {
+				this.relayoutCell();
+			}
 
 			// Update for selection
 			this._register(this.notebookEditor.onDidChangeSelection(() => {
