@@ -249,6 +249,7 @@ export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileGener
 
 export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;
+	quickLaunchOnly: boolean;
 }
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
@@ -343,10 +344,6 @@ export interface IStartExtensionTerminalRequest {
 	cols: number;
 	rows: number;
 	callback: (error: ITerminalLaunchError | undefined) => void;
-}
-
-export interface IAvailableProfilesRequest {
-	callback: (shells: ITerminalProfile[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {

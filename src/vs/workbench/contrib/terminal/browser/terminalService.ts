@@ -292,17 +292,17 @@ export class TerminalService implements ITerminalService {
 
 	@throttle(10000)
 	private async _updateAvailableProfiles(): Promise<void> {
-		this._availableProfiles = await this._detectProfiles();
+		this._availableProfiles = await this._detectProfiles(true);
 	}
 
-	private async _detectProfiles(): Promise<ITerminalProfile[]> {
+	private async _detectProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		// Wait for the remoteAuthority to be ready (and listening for events) before firing
 		// the event to spawn the ext host process
 		const conn = this._remoteAgentService.getConnection();
 		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
 		await this._whenExtHostReady(remoteAuthority);
-		return new Promise(r => this._onRequestAvailableProfiles.fire({ callback: r }));
+		return new Promise(r => this._onRequestAvailableProfiles.fire({ callback: r, quickLaunchOnly: quickLaunchOnly }));
 	}
 
 	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
@@ -772,7 +772,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async selectDefaultProfile(): Promise<void> {
-		const profiles = await this._detectProfiles();
+		const profiles = await this._detectProfiles(false);
 		const options: IPickOptions<IQuickPickItem> = {
 			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 		};

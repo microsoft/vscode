@@ -351,7 +351,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
 		if (this._isPrimaryExtHost()) {
-			req.callback(await this._proxy.$getAvailableProfiles());
+			req.callback(await this._proxy.$getAvailableProfiles(req.quickLaunchOnly));
 		}
 	}
 

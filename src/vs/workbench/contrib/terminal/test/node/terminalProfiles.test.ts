@@ -30,7 +30,7 @@ suite('Workbench - TerminalProfiles', () => {
 						},
 						detectWslProfiles: false
 					};
-					const profiles = await detectAvailableProfiles(config, undefined, undefined, createStatProvider(_paths));
+					const profiles = await detectAvailableProfiles(true, config, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
 					assert.deepStrictEqual(expected, profiles);
 				});
@@ -46,7 +46,7 @@ suite('Workbench - TerminalProfiles', () => {
 						},
 						detectWslProfiles: false
 					};
-					const profiles = await detectAvailableProfiles(config, undefined, undefined, createStatProvider(_paths));
+					const profiles = await detectAvailableProfiles(true, config, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
 					assert.deepStrictEqual(profiles, expected);
 				});

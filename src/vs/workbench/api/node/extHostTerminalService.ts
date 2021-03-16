@@ -132,9 +132,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
 	}
 
-	public async $getAvailableProfiles(): Promise<ITerminalProfile[]> {
+	public async $getAvailableProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
 		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
-		return detectAvailableProfiles(config as ITerminalConfiguration, this._variableResolver, this._lastActiveWorkspace);
+		return detectAvailableProfiles(quickLaunchOnly, config as ITerminalConfiguration, this._variableResolver, this._lastActiveWorkspace);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
