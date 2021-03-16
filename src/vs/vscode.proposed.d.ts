@@ -1298,7 +1298,7 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
-		 * Fired when the panel is disposed.
+		 * @deprecated
 		 */
 		// @rebornix REMOVE/REplace NotebookCommunication
 		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
@@ -1568,6 +1568,9 @@ declare module 'vscode' {
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
 
 		// todo@API remove! against separation of data provider and renderer
+		/**
+		 * @deprecated
+		 */
 		// eslint-disable-next-line vscode-dts-cancellation
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
 
