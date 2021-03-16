@@ -50,6 +50,7 @@ export class TerminalViewPane extends ViewPane {
 	private _findWidget: TerminalFindWidget | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
+	private _isWelcomeShowing: boolean = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -76,13 +77,21 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._onDidChangeViewWelcomeState.fire();
 		});
+		this._terminalService.onInstanceCreated(() => {
+			if (!this._isWelcomeShowing) {
+				return;
+			}
+			this._isWelcomeShowing = true;
+			this._onDidChangeViewWelcomeState.fire();
+			if (this._terminalContainer) {
+				this._terminalContainer.style.display = 'block';
+				this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
+			}
+		});
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		if (this.shouldShowWelcome()) {
-			return;
-		}
 
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
@@ -90,6 +99,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._terminalContainer = document.createElement('div');
 		this._terminalContainer.classList.add('terminal-outer-container');
+		this._terminalContainer.style.display = this.shouldShowWelcome() ? 'none' : 'block';
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
@@ -150,9 +160,6 @@ export class TerminalViewPane extends ViewPane {
 
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		if (this.shouldShowWelcome()) {
-			return;
-		}
 
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
@@ -339,7 +346,8 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return !this._terminalService.isProcessSupportRegistered;
+		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.terminalInstances.length === 0;
+		return this._isWelcomeShowing;
 	}
 }
 
