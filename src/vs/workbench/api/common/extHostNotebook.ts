@@ -1142,8 +1142,8 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: NotebookCellExecutionState.Idle,
-					lastRunSuccess: result.success,
-					lastRunDuration: result.duration,
+					lastRunSuccess: result.success ?? null,
+					lastRunDuration: result.duration ?? null,
 				});
 			},
 
