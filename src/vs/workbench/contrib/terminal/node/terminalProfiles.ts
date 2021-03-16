@@ -15,7 +15,6 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostD
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITestTerminalConfig } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
 import { ILogService } from 'vs/platform/log/common/log';
-import { workspace } from 'vscode';
 
 export interface IStatProvider {
 	stat(path: string): boolean,
@@ -102,7 +101,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 								// used by tests
 								resolvedPaths.push(p);
 							} else {
-								logService?.trace(`Could not resolve path ${p} in workspace folder ${workspace}`);
+								logService?.trace(`Could not resolve path ${p} in workspace folder ${workspaceFolder}`);
 							}
 						}
 						profile = detectedProfiles?.find(profile => resolvedPaths.includes(profile.path));
@@ -117,7 +116,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 							// used by tests
 							resolved = customProfile.path;
 						} else {
-							logService?.trace(`Could not resolve path ${customProfile.path} in workspace folder ${workspace}`);
+							logService?.trace(`Could not resolve path ${customProfile.path} in workspace folder ${workspaceFolder}`);
 						}
 						if (!profile) {
 							logService?.trace(`Could not detect path ${resolved}`);
@@ -135,20 +134,13 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 					let generatorKey = (value as ITerminalProfileGenerator).generator;
 					const profile = detectedProfiles?.find(profile => profile.profileName === generatorKey.toString());
 					if (profile) {
-						profile.profileName = profileKey;
-						validProfiles?.push(profile);
+						validProfiles?.push({ profileName: profileKey, path: profile.path, args: profile.args });
 					} else {
 						logService?.trace(`No generator with key ${generatorKey}`);
 					}
 				} else {
 					logService?.trace(`Entry in terminal.profiles.windows is not of type ITerminalExecutable or ITerminalProfileGenerator`, profileKey, value);
 				}
-			}
-		}
-		if (detectWslProfiles) {
-			const wslDistros = detectedProfiles?.filter(p => p.path.includes('wsl.exe'));
-			if (wslDistros) {
-				validProfiles?.push(...wslDistros);
 			}
 		}
 	} else {
