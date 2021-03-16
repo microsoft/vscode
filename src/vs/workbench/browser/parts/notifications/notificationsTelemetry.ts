@@ -19,7 +19,7 @@ type NotificationMetricsClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
 };
 
-export class NotificationsTelemetryContribution extends Disposable implements IWorkbenchContribution {
+export class NotificationsTelemetry extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,

@@ -38,7 +38,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { NotificationsTelemetryContribution } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
+import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 
 export class Workbench extends Layout {
 
@@ -379,6 +379,7 @@ export class Workbench extends Layout {
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.container, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
+		this._register(instantiationService.createInstance(NotificationsTelemetry));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {
@@ -392,9 +393,6 @@ export class Workbench extends Layout {
 
 		// Register Commands
 		registerNotificationCommands(notificationsCenter, notificationsToasts);
-
-		// Register Notification Telemetry
-		this._register(instantiationService.createInstance(NotificationsTelemetryContribution));
 
 		// Register with Layout
 		this.registerNotifications({
