@@ -20,7 +20,7 @@ export class NodeCachedDataCleaner {
 
 	constructor(
 		private readonly nodeCachedDataDir: string | undefined,
-		private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService
 	) {
 		this._manageCachedDataSoon();
 	}
