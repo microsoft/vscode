@@ -108,6 +108,8 @@ export interface ICloseAllEditorsOptions {
 export interface IEditorReplacement {
 	editor: IEditorInput;
 	replacement: IEditorInput;
+	/** Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to! */
+	forceReplaceDirty?: boolean;
 	options?: IEditorOptions | ITextEditorOptions;
 }
 
@@ -311,6 +313,11 @@ export interface IEditorGroupsService {
 	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
 	 */
 	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
+
+	/**
+	 * Merge all editor groups into the active one.
+	 */
+	mergeAllGroups(): IEditorGroup;
 
 	/**
 	 * Copy a group to a new group in the editor area.

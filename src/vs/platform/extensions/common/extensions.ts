@@ -113,12 +113,22 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
-export interface IGettingStartedContent {
+export interface IWelcomeItem {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
 	readonly button: { title: string } & ({ command?: never, link: string } | { command: string, link?: never }),
 	readonly media: { path: string | { hc: string, light: string, dark: string }, altText: string },
+	readonly doneOn?:
+	| { event: string; command?: never }
+	| { event?: never; command: string };
+	readonly when?: string;
+}
+
+export interface IWelcomeCategory {
+	readonly id: string,
+	readonly title: string;
+	readonly description: string;
 	readonly when?: string;
 }
 
@@ -141,12 +151,13 @@ export interface IExtensionContributions {
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
-	gettingStarted?: IGettingStartedContent[];
+	welcomeItems?: { [category: string]: IWelcomeItem[] };
+	welcomeCategories?: IWelcomeCategory[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-
 export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
+export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -165,6 +176,7 @@ export const EXTENSION_CATEGORIES = [
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
+	'Education',
 	'Formatters',
 	'Keymaps',
 	'Language Packs',
@@ -202,7 +214,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
-	readonly requiresWorkspaceTrust?: ExtensionWorkspaceTrustRequirement;
+	readonly workspaceTrust?: ExtensionWorkspaceTrust;
 }
 
 export const enum ExtensionType {

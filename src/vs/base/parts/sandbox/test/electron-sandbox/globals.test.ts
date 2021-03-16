@@ -8,7 +8,7 @@ import { ipcRenderer, crashReporter, process } from 'vs/base/parts/sandbox/elect
 
 suite('Sandbox', () => {
 	test('globals', () => {
-		assert.ok(typeof ipcRenderer.invoke === 'function');
+		assert.ok(typeof ipcRenderer.send === 'function');
 		assert.ok(typeof crashReporter.addExtraParameter === 'function');
 		assert.ok(typeof process.platform === 'string');
 	});

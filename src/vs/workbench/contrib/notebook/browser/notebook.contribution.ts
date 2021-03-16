@@ -66,6 +66,8 @@ import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
+import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 
 
 // Diff Editor Contribution
@@ -637,10 +639,6 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 				['editable']: {
 					type: 'boolean',
 					description: `Controls whether a cell's editor is editable/readonly`
-				},
-				['runnable']: {
-					type: 'boolean',
-					description: 'Controls if the cell is executable'
 				},
 				['breakpointMargin']: {
 					type: 'boolean',

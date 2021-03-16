@@ -346,38 +346,48 @@ export class RenderLineOutput {
 export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): RenderLineOutput {
 	if (input.lineContent.length === 0) {
 
-		let containsForeignElements = ForeignElementType.None;
-
-		let content: string = '<span><span></span></span>';
-
 		if (input.lineDecorations.length > 0) {
 			// This line is empty, but it contains inline decorations
-			const beforeClassNames: string[] = [];
-			const afterClassNames: string[] = [];
-			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
-				const lineDecoration = input.lineDecorations[i];
-				if (lineDecoration.type === InlineDecorationType.Before) {
-					beforeClassNames.push(input.lineDecorations[i].className);
-					containsForeignElements |= ForeignElementType.Before;
-				}
-				if (lineDecoration.type === InlineDecorationType.After) {
-					afterClassNames.push(input.lineDecorations[i].className);
-					containsForeignElements |= ForeignElementType.After;
+			sb.appendASCIIString(`<span>`);
+
+			let beforeCount = 0;
+			let afterCount = 0;
+			let containsForeignElements = ForeignElementType.None;
+			for (const lineDecoration of input.lineDecorations) {
+				if (lineDecoration.type === InlineDecorationType.Before || lineDecoration.type === InlineDecorationType.After) {
+					sb.appendASCIIString(`<span class="`);
+					sb.appendASCIIString(lineDecoration.className);
+					sb.appendASCIIString(`"></span>`);
+
+					if (lineDecoration.type === InlineDecorationType.Before) {
+						containsForeignElements |= ForeignElementType.Before;
+						beforeCount++;
+					}
+					if (lineDecoration.type === InlineDecorationType.After) {
+						containsForeignElements |= ForeignElementType.After;
+						afterCount++;
+					}
 				}
 			}
 
-			if (containsForeignElements !== ForeignElementType.None) {
-				const beforeSpan = (beforeClassNames.length > 0 ? `<span class="${beforeClassNames.join(' ')}"></span>` : ``);
-				const afterSpan = (afterClassNames.length > 0 ? `<span class="${afterClassNames.join(' ')}"></span>` : ``);
-				content = `<span>${beforeSpan}${afterSpan}</span>`;
-			}
+			sb.appendASCIIString(`</span>`);
+
+			const characterMapping = new CharacterMapping(1, beforeCount + afterCount);
+			characterMapping.setPartData(0, beforeCount, 0, 0);
+
+			return new RenderLineOutput(
+				characterMapping,
+				false,
+				containsForeignElements
+			);
 		}
 
-		sb.appendASCIIString(content);
+		// completely empty line
+		sb.appendASCIIString('<span><span></span></span>');
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
 			false,
-			containsForeignElements
+			ForeignElementType.None
 		);
 	}
 

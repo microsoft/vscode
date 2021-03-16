@@ -311,6 +311,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'warnonly'
 		},
+		'terminal.integrated.environmentChangesRelaunch': {
+			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.showExitAlert': {
 			description: localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',

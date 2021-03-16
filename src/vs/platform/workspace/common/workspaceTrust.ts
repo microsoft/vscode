@@ -44,7 +44,14 @@ export interface IWorkspaceTrustModel {
 	getTrustStateInfo(): IWorkspaceTrustStateInfo;
 }
 
+export interface WorkspaceTrustRequestButton {
+	label: string;
+	type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+}
+
 export interface WorkspaceTrustRequest {
+	buttons?: WorkspaceTrustRequestButton[];
+	message?: string;
 	modal: boolean;
 }
 
@@ -53,9 +60,11 @@ export interface IWorkspaceTrustRequestModel {
 
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
+	readonly onDidCancelRequest: Event<void>;
 
 	initiateRequest(request?: WorkspaceTrustRequest): void;
 	completeRequest(trustState?: WorkspaceTrustState): void;
+	cancelRequest(): void;
 }
 
 export interface WorkspaceTrustStateChangeEvent {
