@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { OpenEditor, SortOrder } from 'vs/workbench/contrib/files/common/files';
-import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier, EditorInput, IEditorInputFactory } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier, EditorInput, IEditorInputSerializer } from 'vs/workbench/common/editor';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
@@ -29,7 +29,7 @@ interface ISerializedFileEditorInput {
 	modeId?: string;
 }
 
-export class FileEditorInputFactory implements IEditorInputFactory {
+export class FileEditorInputFactory implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;

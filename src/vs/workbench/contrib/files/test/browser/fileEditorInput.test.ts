@@ -266,9 +266,9 @@ suite('Files - FileEditorInput', () => {
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('workbench.editors.files.fileEditorInput', FileEditorInputFactory);
+		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('workbench.editors.files.fileEditorInput', FileEditorInputFactory);
 
-		const factory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputFactory(input.getTypeId());
+		const factory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputSerializer(input.getTypeId());
 		if (!factory) {
 			assert.fail('File Editor Input Factory missing');
 		}

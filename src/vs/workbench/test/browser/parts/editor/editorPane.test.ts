@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput, EditorOptions, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -50,7 +50,7 @@ export class MyOtherEditor extends EditorPane {
 	createEditor(): any { }
 }
 
-class MyInputFactory implements IEditorInputFactory {
+class MyInputFactory implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -186,9 +186,9 @@ suite('Workbench EditorPane', () => {
 
 	test('Editor Input Factory', function () {
 		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
-		const disposable = EditorInputRegistry.registerEditorInputFactory('myInputId', MyInputFactory);
+		const disposable = EditorInputRegistry.registerEditorInputSerializer('myInputId', MyInputFactory);
 
-		let factory = EditorInputRegistry.getEditorInputFactory('myInputId');
+		let factory = EditorInputRegistry.getEditorInputSerializer('myInputId');
 		assert(factory);
 
 		disposable.dispose();

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
-import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputFactory, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputSerializer, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -187,7 +187,7 @@ suite('Workbench editor groups', () => {
 		id: string;
 	}
 
-	class TestEditorInputFactory implements IEditorInputFactory {
+	class TestEditorInputFactory implements IEditorInputSerializer {
 
 		static disableSerialize = false;
 		static disableDeserialize = false;
@@ -226,7 +226,7 @@ suite('Workbench editor groups', () => {
 		TestEditorInputFactory.disableSerialize = false;
 		TestEditorInputFactory.disableDeserialize = false;
 
-		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForGroups', TestEditorInputFactory));
+		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('testEditorInputForGroups', TestEditorInputFactory));
 	});
 
 	teardown(() => {

@@ -32,7 +32,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer, EditorInput } from 'vs/workbench/common/editor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -739,7 +739,7 @@ class WelcomePage extends Disposable {
 	}
 }
 
-export class WelcomeInputFactory implements IEditorInputFactory {
+export class WelcomeInputFactory implements IEditorInputSerializer {
 
 	static readonly ID = welcomeInputTypeId;
 

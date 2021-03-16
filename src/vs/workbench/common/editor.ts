@@ -191,6 +191,13 @@ export interface ICustomEditorInputFactory {
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
+export interface IEditorInputFactory {
+	/**
+	 * Creates a custom editor input capable of displaying a certain viewtypes
+	 */
+	createEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput> | undefined;
+}
+
 export interface IEditorInputFactoryRegistry {
 
 	/**
@@ -214,20 +221,33 @@ export interface IEditorInputFactoryRegistry {
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
+	 * Registers an editor input factory to a specific glob pattern
+	 * @param globPattern The glob pattern which that input factory supports
+	 * @param factory The factory
+	 */
+	registerEditorInputFactory(globPattern: string, factory: IEditorInputFactory): void;
+
+	/**
+	 * Given a glob pattern returns all the editor input factories associated with that pattetrn
+	 * @param globPattern The glob pattern
+	 */
+	getEditorInputFactory(globPattern: string): Array<IEditorInputFactory> | undefined;
+
+	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
 	 * is capable of serializing and deserializing editor inputs from string data.
 	 *
 	 * @param editorInputId the identifier of the editor input
 	 * @param factory the editor input factory for serialization/deserialization
 	 */
-	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): IDisposable;
+	registerEditorInputSerializer<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputSerializer }): IDisposable;
 
 	/**
 	 * Returns the editor input factory for the given editor input.
 	 *
 	 * @param editorInputId the identifier of the editor input
 	 */
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined;
+	getEditorInputSerializer(editorInputId: string): IEditorInputSerializer | undefined;
 
 	/**
 	 * Starts the registry by providing the required services.
@@ -235,7 +255,7 @@ export interface IEditorInputFactoryRegistry {
 	start(accessor: ServicesAccessor): void;
 }
 
-export interface IEditorInputFactory {
+export interface IEditorInputSerializer {
 
 	/**
 	 * Determines whether the given editor input can be serialized by the factory.
@@ -1465,8 +1485,9 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
 
-	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
-	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
+	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputSerializer>> = new Map();
+	private readonly editorInputSerializerInstances: Map<string, IEditorInputSerializer> = new Map();
+	private readonly editorInputFactoryInstances: Map<string, Array<IEditorInputFactory>> = new Map();
 
 	private readonly customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
@@ -1480,9 +1501,9 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		this.editorInputFactoryConstructors.clear();
 	}
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>, instantiationService: IInstantiationService): void {
+	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputSerializer>, instantiationService: IInstantiationService): void {
 		const instance = instantiationService.createInstance(ctor);
-		this.editorInputFactoryInstances.set(editorInputId, instance);
+		this.editorInputSerializerInstances.set(editorInputId, instance);
 	}
 
 	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void {
@@ -1501,7 +1522,21 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		return this.customEditorInputFactoryInstances.get(scheme);
 	}
 
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
+	registerEditorInputFactory(globPattern: string, factory: IEditorInputFactory): void {
+		let currentEntry = this.editorInputFactoryInstances.get(globPattern);
+		if (currentEntry) {
+			currentEntry.push(factory);
+			this.editorInputFactoryInstances.set(globPattern, currentEntry);
+		} else {
+			this.editorInputFactoryInstances.set(globPattern, [factory]);
+		}
+	}
+
+	getEditorInputFactory(globPattern: string): Array<IEditorInputFactory> | undefined {
+		return this.editorInputFactoryInstances.get(globPattern);
+	}
+
+	registerEditorInputSerializer(editorInputId: string, ctor: IConstructorSignature0<IEditorInputSerializer>): IDisposable {
 		if (!this.instantiationService) {
 			this.editorInputFactoryConstructors.set(editorInputId, ctor);
 		} else {
@@ -1510,12 +1545,12 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 
 		return toDisposable(() => {
 			this.editorInputFactoryConstructors.delete(editorInputId);
-			this.editorInputFactoryInstances.delete(editorInputId);
+			this.editorInputSerializerInstances.delete(editorInputId);
 		});
 	}
 
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined {
-		return this.editorInputFactoryInstances.get(editorInputId);
+	getEditorInputSerializer(editorInputId: string): IEditorInputSerializer | undefined {
+		return this.editorInputSerializerInstances.get(editorInputId);
 	}
 }
 

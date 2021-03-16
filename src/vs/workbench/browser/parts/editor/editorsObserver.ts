@@ -362,7 +362,7 @@ export class EditorsObserver extends Disposable {
 				let serializableEditorsOfGroup = mapGroupToSerializableEditorsOfGroup.get(group);
 				if (!serializableEditorsOfGroup) {
 					serializableEditorsOfGroup = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-						const factory = registry.getEditorInputFactory(editor.getTypeId());
+						const factory = registry.getEditorInputSerializer(editor.getTypeId());
 
 						return factory?.canSerialize(editor);
 					});

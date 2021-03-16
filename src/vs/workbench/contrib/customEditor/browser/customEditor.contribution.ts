@@ -33,7 +33,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	]);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerEditorInputFactory(
+	.registerEditorInputSerializer(
 		CustomEditorInputFactory.ID,
 		CustomEditorInputFactory);
 

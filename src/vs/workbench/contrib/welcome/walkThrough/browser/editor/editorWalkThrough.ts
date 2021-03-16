@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer, EditorInput } from 'vs/workbench/common/editor';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 const typeId = 'workbench.editors.walkThroughInput';
@@ -46,7 +46,7 @@ export class EditorWalkThroughAction extends Action {
 	}
 }
 
-export class EditorWalkThroughInputFactory implements IEditorInputFactory {
+export class EditorWalkThroughInputFactory implements IEditorInputSerializer {
 
 	static readonly ID = typeId;
 

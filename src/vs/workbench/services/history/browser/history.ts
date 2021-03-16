@@ -695,7 +695,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const factory = this.editorInputFactory.getEditorInputFactory(editor.getTypeId());
+		const factory = this.editorInputFactory.getEditorInputSerializer(editor.getTypeId());
 		if (!factory || !factory.canSerialize(editor)) {
 			return; // we need a factory from this point that can serialize this editor
 		}
@@ -765,7 +765,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Deserialize and open editor unless already opened
-		const restoredEditor = this.editorInputFactory.getEditorInputFactory(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
+		const restoredEditor = this.editorInputFactory.getEditorInputSerializer(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
 		let editorPane: IEditorPane | undefined = undefined;
 		if (restoredEditor && !this.editorGroupService.activeGroup.isOpened(restoredEditor)) {
 			// Fix for https://github.com/microsoft/vscode/issues/107850
@@ -1006,7 +1006,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Editor input: via factory
 		const { editorInputJSON } = serializedEditorHistoryEntry;
 		if (editorInputJSON?.deserialized) {
-			const factory = this.editorInputFactory.getEditorInputFactory(editorInputJSON.typeId);
+			const factory = this.editorInputFactory.getEditorInputSerializer(editorInputJSON.typeId);
 			if (factory) {
 				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
 				if (input) {
@@ -1029,7 +1029,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Editor input: try via factory
 			if (input instanceof EditorInput) {
-				const factory = this.editorInputFactory.getEditorInputFactory(input.getTypeId());
+				const factory = this.editorInputFactory.getEditorInputSerializer(input.getTypeId());
 				if (factory) {
 					const deserialized = factory.serialize(input);
 					if (deserialized) {

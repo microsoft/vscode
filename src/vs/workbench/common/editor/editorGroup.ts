@@ -755,7 +755,7 @@ export class EditorGroup extends Disposable {
 			const editor = this.editors[i];
 			let canSerializeEditor = false;
 
-			const factory = registry.getEditorInputFactory(editor.getTypeId());
+			const factory = registry.getEditorInputSerializer(editor.getTypeId());
 			if (factory) {
 				const value = factory.serialize(editor);
 
@@ -808,7 +808,7 @@ export class EditorGroup extends Disposable {
 		this.editors = coalesce(data.editors.map((e, index) => {
 			let editor: EditorInput | undefined = undefined;
 
-			const factory = registry.getEditorInputFactory(e.id);
+			const factory = registry.getEditorInputSerializer(e.id);
 			if (factory) {
 				editor = factory.deserialize(this.instantiationService, e.value);
 				if (editor) {

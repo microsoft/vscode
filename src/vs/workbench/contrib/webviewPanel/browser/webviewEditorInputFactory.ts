@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputFactory } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer } from 'vs/workbench/common/editor';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { WebviewInput } from './webviewEditorInput';
@@ -43,7 +43,7 @@ export interface DeserializedWebview {
 	readonly group?: number;
 }
 
-export class WebviewEditorInputFactory implements IEditorInputFactory {
+export class WebviewEditorInputFactory implements IEditorInputSerializer {
 
 	public static readonly ID = WebviewInput.typeId;
 

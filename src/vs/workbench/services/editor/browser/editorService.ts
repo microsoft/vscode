@@ -589,13 +589,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// If the override option is provided we want to open that specific editor or show a picker
 			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
 				return this.openEditorWith(resolvedOptions.override, resolvedEditor, resolvedOptions, resolvedGroup);
-			} else if (resolvedEditor.resource && resolvedOptions?.override !== EditorOverride.DISABLED) {
-				// If the override option is undefined we want to find out if there's any custom editors associated with that resource and pass it in
-				const resolvedOverride = this.getEditorOverrides(resolvedEditor.resource, resolvedOptions, undefined);
-				// If the length is just one that means we just have the text editor
-				if (resolvedOverride.length > 1) {
-					return this.openEditor(resolvedEditor, { ...resolvedOptions, override: resolvedOverride[1][1].id }, group);
-				}
 			}
 
 			// Otherwise proceed to open normally
@@ -1028,6 +1021,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region createEditorInput()
 
 	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
+
+	// private async openingCreateEditorInput(resource: URI): Promise<IEditorInput> {
+	// 	return this.fileEditorInputFactory.createFileEditorInput(resource, undefined, undefined, undefined, undefined, undefined, this.instantiationService);
+	// }
 
 	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditorInputType): EditorInput {
 

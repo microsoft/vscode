@@ -32,7 +32,7 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 		SyncActionDescriptor.from(EditorWalkThroughAction),
 		'Help: Interactive Playground', CATEGORIES.Help.value);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Starting);
