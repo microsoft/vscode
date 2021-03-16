@@ -80,6 +80,12 @@ export enum NotebookCellExecutionState {
 	Executing = 3,
 }
 
+export interface INotebookCellPreviousExecutionResult {
+	executionOrder?: number;
+	success?: boolean;
+	duration?: number;
+}
+
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	breakpointMargin?: boolean;

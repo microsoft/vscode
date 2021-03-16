@@ -51,6 +51,7 @@ export class ExtHostCell {
 
 	private _outputs: extHostTypes.NotebookCellOutput[];
 	private _metadata: extHostTypes.NotebookCellMetadata;
+	private _previousResult: vscode.NotebookCellPreviousExecutionResult | undefined;
 
 	private _internalMetadata: NotebookCellMetadata;
 	readonly handle: number;
@@ -70,6 +71,7 @@ export class ExtHostCell {
 		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
 		this._internalMetadata = _cellData.metadata ?? {};
 		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(this._internalMetadata);
+		this._previousResult = extHostTypeConverters.NotebookCellPreviousExecutionResult.to(this._internalMetadata);
 	}
 
 	dispose() {
@@ -95,7 +97,7 @@ export class ExtHostCell {
 				document: data.document,
 				get outputs() { return that._outputs.slice(0); },
 				get metadata() { return that._metadata; },
-				get previousResult() { return {}; }
+				get previousResult() { return that._previousResult; }
 			});
 		}
 		return this._cell;
@@ -119,6 +121,7 @@ export class ExtHostCell {
 	setMetadata(newMetadata: NotebookCellMetadata): void {
 		this._internalMetadata = newMetadata;
 		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(newMetadata);
+		this._previousResult = extHostTypeConverters.NotebookCellPreviousExecutionResult.to(newMetadata);
 	}
 }
 

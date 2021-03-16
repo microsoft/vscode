@@ -116,6 +116,7 @@ export class CellContextKeyManager extends Disposable {
 		this.cellEditable.set(!!metadata.editable);
 
 		const runState = metadata.runState ?? NotebookCellExecutionState.Idle;
+		// TODO@roblou
 		this.cellRunState.set(NotebookCellExecutionState[runState]);
 	}
 
