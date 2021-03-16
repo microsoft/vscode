@@ -305,6 +305,16 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Emitted when a new notification is added.
+	 */
+	readonly onDidAddNotification: Event<INotification>;
+
+	/**
+	 * Emitted when a notification is removed.
+	 */
+	readonly onDidRemoveNotification: Event<INotification>;
+
+	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
 	 * can be used to control the notification afterwards.
 	 *

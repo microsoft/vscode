@@ -218,6 +218,10 @@ export class SimpleDialogService implements IDialogService {
 
 export class SimpleNotificationService implements INotificationService {
 
+	onDidAddNotification: Event<INotification> = Event.None;
+
+	onDidRemoveNotification: Event<INotification> = Event.None;
+
 	public _serviceBrand: undefined;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
