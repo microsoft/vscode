@@ -252,7 +252,5 @@ suite('CellOperations', () => {
 				));
 			});
 	});
-
-
 });
 

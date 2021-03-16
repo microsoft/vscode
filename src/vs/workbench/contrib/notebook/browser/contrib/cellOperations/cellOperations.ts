@@ -286,7 +286,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel } | null> {
+export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[] } | null> {
 	if (!viewModel || !viewModel.metadata.editable) {
 		return null;
 	}
@@ -344,7 +344,9 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 					}
 				)
 			],
-			cell: above
+			cell: above,
+			endFocus: { start: range.start - 1, end: range.start },
+			endSelections: [{ start: range.start - 1, end: range.start }]
 		};
 	} else {
 		const below = viewModel.viewCells[range.end] as CellViewModel;
@@ -375,15 +377,34 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 					}
 				)
 			],
-			cell
+			cell,
+			endFocus: { start: range.start, end: range.start + 1 },
+			endSelections: [{ start: range.start, end: range.start + 1 }]
 		};
 	}
 }
 
 export async function joinCells(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
 	const viewModel = context.notebookEditor.viewModel;
-	const cellIndex = viewModel.getCellIndex(context.cell);
-	const ret = await joinNotebookCells(viewModel, { start: cellIndex, end: cellIndex + 1 }, direction);
+	let ret: {
+		edits: ResourceEdit[];
+		cell: ICellViewModel;
+		endFocus: ICellRange;
+		endSelections: ICellRange[];
+	} | null = null;
+
+	if (context.ui) {
+		const cellIndex = viewModel.getCellIndex(context.cell);
+		ret = await joinNotebookCells(viewModel, { start: cellIndex, end: cellIndex + 1 }, direction);
+	} else {
+		const selections = viewModel.getSelections();
+		if (!selections.length) {
+			return;
+		}
+
+		ret = await joinNotebookCells(viewModel, viewModel.getSelections()[0], direction);
+	}
+
 	if (!ret) {
 		return;
 	}
@@ -392,10 +413,8 @@ export async function joinCells(bulkEditService: IBulkEditService, context: INot
 		ret?.edits,
 		{ quotableLabel: 'Join Notebook Cells' }
 	);
+	viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: ret.endFocus, selections: ret.endSelections });
 	context.notebookEditor.focusNotebookCell(ret.cell, 'editor');
-	// TODO
-	// viewModel.selectionHandles = endSelections;
-
 }
 
 registerAction2(class extends NotebookCellAction {
