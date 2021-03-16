@@ -6,7 +6,7 @@
   "license": "MIT",
   "enableProposedApi": true,
   "workspaceTrust": {
-    "require": "onDemand"
+    "required": "onDemand"
   },
   "private": true,
   "activationEvents": [],

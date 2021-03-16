@@ -270,7 +270,7 @@ export function throwProposedApiError(extension: IExtensionDescription): never {
 }
 
 export function checkRequiresWorkspaceTrust(extension: IExtensionDescription): void {
-	if (!extension.workspaceTrust?.require) {
+	if (!extension.workspaceTrust?.required) {
 		throwRequiresWorkspaceTrustError(extension);
 	}
 }
