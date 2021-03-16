@@ -1270,7 +1270,7 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 
 		/**
-		 * The primary selected cell on this notebook editor.
+		 * @deprecated
 		 */
 		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
