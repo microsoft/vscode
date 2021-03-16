@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { Range } from 'vs/editor/common/core/range';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { copyCellRange, joinNotebookCells, moveCellRange } from 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
@@ -155,8 +157,11 @@ suite('CellOperations', () => {
 			async (editor, accessor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(editor.viewModel, viewModel.viewCells[3], 'below');
+				const ret = await joinNotebookCells(editor.viewModel, { start: 3, end: 4 }, 'below');
 				assert.strictEqual(ret?.edits.length, 2);
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[3].uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[4].textBuffer.getEOL() + 'var c = 3;'
+				}));
 				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
 						editType: CellEditType.Replace,
@@ -180,8 +185,11 @@ suite('CellOperations', () => {
 			async (editor, accessor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
-				const ret = await joinNotebookCells(editor.viewModel, viewModel.viewCells[4], 'above');
+				const ret = await joinNotebookCells(editor.viewModel, { start: 4, end: 5 }, 'above');
 				assert.strictEqual(ret?.edits.length, 2);
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[3].uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[4].textBuffer.getEOL() + 'var c = 3;'
+				}));
 				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
 						editType: CellEditType.Replace,
@@ -192,6 +200,59 @@ suite('CellOperations', () => {
 				));
 			});
 	});
+
+	test('Join cell with below - multiple cells', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, accessor) => {
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
+				const ret = await joinNotebookCells(editor.viewModel, { start: 0, end: 2 }, 'below');
+				assert.strictEqual(ret?.edits.length, 2);
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[0].uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[1].textBuffer.getEOL() + 'var b = 2;' + viewModel.viewCells[2].textBuffer.getEOL() + 'var c = 3;'
+				}));
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: 1,
+						count: 2,
+						cells: []
+					}
+				));
+			});
+	});
+
+	test('Join cell with above - multiple cells', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, accessor) => {
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 1, end: 3 }] });
+				const ret = await joinNotebookCells(editor.viewModel, { start: 1, end: 3 }, 'above');
+				assert.strictEqual(ret?.edits.length, 2);
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[0].uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[1].textBuffer.getEOL() + 'var b = 2;' + viewModel.viewCells[2].textBuffer.getEOL() + 'var c = 3;'
+				}));
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: 1,
+						count: 2,
+						cells: []
+					}
+				));
+			});
+	});
+
 
 });
 

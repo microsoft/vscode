@@ -14,7 +14,7 @@ import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, 
 import { expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditType, CellKind, cellRangeContains, cellRangesToIndexes, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, cellRangeContains, cellRangesToIndexes, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -286,35 +286,39 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel } | null> {
-	if (!viewModel) {
+export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel } | null> {
+	if (!viewModel || !viewModel.metadata.editable) {
 		return null;
 	}
 
-	if (!viewModel.metadata.editable) {
+	const cells = viewModel.viewCells.slice(range.start, range.end);
+
+	if (!cells.length) {
 		return null;
 	}
 
-	const index = viewModel.getCellIndex(cell);
-
-	if (!cell.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+	if (range.start === 0 && direction === 'above') {
 		return null;
 	}
 
-	if (constraint && cell.cellKind !== constraint) {
+	if (range.end === viewModel.length && direction === 'below') {
 		return null;
 	}
 
-	if (index === 0 && direction === 'above') {
-		return null;
-	}
+	for (let i = 0; i < cells.length; i++) {
+		const cell = cells[i];
+		if (!cell.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+			return null;
+		}
 
-	if (index === viewModel.length - 1 && direction === 'below') {
-		return null;
+
+		if (constraint && cell.cellKind !== constraint) {
+			return null;
+		}
 	}
 
 	if (direction === 'above') {
-		const above = viewModel.viewCells[index - 1] as CellViewModel;
+		const above = viewModel.viewCells[range.start - 1] as CellViewModel;
 		if (constraint && above.cellKind !== constraint) {
 			return null;
 		}
@@ -324,7 +328,7 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICel
 		}
 
 		// const endSelections = [above.handle];
-		const insertContent = (cell.textBuffer.getEOL() ?? '') + cell.getText();
+		const insertContent = cells.map(cell => (cell.textBuffer.getEOL() ?? '') + cell.getText()).join('');
 		const aboveCellLineCount = above.textBuffer.getLineCount();
 		const aboveCellLastLineEndColumn = above.textBuffer.getLineLength(aboveCellLineCount);
 
@@ -334,8 +338,8 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICel
 				new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
 						editType: CellEditType.Replace,
-						index: index,
-						count: 1,
+						index: range.start,
+						count: range.end - range.start,
 						cells: []
 					}
 				)
@@ -343,7 +347,7 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICel
 			cell: above
 		};
 	} else {
-		const below = viewModel.viewCells[index + 1] as CellViewModel;
+		const below = viewModel.viewCells[range.end] as CellViewModel;
 		if (constraint && below.cellKind !== constraint) {
 			return null;
 		}
@@ -352,7 +356,9 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICel
 			return null;
 		}
 
-		const insertContent = (cell.textBuffer.getEOL() ?? '') + below.getText();
+		const cell = cells[0];
+		const restCells = [...cells.slice(1), below];
+		const insertContent = restCells.map(cl => (cl.textBuffer.getEOL() ?? '') + cl.getText()).join('');
 
 		const cellLineCount = cell.textBuffer.getLineCount();
 		const cellLastLineEndColumn = cell.textBuffer.getLineLength(cellLineCount);
@@ -363,8 +369,8 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICel
 				new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
 						editType: CellEditType.Replace,
-						index: index + 1,
-						count: 1,
+						index: range.start + 1,
+						count: range.end - range.start,
 						cells: []
 					}
 				)
@@ -375,7 +381,9 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICel
 }
 
 export async function joinCells(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
-	const ret = await joinNotebookCells(context.notebookEditor.viewModel, context.cell, direction);
+	const viewModel = context.notebookEditor.viewModel;
+	const cellIndex = viewModel.getCellIndex(context.cell);
+	const ret = await joinNotebookCells(viewModel, { start: cellIndex, end: cellIndex + 1 }, direction);
 	if (!ret) {
 		return;
 	}
