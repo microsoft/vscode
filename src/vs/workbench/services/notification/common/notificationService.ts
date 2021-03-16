@@ -17,13 +17,19 @@ export class NotificationService extends Disposable implements INotificationServ
 	declare readonly _serviceBrand: undefined;
 
 	readonly model = this._register(new NotificationsModel());
-	private readonly _onDidAddNotification = new Emitter<INotification>();
-	private readonly _onDidRemoveNotification = new Emitter<INotification>();
+	private readonly _onDidAddNotification = this._register(new Emitter<INotification>());
+	readonly onDidAddNotification = this._onDidAddNotification.event;
+	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
+	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => {
 			const event = {
 				message: e.item.message.original,
@@ -39,14 +45,6 @@ export class NotificationService extends Disposable implements INotificationServ
 				this._onDidRemoveNotification.fire(event);
 			}
 		}));
-	}
-
-	get onDidAddNotification(): Event<INotification> {
-		return this._onDidAddNotification.event;
-	}
-
-	get onDidRemoveNotification(): Event<INotification> {
-		return this._onDidRemoveNotification.event;
 	}
 
 	setFilter(filter: NotificationsFilter): void {

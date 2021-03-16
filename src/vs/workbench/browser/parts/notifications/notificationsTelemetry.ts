@@ -6,9 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { hash } from 'vs/base/common/hash';
 
 interface NotificationMetrics {
@@ -21,25 +19,29 @@ type NotificationMetricsClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
 };
 
-class NotificationsTelemetryContribution extends Disposable implements IWorkbenchContribution {
+export class NotificationsTelemetryContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@INotificationService notificationService: INotificationService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
-		this._register(notificationService.onDidAddNotification(notification => {
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.notificationService.onDidAddNotification(notification => {
 			if (!notification.silent) {
-				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', {
+				this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', {
 					id: hash(notification.message.toString()),
 					source: notification.source
 				});
 			}
 		}));
 
-		this._register(notificationService.onDidRemoveNotification(notification => {
+		this._register(this.notificationService.onDidRemoveNotification(notification => {
 			if (!notification.silent) {
-				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', {
+				this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', {
 					id: hash(notification.message.toString()),
 					source: notification.source
 				});
@@ -47,9 +49,3 @@ class NotificationsTelemetryContribution extends Disposable implements IWorkbenc
 		}));
 	}
 }
-
-export function registerNotificationTelemetry() {
-	Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(NotificationsTelemetryContribution, LifecyclePhase.Restored);
-}
-
-

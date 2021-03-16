@@ -38,7 +38,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerNotificationTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
+import { NotificationsTelemetryContribution } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 
 export class Workbench extends Layout {
 
@@ -394,7 +394,7 @@ export class Workbench extends Layout {
 		registerNotificationCommands(notificationsCenter, notificationsToasts);
 
 		// Register Notification Telemetry
-		registerNotificationTelemetry();
+		this._register(instantiationService.createInstance(NotificationsTelemetryContribution));
 
 		// Register with Layout
 		this.registerNotifications({
