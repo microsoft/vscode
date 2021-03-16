@@ -2261,51 +2261,24 @@ declare module 'vscode' {
 	 */
 	export interface TestProvider<T extends TestItem = TestItem> {
 		/**
-		 * An event that should be fired whenever an existing test is updated, or
-		 * when a new test is discovered as a result of a {@link discoverChildren}
-		 * call or subsequent update. Changes to tests will not be visible until
-		 * this event is fired.
+		 * Requests the children of the test item. When called, the provider should
+		 * discover tests and update the item's `children`. The provider will be
+		 * marked as 'busy' when this method is called, and should report
+		 * `{ busy: false }` to {@link Progress.report} once discovery is complete.
 		 *
-		 * It is safe to fire this event for children of TestItems that the editor
-		 * has not yet requested in {@link discoverChildren}.
-		 */
-		readonly onDidChangeTest: Event<T>;
-
-		/**
-		 * An event that should be fired when an existing tests is removed.
-		 */
-		readonly onDidRemoveTest: Event<T>;
-
-		/**
-		 * An event that fires when a test becomes outdated, as a result of
-		 * file changes, for example. In "auto run" mode, tests that are outdated
-		 * will be automatically re-run after a short delay. Firing a test
-		 * with children will mark the entire subtree as outdated.
-		 */
-		readonly onDidInvalidateTest?: Event<T>;
-
-		/**
-		 * Requets the children of the test item. When called, the provider should
-		 * fire the {@link onDidUpdateTest} as it discovers tests. When all
-		 * children of the provided item have been discovered, the promise should
-		 * resolve.
-		 *
-		 * After the discovery process, the provider should continue watching for
-		 * changes to the children and firing updates until the returned
-		 * Disposable is disposed of. Returning the Disposable is optional, and
-		 * may not be necessary in all cases. For example, if the item is a test
-		 * suite in a single file, the observation of children may be handled by
-		 * the file watcher.
+		 * The provider should continue watching for changes to the children and
+		 * firing updates until the token is cancelled. The process of watching
+		 * the tests may involve creating a file watcher, for example.
 		 *
 		 * The editor will only call this method when it's interested in refreshing
 		 * the children of the item, and will not call it again while there's an
-		 * existing, undisposed subscription for an item.
+		 * existing, undisposed uncancelled discovery for an item.
 		 *
 		 * @param token Cancellation for the request. Cancellation will be
 		 * requested if the test changes before the previous call completes.
 		 * @returns a provider result of child test items
 		 */
-		discoverChildren(item: T, token: CancellationToken): ProviderResult<Disposable>;
+		discoverChildren(item: T, progress: Progress<{ busy: boolean }>, token: CancellationToken): void;
 
 		/**
 		 * Gets the parent of the test item. This should only return "undefined"
@@ -2401,6 +2374,26 @@ declare module 'vscode' {
 		setState(test: T, state: TestState): void;
 	}
 
+	export interface TestChildrenCollection extends Iterable<TestItem> {
+		/**
+		 * Gets the number of children in the collection.
+		 */
+		size: number;
+
+		/**
+		 * Adds a new child test item. No-ops if the test was already a child.
+		 * @param child The test item to add.
+		 */
+		add(child: TestItem): void;
+
+		/**
+		 * Gets whether the child exists in the collection.
+		 * @param child Child to tests
+		 * @returns true if the child exists in the collection
+		 */
+		has(child: TestItem): boolean;
+	}
+
 	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
@@ -2412,6 +2405,12 @@ declare module 'vscode' {
 		 * (test explorer). This must not change for the lifetime of the TestItem.
 		 */
 		readonly id: string;
+
+		/**
+		 * A set of children this item has. You can add new children to it, which
+		 * will propagate to the editor UI.
+		 */
+		readonly children: TestChildrenCollection;
 
 		/**
 		 * Display name describing the test case.
@@ -2460,6 +2459,20 @@ declare module 'vscode' {
 		 * test root.
 		 */
 		constructor(id: string, label: string, expandable: boolean);
+
+		/**
+		 * Marks the test as outdated. This can happen as a result of file changes,
+		 * for example. In "auto run" mode, tests that are outdated will be
+		 * automatically re-run after a short delay. Invoking this on a
+		 * test with children will mark the entire subtree as outdated.
+		 */
+		invalidate(): void;
+
+		/**
+		 * Disposes of the test. Removes it from the test tree and cleans up
+		 * any listeners.
+		 */
+		dispose(): void;
 	}
 
 	/**

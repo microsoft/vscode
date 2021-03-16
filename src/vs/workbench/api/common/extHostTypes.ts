@@ -3289,19 +3289,100 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
+export const TestItemHookProperty = Symbol('TestItemHookProperty');
+
+export interface ITestItemHook {
+	created(item: vscode.TestItem): void;
+	setProp<K extends keyof vscode.TestItem>(id: string, key: K, value: vscode.TestItem[K]): void;
+	invalidate(id: string): void;
+	dispose(id: string): void;
+}
+
+const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, key: K, defaultValue: vscode.TestItem[K]) => {
+	let value = defaultValue;
+	return {
+		enumerable: true,
+		configurable: false,
+		get() {
+			return value;
+		},
+		set(newValue: vscode.TestItem[K]) {
+			item[TestItemHookProperty]?.setProp(item.id, key, newValue);
+			value = newValue;
+		},
+	};
+};
+
+export class TestChildrenCollection implements vscode.TestChildrenCollection {
+	#set = new Set<vscode.TestItem>();
+	#hookRef: () => ITestItemHook | undefined;
+
+	public get size() {
+		return this.#set.size;
+	}
+
+	constructor(hookRef: () => ITestItemHook | undefined) {
+		this.#hookRef = hookRef;
+	}
+
+	public add(child: vscode.TestItem) {
+		const set = this.#set;
+		if (set.has(child)) {
+			return;
+		}
+
+		set.add(child);
+		this.#hookRef()?.created(child);
+	}
+
+	public has(child: vscode.TestItem) {
+		return this.#set.has(child);
+	}
+
+	public [Symbol.iterator]() {
+		return this.#set[Symbol.iterator]();
+	}
+}
+
 export class TestItem implements vscode.TestItem {
 	public id!: string;
-	public location?: Location;
-	public description?: string;
-	public runnable = true;
-	public debuggable = false;
+	public location!: Location | undefined;
+	public description!: string | undefined;
+	public runnable!: boolean;
+	public debuggable!: boolean;
+	public children!: TestChildrenCollection;
+	public [TestItemHookProperty]!: ITestItemHook | undefined;
 
 	constructor(id: string, public label: string, public expandable: boolean) {
-		Object.defineProperty(this, 'id', {
-			value: id,
-			enumerable: true,
-			writable: false,
+		Object.defineProperties(this, {
+			id: {
+				value: id,
+				enumerable: true,
+				writable: false,
+			},
+			children: {
+				value: new TestChildrenCollection(() => this[TestItemHookProperty]),
+				enumerable: true,
+				writable: false,
+			},
+			[TestItemHookProperty]: {
+				enumerable: false,
+				writable: true,
+				configurable: false,
+			},
+			location: testItemPropAccessor(this, 'location', undefined),
+			description: testItemPropAccessor(this, 'description', undefined),
+			runnable: testItemPropAccessor(this, 'runnable', true),
+			debuggable: testItemPropAccessor(this, 'debuggable', true),
 		});
+	}
+
+	public invalidate() {
+		this[TestItemHookProperty]?.invalidate(this.id);
+	}
+
+	public dispose() {
+		this[TestItemHookProperty]?.dispose(this.id);
 	}
 }
 
