@@ -21,7 +21,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, SelectionStateType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1011,15 +1011,72 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const index = context.notebookEditor.viewModel.getCellIndex(context.cell);
-		const result = await context.notebookEditor.deleteNotebookCell(context.cell);
+		const viewModel = context.notebookEditor.viewModel;
+		if (!viewModel || !viewModel.metadata.editable) {
+			return;
+		}
 
-		if (result) {
-			// deletion succeeds, move focus to the next cell
-			const nextCellIdx = index < context.notebookEditor.viewModel.length ? index : context.notebookEditor.viewModel.length - 1;
-			if (nextCellIdx >= 0) {
-				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel.viewCells[nextCellIdx], 'container');
+		const selections = viewModel.getSelections();
+		const targetCellIndex = viewModel.getCellIndex(context.cell);
+		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
+
+		if (containingSelection) {
+			let finalSelections: ICellRange[] = [];
+			const delta = containingSelection.end - containingSelection.start;
+			for (let i = 0; i < selections.length; i++) {
+				const selection = selections[i];
+
+				if (selection.end <= targetCellIndex) {
+					finalSelections.push(selection);
+				} else if (selection.start > targetCellIndex) {
+					finalSelections.push({ start: selection.start - delta, end: selection.end - delta });
+				} else {
+					finalSelections.push({ start: containingSelection.start, end: containingSelection.start + 1 });
+				}
 			}
+
+			viewModel.notebookDocument.applyEdits([{
+				editType: CellEditType.Replace, index: containingSelection.start, count: containingSelection.end - containingSelection.start, cells: []
+			}], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => {
+				const newFocusCellIdx = containingSelection.start < context.notebookEditor.viewModel.notebookDocument.length ? containingSelection.start : context.notebookEditor.viewModel.notebookDocument.length - 1;
+
+				return {
+					kind: SelectionStateType.Index, focus: { start: newFocusCellIdx, end: newFocusCellIdx + 1 }, selections: finalSelections
+				};
+			}, undefined);
+		} else {
+			let finalSelections: ICellRange[] = [];
+			for (let i = 0; i < selections.length; i++) {
+				const selection = selections[i];
+
+				if (selection.end <= targetCellIndex) {
+					finalSelections.push(selection);
+				} else if (selection.start > targetCellIndex) {
+					finalSelections.push({ start: selection.start - 1, end: selection.end - 1 });
+				} else {
+					finalSelections.push({ start: targetCellIndex, end: targetCellIndex + 1 });
+				}
+			}
+
+			viewModel.notebookDocument.applyEdits([{
+				editType: CellEditType.Replace, index: targetCellIndex, count: 1, cells: []
+			}], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => {
+				const newFocusCellIdx = targetCellIndex < context.notebookEditor.viewModel.notebookDocument.length ? targetCellIndex : context.notebookEditor.viewModel.notebookDocument.length - 1;
+				return {
+					kind: SelectionStateType.Index, focus: { start: newFocusCellIdx, end: newFocusCellIdx + 1 }, selections: finalSelections
+				};
+			}, undefined);
+
+			// const result = await context.notebookEditor.deleteNotebookCell(context.cell);
+
+
+			// if (result) {
+			// 	// deletion succeeds, move focus to the next cell
+			// 	const nextCellIdx = targetCellIndex < context.notebookEditor.viewModel.length ? targetCellIndex : context.notebookEditor.viewModel.length - 1;
+			// 	if (nextCellIdx >= 0) {
+			// 		context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel.viewCells[nextCellIdx], 'container');
+			// 	}
+			// }
 		}
 	}
 });

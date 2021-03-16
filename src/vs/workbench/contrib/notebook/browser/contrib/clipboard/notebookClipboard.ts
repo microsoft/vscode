@@ -305,9 +305,13 @@ registerAction2(class extends NotebookCellAction {
 
 			viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.Replace, index: containingSelection.start, count: containingSelection.end - containingSelection.start, cells: []
-			}], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => ({
-				kind: SelectionStateType.Index, focus: { start: containingSelection.start, end: containingSelection.start + 1 }, selections: finalSelections
-			}), undefined);
+			}], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => {
+				const newFocusCellIdx = containingSelection.start < context.notebookEditor.viewModel.notebookDocument.length ? containingSelection.start : context.notebookEditor.viewModel.notebookDocument.length - 1;
+
+				return {
+					kind: SelectionStateType.Index, focus: { start: newFocusCellIdx, end: newFocusCellIdx + 1 }, selections: finalSelections
+				};
+			}, undefined);
 			notebookService.setToCopy(cellTextModels, true);
 		} else {
 			viewModel.deleteCell(viewModel.getCellIndex(context.cell), true);
