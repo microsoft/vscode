@@ -220,7 +220,7 @@ export class SimpleNotificationService implements INotificationService {
 
 	readonly onDidAddNotification: Event<INotification> = Event.None;
 
-	onDidRemoveNotification: Event<INotification> = Event.None;
+	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
 	public _serviceBrand: undefined;
 
