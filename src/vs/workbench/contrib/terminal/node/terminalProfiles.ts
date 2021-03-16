@@ -14,6 +14,8 @@ import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITestTerminalConfig } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
+import { ILogService } from 'vs/platform/log/common/log';
+import { workspace } from 'vscode';
 
 export interface IStatProvider {
 	stat(path: string): boolean,
@@ -26,11 +28,11 @@ interface IPotentialTerminalProfile {
 	args?: string[]
 }
 
-export function detectAvailableProfiles(quickLaunchOnly: boolean, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, config?.detectWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles();
+export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.detectWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles();
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, detectWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, detectWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -86,7 +88,6 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, detectWs
 
 	if (detectedProfiles && configProfiles) {
 		for (const [profileKey, value] of Object.entries(configProfiles)) {
-			console.trace(profileKey, value);
 			if (value !== null) {
 				if ((value as ITerminalExecutable).path) {
 					let profile;
@@ -98,13 +99,29 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, detectWs
 							if (resolved) {
 								resolvedPaths.push(resolved);
 							} else if (statProvider) {
+								// used by tests
 								resolvedPaths.push(p);
+							} else {
+								logService?.trace(`Could not resolve path ${p} in workspace folder ${workspace}`);
 							}
 						}
 						profile = detectedProfiles?.find(profile => resolvedPaths.includes(profile.path));
+						if (!profile) {
+							logService?.trace(`Could not detect path ${JSON.stringify(resolvedPaths)}`);
+						}
 					} else {
 						let resolved = variableResolver?.resolve(workspaceFolder, customProfile.path);
-						profile = detectedProfiles?.find(profile => profile.path === resolved);
+						if (resolved) {
+							profile = detectedProfiles?.find(profile => profile.path === resolved);
+						} else if (statProvider) {
+							// used by tests
+							resolved = customProfile.path;
+						} else {
+							logService?.trace(`Could not resolve path ${customProfile.path} in workspace folder ${workspace}`);
+						}
+						if (!profile) {
+							logService?.trace(`Could not detect path ${resolved}`);
+						}
 					}
 					if (profile) {
 						if (customProfile.args) {
@@ -120,7 +137,11 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, detectWs
 					if (profile) {
 						profile.profileName = profileKey;
 						validProfiles?.push(profile);
+					} else {
+						logService?.trace(`No generator with key ${generatorKey}`);
 					}
+				} else {
+					logService?.trace(`Entry in terminal.profiles.windows is not of type ITerminalExecutable or ITerminalProfileGenerator`, profileKey, value);
 				}
 			}
 		}
@@ -130,8 +151,10 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, detectWs
 				validProfiles?.push(...wslDistros);
 			}
 		}
+	} else {
+		logService?.trace(`No detected profiles ${JSON.stringify(detectedProfiles)} or ${JSON.stringify(configProfiles)}`);
 	}
-	return validProfiles || detectedProfiles;
+	return validProfiles;
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
