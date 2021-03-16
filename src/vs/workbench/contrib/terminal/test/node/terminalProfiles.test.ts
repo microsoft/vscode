@@ -7,13 +7,22 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
+export interface ITestTerminalConfig {
+	profiles: {
+		windows: {
+			[key: string]: { path?: string[], generator?: string }
+		}
+	},
+	detectWslProfiles: boolean
+}
+
 suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			suite('detectAvailableWindowsProfiles', async () => {
 				test('should detect cmd prompt', async () => {
 					const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
-					let config = {
+					let config: ITestTerminalConfig = {
 						profiles: {
 							windows: {
 								'Command Prompt': { path: _paths }

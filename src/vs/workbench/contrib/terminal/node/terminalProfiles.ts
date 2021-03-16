@@ -9,10 +9,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalExecutable, ITerminalProfile, ITerminalProfileGenerator, ITerminalProfileObject } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileGenerator } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ITestTerminalConfig } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
 
 export interface IStatProvider {
 	stat(path: string): boolean,
@@ -25,11 +26,11 @@ interface IPotentialTerminalProfile {
 	args?: string[]
 }
 
-export function detectAvailableProfiles(config?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(config?.detectWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles();
+export function detectAvailableProfiles(config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsProfiles(config?.detectWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles();
 }
 
-async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, configProfiles?: Map<string, ITerminalProfileObject>, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
