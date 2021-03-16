@@ -837,7 +837,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 
-	$registerNotebookSerializer(handle: number, viewType: string, options: TransientOptions): void;
+	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions): void;
 	$unregisterNotebookSerializer(handle: number): void;
 
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;

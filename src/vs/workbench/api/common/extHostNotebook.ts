@@ -509,7 +509,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: NotebookSerializer, options: TransientOptions): vscode.Disposable {
 		const handle = this._handlePool++;
 		this._notebookSerializer.set(handle, serializer);
-		this._proxy.$registerNotebookSerializer(handle, viewType, options);
+		this._proxy.$registerNotebookSerializer(handle, { id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, options);
 		return toDisposable(() => {
 			this._proxy.$unregisterNotebookSerializer(handle);
 		});
