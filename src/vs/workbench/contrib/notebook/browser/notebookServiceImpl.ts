@@ -440,7 +440,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return this._notebookProviders.has(viewType);
 	}
 
-	private _addProviderData(viewType: string, data: SimpleNotebookProviderData | ComplexNotebookProviderData): void {
+	private _registerProviderData(viewType: string, data: SimpleNotebookProviderData | ComplexNotebookProviderData): void {
 		if (this._notebookProviders.has(viewType)) {
 			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
 		}
@@ -448,7 +448,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
-		this._addProviderData(viewType, new ComplexNotebookProviderData(controller, extensionData));
+		this._registerProviderData(viewType, new ComplexNotebookProviderData(controller, extensionData));
 
 		if (controller.viewOptions && !this._notebookProviderInfoStore.get(viewType)) {
 			// register this content provider to the static contribution, if it does not exist
@@ -480,7 +480,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	}
 
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
-		this._addProviderData(viewType, new SimpleNotebookProviderData(serializer, extensionData));
+		this._registerProviderData(viewType, new SimpleNotebookProviderData(serializer, extensionData));
 		return toDisposable(() => {
 			this._notebookProviders.delete(viewType);
 		});
