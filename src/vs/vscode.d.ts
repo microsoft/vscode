@@ -2669,6 +2669,134 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Provide inline value as text.
+	 */
+	export class InlineValueText {
+		/**
+		 * The document range for which the inline value applies.
+		 */
+		readonly range: Range;
+		/**
+		 * The text of the inline value.
+		 */
+		readonly text: string;
+		/**
+		 * Creates a new InlineValueText object.
+		 *
+		 * @param range The document line where to show the inline value.
+		 * @param text The value to be shown for the line.
+		 */
+		constructor(range: Range, text: string);
+	}
+
+	/**
+	 * Provide inline value through a variable lookup.
+	 * If only a range is specified, the variable name will be extracted from the underlying document.
+	 * An optional variable name can be used to override the extracted name.
+	 */
+	export class InlineValueVariableLookup {
+		/**
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the variable name from the underlying document.
+		 */
+		readonly range: Range;
+		/**
+		 * If specified the name of the variable to look up.
+		 */
+		readonly variableName?: string;
+		/**
+		 * How to perform the lookup.
+		 */
+		readonly caseSensitiveLookup: boolean;
+		/**
+		 * Creates a new InlineValueVariableLookup object.
+		 *
+		 * @param range The document line where to show the inline value.
+		 * @param variableName The name of the variable to look up.
+		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
+		 */
+		constructor(range: Range, variableName?: string, caseSensitiveLookup?: boolean);
+	}
+
+	/**
+	 * Provide an inline value through an expression evaluation.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
+	 */
+	export class InlineValueEvaluatableExpression {
+		/**
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the evaluatable expression from the underlying document.
+		 */
+		readonly range: Range;
+		/**
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+		/**
+		 * Creates a new InlineValueEvaluatableExpression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * Inline value information can be provided by different means:
+	 * - directly as a text value (class InlineValueText).
+	 * - as a name to use for a variable lookup (class InlineValueVariableLookup)
+	 * - as an evaluatable expression (class InlineValueEvaluatableExpression)
+	 * The InlineValue types combines all inline value types into one type.
+	 */
+	export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueEvaluatableExpression;
+
+	/**
+	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+	 */
+	export interface InlineValueContext {
+
+		/**
+		 * The stack frame (as a DAP Id) where the execution has stopped.
+		 */
+		readonly frameId: number;
+
+		/**
+		 * The document range where execution has stopped.
+		 * Typically the end position of the range denotes the line where the inline values are shown.
+		 */
+		readonly stoppedLocation: Range;
+	}
+
+	/**
+	 * The inline values provider interface defines the contract between extensions and the VS Code debugger inline values feature.
+	 * In this contract the provider returns inline value information for a given document range
+	 * and VS Code shows this information in the editor at the end of lines.
+	 */
+	export interface InlineValuesProvider {
+
+		/**
+		 * An optional event to signal that inline values have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineValues?: Event<void> | undefined;
+
+		/**
+		 * Provide "inline value" information for a given document and range.
+		 * VS Code calls this method whenever debugging stops in the given document.
+		 * The returned inline values information is rendered in the editor at the end of lines.
+		 *
+		 * @param document The document for which the inline values information is needed.
+		 * @param viewPort The visible document range for which inline values should be computed.
+		 * @param context A bag containing contextual information like the current location.
+		 * @param token A cancellation token.
+		 * @return An array of InlineValueDescriptors or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideInlineValues(document: TextDocument, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
+	}
+
+	/**
 	 * A document highlight kind.
 	 */
 	export enum DocumentHighlightKind {
@@ -10786,6 +10914,21 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
+
+		/**
+		 * Register a provider that returns data for the debugger's 'inline value' feature.
+		 * Whenever the generic VS Code debugger has stopped in a source file, providers registered for the language of the file
+		 * are called to return textual data that will be shown in the editor at the end of lines.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline values provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerInlineValuesProvider(selector: DocumentSelector, provider: InlineValuesProvider): Disposable;
 
 		/**
 		 * Register a document highlight provider.
