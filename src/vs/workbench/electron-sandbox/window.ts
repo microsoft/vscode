@@ -20,7 +20,8 @@ import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { env } from 'vs/base/common/process';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -486,7 +487,7 @@ export class NativeWindow extends Disposable {
 
 		// Check for cyclic dependencies
 		if (require.hasDependencyCycle()) {
-			if (process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
