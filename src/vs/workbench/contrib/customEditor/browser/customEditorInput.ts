@@ -51,24 +51,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		});
 	}
 
-	static resolveViewType(instantiationService: IInstantiationService, resource: URI): string | undefined {
-		return instantiationService.invokeFunction(accessor => {
-			const customEditorService = accessor.get(ICustomEditorService);
-			const userConfiguredEditors = customEditorService.getUserConfiguredCustomEditors(resource);
-			const contributedEditors = customEditorService.getContributedCustomEditors(resource);
-			// If there's a setting return that
-			if (userConfiguredEditors.length) {
-				return userConfiguredEditors.allEditors[0].id;
-			}
-
-			if (!contributedEditors.length) {
-				return undefined;
-			} else {
-				return contributedEditors.defaultEditor?.id;
-			}
-		});
-	}
-
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;

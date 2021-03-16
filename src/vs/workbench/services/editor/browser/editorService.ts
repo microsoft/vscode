@@ -40,8 +40,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IKeyMods, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Codicon } from 'vs/base/common/codicons';
-// eslint-disable-next-line code-import-patterns
-import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -593,9 +591,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				return this.openEditorWith(resolvedOptions.override, resolvedEditor, resolvedOptions, resolvedGroup);
 			} else if (resolvedEditor.resource && resolvedOptions?.override !== EditorOverride.DISABLED) {
 				// If the override option is undefined we want to find out if there's any custom editors associated with that resource and pass it in
-				const resolvedOverride = CustomEditorInput.resolveViewType(this.instantiationService, resolvedEditor.resource);
-				if (resolvedOverride) {
-					return this.openEditor(resolvedEditor, { ...resolvedOptions, override: resolvedOverride }, group);
+				const resolvedOverride = this.getEditorOverrides(resolvedEditor.resource, resolvedOptions, undefined);
+				// If the length is just one that means we just have the text editor
+				if (resolvedOverride.length > 1) {
+					return this.openEditor(resolvedEditor, { ...resolvedOptions, override: resolvedOverride[1][1].id }, group);
 				}
 			}
 
