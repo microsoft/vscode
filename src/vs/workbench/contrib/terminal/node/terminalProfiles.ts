@@ -9,9 +9,8 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileGenerator, ITerminalProfileObject } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalExecutable, ITerminalProfile, ITerminalProfileGenerator, ITerminalProfileObject } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
-import { ITestTerminalConfiguration } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -26,7 +25,7 @@ interface IPotentialTerminalProfile {
 	args?: string[]
 }
 
-export function detectAvailableProfiles(config?: ITerminalConfiguration | ITestTerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+export function detectAvailableProfiles(config?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	return platform.isWindows ? detectAvailableWindowsProfiles(config?.detectWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles();
 }
 
@@ -93,6 +92,8 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 							const resolved = variableResolver?.resolve(workspaceFolder, p);
 							if (resolved) {
 								resolvedPaths.push(resolved);
+							} else if (statProvider) {
+								resolvedPaths.push(p);
 							}
 						}
 						profile = detectedProfiles?.find(profile => resolvedPaths.includes(profile.path));
@@ -184,7 +185,7 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 	}
 	const current = potentialPaths.shift()!;
 	if (current! === '') {
-		return validateProfilePaths(label, potentialPaths, statProvider);
+		return validateProfilePaths(label, potentialPaths, statProvider, args);
 	}
 	if (statProvider) {
 		if (statProvider.stat(current)) {
@@ -244,5 +245,5 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 			}
 		}
 	}
-	return validateProfilePaths(label, potentialPaths, statProvider);
+	return validateProfilePaths(label, potentialPaths, statProvider, args);
 }
