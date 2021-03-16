@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, INotebookKernelProvider, INotebookKernel, TransientMetadata, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, INotebookKernelProvider, INotebookKernel, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -22,7 +22,7 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 
 export interface IMainNotebookController {
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
-	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
+	options: TransientOptions;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 
@@ -32,6 +32,11 @@ export interface IMainNotebookController {
 	backup(uri: URI, token: CancellationToken): Promise<string>;
 }
 
+export interface INotebookSerializer {
+	options: TransientOptions;
+	dataToNotebook(data: Uint8Array): Promise<NotebookDataDto>
+	notebookToData(data: NotebookDataDto): Promise<Uint8Array>;
+}
 
 export interface INotebookRawData {
 	data: NotebookDataDto;
@@ -47,7 +52,9 @@ export interface INotebookService {
 	onNotebookDocumentSaved: Event<URI>;
 	onDidChangeKernels: Event<URI | undefined>;
 	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>;
+
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
+	registerNotebookSerializer(viewType: string, serializer: INotebookSerializer): IDisposable;
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[];
 
