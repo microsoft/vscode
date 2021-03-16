@@ -348,6 +348,7 @@ export class TerminalService implements ITerminalService {
 
 	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
+		await this._updateAvailableProfiles();
 		return this._extHostsReady[remoteAuthority]!.promise;
 	}
 
