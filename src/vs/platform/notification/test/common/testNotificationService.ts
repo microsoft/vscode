@@ -11,7 +11,7 @@ export class TestNotificationService implements INotificationService {
 
 	onDidAddNotification: Event<INotification> = Event.None;
 
-	onDidRemoveNotification: Event<INotification> = Event.None;
+	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
 	declare readonly _serviceBrand: undefined;
 
