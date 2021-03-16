@@ -248,7 +248,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private async getExtensionsByTrustRequirement(extensions: IExtensionStatus[], trustRequirement: ExtensionWorkspaceTrustRequirement): Promise<IExtension[]> {
-		const filtered = extensions.filter(ext => ext.local.manifest.requiresWorkspaceTrust === trustRequirement);
+		const filtered = extensions.filter(ext => ext.local.manifest.workspaceTrust?.required === trustRequirement);
 		const ids = filtered.map(ext => ext.identifier.id);
 
 		return getExtensions(ids, this.extensionWorkbenchService);
