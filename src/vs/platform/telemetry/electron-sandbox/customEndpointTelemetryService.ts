@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getDefaultUserDataPath } from 'vs/base/node/userDataPath';
+import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { ICustomEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-suite('User data path', () => {
-
-	test('getDefaultUserDataPath', () => {
-		const path = getDefaultUserDataPath();
-		assert.ok(path.length > 0);
-	});
-});
+registerSharedProcessRemoteService(ICustomEndpointTelemetryService, 'customEndpointTelemetry', { supportsDelayedInstantiation: true });

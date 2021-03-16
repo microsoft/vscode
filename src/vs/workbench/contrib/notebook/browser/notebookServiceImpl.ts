@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { flatten } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -512,12 +513,12 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return result;
 	}
 
-	async fetchNotebookRawData(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
+	async fetchNotebookRawData(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
 		if (!await this.canResolve(viewType)) {
 			throw new Error(`CANNOT fetch notebook data, there is NO provider for '${viewType}'`);
 		}
 		const provider = this._withProvider(viewType)!;
-		return await provider.controller.openNotebook(viewType, uri, backupId, token);
+		return await provider.controller.openNotebook(viewType, uri, backupId, token, untitledDocumentData);
 	}
 
 	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {

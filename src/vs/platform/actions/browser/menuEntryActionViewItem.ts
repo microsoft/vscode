@@ -12,11 +12,12 @@ import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, OS } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
@@ -187,9 +188,19 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
 			const tooltip = this._commandAction.tooltip || this._commandAction.label;
-			this.label.title = keybindingLabel
+			let title = keybindingLabel
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
+			if (!this._wantsAltCommand && this._action.alt) {
+				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
+				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
+				const altTitleSection = altKeybindingLabel
+					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
+					: altTooltip;
+				title += `\n[${UILabelProvider.modifierLabels[OS].altKey}] ${altTitleSection}`;
+			}
+			this.label.title = title;
 		}
 	}
 
@@ -221,10 +232,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 		if (ThemeIcon.isThemeIcon(icon)) {
 			// theme icons
-			const iconClass = ThemeIcon.asClassName(icon);
-			label.classList.add(...iconClass.split(' '));
+			const iconClasses = ThemeIcon.asClassNameArray(icon);
+			label.classList.add(...iconClasses);
 			this._itemClassDispose.value = toDisposable(() => {
-				label.classList.remove(...iconClass.split(' '));
+				label.classList.remove(...iconClasses);
 			});
 
 		} else {

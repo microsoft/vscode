@@ -653,11 +653,9 @@ suite('ExtHostTypes', function () {
 		const obj = new types.NotebookDocumentMetadata();
 		assert.strictEqual(obj.cellEditable, notebookDocumentMetadataDefaults.cellEditable);
 		assert.strictEqual(obj.cellHasExecutionOrder, notebookDocumentMetadataDefaults.cellHasExecutionOrder);
-		assert.strictEqual(obj.cellRunnable, notebookDocumentMetadataDefaults.cellRunnable);
 		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
 		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
 		assert.strictEqual(obj.runState, notebookDocumentMetadataDefaults.runState);
-		assert.strictEqual(obj.runnable, notebookDocumentMetadataDefaults.runnable);
 		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
 	});
 

@@ -10,7 +10,6 @@ import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { prefersExecuteOnUI } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
@@ -126,7 +125,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		for (let idx = 0; idx < extensions.length; idx++) {
 			const extension = extensions[idx];
 			const manifest = manifests[idx];
-			if (manifest && prefersExecuteOnUI(manifest, this.productService, this.configurationService) === uiExtension) {
+			if (manifest && this.extensionKindController.prefersExecuteOnUI(manifest) === uiExtension) {
 				result.set(extension.identifier.id.toLowerCase(), extension);
 				extensionsManifests.push(manifest);
 			}

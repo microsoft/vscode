@@ -305,8 +305,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 
 			if (clazz) {
-				this.badge.classList.add(...clazz.split(' '));
-				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...clazz.split(' ')));
+				const classNames = clazz.split(' ');
+				this.badge.classList.add(...classNames);
+				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classNames));
 			}
 		}
 

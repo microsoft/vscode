@@ -146,14 +146,18 @@ interface Attributes {
 	elevateIfNeeded: boolean | undefined;
 }
 
+interface PortRange { start: number, end: number }
+
 interface PortAttributes extends Attributes {
-	port: number | { start: number, end: number };
+	key: number | PortRange | RegExp;
 }
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
+	private static DEFAULTS = 'remote.portsAttributes.defaults';
 	private static RANGE = /^(\d+)\-(\d+)$/;
 	private portsAttributes: PortAttributes[] = [];
+	private defaultPortAttributes: Attributes | undefined;
 	private _onDidChangeAttributes = new Emitter<void>();
 	public readonly onDidChangeAttributes = this._onDidChangeAttributes.event;
 
@@ -172,8 +176,8 @@ export class PortsAttributes extends Disposable {
 		this._onDidChangeAttributes.fire();
 	}
 
-	getAttributes(port: number): Attributes | undefined {
-		let index = this.findNextIndex(port, this.portsAttributes, 0);
+	getAttributes(port: number, commandLine?: string): Attributes | undefined {
+		let index = this.findNextIndex(port, commandLine, this.portsAttributes, 0);
 		const attributes: Attributes = {
 			label: undefined,
 			onAutoForward: undefined,
@@ -181,31 +185,43 @@ export class PortsAttributes extends Disposable {
 		};
 		while (index >= 0) {
 			const found = this.portsAttributes[index];
-			if (found.port === port) {
+			if (found.key === port) {
 				attributes.onAutoForward = found.onAutoForward ?? attributes.onAutoForward;
 				attributes.elevateIfNeeded = (found.elevateIfNeeded !== undefined) ? found.elevateIfNeeded : attributes.elevateIfNeeded;
 				attributes.label = found.label ?? attributes.label;
 			} else {
-				// It's a range, which means that if the attribute is already set, we keep it
+				// It's a range or regex, which means that if the attribute is already set, we keep it
 				attributes.onAutoForward = attributes.onAutoForward ?? found.onAutoForward;
 				attributes.elevateIfNeeded = (attributes.elevateIfNeeded !== undefined) ? attributes.elevateIfNeeded : found.elevateIfNeeded;
 				attributes.label = attributes.label ?? found.label;
 			}
-			index = this.findNextIndex(port, this.portsAttributes, index + 1);
+			index = this.findNextIndex(port, commandLine, this.portsAttributes, index + 1);
 		}
 		if (attributes.onAutoForward !== undefined || attributes.elevateIfNeeded !== undefined || attributes.label !== undefined) {
 			return attributes;
 		}
-		return undefined;
+
+		// If we find no matches, then use the other port attributes.
+		return this.getOtherAttributes();
 	}
 
-	private findNextIndex(port: number, attributes: PortAttributes[], fromIndex: number): number {
+	private hasStartEnd(value: number | PortRange | RegExp): value is PortRange {
+		return ((<any>value).start !== undefined) && ((<any>value).end !== undefined);
+	}
+
+	private findNextIndex(port: number, commandLine: string | undefined, attributes: PortAttributes[], fromIndex: number): number {
 		if (fromIndex >= attributes.length) {
 			return -1;
 		}
 		const sliced = attributes.slice(fromIndex);
 		const foundIndex = sliced.findIndex((value) => {
-			return isNumber(value.port) ? (value.port === port) : (port >= value.port.start && port <= value.port.end);
+			if (isNumber(value.key)) {
+				return value.key === port;
+			} else if (this.hasStartEnd(value.key)) {
+				return port >= value.key.start && port <= value.key.end;
+			} else {
+				return commandLine ? value.key.test(commandLine) : false;
+			}
 		});
 		return foundIndex >= 0 ? foundIndex + fromIndex : -1;
 	}
@@ -217,31 +233,66 @@ export class PortsAttributes extends Disposable {
 		}
 
 		const attributes: PortAttributes[] = [];
-		for (let portNumber in settingValue) {
-			const setting = (<any>settingValue)[portNumber];
-			let port: number | { start: number, end: number } | undefined = undefined;
-			if (portNumber !== undefined) {
-				if (Number(portNumber)) {
-					port = Number(portNumber);
-				} else if (isString(portNumber) && PortsAttributes.RANGE.test(portNumber)) {
-					const match = (<string>portNumber).match(PortsAttributes.RANGE);
-					port = { start: Number(match![1]), end: Number(match![2]) };
+		for (let attributesKey in settingValue) {
+			if (attributesKey === undefined) {
+				continue;
+			}
+			const setting = (<any>settingValue)[attributesKey];
+			let key: number | { start: number, end: number } | RegExp | undefined = undefined;
+			if (Number(attributesKey)) {
+				key = Number(attributesKey);
+			} else if (isString(attributesKey)) {
+				if (PortsAttributes.RANGE.test(attributesKey)) {
+					const match = (<string>attributesKey).match(PortsAttributes.RANGE);
+					key = { start: Number(match![1]), end: Number(match![2]) };
+				} else {
+					const regTest: RegExp = RegExp(attributesKey);
+					if (regTest) {
+						key = regTest;
+					}
 				}
 			}
-			if (!port) {
+			if (!key) {
 				continue;
 			}
 			attributes.push({
-				port,
+				key: key,
 				elevateIfNeeded: setting.elevateIfPrivileged,
 				onAutoForward: setting.onAutoForward,
 				label: setting.label
 			});
 		}
-		attributes.sort((a, b) => {
-			return (isNumber(a.port) ? a.port : a.port.start) - (isNumber(b.port) ? b.port : b.port.start);
+
+		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
+		if (defaults) {
+			this.defaultPortAttributes = {
+				elevateIfNeeded: defaults.elevateIfNeeded,
+				label: defaults.label,
+				onAutoForward: defaults.onAutoForward
+			};
+		}
+
+		return this.sortAttributes(attributes);
+	}
+
+	private sortAttributes(attributes: PortAttributes[]): PortAttributes[] {
+		function getVal(item: PortAttributes, thisRef: PortsAttributes) {
+			if (isNumber(item.key)) {
+				return item.key;
+			} else if (thisRef.hasStartEnd(item.key)) {
+				return item.key.start;
+			} else {
+				return Number.MAX_VALUE;
+			}
+		}
+
+		return attributes.sort((a, b) => {
+			return getVal(a, this) - getVal(b, this);
 		});
-		return attributes;
+	}
+
+	private getOtherAttributes() {
+		return this.defaultPortAttributes;
 	}
 
 	static providedActionToAction(providedAction: ProvidedOnAutoForward | undefined) {
@@ -276,6 +327,7 @@ export class TunnelModel extends Disposable {
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	private configPortsAttributes: PortsAttributes;
+	private restoreListener: IDisposable | undefined;
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -291,6 +343,7 @@ export class TunnelModel extends Disposable {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
 		this.tunnelRestoreValue = this.getTunnelRestoreValue();
+		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
 		this.tunnelService.tunnels.then(tunnels => {
@@ -342,8 +395,6 @@ export class TunnelModel extends Disposable {
 				this._onClosePort.fire(address);
 			}
 		}));
-
-		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 	}
 
 	private makeTunnelPrivacy(isPublic: boolean) {
@@ -378,17 +429,18 @@ export class TunnelModel extends Disposable {
 						await this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name, undefined, undefined, tunnel.privacy === TunnelPrivacy.Public);
 					}
 				}
-			} else {
-				// It's possible that at restore time the value hasn't synced.
-				const key = await this.getStorageKey();
-				const listener = this.storageService.onDidChangeValue(async (e) => {
-					if (e.key === key) {
-						listener.dispose();
-						this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
-						await this.restoreForwarded();
-					}
-				});
 			}
+		}
+
+		if (!this.restoreListener) {
+			// It's possible that at restore time the value hasn't synced.
+			const key = await this.getStorageKey();
+			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+				if (e.key === key) {
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
+					await this.restoreForwarded();
+				}
+			}));
 		}
 	}
 
@@ -400,14 +452,14 @@ export class TunnelModel extends Disposable {
 
 	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean, isPublic?: boolean, restore: boolean = true): Promise<RemoteTunnel | void> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
+		const port = local !== undefined ? local : remote.port;
+		const attributes = (await this.getAttributes([port]))?.get(port);
+
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
-
-			const port = local !== undefined ? local : remote.port;
-			const attributes = (await this.getAttributes([port]))?.get(port);
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
@@ -416,7 +468,7 @@ export class TunnelModel extends Disposable {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localPort: tunnel.tunnelLocalPort,
-					name: name ?? attributes?.label,
+					name: attributes?.label ?? name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					runningProcess: matchingCandidate?.detail,
@@ -433,8 +485,8 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			if (name) {
-				existingTunnel.name = name;
+			if (attributes?.label ?? name) {
+				existingTunnel.name = attributes?.label ?? name;
 			}
 			this._onForwardPort.fire();
 			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
@@ -565,17 +617,6 @@ export class TunnelModel extends Disposable {
 	}
 
 	async getAttributes(ports: number[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
-		const configAttributes: Map<number, Attributes> = new Map();
-		ports.forEach(port => {
-			const attributes = this.configPortsAttributes.getAttributes(port);
-			if (attributes) {
-				configAttributes.set(port, attributes);
-			}
-		});
-		if ((this.portAttributesProviders.length === 0) || !checkProviders) {
-			return (configAttributes.size > 0) ? configAttributes : undefined;
-		}
-
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
 		const pidToPortsMapping: Map<number, number[]> = new Map();
 		ports.forEach(port => {
@@ -588,6 +629,18 @@ export class TunnelModel extends Disposable {
 				pidToPortsMapping.get(matchingCandidate.pid)?.push(port);
 			}
 		});
+
+		const configAttributes: Map<number, Attributes> = new Map();
+		ports.forEach(port => {
+			const attributes = this.configPortsAttributes.getAttributes(port, matchingCandidates.get(port)?.detail);
+			if (attributes) {
+				configAttributes.set(port, attributes);
+			}
+		});
+		if ((this.portAttributesProviders.length === 0) || !checkProviders) {
+			return (configAttributes.size > 0) ? configAttributes : undefined;
+		}
+
 		// Group calls to provide attributes by pid.
 		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
 			return Array.from(pidToPortsMapping.entries()).map(entry => {

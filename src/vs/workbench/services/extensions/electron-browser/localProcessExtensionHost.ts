@@ -209,6 +209,10 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					opts.execArgv.unshift('--prof');
 				}
 
+				if (this._environmentService.args['max-memory']) {
+					opts.execArgv.unshift(`--max-old-space-size=${this._environmentService.args['max-memory']}`);
+				}
+
 				// On linux crash reporter needs to be started on child node processes explicitly
 				if (platform.isLinux) {
 					const crashReporterStartOptions: CrashReporterStartOptions = {

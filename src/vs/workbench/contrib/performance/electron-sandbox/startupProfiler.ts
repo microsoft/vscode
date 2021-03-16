@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { promises } from 'fs';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { localize } from 'vs/nls';
-import { dirname, join, basename } from 'vs/base/common/path';
-import { exists, readdir, rimraf } from 'vs/base/node/pfs';
+import { dirname, basename, joinPath } from 'vs/base/common/resources';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -19,6 +17,8 @@ import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -31,7 +31,9 @@ export class StartupProfiler implements IWorkbenchContribution {
 		@IExtensionService extensionService: IExtensionService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IFileService private readonly _fileService: IFileService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		// wait for everything to be ready
 		Promise.all([
@@ -44,20 +46,20 @@ export class StartupProfiler implements IWorkbenchContribution {
 
 	private _stopProfiling(): void {
 
-		const profileFilenamePrefix = this._environmentService.args['prof-startup-prefix'];
-		if (!profileFilenamePrefix) {
+		if (!this._environmentService.args['prof-startup-prefix']) {
 			return;
 		}
+		const profileFilenamePrefix = URI.file(this._environmentService.args['prof-startup-prefix']);
 
 		const dir = dirname(profileFilenamePrefix);
 		const prefix = basename(profileFilenamePrefix);
 
 		const removeArgs: string[] = ['--prof-startup'];
-		const markerFile = promises.readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
-			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
+		const markerFile = this._fileService.readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
+			.then(() => this._fileService.del(profileFilenamePrefix, { recursive: true })) // (1) delete the file to tell the main process to stop profiling
 			.then(() => new Promise<void>(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
-					exists(profileFilenamePrefix).then(exists => {
+					this._fileService.exists(profileFilenamePrefix).then(exists => {
 						if (exists) {
 							resolve();
 						} else {
@@ -67,12 +69,14 @@ export class StartupProfiler implements IWorkbenchContribution {
 				};
 				check();
 			}))
-			.then(() => rimraf(profileFilenamePrefix)); // (3) finally delete the file again
+			.then(() => this._fileService.del(profileFilenamePrefix, { recursive: true })); // (3) finally delete the file again
 
 		markerFile.then(() => {
-			return readdir(dir).then(files => files.filter(value => value.indexOf(prefix) === 0));
+			return this._fileService.resolve(dir).then(stat => {
+				return (stat.children ? stat.children.filter(value => value.resource.path.includes(prefix)) : []).map(stat => stat.resource.path);
+			});
 		}).then(files => {
-			const profileFiles = files.reduce((prev, cur) => `${prev}${join(dir, cur)}\n`, '\n');
+			const profileFiles = files.reduce((prev, cur) => `${prev}${this._labelService.getUriLabel(joinPath(dir, cur))}\n`, '\n');
 
 			return this._dialogService.confirm({
 				type: 'info',
@@ -83,7 +87,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
-						this._nativeHostService.showItemInFolder(URI.file(join(dir, files[0])).fsPath),
+						this._nativeHostService.showItemInFolder(URI.joinPath(dir, files[0]).fsPath),
 						this._createPerfIssue(files)
 					]).then(() => {
 						// keep window stable until restart is selected

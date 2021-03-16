@@ -27,12 +27,22 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IGettingStartedCategoryDescriptor } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
+import { IGettingStartedCategory, IGettingStartedCategoryDescriptor } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-
+import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { splitName } from 'vs/base/common/labels';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { coalesce } from 'vs/base/common/arrays';
+import { isMacintosh } from 'vs/base/common/platform';
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
+
+const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -72,6 +82,15 @@ export class GettingStartedInput extends EditorInput {
 	selectedTask: string | undefined;
 }
 
+type GettingStartedActionClassification = {
+	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	argument: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+};
+type GettingStartedActionEvent = {
+	command: string;
+	argument: string | undefined;
+};
+
 export class GettingStartedPage extends EditorPane {
 
 	public static ID = 'gettingStartedPage';
@@ -94,6 +113,7 @@ export class GettingStartedPage extends EditorPane {
 	private contextService: IContextKeyService;
 	private tasExperimentService?: ITASExperimentService;
 	private previousSelection?: string;
+	private recentlyOpened: Promise<IRecentlyOpened>;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -106,12 +126,22 @@ export class GettingStartedPage extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService contextService: IContextKeyService,
+		@IWorkspacesService workspacesService: IWorkspacesService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
 
-		this.container = $('.gettingStartedContainer');
+		this.container = $('.gettingStartedContainer',
+			{
+				role: 'document',
+				tabindex: 0,
+				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+			});
+
 		this.tasExperimentService = tasExperimentService;
 
 		this.contextService = this._register(contextService.createScoped(this.container));
@@ -151,6 +181,8 @@ export class GettingStartedPage extends EditorPane {
 			}
 			this.updateCategoryProgress();
 		}));
+
+		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
 	async setInput(newInput: GettingStartedInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -170,15 +202,6 @@ export class GettingStartedPage extends EditorPane {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
 
 					this.commandService.executeCommand('workbench.action.keepEditor');
-
-					type GettingStartedActionClassification = {
-						command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-						argument: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-					};
-					type GettingStartedActionEvent = {
-						command: string;
-						argument: string | undefined;
-					};
 					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
 
 					switch (command) {
@@ -190,19 +213,38 @@ export class GettingStartedPage extends EditorPane {
 							this.runSkip();
 							break;
 						}
+						case 'showMoreRecents': {
+							this.commandService.executeCommand('workbench.action.openRecent');
+							break;
+						}
+						case 'openFolder': {
+							this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+							break;
+						}
 						case 'selectCategory': {
 							const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
 							if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-							if (selectedCategory.content.type === 'command') {
+							if (selectedCategory.content.type === 'startEntry') {
 								this.commandService.executeCommand(selectedCategory.content.command);
 							} else {
 								this.scrollToCategory(argument);
 							}
 							break;
 						}
+						case 'hideCategory': {
+							const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
+							if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
+							this.configurationService.updateValue(hiddenEntriesConfigurationKey,
+								[...(this.configurationService.getValue<string[]>(hiddenEntriesConfigurationKey) ?? []), argument]);
+							element.parentElement?.remove();
+							break;
+						}
 						case 'selectTask': {
 							this.selectTask(argument);
-							e.stopPropagation();
+							break;
+						}
+						case 'completeTask': {
+							this.gettingStartedService.progressTask(argument);
 							break;
 						}
 						case 'runTaskAction': {
@@ -218,7 +260,6 @@ export class GettingStartedPage extends EditorPane {
 							} else {
 								throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
 							}
-							e.stopPropagation();
 							break;
 						}
 						default: {
@@ -226,6 +267,7 @@ export class GettingStartedPage extends EditorPane {
 							break;
 						}
 					}
+					e.stopPropagation();
 				}));
 			}
 		});
@@ -307,10 +349,7 @@ export class GettingStartedPage extends EditorPane {
 			);
 
 		const gettingStartedPage =
-			$('.gettingStarted.welcomePageFocusElement', {
-				role: 'document',
-				tabIndex: '0',
-				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+			$('.gettingStarted', {
 			},
 				$('.gettingStartedSlideCategory.gettingStartedSlide.categories'),
 				tasksSlide
@@ -327,63 +366,89 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
-		const categoryElements = this.gettingStartedCategories.map(
-			category => {
-				const categoryDescriptionElement =
-					category.content.type === 'items' ?
-						$('.category-description-container', {},
-							$('h3.category-title', {}, category.title),
-							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
-							$('.category-progress', { 'x-data-category-id': category.id, },
-								$('.message'),
-								$('.progress-bar-outer', { 'role': 'progressbar' },
-									$('.progress-bar-inner'))))
-						:
-						$('.category-description-container', {},
-							$('h3.category-title', {}, category.title),
-							$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
+		const hiddenCategories = new Set(this.configurationService.getValue(hiddenEntriesConfigurationKey) ?? []);
+		const categoryElements = this.gettingStartedCategories
+			.filter(entry => entry.content.type === 'items')
+			.filter(entry => !hiddenCategories.has(entry.id))
+			.map(
+				category => {
+					const categoryDescriptionElement =
+						category.content.type === 'items' ?
+							$('.category-description-container', {},
+								$('h3.category-title', {}, category.title),
+								// $('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
+								$('.category-progress', { 'x-data-category-id': category.id, },
+									// $('.message'),
+									$('.progress-bar-outer', { 'role': 'progressbar' },
+										$('.progress-bar-inner'))))
+							:
+							$('.category-description-container', {},
+								$('h3.category-title', {}, category.title),
+								$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
 
-				return $('button.getting-started-category',
-					{
-						'x-dispatch': 'selectCategory:' + category.id,
-						'role': 'listitem',
-					},
-					this.iconWidgetFor(category),
-					categoryDescriptionElement);
-			});
+					return $('button.getting-started-category',
+						{
+							'x-dispatch': 'selectCategory:' + category.id,
+							'role': 'listitem',
+							'title': category.description
+						},
+						this.iconWidgetFor(category),
+						$('a.codicon.codicon-close.hide-category-button', {
+							'x-dispatch': 'hideCategory:' + category.id,
+							'title': localize('close', "Hide"),
+						}),
+						categoryDescriptionElement);
+				});
 
 		const categoryScrollContainer = $('.getting-started-categories-scrolling-container');
-		const categoriesContainer = $('.getting-started-categories-container', { 'role': 'list' });
+		const categoriesContainer = $('ul.getting-started-categories-container', { 'role': 'list' });
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
 
 		categoryScrollContainer.appendChild(categoriesContainer);
-		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
-		categoryScrollContainer.appendChild(
-			$('.footer', {},
-				// $('button.skip.button-link', { 'x-dispatch': 'skip' }, localize('gettingStarted.skip', "Skip")),
-				$('p.showOnStartup', {},
-					showOnStartupCheckbox,
-					$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show Getting Started page on startup")))
-			));
-
-		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'gettingStarted';
-		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
-			this.configurationService.updateValue(configurationKey, showOnStartupCheckbox.checked ? 'gettingStarted' : 'welcomePage');
-		}));
 
 		if (this.categoriesScrollbar) { this.categoriesScrollbar.dispose(); }
 		this.categoriesScrollbar = this._register(new DomScrollableElement(categoryScrollContainer, {}));
+
+		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
+
+		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'gettingStarted';
+		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
+			if (showOnStartupCheckbox.checked) {
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
+				this.configurationService.updateValue(configurationKey, 'gettingStarted');
+			} else {
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined });
+				this.configurationService.updateValue(configurationKey, 'none');
+			}
+		}));
+
 		const categoriesSlide = assertIsDefined(this.container.querySelector('.gettingStartedSlideCategory') as HTMLElement);
 		reset(categoriesSlide,
 			$('.gap'),
 			$('.header', {},
 				$('h1.product-name.caption', {}, localize('gettingStarted.vscode', "Visual Studio Code")),
-				$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingRedefined', comment: ['Shown as subtitle on the Welcome page.'] }, "Code editing. Redefined")),
+				$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved")),
 			),
-			this.categoriesScrollbar.getDomNode(),
-			$('.gap')
+			$('.categories-split-view', {},
+				$('.gap'),
+				$('.categories-left', {},
+					this.buildStartList(),
+					this.buildRecentlyOpenedList(),
+				),
+				$('.categories-right', {},
+					$('h2', {}, localize('gettingStarted', "Getting Started")),
+					this.categoriesScrollbar.getDomNode(),
+				),
+				$('.gap'),
+			),
+			$('.gap'),
+			$('.footer', {},
+				$('p.showOnStartup', {},
+					showOnStartupCheckbox,
+					$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup")))
+			)
 		);
 		this.categoriesScrollbar.scanDomNode();
 
@@ -422,6 +487,112 @@ export class GettingStartedPage extends EditorPane {
 		this.setSlide('categories');
 	}
 
+	private buildRecentlyOpenedList(): HTMLElement {
+		const renderRecent = (recent: (IRecentFolder | IRecentWorkspace)) => {
+			let fullPath: string;
+			let windowOpenable: IWindowOpenable;
+			if (isRecentFolder(recent)) {
+				windowOpenable = { folderUri: recent.folderUri };
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: true });
+			} else {
+				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: true });
+				windowOpenable = { workspaceUri: recent.workspace.configPath };
+			}
+
+			const { name, parentPath } = splitName(fullPath);
+
+			const li = document.createElement('li');
+			const a = document.createElement('a');
+
+			a.innerText = name;
+			a.title = fullPath;
+			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
+			a.href = 'javascript:void(0)';
+			a.addEventListener('click', e => {
+				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
+				e.preventDefault();
+				e.stopPropagation();
+			});
+			li.appendChild(a);
+
+			const span = document.createElement('span');
+			span.classList.add('path');
+			span.classList.add('detail');
+			span.innerText = parentPath;
+			span.title = fullPath;
+			li.appendChild(span);
+
+			return li;
+		};
+
+		const container = $('.recently-opened-container', {},
+			$('h2', {}, localize('recent', "Recent")),
+			$('ul.recent'));
+
+		this.recentlyOpened.then(({ workspaces }) => {
+			// Filter out the current workspace
+			workspaces = workspaces.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri));
+			const ul = container.querySelector('ul');
+			if (!ul) {
+				return;
+			}
+			if (!workspaces.length) {
+				this.container.classList.add('emptyRecent');
+				ul.append($('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'));
+				return;
+			}
+
+			const workspacesToShow = workspaces.slice(0, 5);
+			const updateEntries = () => {
+				const listEntries = workspacesToShow.map(renderRecent);
+				while (ul.firstChild) {
+					ul.removeChild(ul.firstChild);
+				}
+				ul.append(...listEntries);
+				ul.append($('.more', {}, $('button.button-link', { 'x-dispatch': 'showMoreRecents' }, 'More...'), $('span.keybinding-label', {}, this.getKeybindingLabel('workbench.action.openRecent'))));
+			};
+			updateEntries();
+			this._register(this.labelService.onDidChangeFormatters(() => {
+				updateEntries();
+				this.registerDispatchListeners();
+			}));
+		}).then(() => this.registerDispatchListeners(), onUnexpectedError);
+
+		return container;
+	}
+
+
+	private buildStartList(): HTMLElement {
+		const renderStartEntry = (entry: IGettingStartedCategory): HTMLElement | undefined => {
+
+			if (entry.content.type === 'items') { return undefined; }
+
+			const li = $('li', {}, this.iconWidgetFor(entry));
+			const button = $<HTMLAnchorElement>('button.button-link', { 'x-dispatch': 'selectCategory:' + entry.id });
+
+			button.innerText = entry.title;
+			button.title = entry.description;
+
+			li.appendChild(button);
+
+			return li;
+		};
+		const ul = $('ul.start');
+		const container = $('.start-container', {}, $('h2', {}, localize('start', "Start")), ul);
+		const updateEntries = () => {
+			const listEntries = this.gettingStartedCategories.map(renderStartEntry);
+			while (ul.firstChild) {
+				ul.removeChild(ul.firstChild);
+			}
+			ul.append(...coalesce(listEntries));
+		};
+		updateEntries();
+
+		return container;
+	}
+
+
+
 	layout() {
 		this.categoriesScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
@@ -447,19 +618,18 @@ export class GettingStartedPage extends EditorPane {
 			const numDone = category.content.items.filter(task => task.done).length;
 			const numTotal = category.content.items.length;
 
-			const message = assertIsDefined(element.firstChild);
 			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + numDone);
 			bar.setAttribute('aria-valuemax', '' + numTotal);
-
-			bar.style.width = `${(numDone / numTotal) * 100}%`;
+			const progress = Math.max((numDone / numTotal) * 100, 3);
+			bar.style.width = `${progress}%`;
 
 			if (numTotal === numDone) {
-				message.textContent = `All items complete!`;
+				bar.title = `All items complete!`;
 			}
 			else {
-				message.textContent = `${numDone} of ${numTotal} items complete`;
+				bar.title = `${numDone} of ${numTotal} items complete`;
 			}
 		});
 	}
@@ -512,7 +682,11 @@ export class GettingStartedPage extends EditorPane {
 					'aria-checked': '' + task.done,
 					'role': 'listitem',
 				},
-				$('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)), { 'data-done-task-id': task.id }),
+				$('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
+					{
+						'data-done-task-id': task.id,
+						'x-dispatch': 'completeTask:' + task.id,
+					}),
 				$('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
@@ -606,15 +780,6 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private focusFirstUncompletedCategory() {
-		let toFocus!: HTMLElement;
-		this.container.querySelectorAll('.category-progress').forEach(progress => {
-			const progressAmount = assertIsDefined(progress.querySelector('.progress-bar-inner') as HTMLDivElement).style.width;
-			if (!toFocus && progressAmount !== '100%') { toFocus = assertIsDefined(progress.parentElement?.parentElement); }
-		});
-		(toFocus ?? assertIsDefined(this.container.querySelector('button.getting-started-category')) as HTMLButtonElement)?.focus();
-	}
-
 	private setSlide(toEnable: 'details' | 'categories') {
 		const slideManager = assertIsDefined(this.container.querySelector('.gettingStarted'));
 		if (toEnable === 'categories') {
@@ -622,7 +787,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.add('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			this.focusFirstUncompletedCategory();
+			this.container.focus();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
@@ -725,7 +890,8 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { border-color: ${border}; border: 1px solid; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { border: 1px solid ${border}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link { border: inherit; }`);
 	}
 	const activeBorder = theme.getColor(activeContrastBorder);
 	if (activeBorder) {

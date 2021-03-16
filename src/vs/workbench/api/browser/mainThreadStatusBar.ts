@@ -15,7 +15,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor, alignment: MainThreadStatusBarAlignment, priority: number }> = new Map();
-	static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
+	private static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 
 	constructor(
 		_extHostContext: IExtHostContext,

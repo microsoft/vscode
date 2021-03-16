@@ -32,8 +32,11 @@ import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
-	const cursorPositions = cursorDiff.map(cs => `${cs.viewState.position.lineNumber}:${cs.viewState.position.column}`).join(', ');
-	status(nls.localize('cursorAdded', "Cursor added {0}", cursorPositions));
+	if (cursorDiff.length >= 1) {
+		const cursorPositions = cursorDiff.map(cs => `line ${cs.viewState.position.lineNumber} column ${cs.viewState.position.column}`).join(', ');
+		const msg = cursorDiff.length === 1 ? nls.localize('cursorAdded', "Cursor added: {0}", cursorPositions) : nls.localize('cursorsAdded', "Cursors added: {0}", cursorPositions);
+		status(msg);
+	}
 }
 
 export class InsertCursorAbove extends EditorAction {

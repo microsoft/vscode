@@ -80,6 +80,8 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 		logService.trace('getUnixShellEnvironment#spawn', command);
 
 		const systemShellUnix = await getSystemShell(platform, env);
+		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
+
 		const child = spawn(systemShellUnix, ['-ilc', command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],

@@ -100,11 +100,11 @@ suite('Notebook Document', function () {
 
 		const p = utils.asPromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
 			for (let cell of notebook.cells) {
-				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.uri.toString());
+				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.document.uri.toString());
 				assert.ok(doc);
 				assert.strictEqual(doc.notebook === notebook, true);
 				assert.strictEqual(doc === cell.document, true);
-				assert.strictEqual(doc?.languageId, cell.language);
+				assert.strictEqual(doc?.languageId, cell.document.languageId);
 				assert.strictEqual(doc?.isDirty, false);
 				assert.strictEqual(doc?.isClosed, false);
 			}
@@ -344,8 +344,8 @@ suite('Notebook Document', function () {
 		const closed = await pclose;
 		const opened = await popen;
 
-		assert.strictEqual(closed.uri.toString(), first.uri.toString());
-		assert.strictEqual(opened.uri.toString(), first.uri.toString());
+		assert.strictEqual(closed.uri.toString(), first.document.uri.toString());
+		assert.strictEqual(opened.uri.toString(), first.document.uri.toString());
 		assert.strictEqual(opened === closed, true);
 	});
 

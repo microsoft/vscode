@@ -53,6 +53,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
 	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
 	private _viewModel: NotebookViewModel | null = null;
+	get viewModel(): NotebookViewModel | null {
+		return this._viewModel;
+	}
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 
@@ -203,48 +206,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
 				this.visibleRanges = [{ start: topModelIndex, end: bottomModelIndex }];
 			} else {
-				let stack: number[] = [];
-				const ranges: ICellRange[] = [];
-				// there are hidden ranges
-				let index = topViewIndex;
-				let modelIndex = topModelIndex;
-
-				while (index <= bottomViewIndex) {
-					const accu = this.hiddenRangesPrefixSum!.getAccumulatedValue(index);
-					if (accu === modelIndex + 1) {
-						// no hidden area after it
-						if (stack.length) {
-							if (stack[stack.length - 1] === modelIndex - 1) {
-								ranges.push({ start: stack[stack.length - 1], end: modelIndex });
-							} else {
-								ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
-							}
-						}
-
-						stack.push(modelIndex);
-						index++;
-						modelIndex++;
-					} else {
-						// there are hidden ranges after it
-						if (stack.length) {
-							if (stack[stack.length - 1] === modelIndex - 1) {
-								ranges.push({ start: stack[stack.length - 1], end: modelIndex });
-							} else {
-								ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
-							}
-						}
-
-						stack.push(modelIndex);
-						index++;
-						modelIndex = accu;
-					}
-				}
-
-				if (stack.length) {
-					ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
-				}
-
-				this.visibleRanges = reduceCellRanges(ranges);
+				this.visibleRanges = this._getVisibleRangesFromIndex(topViewIndex, topModelIndex, bottomViewIndex, bottomModelIndex);
 			}
 		};
 
@@ -334,7 +296,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// convert model selections to view selections
 			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
-			const primary = cellRangesToIndexes([model.getSelection()]).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			const primary = cellRangesToIndexes([model.getFocus()]).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 
 			if (primary.length) {
 				this.setFocus(primary, undefined, true);
@@ -404,6 +366,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			if (!hasDifference) {
+				// they call 'setHiddenAreas' for a reason, even if the ranges are still the same, it's possible that the hiddenRangeSum is not update to date
+				this._updateHiddenRangePrefixSum(newRanges);
 				return false;
 			}
 		}
@@ -414,6 +378,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._hiddenRangeIds = hiddenAreaIds;
 
 		// set hidden ranges prefix sum
+		this._updateHiddenRangePrefixSum(newRanges);
+
+		if (triggerViewUpdate) {
+			this.updateHiddenAreasInView(oldRanges, newRanges);
+		}
+
+		return true;
+	}
+
+	private _updateHiddenRangePrefixSum(newRanges: ICellRange[]) {
 		let start = 0;
 		let index = 0;
 		const ret: number[] = [];
@@ -438,12 +412,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		this.hiddenRangesPrefixSum = new PrefixSumComputer(values);
-
-		if (triggerViewUpdate) {
-			this.updateHiddenAreasInView(oldRanges, newRanges);
-		}
-
-		return true;
 	}
 
 	/**
@@ -486,12 +454,30 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
-			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, selections: [{ start: 0, end: 1 }] });
+			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 		}
+	}
+
+	getModelIndex(cell: CellViewModel): number | undefined {
+		const viewIndex = this.indexOf(cell);
+		return this.getModelIndex2(viewIndex);
+	}
+
+	getModelIndex2(viewIndex: number): number | undefined {
+		if (!this.hiddenRangesPrefixSum) {
+			return viewIndex;
+		}
+
+		const modelIndex = this.hiddenRangesPrefixSum.getAccumulatedValue(viewIndex - 1);
+		return modelIndex;
 	}
 
 	getViewIndex(cell: ICellViewModel) {
 		const modelIndex = this._viewModel!.getCellIndex(cell);
+		return this.getViewIndex2(modelIndex);
+	}
+
+	getViewIndex2(modelIndex: number): number | undefined {
 		if (!this.hiddenRangesPrefixSum) {
 			return modelIndex;
 		}
@@ -509,6 +495,71 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	private _getVisibleRangesFromIndex(topViewIndex: number, topModelIndex: number, bottomViewIndex: number, bottomModelIndex: number) {
+		let stack: number[] = [];
+		const ranges: ICellRange[] = [];
+		// there are hidden ranges
+		let index = topViewIndex;
+		let modelIndex = topModelIndex;
+
+		while (index <= bottomViewIndex) {
+			const accu = this.hiddenRangesPrefixSum!.getAccumulatedValue(index);
+			if (accu === modelIndex + 1) {
+				// no hidden area after it
+				if (stack.length) {
+					if (stack[stack.length - 1] === modelIndex - 1) {
+						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+					} else {
+						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+					}
+				}
+
+				stack.push(modelIndex);
+				index++;
+				modelIndex++;
+			} else {
+				// there are hidden ranges after it
+				if (stack.length) {
+					if (stack[stack.length - 1] === modelIndex - 1) {
+						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+					} else {
+						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+					}
+				}
+
+				stack.push(modelIndex);
+				index++;
+				modelIndex = accu;
+			}
+		}
+
+		if (stack.length) {
+			ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+		}
+
+		return reduceCellRanges(ranges);
+	}
+
+	getVisibleRangesPlusViewportAboveBelow() {
+		if (this.view.length <= 0) {
+			return [];
+		}
+
+		const top = clamp(this.getViewScrollTop() - this.renderHeight, 0, this.scrollHeight);
+		const bottom = clamp(this.getViewScrollBottom() + this.renderHeight, 0, this.scrollHeight);
+		const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
+		const topElement = this.view.element(topViewIndex);
+		const topModelIndex = this._viewModel!.getCellIndex(topElement);
+		const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);
+		const bottomElement = this.view.element(bottomViewIndex);
+		const bottomModelIndex = this._viewModel!.getCellIndex(bottomElement);
+
+		if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
+			return [{ start: topModelIndex, end: bottomModelIndex }];
+		} else {
+			return this._getVisibleRangesFromIndex(topViewIndex, topModelIndex, bottomViewIndex, bottomModelIndex);
+		}
+	}
 
 	private _getViewIndexUpperBound(cell: ICellViewModel): number {
 		if (!this._viewModel) {
@@ -574,30 +625,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusNext(() => {
 			super.focusNext(n, loop, browserEvent, filter);
-			const focus = this.getFocus();
-			if (focus.length) {
-				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: focusedElementHandle,
-					selections: [focusedElementHandle]
-				}, 'view');
-			}
 		});
 	}
 
 	focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusPrevious(() => {
 			super.focusPrevious(n, loop, browserEvent, filter);
-			const focus = this.getFocus();
-			if (focus.length) {
-				const focusedElementHandle = this.element(focus[0]).handle;
-				this._viewModel?.updateSelectionsState({
-					kind: SelectionStateType.Handle,
-					primary: focusedElementHandle,
-					selections: [focusedElementHandle]
-				}, 'view');
-			}
 		});
 	}
 
@@ -677,7 +710,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const endElementHeight = this.view.elementHeight(endIndex);
 
 			if (endElementTop >= wrapperBottom) {
-				return this._revealInternal(startIndex, false, CellRevealPosition.Top);
+				return this._revealInternal(endIndex, false, CellRevealPosition.Bottom);
 			}
 
 			if (endElementTop < wrapperBottom) {

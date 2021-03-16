@@ -8,7 +8,7 @@ import { Application } from '../../../../automation';
 
 export function setup() {
 	// https://github.com/microsoft/vscode/issues/115244
-	describe.skip('Search', () => {
+	describe('Search', () => {
 		after(function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
@@ -54,7 +54,7 @@ export function setup() {
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.setReplaceText('body');
 			await app.workbench.search.replaceFileMatch('app.js');
-			await app.workbench.search.waitForNoResultText();
+			await app.workbench.search.waitForResultText('0 results in 0 files');
 		});
 	});
 
