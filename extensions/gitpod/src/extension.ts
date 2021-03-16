@@ -161,7 +161,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			});
 			const hostname = gitpodApi.getHost();
 			const uri = `https://${hostname}#snapshot/${snapshotId}`;
-			const copyAction = await vscode.window.showInformationMessage(`The current state is captured in a snapshot. Using '${uri}' anybody can create their own copy of this workspace.`,
+			const copyAction = await vscode.window.showInformationMessage(`The current state is captured in a snapshot. Using [this link](${uri}) anybody can create their own copy of this workspace.`,
 				'Copy URL to Clipboard');
 			if (copyAction === 'Copy URL to Clipboard') {
 				await vscode.env.clipboard.writeText(uri);
