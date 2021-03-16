@@ -67,6 +67,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isWeb } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = DOM.$;
 
@@ -221,6 +223,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _isDisposed: boolean = false;
 
+	private useRenderer = false;
+
 	get isDisposed() {
 		return this._isDisposed;
 	}
@@ -313,6 +317,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		readonly creationOptions: INotebookEditorCreationOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@INotebookService private notebookService: INotebookService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -326,6 +331,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
+
+		this.useRenderer = this.configurationService.getValue<boolean>('notebook.experimental.useMarkdownRenderer') ?? (!isWeb && !accessibilityService.isScreenReaderOptimized());
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
@@ -519,7 +526,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const getScopedContextKeyService = (container: HTMLElement) => this._list.contextKeyService.createScoped(container);
 		const renderers = [
 			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._dndController, getScopedContextKeyService),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService, { useRenderer: this.useRenderer }),
 		];
 
 		this._list = this.instantiationService.createInstance(
@@ -1041,9 +1048,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		// init rendering
-		const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
-
-		if (useRenderer) {
+		if (this.useRenderer) {
 			await this._warmupWithMarkdownRenderer(this.viewModel, viewState);
 		} else {
 			this._list.attachViewModel(this.viewModel);
@@ -1914,8 +1919,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async createMarkdownPreview(cell: MarkdownCellViewModel) {
-		const useRenderer = this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer');
-		if (!useRenderer) {
+		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
 		}

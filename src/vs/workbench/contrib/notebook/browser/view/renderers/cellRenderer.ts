@@ -376,11 +376,14 @@ abstract class AbstractCellRenderer {
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, MarkdownCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
+	private readonly useRenderer: boolean;
+
 	constructor(
 		notebookEditor: INotebookEditor,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		options: { useRenderer: boolean },
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -388,6 +391,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		@INotificationService notificationService: INotificationService,
 	) {
 		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'markdown', dndController);
+		this.useRenderer = options.useRenderer;
 	}
 
 	get templateId() {
@@ -429,10 +433,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
-		const useRenderer = !!(this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer'));
-
 		const templateData: MarkdownCellRenderTemplate = {
-			useRenderer,
+			useRenderer: this.useRenderer,
 			rootContainer,
 			collapsedPart,
 			expandButton,
@@ -457,7 +459,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			toJSON: () => { return {}; }
 		};
 
-		if (!useRenderer) {
+		if (!this.useRenderer) {
 			this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
 		}
 
