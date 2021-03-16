@@ -86,7 +86,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string;
+	readonly source?: string | { label: string; id: string; };
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as

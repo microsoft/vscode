@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { hash } from 'vs/base/common/hash';
@@ -19,6 +19,13 @@ type NotificationMetricsClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
 };
 
+function notificationToMetrics(notification: INotification): NotificationMetrics {
+	return {
+		id: hash(notification.message.toString()),
+		source: notification.source && typeof notification.source !== 'string' ? notification.source.id : 'core'
+	};
+}
+
 export class NotificationsTelemetry extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -32,19 +39,13 @@ export class NotificationsTelemetry extends Disposable implements IWorkbenchCont
 	private registerListeners(): void {
 		this._register(this.notificationService.onDidAddNotification(notification => {
 			if (!notification.silent) {
-				this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', {
-					id: hash(notification.message.toString()),
-					source: notification.source
-				});
+				this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', notificationToMetrics(notification));
 			}
 		}));
 
 		this._register(this.notificationService.onDidRemoveNotification(notification => {
 			if (!notification.silent) {
-				this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', {
-					id: hash(notification.message.toString()),
-					source: notification.source
-				});
+				this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', notificationToMetrics(notification));
 			}
 		}));
 	}

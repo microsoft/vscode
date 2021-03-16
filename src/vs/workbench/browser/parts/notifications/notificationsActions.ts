@@ -148,11 +148,13 @@ export class CopyNotificationMessageAction extends Action {
 
 interface NotificationActionMetrics {
 	id: number;
-	actionId: string;
+	actionLabel: string;
+	source: string | undefined;
 }
 type NotificationActionMetricsClassification = {
 	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	actionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
+	actionLabel: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 export class NotificationActionRunner extends ActionRunner {
@@ -166,7 +168,7 @@ export class NotificationActionRunner extends ActionRunner {
 
 	protected async runAction(action: IAction, context: INotificationViewItem): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
-		this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()), actionId: action.id });
+		this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()), actionLabel: action.label, source: context.sourceId });
 
 		// Run and make sure to notify on any error again
 		try {
