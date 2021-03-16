@@ -250,9 +250,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (envConfigValue.workspaceValue) {
 				envString = `env: {${Object.keys(envConfigValue.workspaceValue).map(k => `${k}:${envConfigValue.workspaceValue![k]}`).join(', ')}}`;
 			}
-			let profileString: string | undefined;
+			let profilesString: string | undefined;
 			if (profiles.workspaceValue) {
-				profileString = `profiles: {${Object.keys(profiles.workspaceValue).map(k => `${k}:${profiles.workspaceValue![k]}`).join(', ')}}`;
+				profilesString = `profiles: {${Object.keys(profiles.workspaceValue).map(k => `${k}:${profiles.workspaceValue![k]}`).join(', ')}}`;
 			}
 			// Should not be localized as it's json-like syntax referencing settings keys
 			const workspaceConfigStrings: string[] = [];
@@ -265,8 +265,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (envString) {
 				workspaceConfigStrings.push(envString);
 			}
-			if (profileString) {
-				workspaceConfigStrings.push(profileString);
+			if (profilesString) {
+				workspaceConfigStrings.push(profilesString);
 			}
 			const workspaceConfigString = workspaceConfigStrings.join(', ');
 			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow this workspace to modify your terminal shell? {0}", workspaceConfigString),
