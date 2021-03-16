@@ -285,14 +285,18 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
-	public async getAvailableProfiles(): Promise<ITerminalProfile[]> {
-		await this._updateAvailableProfiles();
+	public getAvailableProfiles(): ITerminalProfile[] {
+		this._updateAvailableProfiles();
 		return this._availableProfiles?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile)) || [];
 	}
 
 	@throttle(10000)
 	private async _updateAvailableProfiles(): Promise<void> {
-		this._availableProfiles = await this._detectProfiles(true);
+		const result = await this._detectProfiles(true);
+		if (result !== this._availableProfiles) {
+			this._availableProfiles = result;
+			this._onProfilesConfigChanged.fire();
+		}
 	}
 
 	private async _detectProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {

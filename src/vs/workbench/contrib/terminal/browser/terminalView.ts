@@ -34,7 +34,6 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { equals } from 'vs/base/common/arrays';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
@@ -357,9 +356,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 });
 
 
-let lastOptions: ISelectOptionItem[] | undefined;
 class SwitchTerminalActionViewItem extends SelectActionViewItem {
-	private _lastActiveTab: number = 0;
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -367,14 +364,14 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, lastOptions || getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
-		this._register(_terminalService.onInstancesChanged(async () => await this._updateItems(), this));
-		this._register(_terminalService.onActiveTabChanged(async () => await this._updateItems(), this));
-		this._register(_terminalService.onInstanceTitleChanged(async () => await this._updateItems(), this));
-		this._register(_terminalService.onTabDisposed(async () => await this._updateItems(), this));
-		this._register(_terminalService.onDidChangeConnectionState(async () => await this._updateItems(), this));
-		this._register(_terminalService.onProfilesConfigChanged(async () => await this._updateItems(), this));
-		this._register(_terminalService.onRequestAvailableProfiles(async () => await this._updateItems(), this));
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onActiveTabChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onTabDisposed(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
+		this._register(_terminalService.onProfilesConfigChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onRequestAvailableProfiles(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -386,40 +383,10 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		}));
 	}
 
-	private async _updateItems(): Promise<void> {
-		const options = await getTerminalSelectOpenItemsAsync(this._terminalService, this._contributions);
-		// only update options if they've changed
-		if (!lastOptions || !equals(Object.values(options), Object.values(lastOptions)) || this._lastActiveTab !== this._terminalService.activeTabIndex) {
-			this.setOptions(options, this._terminalService.activeTabIndex);
-			lastOptions = options;
-			this._lastActiveTab = this._terminalService.activeTabIndex;
-		}
+	private _updateItems(): void {
+		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
+		this.setOptions(options, this._terminalService.activeTabIndex);
 	}
-}
-
-async function getTerminalSelectOpenItemsAsync(terminalService: ITerminalService, contributions: ITerminalContributionService): Promise<ISelectOptionItem[]> {
-	let items: ISelectOptionItem[];
-	if (terminalService.connectionState === TerminalConnectionState.Connected) {
-		items = terminalService.getTabLabels().map(label => {
-			return { text: label };
-		});
-	} else {
-		items = [{ text: nls.localize('terminalConnectingLabel', "Starting...") }];
-	}
-
-	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-
-	const profiles = await getProfileSelectOptionItems(terminalService);
-	if (profiles) {
-		items.push(...profiles);
-	}
-	for (const contributed of contributions.terminalTypes) {
-		items.push({ text: contributed.title });
-	}
-	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-	items.push({ text: selectDefaultProfileTitle });
-	items.push({ text: configureTerminalSettingsTitle });
-	return items;
 }
 
 function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
@@ -433,21 +400,19 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 	}
 
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
+
+	items.push(...getProfileSelectOptionItems(terminalService));
+
 	for (const contributed of contributions.terminalTypes) {
 		items.push({ text: contributed.title });
 	}
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-  
-	// Only show the select default shell command if process support is registered (ie. not web)
-	if (terminalService.isProcessSupportRegistered) {
-		items.push({ text: selectDefaultProfileTitle });
-	}
-
+	items.push({ text: selectDefaultProfileTitle });
 	items.push({ text: configureTerminalSettingsTitle });
 	return items;
 }
 
-async function getProfileSelectOptionItems(terminalService: ITerminalService): Promise<ISelectOptionItem[]> {
-	const detectedProfiles = await terminalService.getAvailableProfiles();
+function getProfileSelectOptionItems(terminalService: ITerminalService): ISelectOptionItem[] {
+	const detectedProfiles = terminalService.getAvailableProfiles();
 	return detectedProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
 }
