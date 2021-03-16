@@ -1127,7 +1127,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	@debounce(500)
 	public reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): void {
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
@@ -1173,6 +1172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermTypeAhead?.reset(this._processManager);
 	}
 
+	@debounce(500)
 	public relaunch(): void {
 		this.reuseTerminal(this._shellLaunchConfig, true);
 	}
