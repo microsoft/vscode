@@ -2249,49 +2249,6 @@ declare module 'vscode' {
 		 * in {@link onDidChangeTest} when a test is added or removed.
 		 */
 		readonly root: T;
-
-		/**
-		 * An event that fires when an existing test `root` changes.  This can be
-		 * a result of a property update, or an update to its children. Changes
-		 * made to tests will not be visible to {@link TestObserver} instances
-		 * until this event is fired.
-		 *
-		 * When a change is signalled, VS Code will check for any new or removed
-		 * direct children of the changed ite, For example, firing the event with
-		 * the {@link testRoot} will detect any new children in `root.children`.
-		 */
-		readonly onDidChangeTest: Event<T>;
-
-		/**
-		 * An event that fires when a test becomes outdated, as a result of
-		 * file changes, for example. In "auto run" mode, tests that are outdated
-		 * will be automatically re-run after a short delay. Firing a test
-		 * with children will mark the entire subtree as outdated.
-		 */
-		readonly onDidInvalidateTest?: Event<T>;
-
-		/**
-		 * Gets the chilren of this test item.
-		 *
-		 * VS Code will try to call this method lazily, particularly when working
-		 * in the test tree. Once called, the provider is expected to watch the
-		 * test and fires the {@link TestHierarchy.onDidChangeTest} method if they
-		 * update. After being called once, this method will be called each time
-		 * this test is fired in {@link TestHierarchy.onDidChangeTest}.
-		 *
-		 * @param token Cancellation for the request. Cancellation will be
-		 * requested if the test changes before the previous call completes.
-		 * @returns a provider result of child test items
-		 */
-		getChildren(item: T, token: CancellationToken): Iterable<T> | AsyncIterable<T> | undefined | null;
-
-		/**
-		 * Gets the parent of the test item. This should only return "undefined"
-		 * if called with the root node.
-		 * @param item TestItem to retrieve the parent for
-		 * @returns the parent TestItem, or undefined if the test is the root
-		 */
-		getParent(item: T): T | undefined;
 	}
 
 	/**
@@ -2304,6 +2261,61 @@ declare module 'vscode' {
 	 */
 	export interface TestProvider<T extends TestItem = TestItem> {
 		/**
+		 * An event that should be fired whenever an existing test is updated, or
+		 * when a new test is discovered as a result of a {@link discoverChildren}
+		 * call or subsequent update. Changes to tests will not be visible until
+		 * this event is fired.
+		 *
+		 * It is safe to fire this event for children of TestItems that the editor
+		 * has not yet requested in {@link discoverChildren}.
+		 */
+		readonly onDidChangeTest: Event<T>;
+
+		/**
+		 * An event that should be fired when an existing tests is removed.
+		 */
+		readonly onDidRemoveTest: Event<T>;
+
+		/**
+		 * An event that fires when a test becomes outdated, as a result of
+		 * file changes, for example. In "auto run" mode, tests that are outdated
+		 * will be automatically re-run after a short delay. Firing a test
+		 * with children will mark the entire subtree as outdated.
+		 */
+		readonly onDidInvalidateTest?: Event<T>;
+
+		/**
+		 * Requets the children of the test item. When called, the provider should
+		 * fire the {@link onDidUpdateTest} as it discovers tests. When all
+		 * children of the provided item have been discovered, the promise should
+		 * resolve.
+		 *
+		 * After the discovery process, the provider should continue watching for
+		 * changes to the children and firing updates until the returned
+		 * Disposable is disposed of. Returning the Disposable is optional, and
+		 * may not be necessary in all cases. For example, if the item is a test
+		 * suite in a single file, the observation of children may be handled by
+		 * the file watcher.
+		 *
+		 * The editor will only call this method when it's interested in refreshing
+		 * the children of the item, and will not call it again while there's an
+		 * existing, undisposed subscription for an item.
+		 *
+		 * @param token Cancellation for the request. Cancellation will be
+		 * requested if the test changes before the previous call completes.
+		 * @returns a provider result of child test items
+		 */
+		discoverChildren(item: T, token: CancellationToken): ProviderResult<Disposable>;
+
+		/**
+		 * Gets the parent of the test item. This should only return "undefined"
+		 * if called with the root node.
+		 * @param item TestItem to retrieve the parent for
+		 * @returns the parent TestItem, or undefined if the test is the root
+		 */
+		getParent(item: T): T | undefined;
+
+		/**
 		 * Requests that tests be provided for the given workspace. This will
 		 * be called when tests need to be enumerated for the workspace, such as
 		 * when the user opens the test explorer.
@@ -2313,8 +2325,9 @@ declare module 'vscode' {
 		 *
 		 * @param workspace The workspace in which to observe tests
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @returns the root test item for the workspace
 		 */
-		provideWorkspaceTestHierarchy(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
+		provideWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<T>;
 
 		/**
 		 * Requests that tests be provided for the given document. This will be
@@ -2326,18 +2339,21 @@ declare module 'vscode' {
 		 * saved, if possible.
 		 *
 		 * If the test system is not able to provide or estimate for tests on a
-		 * per-file basis, this method may not be implemented. In that case, VS
-		 * Code will request and use the information from the workspace hierarchy.
+		 * per-file basis, this method may not be implemented. In that case, the
+		 * editor will request and use the information from the workspace tree.
 		 *
 		 * @param document The document in which to observe tests
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @returns the root test item for the workspace
 		 */
-		provideDocumentTestHierarchy?(document: TextDocument, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
+		provideDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<T>;
 
 		/**
+		 * @todo this will move out of the provider soon
+		 * @todo this will eventually need to be able to return a summary report, coverage for example.
+		 *
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run.
-		 * @todo this will eventually need to be able to return a summary report, coverage for example.
 		 * @param options Options for this test run
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
