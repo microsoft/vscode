@@ -74,10 +74,10 @@ semver@^5.3.0:
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.7.1.tgz#a954f931aeba508d307bbf069eff0c01c96116f7"
   integrity sha512-sauaDf/PZdVgrLTNYHRtpXa1iRiKcaebiKQ1BJdpQlWH2lCvexQdX55snPFyK7QzpudqbCI0qXFfOasHdyNDGQ==
 
-typescript-vscode-sh-plugin@^0.6.14:
-  version "0.6.14"
-  resolved "https://registry.yarnpkg.com/typescript-vscode-sh-plugin/-/typescript-vscode-sh-plugin-0.6.14.tgz#a81031b502f6346a26ea49ce082438c3e353bb38"
-  integrity sha512-AkNlRBbI6K7gk29O92qthNSvc6jjmNQ6isVXoYxkFwPa8D04tIv2SOPd+sd+mNpso4tNdL2gy7nVtrd5yFqvlA==
+typescript-vscode-sh-plugin@^0.7.1:
+  version "0.7.1"
+  resolved "https://registry.yarnpkg.com/typescript-vscode-sh-plugin/-/typescript-vscode-sh-plugin-0.7.1.tgz#0be744032aa7fdcb764497342fd0fd2d093ed7ca"
+  integrity sha512-upXxgeI21tEMJxRVxF4PekQBM+eF0cRp0GgD2sblQkEm43NR+Fcbusa+FKAekUgwkbjVq1Loq+vKCCUbxM6R8A==
 
 vscode-extension-telemetry@0.1.1:
   version "0.1.1"
