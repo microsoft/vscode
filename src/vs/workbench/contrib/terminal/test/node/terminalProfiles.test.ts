@@ -20,20 +20,20 @@ suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			suite('detectAvailableWindowsProfiles', async () => {
-				test('should detect cmd prompt', async () => {
-					const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
-					let config: ITestTerminalConfig = {
-						profiles: {
-							windows: {
-								'Command Prompt': { path: _paths }
-							}
-						},
-						detectWslProfiles: false
-					};
-					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
-					const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
-					assert.deepStrictEqual(expected, profiles);
-				});
+				// test('should detect cmd prompt', async () => {
+				// 	const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
+				// 	let config: ITestTerminalConfig = {
+				// 		profiles: {
+				// 			windows: {
+				// 				'Command Prompt': { path: _paths }
+				// 			}
+				// 		},
+				// 		detectWslProfiles: false
+				// 	};
+				// 	const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
+				// 	const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
+				// 	assert.deepStrictEqual(expected, profiles);
+				// });
 				test('should detect Git Bash and provide login args', async () => {
 					const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
 					let config = {
