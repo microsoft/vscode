@@ -126,12 +126,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		super();
 		this._localTerminalService = localTerminalService;
 
-		this.ptyProcessReady = new Promise<void>(c => {
-			this.onProcessReady(() => {
-				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
-				c(undefined);
-			});
-		});
+		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this.getLatency();
 		this._ackDataBufferer = new AckDataBufferer(e => this._process?.acknowledgeDataEvent(e));
 		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
@@ -157,6 +152,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._process = null;
 		}
 		super.dispose();
+	}
+
+	private _createPtyProcessReadyPromise(): Promise<void> {
+		return new Promise<void>(c => {
+			const listener = this.onProcessReady(() => {
+				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
+				listener.dispose();
+				c(undefined);
+			});
+		});
 	}
 
 	public detachFromProcess(): void {
@@ -291,15 +296,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
-		this.ptyProcessReady = new Promise<void>(c => {
-			this.onProcessReady(() => {
-				this._logService.debug(`Terminal process ready (shellProcessId: ${this.shellProcessId})`);
-				c(undefined);
-			});
-		});
+		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
-		// this._relaunchDisposable?.dispose();
-		// this._relaunchDisposable = undefined;
 		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
 	}
 
