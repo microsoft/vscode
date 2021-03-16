@@ -1460,6 +1460,8 @@ declare module 'vscode' {
 
 	// code specific mime types
 	// application/x.notebook.error-traceback
+	// application/x.notebook.stdout
+	// application/x.notebook.stderr
 	// application/x.notebook.stream
 	export class NotebookCellOutputItem {
 
