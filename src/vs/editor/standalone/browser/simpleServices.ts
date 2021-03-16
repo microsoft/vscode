@@ -218,7 +218,7 @@ export class SimpleDialogService implements IDialogService {
 
 export class SimpleNotificationService implements INotificationService {
 
-	onDidAddNotification: Event<INotification> = Event.None;
+	readonly onDidAddNotification: Event<INotification> = Event.None;
 
 	onDidRemoveNotification: Event<INotification> = Event.None;
 
