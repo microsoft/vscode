@@ -22,10 +22,18 @@ export interface IRemoteTerminalProcessReplayEvent {
 export class TerminalRecorder {
 
 	private _entries: RecorderEntry[];
-	private _totalDataLength: number;
+	private _totalDataLength: number = 0;
 
-	constructor(cols: number, rows: number) {
-		this._entries = [{ cols, rows, data: [] }];
+	constructor(initialDimensions?: { cols: number, rows: number }) {
+		if (initialDimensions) {
+			this._entries = [{
+				cols: initialDimensions.cols,
+				rows: initialDimensions.rows,
+				data: []
+			}];
+		} else {
+			this._entries = [];
+		}
 		this._totalDataLength = 0;
 	}
 

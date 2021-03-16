@@ -662,7 +662,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	}
 
 	private _createRecorder(process: ITerminalChildProcess): [TerminalRecorder, IDisposable] {
-		const recorder = new TerminalRecorder(0, 0);
+		const recorder = new TerminalRecorder();
 		const disposable = process.onProcessData(e => recorder.recordData(typeof e === 'string' ? e : e.data));
 		return [recorder, disposable];
 	}
