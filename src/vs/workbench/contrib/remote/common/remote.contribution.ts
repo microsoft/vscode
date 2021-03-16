@@ -175,21 +175,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 							'label': {
 								type: 'string',
 								description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
-								default: localize('remote.portsAttributes.labelDefault', "Labeled Port")
+								default: localize('remote.portsAttributes.labelDefault', "Application")
 							}
 						},
 						default: {
-							'label': localize('remote.portsAttributes.labelDefault', "Labeled Port"),
+							'label': localize('remote.portsAttributes.labelDefault', "Application"),
 							'onAutoForward': 'notify'
 						}
 					}
 				},
-				markdownDescription: localize('remote.portsAttributes', "Set properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Labeled Port\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n},\n\".+\\\\/server.js\": {\n \"onAutoForward\": \"openPreview\"\n}\n```"),
-				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:My Port}', onAutoForward: 'openPreview' } } }],
+				markdownDescription: localize('remote.portsAttributes', "Set properties that are applied when a specific port number is forwarded. For example:\n\n```\n\"3000\": {\n  \"label\": \"Application\"\n},\n\"40000-55000\": {\n  \"onAutoForward\": \"ignore\"\n},\n\".+\\\\/server.js\": {\n \"onAutoForward\": \"openPreview\"\n}\n```"),
+				defaultSnippets: [{ body: { '${1:3000}': { label: '${2:Application}', onAutoForward: 'openPreview' } } }],
 				errorMessage: localize('remote.portsAttributes.patternError', "Must be a port number, range of port numbers, or regular expression."),
 				additionalProperties: false
 			},
-			'remote.portsAttributes.defaults': {
+			'remote.portsAttributes.unconfigured': {
 				type: 'object',
 				properties: {
 					'onAutoForward': {
@@ -213,13 +213,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					'label': {
 						type: 'string',
 						description: localize('remote.portsAttributes.label', "Label that will be shown in the UI for this port."),
-						default: localize('remote.portsAttributes.labelDefault', "Labeled Port")
+						default: localize('remote.portsAttributes.labelDefault', "Application")
 					}
 				},
-				default: {
-					'onAutoForward': 'notify'
-				},
-				markdownDescription: localize('remote.portsAttributes.defaults', "Set default properties that are applied to all ports that don't get properties from the setting `remote.portsAttributes`. For example:\n\n```\n{\n  \"onAutoForward\": \"notify\"\n}\n```"),
+				defaultSnippets: [{ body: { onAutoForward: 'ignore' } }],
+				markdownDescription: localize('remote.portsAttributes.defaults', "Set default properties that are applied to all ports that don't get properties from the setting `remote.portsAttributes`. For example:\n\n```\n{\n  \"onAutoForward\": \"ignore\"\n}\n```"),
 				additionalProperties: false
 			}
 		}
