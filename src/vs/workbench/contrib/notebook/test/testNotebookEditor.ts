@@ -9,7 +9,6 @@ import { NotImplementedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -35,6 +34,7 @@ import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { mock } from 'vs/base/test/common/mock';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -125,7 +125,6 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 export function setupInstantiationService() {
 	const instantiationService = new TestInstantiationService();
-
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, new TestThemeService());
@@ -137,14 +136,10 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, textModel: NotebookTextModel) => Promise<R> | R): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: ServicesAccessor) => Promise<R> | R): Promise<R> {
 	const instantiationService = setupInstantiationService();
-	const undoRedoService = instantiationService.get(IUndoRedoService);
-	const textModelService = instantiationService.get(ITextModelService);
-	const bulkEditService = instantiationService.get(IBulkEditService);
-
 	const viewType = 'notebook';
-	const notebook = new NotebookTextModel(viewType, URI.parse('test'), cells.map(cell => {
+	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
 		return {
 			source: cell[0],
 			language: cell[1],
@@ -152,10 +147,11 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 			outputs: cell[3] ?? [],
 			metadata: cell[4]
 		};
-	}), notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService);
+	}), notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false });
+
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
-	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
+	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, eventDispatcher, null);
 
 	const cellList = createNotebookCellList(instantiationService);
 	cellList.attachViewModel(viewModel);
@@ -177,7 +173,7 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 		}
 	};
 
-	const res = await callback(notebookEditor, notebook);
+	const res = await callback(notebookEditor, instantiationService);
 	if (res instanceof Promise) {
 		res.finally(() => viewModel.dispose());
 	} else {

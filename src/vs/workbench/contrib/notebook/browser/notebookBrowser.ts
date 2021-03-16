@@ -411,11 +411,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
 
 	/**
-	 * Joins the given cell either with the cell above or the one below depending on the given direction.
-	 */
-	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null>;
-
-	/**
 	 * Delete a cell from the notebook
 	 */
 	deleteNotebookCell(cell: ICellViewModel): Promise<boolean>;

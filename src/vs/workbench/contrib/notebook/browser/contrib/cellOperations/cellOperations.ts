@@ -9,12 +9,16 @@ import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { Range } from 'vs/editor/common/core/range';
 import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { expandCellRangesWithHiddenCells, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditType, cellRangeContains, cellRangesToIndexes, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, cellRangeContains, cellRangesToIndexes, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
 const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
@@ -282,11 +286,108 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-export async function joinCells(context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
-	const cell = await context.notebookEditor.joinNotebookCells(context.cell, direction);
-	if (cell) {
-		context.notebookEditor.focusNotebookCell(cell, 'editor');
+export async function joinNotebookCells(viewModel: NotebookViewModel, cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel } | null> {
+	if (!viewModel) {
+		return null;
 	}
+
+	if (!viewModel.metadata.editable) {
+		return null;
+	}
+
+	const index = viewModel.getCellIndex(cell);
+
+	if (!cell.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+		return null;
+	}
+
+	if (constraint && cell.cellKind !== constraint) {
+		return null;
+	}
+
+	if (index === 0 && direction === 'above') {
+		return null;
+	}
+
+	if (index === viewModel.length - 1 && direction === 'below') {
+		return null;
+	}
+
+	if (direction === 'above') {
+		const above = viewModel.viewCells[index - 1] as CellViewModel;
+		if (constraint && above.cellKind !== constraint) {
+			return null;
+		}
+
+		if (!above.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+			return null;
+		}
+
+		// const endSelections = [above.handle];
+		const insertContent = (cell.textBuffer.getEOL() ?? '') + cell.getText();
+		const aboveCellLineCount = above.textBuffer.getLineCount();
+		const aboveCellLastLineEndColumn = above.textBuffer.getLineLength(aboveCellLineCount);
+
+		return {
+			edits: [
+				new ResourceTextEdit(above.uri, { range: new Range(aboveCellLineCount, aboveCellLastLineEndColumn + 1, aboveCellLineCount, aboveCellLastLineEndColumn + 1), text: insertContent }),
+				new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: index,
+						count: 1,
+						cells: []
+					}
+				)
+			],
+			cell: above
+		};
+	} else {
+		const below = viewModel.viewCells[index + 1] as CellViewModel;
+		if (constraint && below.cellKind !== constraint) {
+			return null;
+		}
+
+		if (!below.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+			return null;
+		}
+
+		const insertContent = (cell.textBuffer.getEOL() ?? '') + below.getText();
+
+		const cellLineCount = cell.textBuffer.getLineCount();
+		const cellLastLineEndColumn = cell.textBuffer.getLineLength(cellLineCount);
+
+		return {
+			edits: [
+				new ResourceTextEdit(cell.uri, { range: new Range(cellLineCount, cellLastLineEndColumn + 1, cellLineCount, cellLastLineEndColumn + 1), text: insertContent }),
+				new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: index + 1,
+						count: 1,
+						cells: []
+					}
+				)
+			],
+			cell
+		};
+	}
+}
+
+export async function joinCells(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
+	const ret = await joinNotebookCells(context.notebookEditor.viewModel, context.cell, direction);
+	if (!ret) {
+		return;
+	}
+
+	await bulkEditService.apply(
+		ret?.edits,
+		{ quotableLabel: 'Join Notebook Cells' }
+	);
+	context.notebookEditor.focusNotebookCell(ret.cell, 'editor');
+	// TODO
+	// viewModel.selectionHandles = endSelections;
+
 }
 
 registerAction2(class extends NotebookCellAction {
@@ -310,7 +411,8 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return joinCells(context, 'above');
+		const bulkEditService = accessor.get(IBulkEditService);
+		return joinCells(bulkEditService, context, 'above');
 	}
 });
 
@@ -335,6 +437,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return joinCells(context, 'below');
+		const bulkEditService = accessor.get(IBulkEditService);
+		return joinCells(bulkEditService, context, 'below');
 	}
 });

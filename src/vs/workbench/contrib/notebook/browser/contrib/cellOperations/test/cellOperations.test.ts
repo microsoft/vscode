@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { copyCellRange, moveCellRange } from 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { copyCellRange, joinNotebookCells, moveCellRange } from 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('CellOperations', () => {
@@ -141,5 +142,56 @@ suite('CellOperations', () => {
 				assert.strictEqual(viewModel.viewCells[3].getText(), 'var b = 1;');
 			});
 	});
+
+	test('Join cell with below - single cell', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, accessor) => {
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
+				const ret = await joinNotebookCells(editor.viewModel, viewModel.viewCells[3], 'below');
+				assert.strictEqual(ret?.edits.length, 2);
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: 4,
+						count: 1,
+						cells: []
+					}
+				));
+			});
+	});
+
+	test('Join cell with above - single cell', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, accessor) => {
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
+				const ret = await joinNotebookCells(editor.viewModel, viewModel.viewCells[4], 'above');
+				assert.strictEqual(ret?.edits.length, 2);
+				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: 4,
+						count: 1,
+						cells: []
+					}
+				));
+			});
+	});
+
 });
 

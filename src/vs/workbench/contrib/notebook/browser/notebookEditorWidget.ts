@@ -1669,31 +1669,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel.splitNotebookCell(index);
 	}
 
-	async joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null> {
-		if (!this.viewModel) {
-			return null;
-		}
-
-		if (!this.viewModel.metadata.editable) {
-			return null;
-		}
-
-		const index = this.viewModel.getCellIndex(cell);
-		const ret = await this.viewModel.joinNotebookCells(index, direction, constraint);
-
-		if (ret) {
-			ret.deletedCells.forEach(cell => {
-				if (this._pendingLayouts.has(cell)) {
-					this._pendingLayouts.get(cell)!.dispose();
-				}
-			});
-
-			return ret.cell;
-		} else {
-			return null;
-		}
-	}
-
 	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
 		if (!this.viewModel) {
 			return false;
