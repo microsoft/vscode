@@ -270,7 +270,7 @@ export class PersistentTerminalProcess extends Disposable {
 		private readonly _logService: ILogService
 	) {
 		super();
-		this._recorder = new TerminalRecorder({ cols, rows });
+		this._recorder = new TerminalRecorder(cols, rows);
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
