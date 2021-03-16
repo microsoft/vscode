@@ -197,6 +197,10 @@
         {
           "command": "gitpod.ExtendTimeout",
           "group": "navigation@110"
+        },
+        {
+          "command": "gitpod.takeSnapshot",
+          "group": "navigation@120"
         }
       ],
       "view/item/context": [
