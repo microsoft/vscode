@@ -236,8 +236,20 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		clipboardService.writeText(context.cell.getText());
-		notebookService.setToCopy([context.cell.model], true);
+		const viewModel = context.notebookEditor.viewModel;
+		const selections = viewModel.getSelections();
+		const targetCellIndex = viewModel.getCellIndex(context.cell);
+		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
+
+		if (containingSelection) {
+			const cells = viewModel.viewCells.slice(containingSelection.start, containingSelection.end);
+
+			clipboardService.writeText(cells.map(cell => cell.getText()).join('\n'));
+			notebookService.setToCopy(cells.map(cell => cell.model), true);
+		} else {
+			clipboardService.writeText(context.cell.getText());
+			notebookService.setToCopy([context.cell.model], true);
+		}
 	}
 });
 
@@ -271,8 +283,36 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		viewModel.deleteCell(viewModel.getCellIndex(context.cell), true);
-		notebookService.setToCopy([context.cell.model], false);
+		const selections = viewModel.getSelections();
+		const targetCellIndex = viewModel.getCellIndex(context.cell);
+		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
+
+		if (containingSelection) {
+			const cellTextModels = viewModel.viewCells.slice(containingSelection.start, containingSelection.end).map(cell => cell.model);
+			let finalSelections: ICellRange[] = [];
+			const delta = containingSelection.end - containingSelection.start;
+			for (let i = 0; i < selections.length; i++) {
+				const selection = selections[i];
+
+				if (selection.end <= targetCellIndex) {
+					finalSelections.push(selection);
+				} else if (selection.start > targetCellIndex) {
+					finalSelections.push({ start: selection.start - delta, end: selection.end - delta });
+				} else {
+					finalSelections.push({ start: containingSelection.start, end: containingSelection.start + 1 });
+				}
+			}
+
+			viewModel.notebookDocument.applyEdits([{
+				editType: CellEditType.Replace, index: containingSelection.start, count: containingSelection.end - containingSelection.start, cells: []
+			}], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: viewModel.getSelections() }, () => ({
+				kind: SelectionStateType.Index, focus: { start: containingSelection.start, end: containingSelection.start + 1 }, selections: finalSelections
+			}), undefined);
+			notebookService.setToCopy(cellTextModels, true);
+		} else {
+			viewModel.deleteCell(viewModel.getCellIndex(context.cell), true);
+			notebookService.setToCopy([context.cell.model], false);
+		}
 	}
 });
 
