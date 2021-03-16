@@ -62,7 +62,7 @@ registerAction2(class extends NotebookCellAction {
 });
 
 
-async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+export async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const viewModel = context.notebookEditor.viewModel;
 	if (!viewModel) {
 		return;
@@ -176,7 +176,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-async function copyCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+export async function copyCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const viewModel = context.notebookEditor.viewModel;
 	if (!viewModel) {
 		return;

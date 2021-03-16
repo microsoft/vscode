@@ -22,7 +22,7 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, ICellRange, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -172,6 +172,9 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 		getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
 		getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
 		revealCellRangeInView() { }
+		setHiddenAreas(_ranges: ICellRange[]): boolean {
+			return cellList.setHiddenAreas(_ranges, true);
+		}
 	};
 
 	const res = await callback(notebookEditor, notebook);
