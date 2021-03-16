@@ -299,7 +299,11 @@ export class TerminalService implements ITerminalService {
 				if (workspaceProfile && defaultProfile && workspaceProfile[0] === defaultProfile[0]) {
 					let result = !this._terminalProfileObjectEqual(workspaceProfile[1], defaultProfile[1]);
 					return result;
+				} else if (!workspaceProfile && !defaultProfile) {
+					// user profile
+					return false;
 				} else {
+					// this key is missing from either default or the workspace config
 					return true;
 				}
 			}
@@ -313,7 +317,7 @@ export class TerminalService implements ITerminalService {
 		} else if (one && two && (one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
 			const oneExec = (one as ITerminalExecutable);
 			const twoExec = (two as ITerminalExecutable);
-			return oneExec.path === twoExec.path && oneExec.args === twoExec.args;
+			return oneExec.path.toString() === twoExec.path.toString() && oneExec.args?.toString() === twoExec.args?.toString();
 		} else if (one && two && (one as ITerminalProfileGenerator).generator && (two as ITerminalProfileGenerator).generator) {
 			const oneGen = (one as ITerminalProfileGenerator);
 			const twoGen = (two as ITerminalProfileGenerator);
