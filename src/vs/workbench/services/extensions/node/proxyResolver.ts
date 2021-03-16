@@ -72,11 +72,11 @@ export function connectProxyResolver(
 function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof createProxyResolver>) {
 	const proxySetting = {
 		config: configProvider.getConfiguration('http')
-			.get<string>('proxySupport') || 'off'
+			.get<'override' | 'on' | 'off'>('proxySupport') || 'off'
 	};
 	configProvider.onDidChangeConfiguration(e => {
 		proxySetting.config = configProvider.getConfiguration('http')
-			.get<string>('proxySupport') || 'off';
+			.get<'override' | 'on' | 'off'>('proxySupport') || 'off';
 	});
 	const certSetting = {
 		config: !!configProvider.getConfiguration('http')

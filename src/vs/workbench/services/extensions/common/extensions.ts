@@ -270,13 +270,13 @@ export function throwProposedApiError(extension: IExtensionDescription): never {
 }
 
 export function checkRequiresWorkspaceTrust(extension: IExtensionDescription): void {
-	if (!extension.requiresWorkspaceTrust) {
+	if (!extension.workspaceTrust?.required) {
 		throwRequiresWorkspaceTrustError(extension);
 	}
 }
 
 export function throwRequiresWorkspaceTrustError(extension: IExtensionDescription): void {
-	throw new Error(`[${extension.identifier.value}]: This API is only available when the "requiresWorkspaceTrust" is set to "onStart" or "onDemand" in the extension's package.json.`);
+	throw new Error(`[${extension.identifier.value}]: This API is only available when the "workspaceTrust.require" is set to "onStart" or "onDemand" in the extension's package.json.`);
 }
 
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {

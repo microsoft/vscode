@@ -547,12 +547,14 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		);
 	}
 
-	public $extensionTestsExecute(): Promise<number> {
-		return this._doHandleExtensionTests().then(undefined, error => {
+	public async $extensionTestsExecute(): Promise<number> {
+		await this._readyToRunExtensions.wait();
+		try {
+			return this._doHandleExtensionTests();
+		} catch (error) {
 			console.error(error); // ensure any error message makes it onto the console
-
-			return Promise.reject(error);
-		});
+			throw error;
+		}
 	}
 
 	private async _doHandleExtensionTests(): Promise<number> {
