@@ -562,6 +562,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellActionContext>{
+			ui: true,
 			cell: element,
 			notebookEditor: this.notebookEditor,
 			$mid: 12
@@ -1015,6 +1016,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellActionContext>{
+			ui: true,
 			cell: element,
 			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
