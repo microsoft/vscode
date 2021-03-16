@@ -326,7 +326,8 @@ export const enum CellEditType {
 	Move = 7,
 	Unknown = 8,
 	CellContent = 9,
-	OutputItems = 10
+	OutputItems = 10,
+	PartialMetadata = 11
 }
 
 export interface ICellDto2 {
@@ -365,6 +366,15 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
+export type NullablePartialNotebookCellMetadata = {
+	[Key in keyof Partial<NotebookCellMetadata>]: NotebookCellMetadata[Key] | null
+};
+
+export interface ICellPartialMetadataEdit {
+	editType: CellEditType.PartialMetadata;
+	index: number;
+	metadata: Partial<NullablePartialNotebookCellMetadata>;
+}
 
 export interface ICellLanguageEdit {
 	editType: CellEditType.CellLanguage;
@@ -384,7 +394,7 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit;
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];

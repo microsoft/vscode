@@ -568,7 +568,7 @@ export namespace WorkspaceEdit {
 							metadata: entry.metadata,
 							resource: entry.uri,
 							edit: {
-								editType: notebooks.CellEditType.Metadata,
+								editType: notebooks.CellEditType.PartialMetadata,
 								index: entry.index,
 								metadata: entry.newMetadata
 							}

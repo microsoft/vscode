@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellStatusbarAlignment, CellUri, ICellEditOperation, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellStatusbarAlignment, CellUri, ICellEditOperation, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -1063,7 +1063,6 @@ class NotebookCellExecutionTask extends Disposable {
 	get state(): NotebookCellExecutionTaskState { return this._state; }
 
 	private readonly _tokenSource: CancellationTokenSource;
-	private _editsQueue = Promise.resolve<void | boolean>(undefined);
 
 	constructor(
 		private readonly _uri: vscode.Uri,
@@ -1076,7 +1075,7 @@ class NotebookCellExecutionTask extends Disposable {
 
 		this.mixinMetadata({
 			runState: NotebookCellExecutionState.Pending,
-			lastRunDuration: undefined
+			lastRunDuration: null
 		});
 	}
 
@@ -1085,8 +1084,7 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private async applyEdits(getEdits: () => ICellEditOperation[]): Promise<void> {
-		this._editsQueue = this._editsQueue.finally(() => this._proxy.$applyEdits(this._uri, getEdits()));
-		await this._editsQueue;
+		return this._proxy.$applyEdits(this._uri, getEdits());
 	}
 
 	private verifyStateForOutput() {
@@ -1099,15 +1097,10 @@ class NotebookCellExecutionTask extends Disposable {
 		}
 	}
 
-	private mixinMetadata(mixinMetadata: NotebookCellMetadata) {
+	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellMetadata) {
 		this.applyEdits(() => {
-			const metadata: NotebookCellMetadata = {
-				...this._cell.internalMetadata,
-				...mixinMetadata
-			};
-
 			const edits: ICellEditOperation[] = [
-				{ editType: CellEditType.Metadata, index: this._index, metadata }
+				{ editType: CellEditType.PartialMetadata, index: this._index, metadata: mixinMetadata }
 			];
 			return edits;
 		});
@@ -1129,7 +1122,6 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: NotebookCellExecutionState.Executing,
-					lastRunDuration: undefined,
 					runStartTime: context?.startTime
 				});
 			},
