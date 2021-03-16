@@ -69,7 +69,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 			],
 			args: ['-l']
 		},
-		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, detectWslProfiles),
+		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, detectWslProfiles, logService),
 		... await getPowershellProfiles()
 	];
 
@@ -158,10 +158,10 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
+async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
 	let profiles: IPotentialTerminalProfile[] = [];
 	if (detectWslProfiles) {
-		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? console.trace('problem occurred when getting wsl distros', err) : r(stdout)));
+		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? logService?.trace('problem occurred when getting wsl distros', err) : r(stdout)));
 		if (distroOutput) {
 			let regex = new RegExp(/[\r?\n]/);
 			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
