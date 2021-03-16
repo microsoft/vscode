@@ -29,7 +29,7 @@ export class UntitledHintContribution implements IEditorContribution {
 	private toDispose: IDisposable[];
 	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
 	private button: FloatingClickWidget | undefined;
-	private experimentTreatment: 'text' | 'button' | undefined;
+	private experimentTreatment: 'text' | 'button' | 'hidden' | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -56,8 +56,8 @@ export class UntitledHintContribution implements IEditorContribution {
 	private update(): void {
 		this.untitledHintContentWidget?.dispose();
 		this.button?.dispose();
-		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden'>(untitledHintSetting);
-		const untitledHintMode = configValue === 'hidden' ? configValue : (this.experimentTreatment || configValue);
+		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden' | 'default'>(untitledHintSetting);
+		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'hidden') : configValue;
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {

@@ -136,12 +136,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 
 		...workbenchConfigurationNodeBase,
 		'properties': {
-			'gettingStarted.hiddenCategories': {
+			'workbench.welcomePage.hiddenCategories': {
 				'scope': ConfigurationScope.APPLICATION,
 				'type': 'array',
 				'items': { type: 'string' },
 				'default': [],
-				'description': localize('gettingStarted.hiddenCategories', "Hide categories of the welcome page's getting started section that are not relevant to you.")
+				'description': localize('welcomePage.hiddenCategories', "Hide categories of the welcome page's getting started section that are not relevant to you.")
 			},
 		}
 	});

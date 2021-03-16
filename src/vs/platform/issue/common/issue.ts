@@ -78,7 +78,7 @@ export interface ProcessExplorerStyles extends WindowStyles {
 export interface ProcessExplorerData extends WindowData {
 	pid: number;
 	styles: ProcessExplorerStyles;
-	platform: 'win32' | 'darwin' | 'linux';
+	platform: string;
 	applicationName: string;
 }
 

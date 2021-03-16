@@ -10,6 +10,7 @@
 // - Windows: call `process.chdir()` to always set application folder as cwd
 // -   Posix: allow to change the current working dir via `VSCODE_CWD` if defined
 // -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
+// // TODO@bpasero revisit if chdir() on Windows is needed in the future still
 function setupCurrentWorkingDirectory() {
 	const path = require('path');
 

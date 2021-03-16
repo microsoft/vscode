@@ -437,9 +437,7 @@ function webviewPreloads() {
 						cellContainer.style.visibility = 'visible';
 					}
 
-					if (typeof data.content === 'string') {
-						updateMarkdownPreview(data.id, data.content);
-					}
+					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
 			case 'hideMarkdownPreview':
@@ -458,6 +456,7 @@ function webviewPreloads() {
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
 					}
+					updateMarkdownPreview(event.data.id, undefined);
 				}
 				break;
 			case 'removeMarkdownPreview':
@@ -809,18 +808,21 @@ function webviewPreloads() {
 		});
 	}
 
-	function updateMarkdownPreview(cellId: string, content: string) {
+	function updateMarkdownPreview(cellId: string, content: string | undefined) {
 		const previewContainerNode = document.getElementById(`${cellId}_preview`);
 		if (!previewContainerNode) {
 			return;
 		}
 
 		// TODO: handle namespace
-		onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-			element: previewContainerNode,
-			content: content
-		}]);
+		if (typeof content === 'string') {
+			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+				element: previewContainerNode,
+				content: content
+			}]);
+		}
 
+		console.log(previewContainerNode.clientHeight);
 		postNotebookMessage<IDimensionMessage>('dimension', {
 			id: `${cellId}_preview`,
 			data: {
