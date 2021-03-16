@@ -80,8 +80,8 @@ import { assertNoRpc } from '../utils';
 				// Set up dependsOn task by creating tasks.json since this is not possible via the API
 				// Tasks API
 				const tasksConfig = workspace.getConfiguration('tasks');
-				tasksConfig.update('version', '2.0.0');
-				tasksConfig.update('tasks', [
+				await tasksConfig.update('version', '2.0.0', ConfigurationTarget.Workspace);
+				await tasksConfig.update('tasks', [
 					{
 						label: 'taskToDependOn',
 						type: 'shell',
@@ -125,7 +125,7 @@ import { assertNoRpc } from '../utils';
 				assert.notStrictEqual(startEvent1.processId, startEvent2.processId);
 
 				// Clear out tasks config
-				tasksConfig.update('tasks', []);
+				await tasksConfig.update('tasks', []);
 			});
 		});
 
