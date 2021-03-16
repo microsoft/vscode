@@ -67,7 +67,21 @@ export class TestNotebookEditor implements INotebookEditor {
 	creationOptions: INotebookEditorCreationOptions = { isEmbedded: false };
 
 	constructor(readonly viewModel: NotebookViewModel) { }
-
+	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
+		throw new Error('Method not implemented.');
+	}
+	getViewIndex(cell: ICellViewModel): number {
+		throw new Error('Method not implemented.');
+	}
+	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
+		throw new Error('Method not implemented.');
+	}
+	getFocus(): ICellRange | undefined {
+		return undefined;
+	}
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[] {
+		throw new Error('Method not implemented.');
+	}
 	getSelection(): ICellRange | undefined {
 		throw new Error('Method not implemented.');
 	}
@@ -132,6 +146,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	multipleKernelsAvailable: boolean = false;
+	onDidScroll: Event<void> = new Emitter<void>().event;
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
 	onDidChangeVisibleRanges: Event<void> = new Emitter<void>().event;
@@ -309,7 +324,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	createInset(cell: CellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
+	createOutput(cell: CellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		return Promise.resolve();
 	}
 	createMarkdownPreview(cell: ICellViewModel): Promise<void> {
@@ -451,7 +466,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => R): R {
+export async function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => Promise<R> | R): Promise<R> {
 
 	const instantiationService = accessor.get(IInstantiationService);
 	const undoRedoService = accessor.get(IUndoRedoService);
@@ -473,7 +488,7 @@ export function withTestNotebook<R = any>(accessor: ServicesAccessor, cells: [so
 	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
 	const editor = new TestNotebookEditor(viewModel);
 
-	const res = callback(editor, viewModel, notebook);
+	const res = await callback(editor, viewModel, notebook);
 	if (res instanceof Promise) {
 		res.finally(() => viewModel.dispose());
 	} else {

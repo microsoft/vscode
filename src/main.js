@@ -15,7 +15,7 @@ const os = require('os');
 const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const { getDefaultUserDataPath } = require('./vs/base/node/userDataPath');
+const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 /** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
@@ -48,9 +48,6 @@ configureCrashReporter();
 if (portable && portable.isPortable) {
 	app.setAppLogsPath(path.join(userDataPath, 'logs'));
 }
-
-// Update cwd based on environment and platform
-setCurrentWorkingDirectory();
 
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
@@ -410,19 +407,6 @@ function getJSFlags(cliArgs) {
 }
 
 /**
- * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
- *
- * @returns {string}
- */
-function getUserDataPath(cliArgs) {
-	if (portable.isPortable) {
-		return path.join(portable.portableDataPath, 'user-data');
-	}
-
-	return path.resolve(cliArgs['user-data-dir'] || getDefaultUserDataPath());
-}
-
-/**
  * @returns {import('./vs/platform/environment/common/argv').NativeParsedArgs}
  */
 function parseCLIArgs() {
@@ -437,19 +421,6 @@ function parseCLIArgs() {
 			'crash-reporter-directory'
 		]
 	});
-}
-
-function setCurrentWorkingDirectory() {
-	try {
-		if (process.platform === 'win32') {
-			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
-			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
-		} else if (process.env['VSCODE_CWD']) {
-			process.chdir(process.env['VSCODE_CWD']);
-		}
-	} catch (err) {
-		console.error(err);
-	}
 }
 
 function registerListeners() {
@@ -501,7 +472,7 @@ function getNodeCachedDir() {
 	return new class {
 
 		constructor() {
-			this.value = this._compute();
+			this.value = this.compute();
 		}
 
 		async ensureExists() {
@@ -516,7 +487,7 @@ function getNodeCachedDir() {
 			}
 		}
 
-		_compute() {
+		compute() {
 			if (process.argv.indexOf('--no-cached-data') > 0) {
 				return undefined;
 			}

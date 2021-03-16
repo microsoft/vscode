@@ -19,7 +19,9 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TaskSequentializer } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { assertType } from 'vs/base/common/types';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class NotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
@@ -46,6 +48,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 		@ILabelService labelService: ILabelService,
 	) {
 		super();
@@ -68,8 +71,8 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
 		this._register(this._fileService.onDidFilesChange(async e => {
-			if (this.isDirty() || !this.isResolved()) {
-				// skip when dirty or unresolved...
+			if (this.isDirty() || !this.isResolved() || this._saveSequentializer.hasPending()) {
+				// skip when dirty, unresolved, or when saving
 				return;
 			}
 			if (!e.affects(this.resource, FileChangeType.UPDATED)) {
@@ -78,6 +81,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			}
 			const stats = await this._resolveStats(this.resource);
 			if (stats && this._lastResolvedFileStat && stats.etag !== this._lastResolvedFileStat.etag) {
+				this._logService.debug('[notebook editor model] trigger load after file event');
 				this.load({ forceReadFromDisk: true });
 			}
 		}));
@@ -148,6 +152,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
+			this._logService.debug('[notebook editor model] load from provider (forceRead)', this.resource.toString());
 			this._loadFromProvider(undefined);
 			assertType(this.isResolved());
 			return this;
@@ -163,14 +168,27 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
+		this._logService.debug('[notebook editor model] load from provider', this.resource.toString());
 		await this._loadFromProvider(backup?.meta?.backupId);
 		assertType(this.isResolved());
 		return this;
 	}
 
+	/**
+	 * @description Uses the textmodel resolver service to acquire the untitled file's content
+	 * @param resource The resource that is the untitled file
+	 * @returns The bytes
+	 */
+	private async getUntitledDocumentData(resource: URI): Promise<VSBuffer | undefined> {
+		// If it's an untitled file we must populate the untitledDocumentData
+		const untitledString = this.untitledTextEditorService.getValue(resource);
+		let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+		return untitledDocumentData;
+	}
+
 	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
 
-		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId);
+		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId, CancellationToken.None, (await this.getUntitledDocumentData(this.resource)));
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
 		if (this.isDisposed()) {
@@ -178,6 +196,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		}
 
 		if (!this.notebook) {
+			this._logService.debug('[notebook editor model] loading NEW notebook', this.resource.toString());
 			// FRESH there is no notebook yet and we are now creating it
 
 			// UGLY
@@ -220,6 +239,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		} else {
 			// UPDATE exitsing notebook with data that we have just fetched
+			this._logService.debug('[notebook editor model] loading onto EXISTING notebook', this.resource.toString());
 			this.notebook.metadata = data.data.metadata;
 			this.notebook.transientOptions = data.transientOptions;
 			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this.notebook.cells.length, cells: data.data.cells }];

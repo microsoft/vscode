@@ -22,6 +22,8 @@
 		/**
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
+		 *
+		 * @type {import('../electron-sandbox/electronTypes').IpcRenderer}
 		 */
 		ipcRenderer: {
 
@@ -49,34 +51,46 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
 			 */
 			on(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.on(channel, listener);
+
+					return this;
 				}
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
 			 */
 			once(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.once(channel, listener);
+
+					return this;
 				}
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
 			 */
 			removeListener(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.removeListener(channel, listener);
+
+					return this;
 				}
 			}
 		},
 
+		/**
+		 * @type {import('../electron-sandbox/globals').IpcMessagePort}
+		 */
 		ipcMessagePort: {
 
 			/**
@@ -106,6 +120,8 @@
 
 		/**
 		 * Support for subset of methods of Electron's `webFrame` type.
+		 *
+		 * @type {import('../electron-sandbox/electronTypes').WebFrame}
 		 */
 		webFrame: {
 
@@ -121,6 +137,8 @@
 
 		/**
 		 * Support for subset of methods of Electron's `crashReporter` type.
+		 *
+		 * @type {import('../electron-sandbox/electronTypes').CrashReporter}
 		 */
 		crashReporter: {
 
@@ -138,6 +156,8 @@
 		 *
 		 * Note: when `sandbox` is enabled, the only properties available
 		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
+		 *
+		 * @type {import('../electron-sandbox/globals').ISandboxNodeProcess}
 		 */
 		process: {
 			get platform() { return process.platform; },
@@ -146,6 +166,14 @@
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
+			get sandboxed() { return process.sandboxed; },
+
+			/**
+			 * @returns {string}
+			 */
+			cwd() {
+				return process.env['VSCODE_CWD'] || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
+			},
 
 			/**
 			 * @returns {Promise<typeof process.env>}
@@ -171,20 +199,17 @@
 
 			/**
 			 * @param {string} type
-			 * @param {() => void} callback
+			 * @param {Function} callback
+			 * @returns {import('../electron-sandbox/globals').ISandboxNodeProcess}
 			 */
 			on(type, callback) {
 				if (validateProcessEventType(type)) {
+					// @ts-ignore
 					process.on(type, callback);
+
+					return this;
 				}
 			}
-		},
-
-		/**
-		 * Some information about the context we are running in.
-		 */
-		context: {
-			get sandbox() { return process.sandboxed; }
 		}
 	};
 

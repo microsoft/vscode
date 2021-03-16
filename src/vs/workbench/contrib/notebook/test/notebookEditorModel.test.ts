@@ -16,6 +16,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('NotebookEditorModel', function () {
@@ -23,6 +24,7 @@ suite('NotebookEditorModel', function () {
 	const notebokService = new class extends mock<INotebookService>() { };
 	const backupService = new class extends mock<IBackupFileService>() { };
 	const notificationService = new class extends mock<INotificationService>() { };
+	const untitledTextEditorService = new class extends mock<IUntitledTextEditorService>() { };
 	const fileService = new class extends mock<IFileService>() {
 		onDidFilesChange = Event.None;
 	};
@@ -45,8 +47,8 @@ suite('NotebookEditorModel', function () {
 			}
 		};
 
-		new NotebookEditorModel(r1, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), labelService);
-		new NotebookEditorModel(r2, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), labelService);
+		new NotebookEditorModel(r1, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new NotebookEditorModel(r2, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
 
 		assert.strictEqual(copies.length, 2);
 		assert.strictEqual(!isEqual(copies[0].resource, copies[1].resource), true);

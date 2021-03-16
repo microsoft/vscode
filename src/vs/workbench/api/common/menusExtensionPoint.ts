@@ -54,6 +54,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorContext', "The editor context menu")
 	},
 	{
+		key: 'editor/context/copy',
+		id: MenuId.EditorContextCopy,
+		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
+	},
+	{
 		key: 'explorer/context',
 		id: MenuId.ExplorerContext,
 		description: localize('menus.explorerContext', "The file explorer context menu")
@@ -90,6 +95,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.home', "The home indicator context menu (web only)"),
 		proposed: true,
 		supportsSubmenus: false
+	},
+	{
+		key: 'menuBar/edit/copy',
+		id: MenuId.MenubarCopy,
+		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
 	},
 	{
 		key: 'scm/title',
@@ -539,7 +549,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				absoluteIcon = ThemeIcon.fromString(icon) ?? { dark: resources.joinPath(extension.description.extensionLocation, icon), light: resources.joinPath(extension.description.extensionLocation, icon) };
 
 			} else {
 				absoluteIcon = {

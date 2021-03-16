@@ -27,7 +27,7 @@ const WRITE_INTERVAL_MS = 5;
 
 const enum ShutdownConstants {
 	/**
-	 * The amount of time that must pass between data events after exit is queued before the actual
+	 * The amount of ms that must pass between data events after exit is queued before the actual
 	 * kill call is triggered. This data flush mechanism works around an [issue in node-pty][1]
 	 * where not all data is flushed which causes problems for task problem matchers. Additionally
 	 * on Windows under conpty, killing a process while data is being output will cause the [conhost
@@ -39,7 +39,7 @@ const enum ShutdownConstants {
 	 */
 	DataFlushTimeout = 250,
 	/**
-	 * The maximum time to allow after dispose is called because forcefully killing the process.
+	 * The maximum ms to allow after dispose is called because forcefully killing the process.
 	 */
 	MaximumShutdownTime = 5000
 }

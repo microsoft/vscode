@@ -34,7 +34,7 @@ type GettingStartedCategory = {
 	when?: string,
 	content:
 	| { type: 'items', items: GettingStartedItem[] }
-	| { type: 'command', command: string }
+	| { type: 'startEntry', command: string }
 };
 
 type GettingStartedContent = GettingStartedCategory[];
@@ -46,20 +46,73 @@ export const content: GettingStartedContent = [
 	// 	description: localize('gettingStarted.commandPalette.description', "The one keybinding to show you everything VS Code can do."),
 	// 	icon: Codicon.symbolColor,
 	// 	content: {
-	// 		type: 'command',
+	// 		type: 'startEntry',
 	// 		command: 'workbench.action.showCommands',
 	// 	}
 	// },
-	// {
-	// 	id: 'topLevelSeeExtensions',
-	// 	title: localize('gettingStarted.languageSupport.title', "Install Language Support"),
-	// 	description: localize('gettingStarted.languageSupport.description', "Want even more features? Install extensions to add support for languages like Python, C, or Java."),
-	// 	icon: Codicon.extensions,
-	// 	content: {
-	// 		type: 'command',
-	// 		command: 'workbench.extensions.action.showPopularExtensions',
-	// 	}
-	// },
+	{
+		id: 'topLevelNewFile',
+		title: localize('gettingStarted.newFile.title', "New File"),
+		description: localize('gettingStarted.newFile.description', "Start with a new empty file"),
+		icon: Codicon.newFile,
+		content: {
+			type: 'startEntry',
+			command: 'explorer.newFile',
+		}
+	},
+	{
+		id: 'topLevelOpenMac',
+		title: localize('gettingStarted.openMac.title', "Open..."),
+		description: localize('gettingStarted.openMac.description', "Open a file or folder to start working"),
+		icon: Codicon.folderOpened,
+		when: 'isMac',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.files.openFileFolder',
+		}
+	},
+	{
+		id: 'topLevelOpenFile',
+		title: localize('gettingStarted.openFile.title', "Open File..."),
+		description: localize('gettingStarted.openFile.description', "Open a file to start working"),
+		icon: Codicon.goToFile,
+		when: '!isMac',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.files.openFile',
+		}
+	},
+	{
+		id: 'topLevelOpenFolder',
+		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
+		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		icon: Codicon.folderOpened,
+		when: '!isMac',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.files.openFolder',
+		}
+	},
+	{
+		id: 'topLevelCloneRepo',
+		title: localize('gettingStarted.cloneRepo.title', "Clone Git Repository..."),
+		description: localize('gettingStarted.cloneRepo.description', "Clone a git repository"),
+		icon: Codicon.repoClone,
+		content: {
+			type: 'startEntry',
+			command: 'git.clone',
+		}
+	},
+	{
+		id: 'topLevelSeeExtensions',
+		title: localize('gettingStarted.languageSupport.title', "Install Language Support"),
+		description: localize('gettingStarted.languageSupport.description', "Want even more features? Install extensions to add support for languages like Python, C, or Java."),
+		icon: Codicon.extensions,
+		content: {
+			type: 'startEntry',
+			command: 'workbench.extensions.action.showPopularExtensions',
+		}
+	},
 	{
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),
