@@ -317,7 +317,11 @@ export class TerminalService implements ITerminalService {
 		} else if ((one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
 			const oneExec = (one as ITerminalExecutable);
 			const twoExec = (two as ITerminalExecutable);
-			return oneExec.path.toString() === twoExec.path.toString() && oneExec.args?.toString() === twoExec.args?.toString();
+			return ((Array.isArray(oneExec.path) && Array.isArray(twoExec.path) && oneExec.path.length === twoExec.path.length && oneExec.path.every((p, index) => p === twoExec.path[index])) ||
+				(oneExec.path === twoExec.path)
+			) && ((Array.isArray(oneExec.args) && Array.isArray(twoExec.args) && oneExec.args?.every((a, index) => a === twoExec.args?.[index])) ||
+				(oneExec.args === twoExec.args)
+				);
 		} else if ((one as ITerminalProfileGenerator).generator && (two as ITerminalProfileGenerator).generator) {
 			const oneGen = (one as ITerminalProfileGenerator);
 			const twoGen = (two as ITerminalProfileGenerator);
