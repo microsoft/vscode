@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget, TaskProcessStartEvent } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
@@ -272,6 +272,58 @@ import { assertNoRpc } from '../utils';
 					reject('fetched task can\'t be undefined');
 				}
 			});
+		});
+
+		test('dependsOn task should start with a different processId (#118256)', async () => {
+			// Set up dependsOn task by creating tasks.json since this is not possible via the API
+			// Tasks API
+			const tasksConfig = workspace.getConfiguration('tasks');
+			tasksConfig.update('version', '2.0.0');
+			tasksConfig.update('tasks', [
+				{
+					label: 'taskToDependOn',
+					type: 'shell',
+					command: 'sleep 1',
+					problemMatcher: []
+				},
+				{
+					label: 'Run this task',
+					type: 'shell',
+					command: 'sleep 1',
+					problemMatcher: [],
+					dependsOn: 'taskToDependOn'
+				}
+			], ConfigurationTarget.Workspace);
+
+			// Run the task
+			commands.executeCommand('workbench.action.tasks.runTask', 'Run this task');
+
+			// Listen for first task and verify valid process ID
+			const startEvent1 = await new Promise<TaskProcessStartEvent>(r => {
+				const listener = tasks.onDidStartTaskProcess(async (e) => {
+					if (e.execution.task.name === 'taskToDependOn') {
+						listener.dispose();
+						r(e);
+					}
+				});
+			});
+			assert.ok(startEvent1.processId);
+
+			// Listen for second task, verify valid process ID and that it's not the process ID of
+			// the first task
+			const startEvent2 = await new Promise<TaskProcessStartEvent>(r => {
+				const listener = tasks.onDidStartTaskProcess(async (e) => {
+					if (e.execution.task.name === 'Run this task') {
+						listener.dispose();
+						r(e);
+					}
+				});
+			});
+			assert.ok(startEvent2.processId);
+			assert.notStrictEqual(startEvent1.processId, startEvent2.processId);
+
+			// Clear out tasks config
+			tasksConfig.update('tasks', []);
 		});
 	});
 });
