@@ -401,7 +401,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		const metadata = cell.getEvaluatedMetadata(this._delegate.viewModel.metadata);
-		if (metadata.runState !== NotebookCellExecutionState.Executing) {
+		if (metadata.runState === NotebookCellExecutionState.Idle) {
 			return;
 		}
 

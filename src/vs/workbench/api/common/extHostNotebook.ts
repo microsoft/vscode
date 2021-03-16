@@ -1137,10 +1137,6 @@ class NotebookCellExecutionTask extends Disposable {
 					throw new Error('Cannot call resolve twice');
 				}
 
-				if (that._state === NotebookCellExecutionTaskState.Init) {
-					throw new Error('Must call start before calling resolve');
-				}
-
 				that._state = NotebookCellExecutionTaskState.Resolved;
 				that._onDidChangeState.fire();
 
