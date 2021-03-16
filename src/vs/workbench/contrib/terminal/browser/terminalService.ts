@@ -314,11 +314,11 @@ export class TerminalService implements ITerminalService {
 	private _terminalProfileObjectEqual(one?: ITerminalProfileObject, two?: ITerminalProfileObject): boolean {
 		if (one === null && two === null) {
 			return true;
-		} else if (one && two && (one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
+		} else if ((one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
 			const oneExec = (one as ITerminalExecutable);
 			const twoExec = (two as ITerminalExecutable);
 			return oneExec.path.toString() === twoExec.path.toString() && oneExec.args?.toString() === twoExec.args?.toString();
-		} else if (one && two && (one as ITerminalProfileGenerator).generator && (two as ITerminalProfileGenerator).generator) {
+		} else if ((one as ITerminalProfileGenerator).generator && (two as ITerminalProfileGenerator).generator) {
 			const oneGen = (one as ITerminalProfileGenerator);
 			const twoGen = (two as ITerminalProfileGenerator);
 			return oneGen.generator === twoGen.generator;
@@ -326,6 +326,7 @@ export class TerminalService implements ITerminalService {
 		return false;
 	}
 
+	// avoid checking this very often, every ten seconds shoulds suffice
 	@throttle(10000)
 	private async _updateAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles(true);

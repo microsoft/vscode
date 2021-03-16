@@ -181,6 +181,8 @@ async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logS
 					// Ubuntu (Default) -> Ubuntu bc (Default) won't work
 					s = s.substring(0, s.length - 10);
 				}
+
+				// docker-desktop-data is used by docker-desktop to store container images and isn't a valid profile type
 				if (s !== '' && s !== 'docker-desktop-data') {
 					let profile = { profileName: `${s} (WSL)`, paths: [wslPath], args: [`-d`, `${s}`] };
 					profiles.push(profile);
