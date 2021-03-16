@@ -253,6 +253,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 		this.logInitialWorkspaceTrustInfo();
 
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.dataModel.onDidChangeTrustState(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
 		this._register(this.requestModel.onDidCancelRequest(() => this.onTrustRequestCancelled()));
