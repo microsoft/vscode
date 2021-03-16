@@ -105,15 +105,15 @@ export class CellOutputElement extends Disposable {
 			return undefined;
 		}
 
-		if (mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1) {
-			this.attachMimetypeSwitcher(this.domNode, notebookTextModel, mimeTypes);
-		}
-
 		const pickedMimeTypeRenderer = mimeTypes[pick];
 		// Reuse output item div
 		this.useDedicatedDOM = !(!beforeElement && this.output.supportAppend() && this.previousDivSupportAppend(pickedMimeTypeRenderer.mimeType));
 		this.domNode = this.useDedicatedDOM ? DOM.$('.output-inner-container') : this.outputContainer.lastChild as HTMLElement;
 		this.domNode.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
+
+		if (mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1) {
+			this.attachMimetypeSwitcher(this.domNode, notebookTextModel, mimeTypes);
+		}
 
 		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
 
