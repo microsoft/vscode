@@ -156,8 +156,8 @@ export interface IExtensionContributions {
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-
 export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
+export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -214,7 +214,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
-	readonly requiresWorkspaceTrust?: ExtensionWorkspaceTrustRequirement;
+	readonly workspaceTrust?: ExtensionWorkspaceTrust;
 }
 
 export const enum ExtensionType {

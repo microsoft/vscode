@@ -5,7 +5,9 @@
   "publisher": "vscode",
   "license": "MIT",
   "enableProposedApi": true,
-  "requiresWorkspaceTrust": "onDemand",
+  "workspaceTrust": {
+    "required": "onDemand"
+  },
   "private": true,
   "activationEvents": [],
   "main": "./out/extension",

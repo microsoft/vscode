@@ -32,6 +32,10 @@ interface LanguagePackFile {
 
 export class LanguagePackCachedDataCleaner extends Disposable {
 
+	private readonly _DataMaxAge = this._productService.quality !== 'stable'
+		? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
+		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
+
 	constructor(
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
@@ -49,9 +53,6 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			this._logService.info('Starting to clean up unused language packs.');
-			const maxAge = this._productService.quality !== 'stable'
-				? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
-				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {
 				const installed: IStringDictionary<boolean> = Object.create(null);
 				const metaData: LanguagePackFile = JSON.parse(await fs.promises.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
@@ -85,7 +86,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 						const stat = await fs.promises.stat(candidate);
 						if (stat.isDirectory()) {
 							const diff = now - stat.mtime.getTime();
-							if (diff > maxAge) {
+							if (diff > this._DataMaxAge) {
 								this._logService.info('Removing language pack cache entry: ', path.join(packEntry, entry));
 								await pfs.rimraf(candidate);
 							}
