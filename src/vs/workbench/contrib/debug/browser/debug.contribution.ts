@@ -398,6 +398,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.console.closeOnEnd', "Controls if the debug console should be automatically closed when the debug session ends."),
 			default: false
 		},
+		'debug.terminal.clearBeforeReusing': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.terminal.clearBeforeReusing' }, "Before starting a new debug session in an integrated or external terminal, clear the terminal."),
+			default: false
+		},
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnFirstSessionStart',
