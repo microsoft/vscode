@@ -416,7 +416,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
-						width: calc(100% - ${this.options.cellMargin}px);
+						width: 100%;
 						padding-left: ${this.options.leftMargin}px;
 						padding-top: ${this.options.previewNodePadding}px;
 						padding-bottom: ${this.options.previewNodePadding}px;
