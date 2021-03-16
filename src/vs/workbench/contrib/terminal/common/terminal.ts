@@ -226,6 +226,7 @@ export interface IBeforeProcessDataEvent {
 export interface ITerminalProfile {
 	profileName: string;
 	path: string;
+	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
 }
 

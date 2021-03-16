@@ -24,7 +24,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalExecutable, ITerminalProfileGenerator } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -287,7 +287,39 @@ export class TerminalService implements ITerminalService {
 
 	public getAvailableProfiles(): ITerminalProfile[] {
 		this._updateAvailableProfiles();
-		return this._availableProfiles?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args } as ITerminalProfile)) || [];
+		return this._availableProfiles?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args, isWorkspaceProfile: this._getWorkspaceProfilePermissions(s) } as ITerminalProfile)) || [];
+	}
+
+	private _getWorkspaceProfilePermissions(profile: ITerminalProfile): boolean {
+		if (isWindows) {
+			const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(`terminal.integrated.profiles.windows`);
+			if (profiles && profiles.workspaceValue && profiles.defaultValue) {
+				const workspaceProfile = Object.entries(profiles.workspaceValue).find(p => p[0] === profile.profileName);
+				const defaultProfile = Object.entries(profiles.defaultValue).find(p => p[0] === profile.profileName);
+				if (workspaceProfile && defaultProfile && workspaceProfile[0] === defaultProfile[0]) {
+					let result = !this._terminalProfileObjectEqual(workspaceProfile[1], defaultProfile[1]);
+					return result;
+				} else {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private _terminalProfileObjectEqual(one?: ITerminalProfileObject, two?: ITerminalProfileObject): boolean {
+		if (one === null && two === null) {
+			return true;
+		} else if (one && two && (one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
+			const oneExec = (one as ITerminalExecutable);
+			const twoExec = (two as ITerminalExecutable);
+			return oneExec.path === twoExec.path && oneExec.args === twoExec.args;
+		} else if (one && two && (one as ITerminalProfileGenerator).generator && (two as ITerminalProfileGenerator).generator) {
+			const oneGen = (one as ITerminalProfileGenerator);
+			const twoGen = (two as ITerminalProfileGenerator);
+			return oneGen.generator === twoGen.generator;
+		}
+		return false;
 	}
 
 	@throttle(10000)

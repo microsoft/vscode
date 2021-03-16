@@ -21,7 +21,7 @@ import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
@@ -1438,6 +1438,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, item?: string) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalContributionService = accessor.get(ITerminalContributionService);
+			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
 			if (!item || !item.split) {
 				return Promise.resolve(null);
@@ -1466,9 +1467,28 @@ export function registerTerminalActions() {
 
 			if (detectedProfiles) {
 				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
-				if (launchConfig) {
+				if (launchConfig && !launchConfig.isWorkspaceProfile) {
 					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
 					terminalService.setActiveInstance(instance);
+				} else if (launchConfig && launchConfig.isWorkspaceProfile) {
+					notificationService.prompt(Severity.Info, `Do you allow this workspace to modify your terminal profile? ${item}`,
+						[{
+							label: 'Allow',
+							run: () => {
+								const instance = terminalService.createTerminal({ executable: launchConfig?.path, name: launchConfig?.profileName, args: launchConfig?.args });
+								terminalService.setActiveInstance(instance);
+							}
+						},
+						{
+							label: 'Disallow',
+							run: () => {
+								const activeInstance = terminalService.getActiveInstance();
+								if (activeInstance) {
+									terminalService.setActiveInstance(activeInstance);
+								}
+							}
+						}]
+					);
 				}
 			} else {
 				const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
