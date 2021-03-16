@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 
 export class TestNotificationService implements INotificationService {
 
-	onDidAddNotification: Event<INotification> = Event.None;
+	readonly onDidAddNotification: Event<INotification> = Event.None;
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
