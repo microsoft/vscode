@@ -102,7 +102,11 @@ async function detectAvailableWindowsProfiles(detectWslProfiles?: boolean, confi
 						profile = detectedProfiles?.find(profile => profile.path === resolved);
 					}
 					if (profile) {
-						validProfiles?.push({ profileName: profileKey, path: profile.path, args: customProfile.args });
+						if (customProfile.args) {
+							validProfiles?.push({ profileName: profileKey, path: profile.path, args: customProfile.args });
+						} else {
+							validProfiles?.push({ profileName: profileKey, path: profile.path });
+						}
 					}
 				} else if ((value as ITerminalProfileGenerator).generator) {
 					// generator

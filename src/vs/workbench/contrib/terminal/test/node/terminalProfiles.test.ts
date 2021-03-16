@@ -39,7 +39,7 @@ suite('Workbench - TerminalProfiles', () => {
 					};
 					const profiles = await detectAvailableProfiles(config, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
-					assert.deepStrictEqual(expected, profiles);
+					assert.deepStrictEqual(profiles, expected);
 				});
 			});
 		}
