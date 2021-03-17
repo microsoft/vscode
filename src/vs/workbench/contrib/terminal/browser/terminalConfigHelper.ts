@@ -220,16 +220,18 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const shellConfigValue = this._configurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
+		const profiles = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.profiles.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's allowed
 		let isWorkspaceShellAllowed: boolean | undefined = false;
-		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
+		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined || profiles.workspaceValue !== undefined) {
 			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
 		if (shellConfigValue.workspaceValue === undefined && envConfigValue.workspaceValue === undefined &&
-			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0) {
+			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0
+			&& profiles.workspaceValue === undefined) {
 			isWorkspaceShellAllowed = true;
 		}
 
@@ -248,6 +250,10 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (envConfigValue.workspaceValue) {
 				envString = `env: {${Object.keys(envConfigValue.workspaceValue).map(k => `${k}:${envConfigValue.workspaceValue![k]}`).join(', ')}}`;
 			}
+			let profilesString: string | undefined;
+			if (profiles.workspaceValue) {
+				profilesString = `profiles: {${Object.keys(profiles.workspaceValue).map(k => `${k}:${profiles.workspaceValue![k]}`).join(', ')}}`;
+			}
 			// Should not be localized as it's json-like syntax referencing settings keys
 			const workspaceConfigStrings: string[] = [];
 			if (shellString) {
@@ -258,6 +264,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			}
 			if (envString) {
 				workspaceConfigStrings.push(envString);
+			}
+			if (profilesString) {
+				workspaceConfigStrings.push(profilesString);
 			}
 			const workspaceConfigString = workspaceConfigStrings.join(', ');
 			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow this workspace to modify your terminal shell? {0}", workspaceConfigString),

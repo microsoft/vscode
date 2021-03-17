@@ -9,15 +9,16 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellAndArgsDto, IShellDefinitionDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider, ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ITerminalConfiguration, ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 import type * as vscode from 'vscode';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
@@ -131,8 +132,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
 	}
 
-	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
-		return detectAvailableShells();
+	public async $getAvailableProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
+		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
+		return detectAvailableProfiles(quickLaunchOnly, this._logService, config as ITerminalConfiguration, this._variableResolver, this._lastActiveWorkspace);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {

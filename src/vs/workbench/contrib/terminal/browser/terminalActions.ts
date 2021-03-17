@@ -21,7 +21,7 @@ import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
@@ -38,7 +38,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export const switchTerminalActionViewItemSeparator = '─────────';
-export const selectDefaultShellTitle = localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell");
+export const selectDefaultProfileTitle = localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile");
 export const configureTerminalSettingsTitle = localize('workbench.action.terminal.openSettings', "Configure Terminal Settings");
 
 const enum ContextMenuGroup {
@@ -1332,15 +1332,15 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_SHELL,
-				title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Shell"), original: 'Select Default Shell' },
+				id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
+				title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).selectDefaultShell();
+			await accessor.get(ITerminalService).selectDefaultProfile();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1438,6 +1438,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, item?: string) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalContributionService = accessor.get(ITerminalContributionService);
+			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
 			if (!item || !item.split) {
 				return Promise.resolve(null);
@@ -1446,9 +1447,9 @@ export function registerTerminalActions() {
 				terminalService.refreshActiveTab();
 				return Promise.resolve(null);
 			}
-			if (item === selectDefaultShellTitle) {
+			if (item === selectDefaultProfileTitle) {
 				terminalService.refreshActiveTab();
-				return terminalService.selectDefaultShell();
+				return terminalService.selectDefaultProfile();
 			}
 			if (item === configureTerminalSettingsTitle) {
 				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
@@ -1459,13 +1460,43 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
+			const detectedProfiles = await terminalService.getAvailableProfiles();
 
-			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
-			if (customType) {
-				return commandService.executeCommand(customType.command);
+			// Remove 'New ' from the selected item to get the profile name
+			const profileSelection = item.substring(4);
+
+			if (detectedProfiles) {
+				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
+				if (launchConfig && !launchConfig.isWorkspaceProfile) {
+					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
+					terminalService.setActiveInstance(instance);
+				} else if (launchConfig && launchConfig.isWorkspaceProfile) {
+					notificationService.prompt(Severity.Info, `Do you allow this workspace to modify your terminal profile? ${item}`,
+						[{
+							label: 'Allow',
+							run: () => {
+								const instance = terminalService.createTerminal({ executable: launchConfig?.path, name: launchConfig?.profileName, args: launchConfig?.args });
+								terminalService.setActiveInstance(instance);
+							}
+						},
+						{
+							label: 'Disallow',
+							run: () => {
+								const activeInstance = terminalService.getActiveInstance();
+								if (activeInstance) {
+									terminalService.setActiveInstance(activeInstance);
+								}
+							}
+						}]
+					);
+				}
+			} else {
+				const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
+				if (customType) {
+					return commandService.executeCommand(customType.command);
+				}
+				console.warn(`Unmatched terminal item: "${item}"`);
 			}
-
-			console.warn(`Unmatched terminal item: "${item}"`);
 			return Promise.resolve();
 		}
 	});
