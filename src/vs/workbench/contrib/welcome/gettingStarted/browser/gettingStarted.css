@@ -264,6 +264,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task {
 	display: flex;
 	width: 100%;
+	margin: 4px 0;
 	overflow: hidden;
 	transition: height .1s linear;
 }
