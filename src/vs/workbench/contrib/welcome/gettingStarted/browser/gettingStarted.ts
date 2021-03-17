@@ -114,6 +114,7 @@ export class GettingStartedPage extends EditorPane {
 	private tasExperimentService?: ITASExperimentService;
 	private previousSelection?: string;
 	private recentlyOpened: Promise<IRecentlyOpened>;
+	private selectedTaskElement?: HTMLDivElement;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -287,6 +288,7 @@ export class GettingStartedPage extends EditorPane {
 			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
 				this.previousSelection = this.editorInput.selectedTask;
 				this.editorInput.selectedTask = undefined;
+				this.selectedTaskElement = undefined;
 				return;
 			}
 			taskElement.style.height = `${taskElement.scrollHeight}px`;
@@ -294,6 +296,7 @@ export class GettingStartedPage extends EditorPane {
 				throw Error('cannot expand task for category of non items type' + this.currentCategory?.id);
 			}
 			this.editorInput.selectedTask = id;
+			this.selectedTaskElement = taskElement;
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
 
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
@@ -594,6 +597,12 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
 		this.container.classList[size.height <= 685 ? 'add' : 'remove']('height-constrained');
+
+
+		if (this.selectedTaskElement) {
+			this.selectedTaskElement.style.height = ``; // unset or the scrollHeight will just be the old height
+			this.selectedTaskElement.style.height = `${this.selectedTaskElement.scrollHeight}px`;
+		}
 	}
 
 	private updateCategoryProgress() {
