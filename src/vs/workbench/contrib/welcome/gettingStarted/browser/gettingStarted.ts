@@ -670,38 +670,50 @@ export class GettingStartedPage extends EditorPane {
 					$('.category-description.description', {}, category.description))));
 
 		const categoryElements = category.content.items.map(
-			(task, i, arr) => $('button.getting-started-task',
-				{
-					'x-dispatch': 'selectTask:' + task.id,
-					'data-task-id': task.id,
-					'aria-expanded': 'false',
-					'aria-checked': '' + task.done,
-					'role': 'listitem',
-				},
-				$('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
+			(task, i, arr) => {
+
+				const codicon = $('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
 					{
 						'data-done-task-id': task.id,
 						'x-dispatch': 'completeTask:' + task.id,
-					}),
-				$('.task-description-container', {},
+					});
+
+				const taskActions = $('.actions', {},
+					$('button.emphasis.getting-started-task-action',
+						{ 'x-dispatch': 'runTaskAction:' + task.id },
+						task.button.title),
+					...(
+						arr[i + 1]
+							? [$('button.task-next.button-link', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
+							: nextCategory
+								? [$('button.task-next.button-link', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
+								: []
+					));
+
+
+				const taskDescription = $('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
 					$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", task.media.altText) }),
-					$('.actions', {},
-						...(
-							task.button
-								? [$('button.emphasis.getting-started-task-action', { 'x-dispatch': 'runTaskAction:' + task.id },
-									task.button.title + (task.button.command ? this.getKeybindingLabel(task.button.command) : '')
-								)]
-								: []),
-						...(
-							arr[i + 1]
-								? [$('button.task-next.button-link', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
-								: nextCategory
-									? [$('button.task-next.button-link', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
-									: []
-						))
-				)));
+					taskActions,
+				);
+
+				const keybindingLabel = (task.button.command && this.getKeybindingLabel(task.button.command));
+				if (keybindingLabel) {
+					taskDescription.appendChild($('span.shortcut-message', {}, 'Pro Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
+				}
+
+				return $('button.getting-started-task',
+					{
+						'x-dispatch': 'selectTask:' + task.id,
+						'data-task-id': task.id,
+						'aria-expanded': 'false',
+						'aria-checked': '' + task.done,
+						'role': 'listitem',
+					},
+					codicon,
+					taskDescription);
+			});
 
 		const detailContainer = $('.getting-started-detail-container', { 'role': 'list' });
 		if (this.detailsScrollbar) { this.detailsScrollbar.getDomNode().remove(); this.detailsScrollbar.dispose(); }
@@ -725,7 +737,7 @@ export class GettingStartedPage extends EditorPane {
 	private getKeybindingLabel(command: string) {
 		const binding = this.keybindingService.lookupKeybinding(command);
 		if (!binding) { return ''; }
-		else { return ` (${binding.getLabel()})`; }
+		else { return binding.getLabel() ?? ''; }
 	}
 
 	private async scrollPrev() {
