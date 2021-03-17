@@ -1272,6 +1272,42 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
+	test('Throws errors for invalid execution tasks', async function () {
+		let missedError: string | undefined;
+
+		const invalidKernel = new class implements vscode.NotebookKernel {
+			readonly id = 'invalidKernel';
+			readonly label = '';
+			readonly isPreferred = false;
+			readonly supportedLanguages = ['typescript', 'javascript'];
+
+			async executeCellsRequest(document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]) {
+				try {
+					vscode.notebook.createNotebookCellExecutionTask(document.uri, 1000, this.id);
+					missedError = 'Expected to throw for invalid index';
+					return;
+				} catch (e) { }
+
+				try {
+					vscode.notebook.createNotebookCellExecutionTask(vscode.Uri.file('slkdf'), 0, this.id);
+					missedError = 'Expected to throw for invalid uri';
+					return;
+				} catch (e) { }
+			}
+		};
+
+		currentKernelProvider.addKernel(invalidKernel);
+
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: invalidKernel.id });
+		await vscode.commands.executeCommand('notebook.cell.execute');
+
+		assert.strictEqual(missedError, undefined, missedError);
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
 	// });
 
 	// suite('webview', () => {

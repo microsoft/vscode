@@ -860,7 +860,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			return;
 		}
 
-		const execution = new NotebookCellExecutionTask(docUri, index, document, cell, this._proxy);
+		const execution = new NotebookCellExecutionTask(docUri, document, cell, this._proxy);
 		this._activeExecutions.set(cell.uri, execution);
 		const listener = execution.onDidChangeState(() => {
 			if (execution.state === NotebookCellExecutionTaskState.Resolved) {
@@ -1066,7 +1066,6 @@ class NotebookCellExecutionTask extends Disposable {
 
 	constructor(
 		private readonly _uri: vscode.Uri,
-		private readonly _index: number,
 		private readonly _document: ExtHostNotebookDocument,
 		private readonly _cell: ExtHostCell,
 		private readonly _proxy: MainThreadNotebookShape) {
@@ -1101,7 +1100,7 @@ class NotebookCellExecutionTask extends Disposable {
 	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellMetadata) {
 		this.applyEdits(() => {
 			const edits: ICellEditOperation[] = [
-				{ editType: CellEditType.PartialMetadata, index: this._index, metadata: mixinMetadata }
+				{ editType: CellEditType.PartialMetadata, index: this._cell.cell.index, metadata: mixinMetadata }
 			];
 			return edits;
 		});
@@ -1155,22 +1154,22 @@ class NotebookCellExecutionTask extends Disposable {
 
 			appendOutput(outputs: vscode.NotebookCellOutput[]): Thenable<void> {
 				that.verifyStateForOutput();
-				return that.applyEdits(() => [{ editType: CellEditType.Output, index: that._index, append: true, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
+				return that.applyEdits(() => [{ editType: CellEditType.Output, index: that._cell.cell.index, append: true, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
 			},
 
 			replaceOutput(outputs: vscode.NotebookCellOutput[]): Thenable<void> {
 				that.verifyStateForOutput();
-				return that.applyEdits(() => [{ editType: CellEditType.Output, index: that._index, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
+				return that.applyEdits(() => [{ editType: CellEditType.Output, index: that._cell.cell.index, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
 			},
 
 			appendOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): Thenable<void> {
 				that.verifyStateForOutput();
-				return that.applyEdits(() => [{ editType: CellEditType.OutputItems, index: that._index, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
+				return that.applyEdits(() => [{ editType: CellEditType.OutputItems, index: that._cell.cell.index, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
 			},
 
 			replaceOutputItems(outputId: string, items: vscode.NotebookCellOutputItem[]): Thenable<void> {
 				that.verifyStateForOutput();
-				return that.applyEdits(() => [{ editType: CellEditType.OutputItems, index: that._index, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
+				return that.applyEdits(() => [{ editType: CellEditType.OutputItems, index: that._cell.cell.index, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
 			},
 
 			token: that._tokenSource.token
