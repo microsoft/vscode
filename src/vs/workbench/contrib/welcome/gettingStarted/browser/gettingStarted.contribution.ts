@@ -18,6 +18,7 @@ import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
@@ -129,6 +130,38 @@ registerAction2(class extends Action2 {
 		if (editorPane instanceof GettingStartedPage) {
 			editorPane.focusPrevious();
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'gettingStarted.markTaskComplete',
+			title: localize('gettingStarted.markTaskComplete', "Mark Task Complete"),
+			category,
+		});
+	}
+
+	run(accessor: ServicesAccessor, arg: string) {
+		if (!arg) { return; }
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		gettingStartedService.progressTask(arg);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'gettingStarted.markTaskIncomplete',
+			title: localize('gettingStarted.markTaskInomplete', "Mark Task Incomplete"),
+			category,
+		});
+	}
+
+	run(accessor: ServicesAccessor, arg: string) {
+		if (!arg) { return; }
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		gettingStartedService.deprogressTask(arg);
 	}
 });
 

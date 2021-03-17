@@ -51,6 +51,7 @@ export interface IGettingStartedService {
 
 	progressByEvent(eventName: string): void;
 	progressTask(id: string): void;
+	deprogressTask(id: string): void;
 }
 
 export class GettingStartedService extends Disposable implements IGettingStartedService {
@@ -258,6 +259,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			const task = this.registry.getTask(id);
 			this._onDidProgressTask.fire(this.getTaskProgress(task));
 		}
+	}
+
+	deprogressTask(id: string) {
+		delete this.taskProgress[id];
+		this.memento.saveMemento();
+		const task = this.registry.getTask(id);
+		this._onDidProgressTask.fire(this.getTaskProgress(task));
 	}
 
 	private progressByCommand(command: string) {

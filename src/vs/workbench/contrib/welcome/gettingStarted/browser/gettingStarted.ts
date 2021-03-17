@@ -175,8 +175,8 @@ export class GettingStartedPage extends EditorPane {
 					}
 					else {
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
-						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
+						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 					}
 				});
 			}
@@ -244,8 +244,17 @@ export class GettingStartedPage extends EditorPane {
 							this.selectTask(argument);
 							break;
 						}
-						case 'completeTask': {
-							this.gettingStartedService.progressTask(argument);
+						case 'toggleTaskCompletion': {
+							if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
+								throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
+							}
+
+							const taskToggle = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
+							if (taskToggle.done) {
+								this.gettingStartedService.deprogressTask(argument);
+							} else {
+								this.gettingStartedService.progressTask(argument);
+							}
 							break;
 						}
 						case 'runTaskAction': {
@@ -675,7 +684,7 @@ export class GettingStartedPage extends EditorPane {
 				const codicon = $('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
 					{
 						'data-done-task-id': task.id,
-						'x-dispatch': 'completeTask:' + task.id,
+						'x-dispatch': 'toggleTaskCompletion:' + task.id,
 					});
 
 				const taskActions = $('.actions', {},
