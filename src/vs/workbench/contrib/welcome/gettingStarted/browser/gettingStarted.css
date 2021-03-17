@@ -154,6 +154,10 @@
 	top: 3px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .start-container .codicon {
+	left: 1px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .keybinding-label {
 	padding-left: 1em;
 }
