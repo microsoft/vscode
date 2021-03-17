@@ -9,7 +9,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, reset } from 'vs/base/browser/dom';
+import { $, addDisposableListener, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
@@ -426,24 +426,22 @@ export class GettingStartedPage extends EditorPane {
 
 		const categoriesSlide = assertIsDefined(this.container.querySelector('.gettingStartedSlideCategory') as HTMLElement);
 		reset(categoriesSlide,
-			$('.gap'),
-			$('.header', {},
-				$('h1.product-name.caption', {}, localize('gettingStarted.vscode', "Visual Studio Code")),
-				$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved")),
-			),
-			$('.categories-split-view', {},
-				$('.gap'),
-				$('.categories-left', {},
-					this.buildStartList(),
-					this.buildRecentlyOpenedList(),
+			$('.categories-slide-container', {},
+				$('.header', {},
+					$('h1.product-name.caption', {}, localize('gettingStarted.vscode', "Visual Studio Code")),
+					$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved")),
 				),
-				$('.categories-right', {},
-					$('h2', {}, localize('gettingStarted', "Getting Started")),
-					this.categoriesScrollbar.getDomNode(),
-				),
-				$('.gap'),
+				$('.categories-split-view', {},
+					$('.categories-left', {},
+						this.buildStartList(),
+						this.buildRecentlyOpenedList(),
+					),
+					$('.categories-right', {},
+						$('h2', {}, localize('gettingStarted', "Getting Started")),
+						this.categoriesScrollbar.getDomNode(),
+					),
+				)
 			),
-			$('.gap'),
 			$('.footer', {},
 				$('p.showOnStartup', {},
 					showOnStartupCheckbox,
@@ -567,10 +565,8 @@ export class GettingStartedPage extends EditorPane {
 
 			if (entry.content.type === 'items') { return undefined; }
 
-			const li = $('li', {}, this.iconWidgetFor(entry));
-			const button = $<HTMLAnchorElement>('button.button-link', { 'x-dispatch': 'selectCategory:' + entry.id });
-
-			button.innerText = entry.title;
+			const li = $('li', {});
+			const button = $<HTMLAnchorElement>('button.button-link', { 'x-dispatch': 'selectCategory:' + entry.id }, this.iconWidgetFor(entry), $('span', {}, entry.title));
 			button.title = entry.description;
 
 			li.appendChild(button);
@@ -593,20 +589,11 @@ export class GettingStartedPage extends EditorPane {
 
 
 
-	layout() {
+	layout(size: Dimension) {
 		this.categoriesScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
-
-		// Don't let our spacer elements move around based on internal content changes, only when the external size changes
-		this.container.querySelectorAll<HTMLDivElement>('.gap').forEach(element => {
-			element.style.width = '';
-			element.style.height = '';
-			setTimeout(() => {
-				element.style.width = `${element.clientWidth}px`;
-				element.style.height = `${element.clientHeight}px`;
-			}, 0);
-		});
+		this.container.classList[size.height <= 685 ? 'add' : 'remove']('height-constrained');
 	}
 
 	private updateCategoryProgress() {
@@ -877,7 +864,7 @@ registerThemingParticipant((theme, collector) => {
 	if (link) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link * { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .scroll-button { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
