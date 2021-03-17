@@ -336,9 +336,30 @@ export class CellDragAndDropController extends Disposable {
 			const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
 			this.updateInsertIndicator(dropDirection, insertionIndicatorAbsolutePos);
 		}
+
+		// Try scrolling list if needed
+		if (this.currentDraggedCell !== cell) {
+			return;
+		}
+
+		const viewRect = this.notebookEditor.getDomNode().getBoundingClientRect();
+		const eventPositionInView = position.clientY - this.list.scrollTop;
+
+		const scrollMargin = 0.2;
+		const maxScrollPerFrame = 20;
+		const eventPositionRatio = eventPositionInView / viewRect.height;
+		if (eventPositionRatio < scrollMargin) {
+			this.list.scrollTop -= maxScrollPerFrame * (1 - eventPositionRatio / scrollMargin);
+		} else if (eventPositionRatio > 1 - scrollMargin) {
+			this.list.scrollTop += maxScrollPerFrame * (1 - ((1 - eventPositionRatio) / scrollMargin));
+		}
 	}
 
-	public endExplicitDrag(cell: ICellViewModel, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }) {
+	public endExplicitDrag(_cell: ICellViewModel) {
+		this.setInsertIndicatorVisibility(false);
+	}
+
+	public explicitDrop(cell: ICellViewModel, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }) {
 		this.currentDraggedCell = undefined;
 		this.setInsertIndicatorVisibility(false);
 

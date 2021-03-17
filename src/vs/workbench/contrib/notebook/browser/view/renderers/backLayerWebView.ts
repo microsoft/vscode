@@ -97,26 +97,35 @@ export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 
 export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
 export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
+}
+
+export interface ICellDropMessage extends BaseToWebviewMessage {
+	readonly type: 'cell-drop';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
 export interface ICellDragEndMessage extends BaseToWebviewMessage {
 	readonly type: 'cell-drag-end';
 	readonly cellId: string;
-	readonly ctrlKey: boolean
-	readonly altKey: boolean;
-	readonly position: {
-		readonly clientX: number;
-		readonly clientY: number;
-	};
 }
+
 export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkdownPreview';
 }
@@ -290,6 +299,7 @@ export type FromWebviewMessage =
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
+	| ICellDropMessage
 	| ICellDragEndMessage
 	| IInitializedMarkdownPreviewMessage
 	;
@@ -915,17 +925,21 @@ var requirejs = (function() {
 						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
 						break;
 					}
-				case 'cell-drag-end':
+				case 'cell-drop':
 					{
-						this.notebookEditor.markdownCellDragEnd(data.cellId, {
+						this.notebookEditor.markdownCellDrop(data.cellId, {
 							clientY: data.position.clientY,
 							ctrlKey: data.ctrlKey,
 							altKey: data.altKey,
 						});
 						break;
 					}
+				case 'cell-drag-end':
+					{
+						this.notebookEditor.markdownCellDragEnd(data.cellId);
+						break;
+					}
 			}
-
 		}));
 	}
 
