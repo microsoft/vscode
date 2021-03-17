@@ -5,7 +5,6 @@ Thumbs.db
 node_modules/
 .build/
 extensions/**/dist/
-extensions/notebook-markdown-extensions/notebook-out/**
 /out*/
 /extensions/**/out/
 src/vs/server
