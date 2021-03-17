@@ -82,12 +82,6 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	if (!quickLaunchOnly) {
 		return detectedProfiles;
 	}
-
-	// only show the windows powershell profile if no other powershell profile exists
-	if (detectedProfiles.find(p => p.profileName === 'PowerShell')) {
-		detectedProfiles = detectedProfiles.filter(p => p.profileName !== 'Windows PowerShell');
-	}
-
 	let validProfiles: ITerminalProfile[] = [];
 
 	if (detectedProfiles && configProfiles) {
@@ -150,6 +144,11 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		}
 	} else {
 		logService?.trace(`No detected profiles ${JSON.stringify(detectedProfiles)} or ${JSON.stringify(configProfiles)}`);
+	}
+
+	// only show the windows powershell profile if no other powershell profile exists
+	if (validProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
+		validProfiles = validProfiles.filter(p => p.profileName !== 'Windows PowerShell');
 	}
 	return validProfiles;
 }
