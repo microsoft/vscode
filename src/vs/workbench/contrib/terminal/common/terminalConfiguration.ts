@@ -102,7 +102,7 @@ export const terminalConfiguration: IConfigurationNode = {
 						],
 					args: []
 				},
-				'Windows Powershell': {
+				'Windows PowerShell': {
 					comment: 'note that this will not be included in the quickSelect drop down if another version of powershell is installed',
 					path:
 						[
