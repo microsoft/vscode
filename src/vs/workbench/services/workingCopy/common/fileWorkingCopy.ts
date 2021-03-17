@@ -958,12 +958,18 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 
 		// Delegate to save error handler
+		let throwError = true;
 		if (this.isTextFileModel(this.model)) {
 			this.textFileService.files.saveErrorHandler.onSaveError(error, this.model);
+			throwError = false;
 		}
 
 		// Emit as event
 		this._onDidSaveError.fire();
+
+		if (throwError) {
+			throw error;
+		}
 	}
 
 	private updateSavedVersionId(): void {
