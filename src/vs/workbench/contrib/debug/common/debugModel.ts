@@ -844,7 +844,8 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		hitCondition: string | undefined,
 		condition: string | undefined,
 		logMessage: string | undefined,
-		private accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
+		public accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined,
+		public accessType: DebugProtocol.DataBreakpointAccessType,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -855,7 +856,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		result.description = this.description;
 		result.dataId = this.dataId;
 		result.accessTypes = this.accessTypes;
-
+		result.accessType = this.accessType;
 		return result;
 	}
 
@@ -1292,8 +1293,8 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): void {
-		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes);
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): void {
+		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes, accessType);
 		this.dataBreakopints.push(newDataBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint], sessionOnly: false });
 	}
