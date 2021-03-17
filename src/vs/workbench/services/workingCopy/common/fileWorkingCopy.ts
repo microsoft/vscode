@@ -85,7 +85,37 @@ export interface IFileWorkingCopyModel {
  * of functionality can be built on top, such as saving in
  * a secure way to prevent data loss.
  */
-export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWorkingCopy {
+export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWorkingCopy, Disposable {
+
+	/**
+	 * An event for when a file working copy was loaded.
+	 */
+	readonly onDidLoad: Event<void>;
+
+	/**
+	 * An event for when a file working copy was saved successfully.
+	 */
+	readonly onDidSave: Event<SaveReason>;
+
+	/**
+	 * An event indicating that a file working copy save operation failed.
+	 */
+	readonly onDidSaveError: Event<void>;
+
+	/**
+	 * An event for when the file working copy was reverted.
+	 */
+	readonly onDidRevert: Event<void>;
+
+	/**
+	 * An event for when the orphaned state of the file working copy changes.
+	 */
+	readonly onDidChangeOrphaned: Event<void>;
+
+	/**
+	 * An event for when the file working copy has been disposed.
+	 */
+	readonly onDispose: Event<void>;
 
 	/**
 	 * Provides access to the underlying model of this file
@@ -93,6 +123,21 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	 * has not been loaded, the model is `undefined`.
 	 */
 	readonly model: T | undefined;
+
+	/**
+	 * Whether we have a resolved model or not.
+	 */
+	isResolved(): this is IResolvedFileWorkingCopy<T>;
+
+	/**
+	 * Whether the file working copy has been disposed or not.
+	 */
+	isDisposed(): boolean;
+
+	/**
+	 * Resolves a file working copy.
+	 */
+	load(options?: IFileWorkingCopyLoadOptions): Promise<IFileWorkingCopy<T>>;
 }
 
 export interface IResolvedFileWorkingCopy<T extends IFileWorkingCopyModel> extends IFileWorkingCopy<T> {
@@ -253,6 +298,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
 
 	//#endregion
 
@@ -1091,17 +1139,21 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 	private disposed = false;
 
-	private isDisposed(): boolean {
+	isDisposed(): boolean {
 		return this.disposed;
 	}
 
 	dispose(): void {
 		this.logService.trace('[file working copy] dispose()', this.resource.toString(true));
 
+		// State
 		this.disposed = true;
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;
+
+		// Event
+		this._onDispose.fire();
 
 		super.dispose();
 	}
