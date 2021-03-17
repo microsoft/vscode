@@ -10,7 +10,7 @@ import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/ter
 export interface ITestTerminalConfig {
 	profiles: {
 		windows: {
-			[key: string]: { path?: string[], generator?: string }
+			[key: string]: { path?: string[], source?: string }
 		}
 	},
 	detectWslProfiles: boolean
@@ -40,7 +40,7 @@ suite('Workbench - TerminalProfiles', () => {
 						profiles: {
 							windows: {
 								'Git Bash': {
-									generator: 'Git Bash'
+									source: 'Git Bash'
 								},
 							},
 						},

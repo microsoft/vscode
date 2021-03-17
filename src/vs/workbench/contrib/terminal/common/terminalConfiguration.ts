@@ -83,16 +83,16 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.profiles.windows': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.profiles.windows',
-				comment: ['{0}, {1}, {2}, and {3} are the `generator`, `path`, `profileName`, and optional `args` settings keys']
+				comment: ['{0}, {1}, {2}, and {3} are the `source`, `path`, `profileName`, and optional `args` settings keys']
 			},
-				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1}, {2}, and optional {3}", '`generator`', '`path`', '`profileName`', '`args`.'),
+				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1}, {2}, and optional {3}", '`source`', '`path`', '`profileName`', '`args`.'),
 			type: 'object',
 			default: {
 				'PowerShell': {
-					generator: 'PowerShell'
+					source: 'PowerShell'
 				},
 				'Git Bash': {
-					generator: 'Git Bash'
+					source: 'Git Bash'
 				},
 				'Command Prompt': {
 					path:
@@ -103,6 +103,7 @@ export const terminalConfiguration: IConfigurationNode = {
 					args: []
 				},
 				'Windows Powershell': {
+					comment: 'note that this will not be included in the quickSelect drop down if another version of powershell is installed',
 					path:
 						[
 							'${env:windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',

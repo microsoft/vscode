@@ -230,7 +230,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 }
 
-export const enum ProfileGenerator {
+export const enum ProfileSource {
 	'Git Bash',
 	'PowerShell'
 }
@@ -240,13 +240,13 @@ export interface ITerminalExecutable {
 	args?: string | string[] | undefined;
 }
 
-export interface ITerminalProfileGenerator {
-	generator: ProfileGenerator;
+export interface ITerminalProfileSource {
+	source: ProfileSource;
 }
 
 export type ProfileName = string;
 
-export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileGenerator | null;
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
 
 export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;

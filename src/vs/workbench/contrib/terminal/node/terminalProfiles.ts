@@ -9,7 +9,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileGenerator } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -134,17 +134,17 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 							validProfiles?.push({ profileName: profileKey, path: profile.path });
 						}
 					}
-				} else if ((value as ITerminalProfileGenerator).generator) {
-					// generator
-					let generatorKey = (value as ITerminalProfileGenerator).generator;
-					const profile = detectedProfiles?.find(profile => profile.profileName === generatorKey.toString());
+				} else if ((value as ITerminalProfileSource).source) {
+					// source
+					let sourceKey = (value as ITerminalProfileSource).source;
+					const profile = detectedProfiles?.find(profile => profile.profileName === sourceKey.toString());
 					if (profile) {
 						validProfiles?.push({ profileName: profileKey, path: profile.path, args: profile.args });
 					} else {
-						logService?.trace(`No generator with key ${generatorKey}`);
+						logService?.trace(`No source with key ${sourceKey}`);
 					}
 				} else {
-					logService?.trace(`Entry in terminal.profiles.windows is not of type ITerminalExecutable or ITerminalProfileGenerator`, profileKey, value);
+					logService?.trace(`Entry in terminal.profiles.windows is not of type ITerminalExecutable or Source`, profileKey, value);
 				}
 			}
 		}
