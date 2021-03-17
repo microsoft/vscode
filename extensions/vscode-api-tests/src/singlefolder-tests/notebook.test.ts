@@ -894,7 +894,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(secondResource);
 	});
 
-	test('multiple tabs: different editors with same document', async function () {
+	test.skip('multiple tabs: different editors with same document', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const firstNotebookEditor = vscode.window.activeNotebookEditor;
