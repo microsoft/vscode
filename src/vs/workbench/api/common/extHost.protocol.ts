@@ -1697,6 +1697,7 @@ export interface IDataBreakpointDto extends IBreakpointDto {
 	canPersist: boolean;
 	label: string;
 	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+	accessType: DebugProtocol.DataBreakpointAccessType;
 }
 
 export interface ISourceBreakpointDto extends IBreakpointDto {
