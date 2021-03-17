@@ -696,7 +696,8 @@ export class TunnelPanel extends ViewPane {
 						}
 					},
 					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
-				}
+				},
+				openOnSingleClick: false
 			}
 		) as WorkbenchTable<ITunnelItem>;
 
@@ -715,6 +716,12 @@ export class TunnelPanel extends ViewPane {
 		this._register(this.viewModel.onForwardedPortsChanged(() => {
 			this._onDidChangeViewWelcomeState.fire();
 			rerender();
+		}));
+
+		this._register(this.table.onDidOpen(e => {
+			if (e.element && (e.element.tunnelType === TunnelType.Forwarded)) {
+				this.commandService.executeCommand(LabelTunnelAction.ID);
+			}
 		}));
 
 		this._register(this.remoteExplorerService.onDidChangeEditable(e => {
