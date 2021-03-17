@@ -121,13 +121,20 @@ export class ExpressionContainer implements IExpressionContainer {
 	private async fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
 		try {
 			const response = await this.session!.variables(this.reference || 0, this.threadId, filter, start, count);
-			return response && response.body && response.body.variables
-				? distinct(response.body.variables.filter(v => !!v), v => v.name).map((v: IDebugProtocolVariableWithContext) => {
-					if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
-						return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type, v.__vscodeVariableMenuContext);
-					}
-					return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, { kind: 'virtual' }, undefined, undefined, false);
-				}) : [];
+			if (!response || !response.body || !response.body.variables) {
+				return [];
+			}
+
+			const nameCount = new Map<string, number>();
+			return response.body.variables.filter(v => !!v).map((v: IDebugProtocolVariableWithContext) => {
+				if (isString(v.value) && isString(v.name) && typeof v.variablesReference === 'number') {
+					const count = nameCount.get(v.name) || 0;
+					const idDuplicationIndex = count > 0 ? count.toString() : '';
+					nameCount.set(v.name, count + 1);
+					return new Variable(this.session, this.threadId, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.presentationHint, v.type, v.__vscodeVariableMenuContext, true, 0, idDuplicationIndex);
+				}
+				return new Variable(this.session, this.threadId, this, 0, '', undefined, nls.localize('invalidVariableAttributes', "Invalid variable attributes"), 0, 0, { kind: 'virtual' }, undefined, undefined, false);
+			});
 		} catch (e) {
 			return [new Variable(this.session, this.threadId, this, 0, '', undefined, e.message, 0, 0, { kind: 'virtual' }, undefined, undefined, false)];
 		}
@@ -225,9 +232,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 		public type: string | undefined = undefined,
 		public variableMenuContext: string | undefined = undefined,
 		public available = true,
-		startOfVariables = 0
+		startOfVariables = 0,
+		idDuplicationIndex = '',
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}`, namedVariables, indexedVariables, startOfVariables);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value || '';
 	}
 
