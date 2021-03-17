@@ -302,7 +302,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .shortcut-message {
 	opacity: 0.8;
-font-size: 8pt;
+	font-size: 8pt;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .shortcut-message .keybinding {
