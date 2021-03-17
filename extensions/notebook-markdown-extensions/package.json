@@ -31,15 +31,14 @@
   "scripts": {
     "compile": "npm run build-notebook",
     "watch": "npm run build-notebook",
-    "build-notebook": "npx webpack-cli --config webpack.notebook.js --mode production"
-  },
-  "dependencies": {
-    "@iktakahiro/markdown-it-katex": "^4.0.1",
-    "markdown-it-emoji": "^2.0.0"
+    "build-notebook": "npx webpack-cli --config webpack.notebook.js --mode production",
+    "postinstall": "npm run build-notebook"
   },
   "devDependencies": {
+    "@iktakahiro/markdown-it-katex": "^4.0.1",
     "@types/markdown-it": "^0.0.0",
-    "markdown-it": "^12.0.4"
+    "markdown-it": "^12.0.4",
+    "markdown-it-emoji": "^2.0.0"
   },
   "repository": {
     "type": "git",
