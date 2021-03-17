@@ -113,22 +113,23 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
-export interface IWelcomeItem {
+export interface IWalkthroughTask {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
-	readonly button: { title: string } & ({ command?: never, link: string } | { command: string, link?: never }),
-	readonly media: { path: string | { hc: string, light: string, dark: string }, altText: string },
-	readonly doneOn?:
-	| { event: string; command?: never }
-	| { event?: never; command: string };
+	readonly button:
+	| { title: string, link: string, command?: never }
+	| { title: string, command: string, link?: never },
+	readonly media: { path: string, altText: string },
+	readonly doneOn?: { command: string };
 	readonly when?: string;
 }
 
-export interface IWelcomeCategory {
+export interface IWalkthrough {
 	readonly id: string,
 	readonly title: string;
 	readonly description: string;
+	readonly tasks: IWalkthroughTask[];
 	readonly when?: string;
 }
 
@@ -151,8 +152,7 @@ export interface IExtensionContributions {
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
-	welcomeItems?: { [category: string]: IWelcomeItem[] };
-	welcomeCategories?: IWelcomeCategory[];
+	walkthroughs?: IWalkthrough[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
