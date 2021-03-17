@@ -72,7 +72,9 @@ export class CellOutputElement extends Disposable {
 
 	updateDOMTop(top: number) {
 		if (this.useDedicatedDOM) {
-			this.domNode.style.top = `${top}px`;
+			if (this.domNode) {
+				this.domNode.style.top = `${top}px`;
+			}
 		}
 	}
 
