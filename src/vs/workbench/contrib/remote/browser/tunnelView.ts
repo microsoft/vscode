@@ -717,13 +717,6 @@ export class TunnelPanel extends ViewPane {
 			rerender();
 		}));
 
-		// TODO@alexr00 Joao asks: why the debounce?
-		this._register(Event.debounce(this.table.onDidOpen, (last, event) => event, 75, true)(e => {
-			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
-				this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
-			}
-		}));
-
 		this._register(this.remoteExplorerService.onDidChangeEditable(e => {
 			this.isEditing = !!this.remoteExplorerService.getEditableData(e?.tunnel, e?.editId);
 			this._onDidChangeViewWelcomeState.fire();
