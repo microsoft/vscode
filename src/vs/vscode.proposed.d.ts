@@ -2709,6 +2709,11 @@ declare module 'vscode' {
 	}
 
 	export interface PortAttributesProvider {
+		/**
+		 * Provides attributes for the given ports. For ports that your extension doesn't know about, simply don't include
+		 * them in the returned array. For example, if `providePortAttributes` is called with ports [3000, 4000] but your
+		 * extension doesn't know anything about those ports you can return an empty array.
+		 */
 		providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes[]>;
 	}
 
@@ -2721,6 +2726,7 @@ declare module 'vscode' {
 		 *
 		 * @param portSelector If registerPortAttributesProvider is called after you start your process then you may already
 		 * know the range of ports or the pid of your process.
+		 * The `portRange` is start inclusive and end exclusive.
 		 * @param provider The PortAttributesProvider
 		 */
 		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: PortAttributesProvider): Disposable;
