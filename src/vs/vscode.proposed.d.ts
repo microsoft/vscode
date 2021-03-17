@@ -2673,17 +2673,17 @@ declare module 'vscode' {
 	 */
 	export enum CodeActionTriggerKind {
 		/**
+		 * Code actions were explicitly requested by the user or by an extension.
+		 */
+		Invoke = 1,
+
+		/**
 		 * Code actions were requested automatically.
 		 *
 		 * This typically happens when current selection in a file changes, but can
 		 * also be triggered when file content changes.
 		 */
-		Automatic = 1,
-
-		/**
-		 * Code actions were requested maually by the user or an extension.
-		 */
-		Manual = 2,
+		Automatic = 2,
 	}
 
 	export interface CodeActionContext {
