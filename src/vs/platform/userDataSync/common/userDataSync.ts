@@ -408,6 +408,8 @@ export interface IUserDataSyncResourceEnablementService {
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
 	isResourceEnabled(resource: SyncResource): boolean;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
+
+	getResourceSyncStateVersion(resource: SyncResource): string | undefined;
 }
 
 export interface ISyncTask {
