@@ -9,7 +9,13 @@ import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/ter
 
 export interface ITestTerminalConfig {
 	profiles: {
-		windows: {
+		windows?: {
+			[key: string]: { path?: string[], source?: string }
+		},
+		linux?: {
+			[key: string]: { path?: string[], source?: string }
+		},
+		osx?: {
 			[key: string]: { path?: string[], source?: string }
 		}
 	},
@@ -42,7 +48,7 @@ suite('Workbench - TerminalProfiles', () => {
 								'Git Bash': {
 									source: 'Git Bash'
 								},
-							},
+							}
 						},
 						detectWslProfiles: false
 					};
