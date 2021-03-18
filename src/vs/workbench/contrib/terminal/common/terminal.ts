@@ -79,6 +79,12 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 
 export type FontWeight = 'normal' | 'bold' | number;
 
+export interface ITerminalProfiles {
+	linux: { [key: string]: ITerminalProfileObject };
+	osx: { [key: string]: ITerminalProfileObject };
+	windows: { [key: string]: ITerminalProfileObject };
+}
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string | null;
@@ -95,11 +101,7 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
-	profiles: {
-		linux: Map<ProfileName, ITerminalProfileObject>;
-		osx: Map<ProfileName, ITerminalProfileObject>;
-		windows: Map<ProfileName, ITerminalProfileObject>;
-	};
+	profiles: ITerminalProfiles;
 	detectWslProfiles: boolean;
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
@@ -236,7 +238,7 @@ export const enum ProfileSource {
 }
 
 export interface ITerminalExecutable {
-	path: string | string[];
+	pathOrPaths: string | string[];
 	args?: string | string[] | undefined;
 }
 

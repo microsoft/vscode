@@ -319,11 +319,11 @@ export class TerminalService implements ITerminalService {
 	private _terminalProfileObjectEqual(one?: ITerminalProfileObject, two?: ITerminalProfileObject): boolean {
 		if (one === null && two === null) {
 			return true;
-		} else if ((one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
+		} else if ((one as ITerminalExecutable).pathOrPaths && (two as ITerminalExecutable).pathOrPaths) {
 			const oneExec = (one as ITerminalExecutable);
 			const twoExec = (two as ITerminalExecutable);
-			return ((Array.isArray(oneExec.path) && Array.isArray(twoExec.path) && oneExec.path.length === twoExec.path.length && oneExec.path.every((p, index) => p === twoExec.path[index])) ||
-				(oneExec.path === twoExec.path)
+			return ((Array.isArray(oneExec.pathOrPaths) && Array.isArray(twoExec.pathOrPaths) && oneExec.pathOrPaths.length === twoExec.pathOrPaths.length && oneExec.pathOrPaths.every((p, index) => p === twoExec.pathOrPaths[index])) ||
+				(oneExec.pathOrPaths === twoExec.pathOrPaths)
 			) && ((Array.isArray(oneExec.args) && Array.isArray(twoExec.args) && oneExec.args?.every((a, index) => a === twoExec.args?.[index])) ||
 				(oneExec.args === twoExec.args)
 				);
