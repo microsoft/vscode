@@ -14,7 +14,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, AutoUpdateDisabledExtensionsConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -514,6 +514,21 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.disableAutoUpdateDisabled',
+			title: { value: localize('disableAutoUpdateDisabled', "Disable Auto Updating Disabled Extensions"), original: 'Disable Auto Updating Disabled Extensions' },
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: MenuId.CommandPalette,
+			}, {
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateDisabledExtensionsConfigurationKey}`)]),
+				group: '1_updates',
+				order: 3
+			}],
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateDisabledExtensionsConfigurationKey, false)
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.updateAllExtensions',
 			title: { value: localize('updateAll', "Update All Extensions"), original: 'Update All Extensions' },
 			category: ExtensionsLocalizedLabel,
@@ -551,6 +566,21 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 3
 			}],
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.enableAutoUpdateDisabled',
+			title: { value: localize('enableAutoUpdateDisabled', "Enable Auto Updating Disabled Extensions"), original: 'Enable Auto Updating Disabled Extensions' },
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: MenuId.CommandPalette,
+			}, {
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateDisabledExtensionsConfigurationKey}`).negate()]),
+				group: '1_updates',
+				order: 4
+			}],
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateDisabledExtensionsConfigurationKey, true)
 		});
 
 		this.registerExtensionAction({
