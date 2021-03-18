@@ -178,20 +178,17 @@ async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logS
 			let distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
-			for (const distroName of distroNames) {
+			for (let distroName of distroNames) {
 				// HACK: For some reason wsl.exe -l returns the string in an encoding where each
 				// character takes up 2 bytes, it's unclear how to decode this properly so instead
 				// we expect ascii and just remove all NUL chars
-				let s = distroName.replace(/\u0000/g, '');
-
-				if (s.endsWith('(Default)')) {
-					// Ubuntu (Default) -> Ubuntu bc (Default) won't work
-					s = s.substring(0, s.length - 10);
-				}
+				distroName = distroName
+					.replace(/\u0000/g, '')
+					.replace(/ \(Default\)$/, '');
 
 				// docker-desktop-data is used by docker-desktop to store container images and isn't a valid profile type
-				if (s !== '' && s !== 'docker-desktop-data') {
-					let profile = { profileName: `${s} (WSL)`, paths: [wslPath], args: [`-d`, `${s}`] };
+				if (distroName !== '' && distroName !== 'docker-desktop-data') {
+					const profile = { profileName: `${distroName} (WSL)`, paths: [wslPath], args: [`-d`, `${distroName}`] };
 					profiles.push(profile);
 				}
 			}
