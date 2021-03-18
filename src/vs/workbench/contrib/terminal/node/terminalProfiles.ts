@@ -210,7 +210,7 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	if (!quickLaunchOnly) {
 		return detectedProfiles;
 	}
-	let validProfiles: ITerminalProfile[] = [];
+	const validProfiles: ITerminalProfile[] = [];
 
 	for (const [profileKey, value] of Object.entries(configProfiles)) {
 		if ((value as ITerminalExecutable).path) {
