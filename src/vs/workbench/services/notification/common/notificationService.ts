@@ -17,8 +17,10 @@ export class NotificationService extends Disposable implements INotificationServ
 	declare readonly _serviceBrand: undefined;
 
 	readonly model = this._register(new NotificationsModel());
+
 	private readonly _onDidAddNotification = this._register(new Emitter<INotification>());
 	readonly onDidAddNotification = this._onDidAddNotification.event;
+
 	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
 	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
 
@@ -26,23 +28,32 @@ export class NotificationService extends Disposable implements INotificationServ
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
+
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => {
-			const event = {
-				message: e.item.message.original,
-				severity: e.item.severity,
-				source: e.item.source,
-				silent: e.item.silent
-			};
+			switch (e.kind) {
+				case NotificationChangeType.ADD:
+				case NotificationChangeType.REMOVE: {
+					const notification: INotification = {
+						message: e.item.message.original,
+						severity: e.item.severity,
+						source: typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source,
+						silent: e.item.silent
+					};
 
-			if (e.kind === NotificationChangeType.ADD) {
-				this._onDidAddNotification.fire(event);
-			}
-			if (e.kind === NotificationChangeType.REMOVE) {
-				this._onDidRemoveNotification.fire(event);
+					if (e.kind === NotificationChangeType.ADD) {
+						this._onDidAddNotification.fire(notification);
+					}
+
+					if (e.kind === NotificationChangeType.REMOVE) {
+						this._onDidRemoveNotification.fire(notification);
+					}
+
+					break;
+				}
 			}
 		}));
 	}

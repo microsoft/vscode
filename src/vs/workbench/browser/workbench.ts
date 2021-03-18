@@ -26,6 +26,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
+import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
@@ -38,7 +39,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 
 export class Workbench extends Layout {
 
