@@ -71,6 +71,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = DOM.$;
 
@@ -333,6 +334,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IThemeService private readonly themeService: IThemeService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IModeService private readonly modeService: IModeService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -704,7 +706,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this._topToolbar = new ToolBar(this._notebookTopToolbarContainer, this.contextMenuService, {
-			// getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.instantiationService, action);
 			},
