@@ -326,6 +326,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			templateData.button.element.style.display = 'none';
 			templateData.button.dispose();
 		}
+		templateData.container.style.paddingLeft = '0px';
 		templateData.elementDisposable.dispose();
 
 		let editableData: IEditableData | undefined;
@@ -344,6 +345,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
+		templateData.container.style.paddingLeft = '7px';
 		templateData.button = this._register(new Button(templateData.container));
 		templateData.button.label = element.label;
 		templateData.button.element.title = element.tooltip;
@@ -357,6 +359,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		templateData.label.element.style.display = 'flex';
 		templateData.label.setLabel(element.label, undefined, { title: element.tooltip });
 		templateData.actionBar.context = element.tunnel;
+		templateData.container.style.paddingLeft = '10px';
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
@@ -385,8 +388,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
-		const oldPadding = container.parentElement!.style.paddingLeft;
-		container.parentElement!.style.paddingLeft = '0px';
 		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
 		if (this.inputDone) {
 			this.inputDone(false, false);
@@ -419,7 +420,6 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 
 		const done = once(async (success: boolean, finishEditing: boolean) => {
 			dispose(toDispose);
-			container.parentElement!.style.paddingLeft = oldPadding;
 			if (this.inputDone) {
 				this.inputDone = undefined;
 			}
