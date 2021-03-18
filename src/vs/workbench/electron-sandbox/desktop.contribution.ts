@@ -361,6 +361,10 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				items: {
 					type: 'string'
 				}
+			},
+			'log': {
+				type: 'string',
+				description: localize('argv.log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}
 	};
