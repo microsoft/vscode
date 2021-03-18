@@ -23,7 +23,6 @@ import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory, IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { ITextSnapshot } from 'vs/editor/common/model';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 
@@ -386,10 +385,9 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 //#region --- simple content provider
 
-export class SimpleNotebookEditorModel implements INotebookEditorModel {
+export class SimpleNotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
 	readonly onDidChangeDirty: Event<void>;
-	readonly onDispose: Event<void>;
 
 	// todo@rebornix used in diff editor...
 	lastResolvedFileStat: IFileStatWithMetadata | undefined;
@@ -401,20 +399,17 @@ export class SimpleNotebookEditorModel implements INotebookEditorModel {
 	constructor(
 		private readonly _workingCopy: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>
 	) {
+		super();
 		this.resource = _workingCopy.resource;
 		this.viewType = _workingCopy.model.notebookModel.viewType;
 		this.notebook = _workingCopy.model.notebookModel;
 
 		this.onDidChangeDirty = _workingCopy.onDidChangeDirty.bind(_workingCopy);
-		this.onDispose = _workingCopy.onDispose.bind(_workingCopy);
 	}
 
 	dispose(): void {
 		this._workingCopy.dispose();
-	}
-
-	isDisposed(): boolean {
-		return this._workingCopy.isDisposed();
+		super.dispose();
 	}
 
 	isDirty(): boolean {
@@ -433,11 +428,7 @@ export class SimpleNotebookEditorModel implements INotebookEditorModel {
 		return this.resource.scheme === Schemas.untitled;
 	}
 
-	isResolved(): this is IResolvedNotebookEditorModel {
-		return true;
-	}
-
-	async load(_options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
+	async load(): Promise<IResolvedNotebookEditorModel> {
 		return this;
 	}
 
@@ -534,13 +525,6 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 	pushStackElement(): void {
 		//todo@jrieken -> stack element needs a name(?)
 		this._notebookModel.pushStackElement('', undefined, undefined);
-	}
-
-	_backupSnapshot(): ITextSnapshot | undefined {
-		// todo@jrieken,@bpasero
-		// sync
-		// text based
-		return undefined;
 	}
 }
 
