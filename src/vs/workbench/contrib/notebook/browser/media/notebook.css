@@ -20,14 +20,14 @@
 
 .monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item {
 	width: 24px;
-	height: 24px;
+	height: 20px;
 	display: flex;
 	align-items: center;
 }
 
 .monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item .action-label {
 	background-size: 16px;
-	margin: auto;
+	margin: 4px 4px 0 4px;
 }
 
 .monaco-workbench .cell.markdown {

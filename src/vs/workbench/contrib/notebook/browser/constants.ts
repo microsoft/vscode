@@ -5,7 +5,7 @@
 
 // Scrollable Element
 
-export const SCROLLABLE_ELEMENT_PADDING_TOP = 16;
+export const SCROLLABLE_ELEMENT_PADDING_TOP = 22;
 // export const SCROLLABLE_ELEMENT_PADDING_TOP_WITH_TOOLBAR = 8;
 
 // Cell sizing related
