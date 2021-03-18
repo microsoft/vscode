@@ -87,12 +87,12 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	if (detectedProfiles && configProfiles) {
 		for (const [profileKey, value] of Object.entries(configProfiles)) {
 			if (value !== null) {
-				if ((value as ITerminalExecutable).path) {
+				if ((value as ITerminalExecutable).pathOrPaths) {
 					let profile;
 					const customProfile = (value as ITerminalExecutable);
-					if (Array.isArray(customProfile.path)) {
+					if (Array.isArray(customProfile.pathOrPaths)) {
 						let resolvedPaths: string[] = [];
-						for (const p of customProfile.path) {
+						for (const p of customProfile.pathOrPaths) {
 							const resolved = variableResolver?.resolve(workspaceFolder, p);
 							if (resolved) {
 								resolvedPaths.push(resolved);
@@ -108,14 +108,14 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 							logService?.trace(`Could not detect path ${JSON.stringify(resolvedPaths)}`);
 						}
 					} else {
-						let resolved = variableResolver?.resolve(workspaceFolder, customProfile.path);
+						let resolved = variableResolver?.resolve(workspaceFolder, customProfile.pathOrPaths);
 						if (resolved) {
 							profile = detectedProfiles?.find(profile => profile.path === resolved);
 						} else if (statProvider) {
 							// used by tests
-							resolved = customProfile.path;
+							resolved = customProfile.pathOrPaths;
 						} else {
-							logService?.trace(`Could not resolve path ${customProfile.path} in workspace folder ${workspaceFolder}`);
+							logService?.trace(`Could not resolve path ${customProfile.pathOrPaths} in workspace folder ${workspaceFolder}`);
 						}
 						if (!profile) {
 							logService?.trace(`Could not detect path ${resolved}`);
@@ -213,9 +213,9 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	const validProfiles: ITerminalProfile[] = [];
 
 	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if ((value as ITerminalExecutable).path) {
+		if ((value as ITerminalExecutable).pathOrPaths) {
 			const configProfile = (value as ITerminalExecutable);
-			const path = configProfile.path;
+			const path = configProfile.pathOrPaths;
 			if (Array.isArray(path)) {
 				for (const possiblePath of path) {
 					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));

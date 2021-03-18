@@ -238,7 +238,7 @@ export const enum ProfileSource {
 }
 
 export interface ITerminalExecutable {
-	path: string | string[];
+	pathOrPaths: string | string[];
 	args?: string | string[] | undefined;
 }
 
