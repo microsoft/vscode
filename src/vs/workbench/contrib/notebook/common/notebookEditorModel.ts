@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
+import { EditorModel, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CellEditType, CellKind, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -19,11 +19,17 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TaskSequentializer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory, IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { ITextSnapshot } from 'vs/editor/common/model';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { canceled } from 'vs/base/common/errors';
 
-export class NotebookEditorModel extends EditorModel implements INotebookEditorModel {
+//#region --- complex content provider
+
+export class ComplexNotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
@@ -150,7 +156,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		this._onDidChangeDirty.fire();
 	}
 
-	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
+	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
 			this._logService.debug('[notebook editor model] load from provider (forceRead)', this.resource.toString());
 			this._loadFromProvider(undefined);
@@ -375,3 +381,190 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		}
 	}
 }
+
+//#endregion
+
+//#region --- simple content provider
+
+export class SimpleNotebookEditorModel implements INotebookEditorModel {
+
+	readonly onDidChangeDirty: Event<void>;
+	readonly onDispose: Event<void>;
+
+	// todo@rebornix used in diff editor...
+	lastResolvedFileStat: IFileStatWithMetadata | undefined;
+
+	readonly resource: URI;
+	readonly viewType: string;
+	readonly notebook: NotebookTextModel;
+
+	constructor(
+		private readonly _workingCopy: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>
+	) {
+		this.resource = _workingCopy.resource;
+		this.viewType = _workingCopy.model.notebookModel.viewType;
+		this.notebook = _workingCopy.model.notebookModel;
+
+		this.onDidChangeDirty = _workingCopy.onDidChangeDirty.bind(_workingCopy);
+		this.onDispose = _workingCopy.onDispose.bind(_workingCopy);
+	}
+
+	dispose(): void {
+		this._workingCopy.dispose();
+	}
+
+	isDisposed(): boolean {
+		return this._workingCopy.isDisposed();
+	}
+
+	isDirty(): boolean {
+		return this._workingCopy.isDirty();
+	}
+
+	revert(options?: IRevertOptions): Promise<void> {
+		return this._workingCopy.revert(options);
+	}
+
+	save(options?: ISaveOptions): Promise<boolean> {
+		return this._workingCopy.save(options);
+	}
+
+	isUntitled(): boolean {
+		return this.resource.scheme === Schemas.untitled;
+	}
+
+	isResolved(): this is IResolvedNotebookEditorModel {
+		return true;
+	}
+
+	async load(_options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
+		return this;
+	}
+
+	saveAs(target: URI): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
+}
+
+export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
+
+	private readonly _onDidChangeContent = new Emitter<IFileWorkingCopyModelContentChangedEvent>();
+	private readonly _changeListener: IDisposable;
+
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+	readonly onWillDispose: Event<void>;
+
+	constructor(
+		private _notebookModel: NotebookTextModel,
+		private _notebookSerializer: INotebookSerializer
+	) {
+		this.onWillDispose = _notebookModel.onWillDispose.bind(_notebookModel);
+
+		this._changeListener = _notebookModel.onDidChangeContent(e => {
+			for (const rawEvent of e.rawEvents) {
+				if (rawEvent.kind === NotebookCellsChangeType.Initialize) {
+					continue;
+				}
+				if (rawEvent.transient) {
+					continue;
+				}
+				//todo@jrieken,@rebornix forward this information from notebook model
+				this._onDidChangeContent.fire({
+					isRedoing: false,
+					isUndoing: false
+				});
+				break;
+			}
+		});
+	}
+
+	dispose(): void {
+		// todo@jrieken who is disposing this?
+		this._onDidChangeContent.dispose();
+		this._changeListener.dispose();
+	}
+
+	get notebookModel() {
+		return this._notebookModel;
+	}
+
+	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
+
+		const data: NotebookDataDto = {
+			metadata: this._notebookModel.metadata,
+			cells: [],
+		};
+
+		for (const cell of this._notebookModel.cells) {
+			data.cells.push({
+				cellKind: cell.cellKind,
+				language: cell.language,
+				source: cell.getValue(),
+				outputs: cell.outputs
+			});
+		}
+
+		const bytes = await this._notebookSerializer.notebookToData(data);
+		if (token.isCancellationRequested) {
+			throw canceled();
+		}
+		return bufferToStream(bytes);
+	}
+
+	async update(stream: VSBufferReadableStream, token: CancellationToken): Promise<void> {
+
+		const bytes = await streamToBuffer(stream);
+		const data = await this._notebookSerializer.dataToNotebook(bytes);
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		this._notebookModel.metadata = data.metadata;
+		this._notebookModel.transientOptions = this._notebookSerializer.options;
+		const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this._notebookModel.cells.length, cells: data.cells }];
+		this._notebookModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+	}
+
+	getAlternativeVersionId(): number {
+		//todo@jrieken,@rebornix -> add alternative version id
+		return this._notebookModel.versionId;
+	}
+
+	pushStackElement(): void {
+		//todo@jrieken -> stack element needs a name(?)
+		this._notebookModel.pushStackElement('', undefined, undefined);
+	}
+
+	_backupSnapshot(): ITextSnapshot | undefined {
+		// todo@jrieken,@bpasero
+		// sync
+		// text based
+		return undefined;
+	}
+}
+
+export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+
+	constructor(
+		@INotebookService private readonly _notebookService: INotebookService
+	) { }
+
+	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
+		const info = this._notebookService.getNotebookDataProvider(resource);
+		if (!(info instanceof SimpleNotebookProviderInfo)) {
+			throw new Error('CANNOT open file notebook this provider');
+		}
+
+		const data = await info.serializer.dataToNotebook(await streamToBuffer(stream));
+
+		if (token.isCancellationRequested) {
+			throw canceled();
+		}
+
+		const notebookModel = this._notebookService.createNotebookTextModel(info.viewType, resource, data, info.serializer.options);
+		return new NotebookFileWorkingCopyModel(notebookModel, info.serializer);
+	}
+}
+
+//#endregion

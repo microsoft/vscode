@@ -6,11 +6,13 @@
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
 
@@ -22,19 +24,36 @@ export interface INotebookEditorModelResolverService {
 
 export class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
+	private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>;
+
 	constructor(
 		@IInstantiationService readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._workingCopyManager = <any>_instantiationService.createInstance(
+			FileWorkingCopyManager,
+			new NotebookFileWorkingCopyModelFactory(_notebookService)
+		);
 	}
 
-	protected createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
+	protected async createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
 		const uri = URI.parse(key);
-		const model = this._instantiationService.createInstance(NotebookEditorModel, uri, viewType);
-		const promise = model.load();
-		return promise;
+		const info = this._notebookService.getNotebookDataProvider(uri);
+
+		if (info instanceof ComplexNotebookProviderInfo) {
+			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType);
+			return model.load();
+
+		} else if (info instanceof SimpleNotebookProviderInfo) {
+			const workingCopy = await this._workingCopyManager.resolve(uri);
+			return new SimpleNotebookEditorModel(<IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy);
+
+		} else {
+			throw new Error(`CANNOT open ${key}, no provider found`);
+		}
 	}
 
 	protected destroyReferencedObject(_key: string, object: Promise<IResolvedNotebookEditorModel>): void {

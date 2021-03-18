@@ -34,13 +34,29 @@ export interface IMainNotebookController {
 
 export interface INotebookSerializer {
 	options: TransientOptions;
-	dataToNotebook(data: Uint8Array): Promise<NotebookDataDto>
-	notebookToData(data: NotebookDataDto): Promise<Uint8Array>;
+	dataToNotebook(data: VSBuffer): Promise<NotebookDataDto>
+	notebookToData(data: NotebookDataDto): Promise<VSBuffer>;
 }
 
 export interface INotebookRawData {
 	data: NotebookDataDto;
 	transientOptions: TransientOptions;
+}
+
+export class ComplexNotebookProviderInfo {
+	constructor(
+		readonly viewType: string,
+		readonly controller: IMainNotebookController,
+		readonly extensionData: NotebookExtensionDescription
+	) { }
+}
+
+export class SimpleNotebookProviderInfo {
+	constructor(
+		readonly viewType: string,
+		readonly serializer: INotebookSerializer,
+		readonly extensionData: NotebookExtensionDescription
+	) { }
 }
 
 export interface INotebookService {
@@ -55,6 +71,7 @@ export interface INotebookService {
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
+	getNotebookDataProvider(resource: URI): ComplexNotebookProviderInfo | SimpleNotebookProviderInfo | undefined;
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[];
 

@@ -209,10 +209,6 @@ export class NotebookEditorDecorationType {
 	}
 }
 
-export interface NotebookSerializer {
-	dataToNotebook(data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData>;
-	notebookToData(data: vscode.NotebookData): Uint8Array | Thenable<Uint8Array>;
-}
 
 type NotebookContentProviderData = {
 	readonly provider: vscode.NotebookContentProvider;
@@ -504,38 +500,44 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	// --- serialize/deserialize
 
 	private _handlePool = 0;
-	private readonly _notebookSerializer = new Map<number, NotebookSerializer>();
+	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
 
-	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: NotebookSerializer, options: TransientOptions): vscode.Disposable {
+	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: TransientOptions): vscode.Disposable {
 		const handle = this._handlePool++;
 		this._notebookSerializer.set(handle, serializer);
-		this._proxy.$registerNotebookSerializer(handle, { id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, options);
+		this._proxy.$registerNotebookSerializer(
+			handle,
+			{ id: extension.identifier, location: extension.extensionLocation, description: extension.description },
+			viewType,
+			options ?? { transientOutputs: false, transientMetadata: {} }
+		);
 		return toDisposable(() => {
 			this._proxy.$unregisterNotebookSerializer(handle);
 		});
 	}
 
-	async $dataToNotebook(handle: number, bytes: Uint8Array): Promise<NotebookDataDto> {
+	async $dataToNotebook(handle: number, bytes: VSBuffer): Promise<NotebookDataDto> {
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const data = await serializer.dataToNotebook(bytes);
+		const data = await serializer.dataToNotebook(bytes.buffer);
 		return {
 			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
 		};
 	}
 
-	async $notebookToData(handle: number, data: NotebookDataDto): Promise<Uint8Array> {
+	async $notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer> {
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		return await serializer.notebookToData({
+		const bytes = await serializer.notebookToData({
 			metadata: typeConverters.NotebookDocumentMetadata.to(data.metadata),
 			cells: data.cells.map(typeConverters.NotebookCellData.to)
 		});
+		return VSBuffer.wrap(bytes);
 	}
 
 	// --- open, save, saveAs, backup

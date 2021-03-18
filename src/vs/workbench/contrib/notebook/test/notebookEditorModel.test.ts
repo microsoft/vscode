@@ -13,7 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
@@ -47,8 +47,8 @@ suite('NotebookEditorModel', function () {
 			}
 		};
 
-		new NotebookEditorModel(r1, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
-		new NotebookEditorModel(r2, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new ComplexNotebookEditorModel(r1, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new ComplexNotebookEditorModel(r2, 'fff', notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
 
 		assert.strictEqual(copies.length, 2);
 		assert.strictEqual(!isEqual(copies[0].resource, copies[1].resource), true);

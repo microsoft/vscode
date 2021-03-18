@@ -1870,8 +1870,8 @@ export interface ExtHostNotebookShape {
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
 
-	$dataToNotebook(handle: number, data: Uint8Array): Promise<NotebookDataDto>;
-	$notebookToData(handle: number, data: NotebookDataDto): Promise<Uint8Array>;
+	$dataToNotebook(handle: number, data: VSBuffer): Promise<NotebookDataDto>;
+	$notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer>;
 
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
