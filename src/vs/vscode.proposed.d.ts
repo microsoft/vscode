@@ -664,156 +664,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region inline value provider: https://github.com/microsoft/vscode/issues/105690
-
-	/**
-	 * The inline values provider interface defines the contract between extensions and the VS Code debugger inline values feature.
-	 * In this contract the provider returns inline value information for a given document range
-	 * and VS Code shows this information in the editor at the end of lines.
-	 */
-	export interface InlineValuesProvider {
-
-		/**
-		 * An optional event to signal that inline values have changed.
-		 * @see [EventEmitter](#EventEmitter)
-		 */
-		onDidChangeInlineValues?: Event<void> | undefined;
-
-		/**
-		 * Provide "inline value" information for a given document and range.
-		 * VS Code calls this method whenever debugging stops in the given document.
-		 * The returned inline values information is rendered in the editor at the end of lines.
-		 *
-		 * @param document The document for which the inline values information is needed.
-		 * @param viewPort The visible document range for which inline values should be computed.
-		 * @param context A bag containing contextual information like the current location.
-		 * @param token A cancellation token.
-		 * @return An array of InlineValueDescriptors or a thenable that resolves to such. The lack of a result can be
-		 * signaled by returning `undefined` or `null`.
-		 */
-		provideInlineValues(document: TextDocument, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
-	}
-
-	/**
-	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
-	 */
-	export interface InlineValueContext {
-
-		/**
-		 * The stack frame (as a DAP Id) where the execution has stopped.
-		 */
-		readonly frameId: number;
-
-		/**
-		 * The document range where execution has stopped.
-		 * Typically the end position of the range denotes the line where the inline values are shown.
-		 */
-		readonly stoppedLocation: Range;
-	}
-
-	/**
-	 * Inline value information can be provided by different means:
-	 * - directly as a text value (class InlineValueText).
-	 * - as a name to use for a variable lookup (class InlineValueVariableLookup)
-	 * - as an evaluatable expression (class InlineValueEvaluatableExpression)
-	 * The InlineValue types combines all inline value types into one type.
-	 */
-	export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueEvaluatableExpression;
-
-	/**
-	 * Provide inline value as text.
-	 */
-	export class InlineValueText {
-		/**
-		 * The document range for which the inline value applies.
-		 */
-		readonly range: Range;
-		/**
-		 * The text of the inline value.
-		 */
-		readonly text: string;
-		/**
-		 * Creates a new InlineValueText object.
-		 *
-		 * @param range The document line where to show the inline value.
-		 * @param text The value to be shown for the line.
-		 */
-		constructor(range: Range, text: string);
-	}
-
-	/**
-	 * Provide inline value through a variable lookup.
-	 * If only a range is specified, the variable name will be extracted from the underlying document.
-	 * An optional variable name can be used to override the extracted name.
-	 */
-	export class InlineValueVariableLookup {
-		/**
-		 * The document range for which the inline value applies.
-		 * The range is used to extract the variable name from the underlying document.
-		 */
-		readonly range: Range;
-		/**
-		 * If specified the name of the variable to look up.
-		 */
-		readonly variableName?: string;
-		/**
-		 * How to perform the lookup.
-		 */
-		readonly caseSensitiveLookup: boolean;
-		/**
-		 * Creates a new InlineValueVariableLookup object.
-		 *
-		 * @param range The document line where to show the inline value.
-		 * @param variableName The name of the variable to look up.
-		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
-		 */
-		constructor(range: Range, variableName?: string, caseSensitiveLookup?: boolean);
-	}
-
-	/**
-	 * Provide an inline value through an expression evaluation.
-	 * If only a range is specified, the expression will be extracted from the underlying document.
-	 * An optional expression can be used to override the extracted expression.
-	 */
-	export class InlineValueEvaluatableExpression {
-		/**
-		 * The document range for which the inline value applies.
-		 * The range is used to extract the evaluatable expression from the underlying document.
-		 */
-		readonly range: Range;
-		/**
-		 * If specified the expression overrides the extracted expression.
-		 */
-		readonly expression?: string;
-		/**
-		 * Creates a new InlineValueEvaluatableExpression object.
-		 *
-		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
-		 * @param expression If specified overrides the extracted expression.
-		 */
-		constructor(range: Range, expression?: string);
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a provider that returns data for the debugger's 'inline value' feature.
-		 * Whenever the generic VS Code debugger has stopped in a source file, providers registered for the language of the file
-		 * are called to return textual data that will be shown in the editor at the end of lines.
-		 *
-		 * Multiple providers can be registered for a language. In that case providers are asked in
-		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
-		 * not cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider An inline values provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerInlineValuesProvider(selector: DocumentSelector, provider: InlineValuesProvider): Disposable;
-	}
-
-	//#endregion
-
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @weinand: variables view action contributions
 
@@ -1236,7 +1086,7 @@ declare module 'vscode' {
 		 */
 		readonly end: number;
 
-		isEmpty: boolean;
+		readonly isEmpty: boolean;
 
 		constructor(start: number, end: number);
 	}
@@ -1270,7 +1120,7 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 
 		/**
-		 * The primary selected cell on this notebook editor.
+		 * @deprecated
 		 */
 		// todo@API should not be undefined, rather a default
 		readonly selection?: NotebookCell;
@@ -1298,7 +1148,7 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
-		 * Fired when the panel is disposed.
+		 * @deprecated
 		 */
 		// @rebornix REMOVE/REplace NotebookCommunication
 		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
@@ -1373,7 +1223,7 @@ declare module 'vscode' {
 
 	export class NotebookData {
 		cells: NotebookCellData[];
-		metadata?: NotebookDocumentMetadata;
+		metadata: NotebookDocumentMetadata;
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
@@ -1460,6 +1310,8 @@ declare module 'vscode' {
 
 	// code specific mime types
 	// application/x.notebook.error-traceback
+	// application/x.notebook.stdout
+	// application/x.notebook.stderr
 	// application/x.notebook.stream
 	export class NotebookCellOutputItem {
 
@@ -1568,6 +1420,9 @@ declare module 'vscode' {
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
 
 		// todo@API remove! against separation of data provider and renderer
+		/**
+		 * @deprecated
+		 */
 		// eslint-disable-next-line vscode-dts-cancellation
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
 
@@ -2861,17 +2716,17 @@ declare module 'vscode' {
 	 */
 	export enum CodeActionTriggerKind {
 		/**
+		 * Code actions were explicitly requested by the user or by an extension.
+		 */
+		Invoke = 1,
+
+		/**
 		 * Code actions were requested automatically.
 		 *
 		 * This typically happens when current selection in a file changes, but can
 		 * also be triggered when file content changes.
 		 */
-		Automatic = 1,
-
-		/**
-		 * Code actions were requested maually by the user or an extension.
-		 */
-		Manual = 2,
+		Automatic = 2,
 	}
 
 	export interface CodeActionContext {
@@ -2897,6 +2752,11 @@ declare module 'vscode' {
 	}
 
 	export interface PortAttributesProvider {
+		/**
+		 * Provides attributes for the given ports. For ports that your extension doesn't know about, simply don't include
+		 * them in the returned array. For example, if `providePortAttributes` is called with ports [3000, 4000] but your
+		 * extension doesn't know anything about those ports you can return an empty array.
+		 */
 		providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes[]>;
 	}
 
@@ -2909,6 +2769,7 @@ declare module 'vscode' {
 		 *
 		 * @param portSelector If registerPortAttributesProvider is called after you start your process then you may already
 		 * know the range of ports or the pid of your process.
+		 * The `portRange` is start inclusive and end exclusive.
 		 * @param provider The PortAttributesProvider
 		 */
 		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: PortAttributesProvider): Disposable;

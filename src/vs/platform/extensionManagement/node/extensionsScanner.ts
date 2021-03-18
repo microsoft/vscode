@@ -24,6 +24,8 @@ import { isWindows } from 'vs/base/common/platform';
 import { flatten } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FileAccess } from 'vs/base/common/network';
+import { IFileService } from 'vs/platform/files/common/files';
+import { basename } from 'vs/base/common/resources';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -44,6 +46,7 @@ export class ExtensionsScanner extends Disposable {
 
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
+		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IProductService private readonly productService: IProductService,
@@ -123,7 +126,7 @@ export class ExtensionsScanner extends Disposable {
 
 		let local: ILocalExtension | null = null;
 		try {
-			local = await this.scanExtension(folderName, this.extensionsPath, ExtensionType.User);
+			local = await this.scanExtension(URI.file(path.join(this.extensionsPath, folderName)), ExtensionType.User);
 		} catch (e) { /*ignore */ }
 
 		if (local) {
@@ -237,33 +240,38 @@ export class ExtensionsScanner extends Disposable {
 
 	private async scanExtensionsInDir(dir: string, type: ExtensionType): Promise<ILocalExtension[]> {
 		const limiter = new Limiter<any>(10);
-		const extensionsFolders = await pfs.readdir(dir);
-		const extensions = await Promise.all<ILocalExtension>(extensionsFolders.map(extensionFolder => limiter.queue(() => this.scanExtension(extensionFolder, dir, type))));
-		return extensions.filter(e => e && e.identifier);
+		const stat = await this.fileService.resolve(URI.file(dir));
+		if (stat.children) {
+			const extensions = await Promise.all<ILocalExtension>(stat.children.filter(c => c.isDirectory)
+				.map(c => limiter.queue(() => this.scanExtension(c.resource, type))));
+			return extensions.filter(e => e && e.identifier);
+		}
+		return [];
 	}
 
-	private async scanExtension(folderName: string, root: string, type: ExtensionType): Promise<ILocalExtension | null> {
-		if (type === ExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
+	private async scanExtension(extensionLocation: URI, type: ExtensionType): Promise<ILocalExtension | null> {
+		if (type === ExtensionType.User && basename(extensionLocation).indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
 			return null;
 		}
-		const extensionPath = path.join(root, folderName);
 		try {
-			const children = await pfs.readdir(extensionPath);
-			const { manifest, metadata } = await this.readManifest(extensionPath);
-			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-			const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)) : undefined;
-			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : undefined;
-			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
-			if (metadata) {
-				this.setMetadata(local, metadata);
+			const stat = await this.fileService.resolve(extensionLocation);
+			if (stat.children) {
+				const { manifest, metadata } = await this.readManifest(extensionLocation.fsPath);
+				const readmeUrl = stat.children.find(({ name }) => /^readme(\.txt|\.md|)$/i.test(name))?.resource;
+				const changelogUrl = stat.children.find(({ name }) => /^changelog(\.txt|\.md|)$/i.test(name))?.resource;
+				const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+				const local = <ILocalExtension>{ type, identifier, manifest, location: extensionLocation, readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
+				if (metadata) {
+					this.setMetadata(local, metadata);
+				}
+				return local;
 			}
-			return local;
 		} catch (e) {
-			this.logService.trace(e);
-			return null;
+			if (type !== ExtensionType.System) {
+				this.logService.trace(e);
+			}
 		}
+		return null;
 	}
 
 	private async scanDefaultSystemExtensions(): Promise<ILocalExtension[]> {

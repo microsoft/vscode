@@ -182,6 +182,16 @@ function darkenColor(color) {
 	return res;
 }
 
+function mergeMapping(to, from, property) {
+	if (from[property]) {
+		if (to[property]) {
+			to[property].push(...from[property]);
+		} else {
+			to[property] = from[property];
+		}
+	}
+}
+
 function getLanguageMappings() {
 	let langMappings = {};
 	let allExtensions = fs.readdirSync('..');
@@ -204,7 +214,22 @@ function getLanguageMappings() {
 						if (Array.isArray(filenames)) {
 							mapping.fileNames = filenames.map(function (f) { return f.toLowerCase(); });
 						}
-						langMappings[languageId] = mapping;
+						let existing = langMappings[languageId];
+
+						if (existing) {
+							// multiple contributions to the same language
+							// give preference to the contribution wth the configuration
+							if (languages[k].configuration) {
+								mergeMapping(mapping, existing, 'extensions');
+								mergeMapping(mapping, existing, 'fileNames');
+								langMappings[languageId] = mapping;
+							} else {
+								mergeMapping(existing, mapping, 'extensions');
+								mergeMapping(existing, mapping, 'fileNames');
+							}
+						} else {
+							langMappings[languageId] = mapping;
+						}
 					}
 				}
 			}
@@ -215,6 +240,8 @@ function getLanguageMappings() {
 	}
 	return langMappings;
 }
+
+
 
 exports.copyFont = function () {
 	return downloadBinary(font, './icons/seti.woff');

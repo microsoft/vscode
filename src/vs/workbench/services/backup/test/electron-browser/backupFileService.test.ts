@@ -19,13 +19,13 @@ import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { NativeBackupFileService } from 'vs/workbench/services/backup/electron-sandbox/backupFileService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestWorkbenchConfiguration, TestEnvironmentPaths } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { insert } from 'vs/base/common/arrays';
@@ -35,7 +35,7 @@ import { isEqual } from 'vs/base/common/resources';
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(testDir: string, backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestProductService);
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': testDir }, TestEnvironmentPaths, TestProductService);
 	}
 }
 

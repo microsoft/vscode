@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { globals, IProcessEnvironment } from 'vs/base/common/platform';
+import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
 import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
  * In sandboxed renderers we cannot expose all of the `process` global of node.js
  */
-export interface IPartialNodeProcess {
+export interface ISandboxNodeProcess extends INodeProcess {
 
 	/**
 	 * The process.platform property returns a string identifying the operating system platform
 	 * on which the Node.js process is running.
 	 */
-	readonly platform: 'win32' | 'linux' | 'darwin';
+	readonly platform: string;
 
 	/**
 	 * The process.arch property returns a string identifying the CPU architecture
@@ -24,9 +24,14 @@ export interface IPartialNodeProcess {
 	readonly arch: string;
 
 	/**
-	 * The type will always be Electron renderer.
+	 * The type will always be `renderer`.
 	 */
-	readonly type: 'renderer';
+	readonly type: string;
+
+	/**
+	 * Whether the process is sandboxed or not.
+	 */
+	readonly sandboxed: boolean;
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.
@@ -49,6 +54,11 @@ export interface IPartialNodeProcess {
 	on: (type: string, callback: Function) => void;
 
 	/**
+	 * The current working directory of the process.
+	 */
+	cwd: () => string;
+
+	/**
 	 * Resolves with a ProcessMemoryInfo
 	 *
 	 * Returns an object giving memory usage statistics about the current process. Note
@@ -62,9 +72,6 @@ export interface IPartialNodeProcess {
 	 * process on macOS.
 	 */
 	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
-}
-
-export interface ISandboxNodeProcess extends IPartialNodeProcess {
 
 	/**
 	 * A custom method we add to `process`: Resolve the true process environment to use and
@@ -92,14 +99,6 @@ export interface ISandboxNodeProcess extends IPartialNodeProcess {
 	getShellEnv(): Promise<IProcessEnvironment>;
 }
 
-export interface ISandboxContext {
-
-	/**
-	 * Whether the renderer runs with `sandbox` enabled or not.
-	 */
-	sandbox: boolean;
-}
-
 export interface IpcMessagePort {
 
 	/**
@@ -120,4 +119,3 @@ export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
 export const crashReporter: CrashReporter = globals.vscode.crashReporter;
 export const process: ISandboxNodeProcess = globals.vscode.process;
-export const context: ISandboxContext = globals.vscode.context;

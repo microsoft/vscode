@@ -61,6 +61,7 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplore
 import { WorkspaceTrustRequest, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -938,7 +939,6 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
-	$onExtensionHostExit(code: number): Promise<void>;
 	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
 }
 
@@ -1228,6 +1228,8 @@ export type IResolveAuthorityResult = IResolveAuthorityErrorResult | IResolveAut
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
+	$extensionTestsExecute(): Promise<number>;
+	$extensionTestsExit(code: number): Promise<void>;
 	$activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	$activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	$setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void>;
@@ -1608,11 +1610,6 @@ export interface IShellLaunchConfigDto {
 	hideFromUser?: boolean;
 }
 
-export interface IShellDefinitionDto {
-	label: string;
-	path: string;
-}
-
 export interface IShellAndArgsDto {
 	shell: string;
 	args: string[] | string | undefined;
@@ -1652,7 +1649,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
-	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
+	$getAvailableProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
 	$activateLink(id: number, linkId: number): void;
@@ -1700,6 +1697,7 @@ export interface IDataBreakpointDto extends IBreakpointDto {
 	canPersist: boolean;
 	label: string;
 	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+	accessType: DebugProtocol.DataBreakpointAccessType;
 }
 
 export interface ISourceBreakpointDto extends IBreakpointDto {

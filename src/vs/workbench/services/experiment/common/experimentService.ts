@@ -11,7 +11,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryData } from 'vs/base/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const ITASExperimentService = createDecorator<ITASExperimentService>('TASExperimentService');
 
@@ -43,7 +43,10 @@ class MementoKeyValueStorage implements IKeyValueStorage {
 
 class ExperimentServiceTelemetry implements IExperimentationTelemetry {
 	private _lastAssignmentContext: string | undefined;
-	constructor(private telemetryService: ITelemetryService) { }
+	constructor(
+		private telemetryService: ITelemetryService,
+		private productService: IProductService
+	) { }
 
 	get assignmentContext(): string[] | undefined {
 		return this._lastAssignmentContext?.split(';');
@@ -52,7 +55,7 @@ class ExperimentServiceTelemetry implements IExperimentationTelemetry {
 	// __GDPR__COMMON__ "VSCode.ABExp.Features" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	// __GDPR__COMMON__ "abexp.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	setSharedProperty(name: string, value: string): void {
-		if (name === product.tasConfig?.assignmentContextTelemetryPropertyName) {
+		if (name === this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
 			this._lastAssignmentContext = value;
 		}
 
@@ -190,9 +193,10 @@ export class ExperimentService implements ITASExperimentService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IProductService private productService: IProductService
 	) {
 
-		if (product.tasConfig && this.experimentsEnabled && this.telemetryService.isOptedIn) {
+		if (productService.tasConfig && this.experimentsEnabled && this.telemetryService.isOptedIn) {
 			this.tasClient = this.setupTASClient();
 		}
 	}
@@ -244,20 +248,20 @@ export class ExperimentService implements ITASExperimentService {
 	private async setupTASClient(): Promise<TASClient> {
 		const startSetup = Date.now();
 		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
-		const targetPopulation = telemetryInfo.msftInternal ? TargetPopulation.Internal : (product.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders);
+		const targetPopulation = telemetryInfo.msftInternal ? TargetPopulation.Internal : (this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders);
 		const machineId = telemetryInfo.machineId;
 		const filterProvider = new ExperimentServiceFilterProvider(
-			product.version,
-			product.nameLong,
+			this.productService.version,
+			this.productService.nameLong,
 			machineId,
 			targetPopulation
 		);
 
 		const keyValueStorage = new MementoKeyValueStorage(new Memento(ExperimentService.MEMENTO_ID, this.storageService));
 
-		this.telemetry = new ExperimentServiceTelemetry(this.telemetryService);
+		this.telemetry = new ExperimentServiceTelemetry(this.telemetryService, this.productService);
 
-		const tasConfig = product.tasConfig!;
+		const tasConfig = this.productService.tasConfig!;
 		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: this.telemetry,

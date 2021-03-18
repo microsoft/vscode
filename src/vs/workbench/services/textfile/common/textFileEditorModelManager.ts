@@ -95,7 +95,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(() => this.dispose);
+		this.lifecycleService.onShutdown(() => this.dispose());
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
@@ -373,7 +373,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		modelListeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model, reason })));
 		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
 		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
-		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: model, reason })));
+		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model, reason })));
 		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));
 		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
 

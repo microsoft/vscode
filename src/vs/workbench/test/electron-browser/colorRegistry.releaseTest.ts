@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';

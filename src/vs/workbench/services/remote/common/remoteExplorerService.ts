@@ -154,17 +154,17 @@ interface PortAttributes extends Attributes {
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
+	private static DEFAULTS = 'remote.unconfiguredPortsAttributes';
 	private static RANGE = /^(\d+)\-(\d+)$/;
-	private static OTHERS = 'others';
 	private portsAttributes: PortAttributes[] = [];
-	private otherPortAttributes: Attributes | undefined;
+	private defaultPortAttributes: Attributes | undefined;
 	private _onDidChangeAttributes = new Emitter<void>();
 	public readonly onDidChangeAttributes = this._onDidChangeAttributes.event;
 
 	constructor(private readonly configurationService: IConfigurationService) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(PortsAttributes.SETTING)) {
+			if (e.affectsConfiguration(PortsAttributes.SETTING) || e.affectsConfiguration(PortsAttributes.DEFAULTS)) {
 				this.updateAttributes();
 			}
 		}));
@@ -241,12 +241,6 @@ export class PortsAttributes extends Disposable {
 			let key: number | { start: number, end: number } | RegExp | undefined = undefined;
 			if (Number(attributesKey)) {
 				key = Number(attributesKey);
-			} else if (attributesKey === PortsAttributes.OTHERS) {
-				this.otherPortAttributes = {
-					elevateIfNeeded: setting.elevateIfPrivileged,
-					onAutoForward: setting.onAutoForward,
-					label: setting.label
-				};
 			} else if (isString(attributesKey)) {
 				if (PortsAttributes.RANGE.test(attributesKey)) {
 					const match = (<string>attributesKey).match(PortsAttributes.RANGE);
@@ -269,6 +263,15 @@ export class PortsAttributes extends Disposable {
 			});
 		}
 
+		const defaults = <any>this.configurationService.getValue(PortsAttributes.DEFAULTS);
+		if (defaults) {
+			this.defaultPortAttributes = {
+				elevateIfNeeded: defaults.elevateIfNeeded,
+				label: defaults.label,
+				onAutoForward: defaults.onAutoForward
+			};
+		}
+
 		return this.sortAttributes(attributes);
 	}
 
@@ -289,7 +292,7 @@ export class PortsAttributes extends Disposable {
 	}
 
 	private getOtherAttributes() {
-		return this.otherPortAttributes;
+		return this.defaultPortAttributes;
 	}
 
 	static providedActionToAction(providedAction: ProvidedOnAutoForward | undefined) {
@@ -324,6 +327,7 @@ export class TunnelModel extends Disposable {
 	public onEnvironmentTunnelsSet: Event<void> = this._onEnvironmentTunnelsSet.event;
 	private _environmentTunnelsSet: boolean = false;
 	private configPortsAttributes: PortsAttributes;
+	private restoreListener: IDisposable | undefined;
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -339,6 +343,7 @@ export class TunnelModel extends Disposable {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
 		this.tunnelRestoreValue = this.getTunnelRestoreValue();
+		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
 		this.tunnelService.tunnels.then(tunnels => {
@@ -390,8 +395,6 @@ export class TunnelModel extends Disposable {
 				this._onClosePort.fire(address);
 			}
 		}));
-
-		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 	}
 
 	private makeTunnelPrivacy(isPublic: boolean) {
@@ -426,17 +429,18 @@ export class TunnelModel extends Disposable {
 						await this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name, undefined, undefined, tunnel.privacy === TunnelPrivacy.Public);
 					}
 				}
-			} else {
-				// It's possible that at restore time the value hasn't synced.
-				const key = await this.getStorageKey();
-				const listener = this.storageService.onDidChangeValue(async (e) => {
-					if (e.key === key) {
-						listener.dispose();
-						this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
-						await this.restoreForwarded();
-					}
-				});
 			}
+		}
+
+		if (!this.restoreListener) {
+			// It's possible that at restore time the value hasn't synced.
+			const key = await this.getStorageKey();
+			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
+				if (e.key === key) {
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.GLOBAL));
+					await this.restoreForwarded();
+				}
+			}));
 		}
 	}
 
@@ -448,14 +452,14 @@ export class TunnelModel extends Disposable {
 
 	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean, isPublic?: boolean, restore: boolean = true): Promise<RemoteTunnel | void> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
+		const port = local !== undefined ? local : remote.port;
+		const attributes = (await this.getAttributes([port]))?.get(port);
+
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
-
-			const port = local !== undefined ? local : remote.port;
-			const attributes = (await this.getAttributes([port]))?.get(port);
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
@@ -464,7 +468,7 @@ export class TunnelModel extends Disposable {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localPort: tunnel.tunnelLocalPort,
-					name: name ?? attributes?.label,
+					name: attributes?.label ?? name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					runningProcess: matchingCandidate?.detail,
@@ -481,8 +485,8 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			if (name) {
-				existingTunnel.name = name;
+			if (attributes?.label ?? name) {
+				existingTunnel.name = attributes?.label ?? name;
 			}
 			this._onForwardPort.fire();
 			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
@@ -641,7 +645,7 @@ export class TunnelModel extends Disposable {
 		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
 			return Array.from(pidToPortsMapping.entries()).map(entry => {
 				const portGroup = entry[1];
-				const matchingCandidate = matchingCandidates.get(portGroup[1]);
+				const matchingCandidate = matchingCandidates.get(portGroup[0]);
 				return provider.providePortAttributes(portGroup,
 					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
 			});

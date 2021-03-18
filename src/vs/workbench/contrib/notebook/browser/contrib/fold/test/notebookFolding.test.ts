@@ -14,7 +14,7 @@ suite('Notebook Folding', () => {
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('Folding based on markdown cells', async function () {
-		await withTestNotebook(instantiationService,
+		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -24,7 +24,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingController = new FoldingModel();
 				foldingController.attachViewModel(viewModel);
 
@@ -41,7 +42,6 @@ suite('Notebook Folding', () => {
 
 	test('Top level header in a cell wins', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -51,7 +51,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingController = new FoldingModel();
 				foldingController.attachViewModel(viewModel);
 
@@ -73,7 +74,6 @@ suite('Notebook Folding', () => {
 
 	test('Folding', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -83,7 +83,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -95,7 +96,6 @@ suite('Notebook Folding', () => {
 		);
 
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -105,7 +105,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 2, true);
@@ -118,7 +119,6 @@ suite('Notebook Folding', () => {
 		);
 
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -128,7 +128,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 2, true);
@@ -143,7 +144,6 @@ suite('Notebook Folding', () => {
 
 	test('Nested Folding', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -153,7 +153,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -198,7 +199,6 @@ suite('Notebook Folding', () => {
 
 	test('Folding Memento', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -213,7 +213,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([{ start: 2, end: 6 }]);
@@ -227,7 +228,6 @@ suite('Notebook Folding', () => {
 		);
 
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -242,7 +242,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
@@ -260,7 +261,6 @@ suite('Notebook Folding', () => {
 		);
 
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -275,7 +275,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([
@@ -295,7 +296,6 @@ suite('Notebook Folding', () => {
 
 	test('View Index', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -310,7 +310,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([{ start: 2, end: 6 }]);
@@ -332,7 +333,6 @@ suite('Notebook Folding', () => {
 		);
 
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
@@ -347,7 +347,8 @@ suite('Notebook Folding', () => {
 				['## header 2.2', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 7;', 'markdown', CellKind.Markdown, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				foldingModel.applyMemento([

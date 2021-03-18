@@ -20,7 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { findWindowOnFile, findWindowOnWorkspaceOrFolder, findWindowOnExtensionDevelopmentPath } from 'vs/platform/windows/electron-main/windowsFinder';
 import { Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -41,6 +41,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileService } from 'vs/platform/files/common/files';
+import { cwd } from 'vs/base/common/process';
 
 //#region Helper Interfaces
 
@@ -68,6 +69,10 @@ interface IOpenBrowserWindowOptions {
 interface IPathResolveOptions {
 	readonly ignoreFileNotFound?: boolean;
 	readonly gotoLineMode?: boolean;
+	readonly forceOpenWorkspaceAsFile?: boolean;
+	/**
+	 * The remoteAuthority to use if the URL to open is neither file nor vscode-remote
+	 */
 	readonly remoteAuthority?: string;
 }
 
@@ -145,7 +150,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -661,7 +667,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const uri = this.resourceFromOpenable(pathToOpen);
 
 				const options: MessageBoxOptions = {
-					title: product.nameLong,
+					title: this.productService.nameLong,
 					type: 'info',
 					buttons: [localize('ok', "OK")],
 					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
@@ -680,7 +686,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doExtractPathsFromCLI(cli: NativeParsedArgs): IPath[] {
 		const pathsToOpen: IPathToOpen[] = [];
-		const pathResolveOptions: IPathResolveOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
+		const pathResolveOptions: IPathResolveOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined, forceOpenWorkspaceAsFile: false };
 
 		// folder uris
 		const folderUris = cli['folder-uri'];
@@ -713,12 +719,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// folder or file paths
 		const cliPaths = cli._;
 		for (const cliPath of cliPaths) {
-			const path = this.doResolveFileOpenable(cliPath, pathResolveOptions);
+			const path = cli.remote ? this.doResolvePathRemote(cliPath, cli.remote) : this.doResolveFilePath(cliPath, pathResolveOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
 		}
-
 		return pathsToOpen;
 	}
 
@@ -815,7 +820,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// handle file:// openables with some extra validation
 		let uri = this.resourceFromOpenable(openable);
 		if (uri.scheme === Schemas.file) {
-			return this.doResolveFileOpenable(openable, options);
+			if (isFileToOpen(openable)) {
+				options = { ...options, forceOpenWorkspaceAsFile: true };
+			}
+			return this.doResolveFilePath(uri.fsPath, options);
 		}
 
 		// handle non file:// openables
@@ -825,8 +833,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private doResolveRemoteOpenable(openable: IWindowOpenable, options: IPathResolveOptions): IPathToOpen | undefined {
 		let uri = this.resourceFromOpenable(openable);
 
-		// open remote if either specified in the cli or if it's a remotehost URI
-		const remoteAuthority = options.remoteAuthority || getRemoteAuthority(uri);
+		// use remote authority from vscode
+		const remoteAuthority = getRemoteAuthority(uri) || options.remoteAuthority;
 
 		// normalize URI
 		uri = removeTrailingPathSeparator(normalizePath(uri));
@@ -863,17 +871,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return openable.fileUri;
 	}
 
-	private doResolveFileOpenable(path: string, options: IPathResolveOptions): IPathToOpen | undefined;
-	private doResolveFileOpenable(openable: IWindowOpenable, options: IPathResolveOptions): IPathToOpen | undefined;
-	private doResolveFileOpenable(pathOrOpenable: string | IWindowOpenable, options: IPathResolveOptions): IPathToOpen | undefined {
-		let path: string;
-		let forceOpenWorkspaceAsFile = false;
-		if (typeof pathOrOpenable === 'string') {
-			path = pathOrOpenable;
-		} else {
-			path = this.resourceFromOpenable(pathOrOpenable).fsPath;
-			forceOpenWorkspaceAsFile = isFileToOpen(pathOrOpenable);
-		}
+	private doResolveFilePath(path: string, options: IPathResolveOptions): IPathToOpen | undefined {
 
 		// Extract line/col information from path
 		let lineNumber: number | undefined;
@@ -887,14 +885,44 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			path = parsedPath.path;
 		}
 
-		// With remote: resolve path as remote URI
-		const remoteAuthority = options.remoteAuthority;
-		if (remoteAuthority) {
-			return this.doResolvePathRemote(path, remoteAuthority, forceOpenWorkspaceAsFile);
+		// Ensure the path is normalized and absolute
+		path = sanitizeFilePath(normalize(path), cwd());
+
+		try {
+			const pathStat = statSync(path);
+			if (pathStat.isFile()) {
+
+				// Workspace (unless disabled via flag)
+				if (!options.forceOpenWorkspaceAsFile) {
+					const workspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(URI.file(path));
+					if (workspace) {
+						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true };
+					}
+				}
+
+				// File
+				return { fileUri: URI.file(path), lineNumber, columnNumber, exists: true };
+			}
+
+			// Folder (we check for isDirectory() because e.g. paths like /dev/null
+			// are neither file nor folder but some external tools might pass them
+			// over to us)
+			else if (pathStat.isDirectory()) {
+				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
+			}
+		} catch (error) {
+			const fileUri = URI.file(path);
+
+			// since file does not seem to exist anymore, remove from recent
+			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
+
+			// assume this is a file that does not yet exist
+			if (options.ignoreFileNotFound) {
+				return { fileUri, exists: false };
+			}
 		}
 
-		// Without remote: resolve path as local URI
-		return this.doResolvePathLocal(path, options, lineNumber, columnNumber, forceOpenWorkspaceAsFile);
+		return undefined;
 	}
 
 	private doResolvePathRemote(path: string, remoteAuthority: string, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
@@ -932,48 +960,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
-	}
-
-	private doResolvePathLocal(path: string, options: IPathResolveOptions, lineNumber: number | undefined, columnNumber: number | undefined, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
-
-		// Ensure the path is normalized and absolute
-		path = sanitizeFilePath(normalize(path), process.env['VSCODE_CWD'] || process.cwd());
-
-		try {
-			const pathStat = statSync(path);
-			if (pathStat.isFile()) {
-
-				// Workspace (unless disabled via flag)
-				if (!forceOpenWorkspaceAsFile) {
-					const workspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(URI.file(path));
-					if (workspace) {
-						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true };
-					}
-				}
-
-				// File
-				return { fileUri: URI.file(path), lineNumber, columnNumber, exists: true };
-			}
-
-			// Folder (we check for isDirectory() because e.g. paths like /dev/null
-			// are neither file nor folder but some external tools might pass them
-			// over to us)
-			else if (pathStat.isDirectory()) {
-				return { workspace: getSingleFolderWorkspaceIdentifier(URI.file(path), pathStat), exists: true };
-			}
-		} catch (error) {
-			const fileUri = URI.file(path);
-
-			// since file does not seem to exist anymore, remove from recent
-			this.workspacesHistoryMainService.removeRecentlyOpened([fileUri]);
-
-			// assume this is a file that does not yet exist
-			if (options?.ignoreFileNotFound) {
-				return { fileUri, exists: false };
-			}
-		}
-
-		return undefined;
 	}
 
 	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
