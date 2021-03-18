@@ -1523,15 +1523,15 @@ declare module 'vscode' {
 		readonly cell: NotebookCell;
 
 		start(context?: NotebookCellExecuteStartContext): void;
-		setExecutionOrder(order: number): void;
+		executionOrder: number | undefined;
 		end(result: NotebookCellPreviousExecutionResult): void;
 		readonly token: CancellationToken;
 
-		clearOutput(): Thenable<void>;
-		appendOutput(out: NotebookCellOutput[]): Thenable<void>;
-		replaceOutput(out: NotebookCellOutput[]): Thenable<void>;
-		appendOutputItems(outputId: string, items: NotebookCellOutputItem[]): Thenable<void>;
-		replaceOutputItems(outputId: string, items: NotebookCellOutputItem[]): Thenable<void>;
+		clearOutput(cellIndex?: number): Thenable<void>;
+		appendOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
 	}
 
 	export enum NotebookCellExecutionState {

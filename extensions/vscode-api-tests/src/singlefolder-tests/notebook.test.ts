@@ -89,7 +89,7 @@ const kernel1 = new class implements vscode.NotebookKernel {
 		}
 
 		task.start();
-		task.setExecutionOrder(1);
+		task.executionOrder = 1;
 		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
 			await task.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)

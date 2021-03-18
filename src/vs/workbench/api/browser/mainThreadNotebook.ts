@@ -165,7 +165,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		return textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
 
-	async $applyEdits(resource: UriComponents, cellEdits: ICellEditOperation[]): Promise<void> {
+	async $applyEdits(resource: UriComponents, cellEdits: ICellEditOperation[], computeUndoRedo?: boolean): Promise<void> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		if (!textModel) {
 			throw new Error(`Can't apply edits to unknown notebook model: ${resource}`);

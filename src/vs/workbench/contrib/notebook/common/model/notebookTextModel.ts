@@ -317,18 +317,40 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._operationManager.pushStackElement(label, selectionState, undoRedoGroup, this.alternativeVersionId);
 	}
 
+	private _getCellIndexByHandle(handle: number) {
+		return this.cells.findIndex(c => c.handle === handle);
+	}
+
+	private _getCellIndexWithOutputIdHandle(outputId: string) {
+		return this.cells.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
+	}
+
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
 
 		this._eventEmitter.beginDeferredEmit();
 		this.pushStackElement('edit', beginSelectionState, undoRedoGroup);
 
 		const edits = rawEdits.map((edit, index) => {
+			let cellIndex: number = -1;
+			if ('index' in edit) {
+				cellIndex = edit.index;
+			} else if ('handle' in edit) {
+				cellIndex = this._getCellIndexByHandle(edit.handle);
+				this._assertIndex(cellIndex);
+			} else if ('outputId' in edit) {
+				cellIndex = this._getCellIndexWithOutputIdHandle(edit.outputId);
+				this._assertIndex(cellIndex);
+			} else if (edit.editType !== CellEditType.DocumentMetadata) {
+				throw new Error('Invalid cell edit');
+			}
+
 			return {
 				edit,
+				cellIndex,
 				end:
 					(edit.editType === CellEditType.DocumentMetadata)
 						? undefined
-						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : edit.index),
+						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
 				originalIndex: index,
 			};
 		}).sort((a, b) => {
@@ -343,15 +365,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return b.end - a.end || b.originalIndex - a.originalIndex;
 		});
 
-		for (const { edit } of edits) {
+		for (const { edit, cellIndex } of edits) {
 			switch (edit.editType) {
 				case CellEditType.Replace:
 					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
 					break;
 				case CellEditType.Output:
 					//TODO@jrieken,@rebornix no event, no undo stop (?)
-					this._assertIndex(edit.index);
-					const cell = this._cells[edit.index];
+					this._assertIndex(cellIndex);
+					const cell = this._cells[cellIndex];
 					if (edit.append) {
 						this._spliceNotebookCellOutputs(cell.handle, [[cell.outputs.length, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
 					} else {
@@ -360,8 +382,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 				case CellEditType.OutputItems:
 					{
-						this._assertIndex(edit.index);
-						const cell = this._cells[edit.index];
+						this._assertIndex(cellIndex);
+						const cell = this._cells[cellIndex];
 						if (edit.append) {
 							this._appendNotebookCellOutputItems(cell.handle, edit.outputId, edit.items);
 						} else {
@@ -375,8 +397,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._changeCellMetadata(this._cells[edit.index].handle, edit.metadata, computeUndoRedo);
 					break;
 				case CellEditType.PartialMetadata:
-					this._assertIndex(edit.index);
-					this._changeCellMetadataPartial(this._cells[edit.index].handle, edit.metadata, computeUndoRedo);
+					this._assertIndex(cellIndex);
+					this._changeCellMetadataPartial(this._cells[cellIndex].handle, edit.metadata, computeUndoRedo);
 					break;
 				case CellEditType.CellLanguage:
 					this._assertIndex(edit.index);
@@ -628,8 +650,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _changeCellMetadataPartial(handle: number, metadata: NullablePartialNotebookCellMetadata, computeUndoRedo: boolean) {
-		const cell = this._cells.find(cell => cell.handle === handle);
-
+		const cell = this._mapping.get(handle);
 		if (!cell) {
 			return;
 		}
@@ -647,8 +668,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _changeCellMetadata(handle: number, metadata: NotebookCellMetadata, computeUndoRedo: boolean) {
-		const cell = this._cells.find(cell => cell.handle === handle);
-
+		const cell = this._mapping.get(handle);
 		if (!cell) {
 			return;
 		}

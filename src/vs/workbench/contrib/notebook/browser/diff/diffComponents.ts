@@ -438,13 +438,13 @@ abstract class AbstractElementRenderer extends Disposable {
 
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
 				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);
-				this.notebookEditor.textModel!.applyEdits(
-					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
-					true,
-					undefined,
-					() => undefined,
-					undefined
-				);
+				// this.notebookEditor.textModel!.applyEdits(
+				// 	[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
+				// 	true,
+				// 	undefined,
+				// 	() => undefined,
+				// 	undefined
+				// );
 			}
 
 			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);

@@ -353,14 +353,13 @@ export interface ICellReplaceEdit {
 
 export interface ICellOutputEdit {
 	editType: CellEditType.Output;
-	index: number;
+	handle: number;
 	outputs: IOutputDto[];
 	append?: boolean
 }
 
 export interface ICellOutputItemEdit {
 	editType: CellEditType.OutputItems;
-	index: number;
 	outputId: string;
 	items: IOutputItemDto[];
 	append?: boolean;
@@ -368,7 +367,7 @@ export interface ICellOutputItemEdit {
 
 export interface ICellMetadataEdit {
 	editType: CellEditType.Metadata;
-	index: number;
+	handle: number;
 	metadata: NotebookCellMetadata;
 }
 
@@ -378,13 +377,13 @@ export type NullablePartialNotebookCellMetadata = {
 
 export interface ICellPartialMetadataEdit {
 	editType: CellEditType.PartialMetadata;
-	index: number;
+	handle: number;
 	metadata: Partial<NullablePartialNotebookCellMetadata>;
 }
 
 export interface ICellLanguageEdit {
 	editType: CellEditType.CellLanguage;
-	index: number;
+	handle: number;
 	language: string;
 }
 
