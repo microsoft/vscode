@@ -10,6 +10,7 @@ import { throttle } from 'vs/base/common/decorators';
 import { IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isAsyncIterable, isIterable } from 'vs/base/common/types';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
+import { ITestItemHook } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestDiffOpType, TestItemExpandable, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface IHierarchyProvider {
@@ -190,6 +191,10 @@ export class SingleUseTestCollection implements IDisposable {
 	 */
 	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
 
+	private readonly hook: ITestItemHook = {
+		created: item => this.addItem(item, )
+	};
+
 	constructor(
 		private readonly testIdToInternal: IReference<TestTree<OwnedCollectionTestItem>>,
 		private readonly publishDiff: (diff: TestsDiff) => void,
@@ -198,8 +203,8 @@ export class SingleUseTestCollection implements IDisposable {
 	/**
 	 * Adds a new root node to the collection.
 	 */
-	public addRoot(item: TestItem.Raw, hierarchy: IHierarchyProvider, providerId: string) {
-		this.addItem(item, providerId, hierarchy, null);
+	public addRoot(item: TestItem.Raw, providerId: string) {
+		this.addItem(item, providerId, null);
 		this.debounceSendDiff.schedule();
 	}
 
@@ -445,7 +450,7 @@ export class SingleUseTestCollection implements IDisposable {
 	}
 }
 
-const keyMap: { [K in keyof TestItem.Raw]: null } = {
+const keyMap: { [K in keyof Omit<TestItem.Raw, 'children' | 'invalidate' | 'discoverChildren'>]: null } = {
 	id: null,
 	label: null,
 	location: null,

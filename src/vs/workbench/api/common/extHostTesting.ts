@@ -138,7 +138,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		}
 
 		const cancellation = new CancellationTokenSource();
-		let method: undefined | ((p: vscode.TestProvider) => vscode.ProviderResult<vscode.TestHierarchy<vscode.TestItem>>);
+		let method: undefined | ((p: vscode.TestProvider) => vscode.ProviderResult<vscode.TestItem>);
 		if (resource === ExtHostTestingResource.TextDocument) {
 			let document = this.documents.getDocument(uri);
 
@@ -157,14 +157,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 			if (document) {
 				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
-				method = p => p.provideDocumentTestHierarchy
-					? p.provideDocumentTestHierarchy(document!.document, cancellation.token)
-					: createDefaultDocumentTestHierarchy(p, document!.document, folder, cancellation.token);
+				method = p => p.provideDocumentTestRoot
+					? p.provideDocumentTestRoot(document!.document, cancellation.token)
+					: createDefaultDocumentTestRoot(p, document!.document, folder, cancellation.token);
 			}
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
 			if (folder) {
-				method = p => p.provideWorkspaceTestHierarchy(folder, cancellation.token);
+				method = p => p.provideWorkspaceTestRoot(folder, cancellation.token);
 			}
 		}
 
@@ -174,14 +174,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		const subscribeFn = async (id: string, provider: vscode.TestProvider) => {
 			try {
-				const hierarchy = await method!(provider);
-				if (!hierarchy) {
+				const root = await method!(provider);
+				if (!root) {
 					return;
 				}
 
-				collection.addRoot(hierarchy.root, hierarchy, id);
-				hierarchy.onDidChangeTest(e => collection.onItemChange(e, hierarchy, id));
-				hierarchy.onDidInvalidateTest?.(e => {
+				collection.addRoot(root, id);
+				root.onDidChangeTest(e => collection.onItemChange(e, root, id));
+				root.onDidInvalidateTest?.(e => {
 					const internal = collection.getTestByReference(e);
 					if (!internal) {
 						console.warn(`Received a TestProvider.onDidInvalidateTest for a test that does not currently exist.`);
@@ -332,7 +332,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	}
 }
 
-export const createDefaultDocumentTestHierarchy = async <T extends vscode.TestItem>(
+export const createDefaultDocumentTestRoot = async <T extends vscode.TestItem>(
 	provider: vscode.TestProvider<T>,
 	document: vscode.TextDocument,
 	folder: vscode.WorkspaceFolder | undefined,

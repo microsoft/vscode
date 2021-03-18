@@ -14,7 +14,7 @@
  * - Copy this file to your project.
  */
 
-declare module 'vscode' {
+ declare module 'vscode' {
 
 	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
@@ -2116,26 +2116,6 @@ declare module 'vscode' {
 	 */
 	export interface TestProvider<T extends TestItem = TestItem> {
 		/**
-		 * Requests the children of the test item. When called, the provider should
-		 * discover tests and update the item's `children`. The provider will be
-		 * marked as 'busy' when this method is called, and should report
-		 * `{ busy: false }` to {@link Progress.report} once discovery is complete.
-		 *
-		 * The provider should continue watching for changes to the children and
-		 * firing updates until the token is cancelled. The process of watching
-		 * the tests may involve creating a file watcher, for example.
-		 *
-		 * The editor will only call this method when it's interested in refreshing
-		 * the children of the item, and will not call it again while there's an
-		 * existing, undisposed uncancelled discovery for an item.
-		 *
-		 * @param token Cancellation for the request. Cancellation will be
-		 * requested if the test changes before the previous call completes.
-		 * @returns a provider result of child test items
-		 */
-		discoverChildren(item: T, progress: Progress<{ busy: boolean }>, token: CancellationToken): void;
-
-		/**
 		 * Gets the parent of the test item. This should only return "undefined"
 		 * if called with the root node.
 		 * @param item TestItem to retrieve the parent for
@@ -2229,31 +2209,37 @@ declare module 'vscode' {
 		setState(test: T, state: TestState): void;
 	}
 
-	export interface TestChildrenCollection extends Iterable<TestItem> {
+	export interface TestChildrenCollection<T> extends Iterable<T> {
 		/**
 		 * Gets the number of children in the collection.
 		 */
-		size: number;
+		readonly size: number;
+
+		/**
+		 * Gets an existing TestItem by its ID, if it exists.
+		 * @param id ID of the test.
+		 * @returns the TestItem instance if it exists.
+		 */
+		get(id: string): T | undefined;
 
 		/**
 		 * Adds a new child test item. No-ops if the test was already a child.
 		 * @param child The test item to add.
 		 */
-		add(child: TestItem): void;
+		add(child: T): void;
 
 		/**
-		 * Gets whether the child exists in the collection.
-		 * @param child Child to tests
-		 * @returns true if the child exists in the collection
+		 * Removes the child test item by reference or ID from the collection.
+		 * @param child Child ID or instance to remove.
 		 */
-		has(child: TestItem): boolean;
+		delete(child: T | string): void;
 	}
 
 	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export class TestItem {
+	export class TestItem<TChildren = any> {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2265,7 +2251,7 @@ declare module 'vscode' {
 		 * A set of children this item has. You can add new children to it, which
 		 * will propagate to the editor UI.
 		 */
-		readonly children: TestChildrenCollection;
+		readonly children: TestChildrenCollection<TChildren>;
 
 		/**
 		 * Display name describing the test case.
@@ -2320,14 +2306,33 @@ declare module 'vscode' {
 		 * for example. In "auto run" mode, tests that are outdated will be
 		 * automatically re-run after a short delay. Invoking this on a
 		 * test with children will mark the entire subtree as outdated.
+		 *
+		 * Extensions should generally not override this method.
 		 */
 		invalidate(): void;
 
 		/**
-		 * Disposes of the test. Removes it from the test tree and cleans up
-		 * any listeners.
+		 * Requests the children of the test item. Extensions should override this
+		 * method for any test that can discover children.
+		 *
+		 * When called, the item should discover tests and update its's `children`.
+		 * The provider will be marked as 'busy' when this method is called, and
+		 * the provider should report `{ busy: false }` to {@link Progress.report}
+		 * once discovery is complete.
+		 *
+		 * The item should continue watching for changes to the children and
+		 * firing updates until the token is cancelled. The process of watching
+		 * the tests may involve creating a file watcher, for example.
+		 *
+		 * The editor will only call this method when it's interested in refreshing
+		 * the children of the item, and will not call it again while there's an
+		 * existing, uncancelled discovery for an item.
+		 *
+		 * @param token Cancellation for the request. Cancellation will be
+		 * requested if the test changes before the previous call completes.
+		 * @returns a provider result of child test items
 		 */
-		dispose(): void;
+		discoverChildren(progress: Progress<{ busy: boolean }>, token: CancellationToken): void;
 	}
 
 	/**

@@ -3313,12 +3313,12 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, k
 	};
 };
 
-export class TestChildrenCollection implements vscode.TestChildrenCollection {
-	#set = new Set<vscode.TestItem>();
+export class TestChildrenCollection implements vscode.TestChildrenCollection<vscode.TestItem> {
+	#map = new Map<string, vscode.TestItem>();
 	#hookRef: () => ITestItemHook | undefined;
 
 	public get size() {
-		return this.#set.size;
+		return this.#map.size;
 	}
 
 	constructor(hookRef: () => ITestItemHook | undefined) {
@@ -3326,21 +3326,31 @@ export class TestChildrenCollection implements vscode.TestChildrenCollection {
 	}
 
 	public add(child: vscode.TestItem) {
-		const set = this.#set;
-		if (set.has(child)) {
-			return;
+		const map = this.#map;
+		const hook = this.#hookRef();
+
+		if (map.has(child.id)) {
+			hook?.dispose(child.id);
 		}
 
-		set.add(child);
-		this.#hookRef()?.created(child);
+		map.set(child.id, child);
+		hook?.created(child);
 	}
 
-	public has(child: vscode.TestItem) {
-		return this.#set.has(child);
+	public get(id: string) {
+		return this.#map.get(id);
+	}
+
+	public delete(childOrId: vscode.TestItem | string) {
+		const id = typeof childOrId === 'string' ? childOrId : childOrId.id;
+		if (this.#map.has(id)) {
+			this.#map.delete(id);
+			this.#hookRef()?.dispose(id);
+		}
 	}
 
 	public [Symbol.iterator]() {
-		return this.#set[Symbol.iterator]();
+		return this.#map.values();
 	}
 }
 
@@ -3381,8 +3391,8 @@ export class TestItem implements vscode.TestItem {
 		this[TestItemHookProperty]?.invalidate(this.id);
 	}
 
-	public dispose() {
-		this[TestItemHookProperty]?.dispose(this.id);
+	public discoverChildren(progress: vscode.Progress<{ busy: boolean }>, _token: vscode.CancellationToken) {
+		progress.report({ busy: false });
 	}
 }
 
