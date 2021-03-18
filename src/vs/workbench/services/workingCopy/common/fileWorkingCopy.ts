@@ -14,8 +14,8 @@ import { TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DefaultEndOfLine, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ITextFileEditorModel, ITextFileService, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ITextFileEditorModel, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { isWindows } from 'vs/base/common/platform';
@@ -66,6 +66,8 @@ export interface IFileWorkingCopyModel {
 	 * Snapshots the model's current content for writing. This must include
 	 * any changes that were made to the model that are in memory.
 	 *
+	 * TODO@bpasero could this method return sync and not promise?
+	 *
 	 * @param token support for cancellation
 	 */
 	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
@@ -103,12 +105,6 @@ export interface IFileWorkingCopyModel {
 	 * TODO@bpasero rename to beforeSave()?
 	 */
 	pushStackElement(): void;
-
-	/**
-	 * @deprecated do not invest to implement, will try to get this to
-	 * work through the other `snapshot` method.
-	 */
-	_backupSnapshot(): ITextSnapshot | undefined;
 }
 
 export interface IFileWorkingCopyModelContentChangedEvent {
@@ -802,7 +798,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			};
 		}
 
-		return { meta, content: this.model?._backupSnapshot() };
+		return { meta, content: await this.modelTextSnapshot(token) };
 	}
 
 	//#endregion
@@ -1208,6 +1204,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return !!(textFileModel && this.model && (textFileModel as unknown) === (this.model as unknown));
 	}
 
+	// TODO@bpasero backups should account for binary data,
+	// and be able to deal with VSBuffer directly
+
 	private textBufferFactoryToStream(factory: ITextBufferFactory): VSBufferReadableStream {
 		const stream = newWriteableBufferStream();
 
@@ -1215,6 +1214,17 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		stream.end(VSBuffer.fromString(contents));
 
 		return stream;
+	}
+
+	private async modelTextSnapshot(token: CancellationToken): Promise<ITextSnapshot | undefined> {
+		if (!this.isResolved()) {
+			return undefined;
+		}
+
+		const snapshot = await this.model.snapshot(token);
+		const contents = await streamToBuffer(snapshot);
+
+		return stringToSnapshot(contents.toString());
 	}
 
 	//#endregion
