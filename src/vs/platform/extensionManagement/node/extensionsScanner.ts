@@ -26,6 +26,8 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FileAccess } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { basename } from 'vs/base/common/resources';
+import { generateUuid } from 'vs/base/common/uuid';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -100,7 +102,7 @@ export class ExtensionsScanner extends Disposable {
 
 	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, token: CancellationToken): Promise<ILocalExtension> {
 		const folderName = identifierWithVersion.key();
-		const tempPath = path.join(this.extensionsPath, `.${folderName}`);
+		const tempPath = path.join(this.extensionsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsPath, folderName);
 
 		try {
@@ -117,11 +119,15 @@ export class ExtensionsScanner extends Disposable {
 			await this.rename(identifierWithVersion, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
 			this.logService.info('Renamed to', extensionPath);
 		} catch (error) {
-			this.logService.info('Rename failed. Deleting from extracted location', tempPath);
 			try {
-				pfs.rimraf(tempPath);
+				await pfs.rimraf(tempPath);
 			} catch (e) { /* ignore */ }
-			throw error;
+			if (error.code === 'ENOTEMPTY') {
+				this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, identifierWithVersion.id);
+			} else {
+				this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempPath);
+				throw error;
+			}
 		}
 
 		let local: ILocalExtension | null = null;
