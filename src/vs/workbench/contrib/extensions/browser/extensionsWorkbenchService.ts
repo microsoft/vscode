@@ -564,6 +564,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}, this));
 
+		this._register(extensionEnablementService.onEnablementChanged(platformExtensions => {
+			if (!this.isAutoUpdateDisabledExtensionsEnabled()) {
+				const extensions = this.local.filter(e => platformExtensions.some(p => areSameExtensions(e.identifier, p.identifier)));
+				if (extensions.some(e => e.enablementState === EnablementState.EnabledGlobally || e.enablementState === EnablementState.EnabledWorkspace)) {
+					this.checkForUpdates();
+				}
+			}
+		}, this));
+
 		this.queryLocal().then(() => {
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallySyncWithGallery(true);
