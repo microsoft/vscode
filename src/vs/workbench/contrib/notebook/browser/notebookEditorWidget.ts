@@ -2080,31 +2080,36 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
 		const cell = this.getCellById(cellId);
-		if (cell && cell instanceof MarkdownCellViewModel) {
+		if (cell instanceof MarkdownCellViewModel) {
 			cell.editState = editState;
 		}
 	}
 
 	markdownCellDragStart(cellId: string, ctx: { clientY: number }): void {
 		const cell = this.getCellById(cellId);
-		if (cell && cell instanceof MarkdownCellViewModel) {
+		if (cell instanceof MarkdownCellViewModel) {
 			this._dndController?.startExplicitDrag(cell, ctx);
 		}
 	}
 
 	markdownCellDrag(cellId: string, ctx: { clientY: number }): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
-
-		if (cell && cell instanceof MarkdownCellViewModel) {
+		const cell = this.getCellById(cellId);
+		if (cell instanceof MarkdownCellViewModel) {
 			this._dndController?.explicitDrag(cell, ctx);
 		}
 	}
 
-	markdownCellDragEnd(cellId: string, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }): void {
-		const cell = this.viewModel?.viewCells.find(vc => vc.id === cellId);
+	markdownCellDrop(cellId: string, ctx: { clientY: number, ctrlKey: boolean, altKey: boolean }): void {
+		const cell = this.getCellById(cellId);
+		if (cell instanceof MarkdownCellViewModel) {
+			this._dndController?.explicitDrop(cell, ctx);
+		}
+	}
 
-		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._dndController?.endExplicitDrag(cell, ctx);
+	markdownCellDragEnd(cellId: string): void {
+		const cell = this.getCellById(cellId);
+		if (cell instanceof MarkdownCellViewModel) {
+			this._dndController?.endExplicitDrag(cell);
 		}
 	}
 

@@ -166,7 +166,8 @@ export interface ICommonNotebookEditor {
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
 	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
 	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDragEnd(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragEnd(cellId: string): void;
 }
 
 //#endregion

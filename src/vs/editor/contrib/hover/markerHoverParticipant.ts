@@ -46,7 +46,7 @@ export class MarkerHover implements IHoverPart {
 }
 
 const markerCodeActionTrigger: CodeActionTrigger = {
-	type: CodeActionTriggerType.Manual,
+	type: CodeActionTriggerType.Invoke,
 	filter: { include: CodeActionKind.QuickFix }
 };
 
