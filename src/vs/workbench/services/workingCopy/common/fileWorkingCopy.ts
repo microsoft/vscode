@@ -24,7 +24,11 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 
 	/**
 	 * Asks the file working copy delegate to create a model from the given
-	 * content.
+	 * content under the provided resource. The content may originate from
+	 * different sources depending on context:
+	 * - from a backup if that exists
+	 * - from the underlying file resource
+	 * - passed in from the caller
 	 *
 	 * @param resource the `URI` of the model
 	 * @param contents the content of the model to create it
@@ -35,32 +39,42 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 
 /**
  * The underlying model of a file working copy provides some
- * methods for the working copy to function. The model is
+ * methods for the file working copy to function. The model is
  * typically only available after the working copy has been
- * resolved via it's `resolve` method.
+ * resolved via it's `resolve()` method.
  */
 export interface IFileWorkingCopyModel {
 
 	/**
 	 * An even that fires whenever the content of the file working
-	 * copy model changes.
+	 * copy model changes. The file working copy will listen to these
+	 * changes and mark the working copy as dirty whenever this event
+	 * fires.
+	 *
+	 * Note: ONLY report changes to the model but not the underlying
+	 * file. The file working copy is tracking changes to the file
+	 * automatically.
 	 */
 	readonly onDidChangeContent: Event<IFileWorkingCopyModelContentChangedEvent>;
 
 	/**
-	 * An event that fires whenever the model is disposed.
+	 * An event emitted right before disposing the model.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
-	 * Snapshots the model's current content for writing.
+	 * Snapshots the model's current content for writing. This must include
+	 * any changes that were made to the model that are in memory.
 	 *
 	 * @param token support for cancellation
 	 */
 	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
 
 	/**
-	 * Updates the model with the provided contents.
+	 * Updates the model with the provided contents. The implementation should
+	 * behave in a similar fashion as `IFileWorkingCopyModelFactory#createModel`
+	 * except that here the model already exists and just needs to update to
+	 * the provided contents.
 	 *
 	 * @param the contents to use for the model
 	 * @param token support for cancellation
@@ -68,18 +82,27 @@ export interface IFileWorkingCopyModel {
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
 
 	/**
-	 * TODO should find a better name here
+	 * TODO@bpasero should find a better name here maybe together
+	 * with the pushStackElement concept since this is around
+	 * undo/redo?
 	 */
 	getAlternativeVersionId(): number;
 
 	/**
-	 * Close the current undo-redo element.
-	 * This offers a way to create an undo/redo stop point.
+	 * Close the current undo-redo element. This offers a way
+	 * to create an undo/redo stop point.
+	 *
+	 * This method may for example be called right before the
+	 * save is triggered so that the user can always undo back
+	 * to the state before saving.
+	 *
+	 * TODO@bpasero rename to beforeSave()?
 	 */
 	pushStackElement(): void;
 
 	/**
-	 * @deprecated
+	 * @deprecated do not invest to implement, will try to get this to
+	 * work through the other `snapshot` method.
 	 */
 	_backupSnapshot(): ITextSnapshot | undefined;
 }
@@ -704,6 +727,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Content Change
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
+
+		// Lifecycle
+		this._register(model.onWillDispose(() => this.dispose()));
 	}
 
 	private onModelContentChanged(model: IFileWorkingCopyModel, isUndoingOrRedoing: boolean): void {
