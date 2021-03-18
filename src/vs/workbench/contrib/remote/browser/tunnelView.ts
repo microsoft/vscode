@@ -39,7 +39,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isWeb } from 'vs/base/common/platform';
@@ -696,7 +696,8 @@ export class TunnelPanel extends ViewPane {
 						}
 					},
 					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
-				}
+				},
+				openOnSingleClick: false
 			}
 		) as WorkbenchTable<ITunnelItem>;
 
@@ -717,10 +718,9 @@ export class TunnelPanel extends ViewPane {
 			rerender();
 		}));
 
-		// TODO@alexr00 Joao asks: why the debounce?
-		this._register(Event.debounce(this.table.onDidOpen, (last, event) => event, 75, true)(e => {
-			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
-				this.commandService.executeCommand(ForwardPortAction.INLINE_ID);
+		this._register(this.table.onDidOpen(e => {
+			if (e.element && (e.element.tunnelType === TunnelType.Forwarded)) {
+				this.commandService.executeCommand(LabelTunnelAction.ID);
 			}
 		}));
 
@@ -741,7 +741,9 @@ export class TunnelPanel extends ViewPane {
 					this.table.reveal(this.table.indexOf(this.viewModel.input));
 				}
 			} else {
-				this.table.setFocus(this.lastFocus);
+				if (e && (e.tunnel.tunnelType !== TunnelType.Add)) {
+					this.table.setFocus(this.lastFocus);
+				}
 				this.focus();
 			}
 		}));
@@ -1329,15 +1331,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 		ContextKeyExpr.or(WebContextKey.negate(), TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Public)),
 		ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected)))
 }));
-MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
-	group: '0_manage', // 0_manage is used by extensions, so try not to change it
-	order: 0,
-	command: {
-		id: LabelTunnelAction.ID,
-		title: LabelTunnelAction.LABEL,
-	},
-	when: TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)
-}));
+// The group 0_manage is used by extensions, so try not to change it
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
 	order: 0,
@@ -1401,6 +1395,15 @@ MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 		icon: forwardPortIcon
 	},
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
+	order: 1,
+	command: {
+		id: LabelTunnelAction.ID,
+		title: LabelTunnelAction.LABEL,
+		icon: labelPortIcon
+	},
+	when: TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 	order: 2,

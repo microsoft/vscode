@@ -85,8 +85,15 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories {
 	display: flex;
 	flex-direction: column;
+	align-items: center;
+	justify-content: center;
 	overflow: hidden;
 	padding: 20px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-slide-container {
+	width: 90%;
+	max-width: 1200px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .gap {
@@ -95,9 +102,12 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .header {
 	display: flex;
-	align-items: center;
 	justify-content: center;
 	flex-direction: column;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlide.categories .header {
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .category-title {
@@ -112,13 +122,12 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view {
 	display: flex;
-	justify-content: space-evenly;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .categories-left,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .categories-right {
-	flex: 1;
-	max-width: 400px;
+	flex: 1 1 0;
+	overflow: hidden;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view ul {
@@ -130,6 +139,9 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view li {
 	list-style: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .path {
@@ -252,6 +264,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task {
 	display: flex;
 	width: 100%;
+	margin: 4px 0;
 	overflow: hidden;
 	transition: height .1s linear;
 }
@@ -286,6 +299,15 @@
 	margin-top: 12px;
 	display: flex;
 	align-items: center;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .shortcut-message {
+	opacity: 0.8;
+	font-size: 8pt;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .shortcut-message .keybinding {
+	font-weight: bold;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-next {
@@ -392,14 +414,6 @@
 	text-align: center;
 }
 
-/* .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide h1 {
-	font-size: 32px;
-	font-weight: normal;
-	border-bottom: none;
-	margin: 0;
-	padding: 0;
-} */
-
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail h2 {
 	font-weight: normal;
 	line-height: 26px;
@@ -433,6 +447,9 @@
 	background: transparent;
 	margin: 2px;
 	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link:hover {
@@ -441,4 +458,10 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
 	text-align: center;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup label {
+	position: relative;
+	top: -2px;
+	left: 5px;
 }

@@ -293,7 +293,7 @@ class OnAutoForwardedAction extends Disposable {
 	}
 
 	private basicMessage(tunnel: RemoteTunnel) {
-		return nls.localize('remote.tunnelsView.automaticForward', "Your service running on port {0} is available.  ",
+		return nls.localize('remote.tunnelsView.automaticForward', "Your application running on port {0} is available.  ",
 			tunnel.tunnelRemotePort);
 	}
 

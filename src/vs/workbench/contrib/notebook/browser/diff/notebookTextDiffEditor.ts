@@ -143,7 +143,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	markdownCellDrag(cellId: string, position: { clientY: number }): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDragEnd(cellId: string, position: { clientY: number }): void {
+	markdownCellDragEnd(cellId: string): void {
+		// throw new Error('Method not implemented.');
+	}
+	markdownCellDrop(cellId: string) {
 		// throw new Error('Method not implemented.');
 	}
 

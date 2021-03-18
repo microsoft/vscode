@@ -51,6 +51,7 @@ export interface IGettingStartedService {
 
 	progressByEvent(eventName: string): void;
 	progressTask(id: string): void;
+	deprogressTask(id: string): void;
 }
 
 export class GettingStartedService extends Disposable implements IGettingStartedService {
@@ -139,20 +140,17 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (!this.trackedExtensions.has(ExtensionIdentifier.toKey(extension.identifier))) {
 			this.trackedExtensions.add(ExtensionIdentifier.toKey(extension.identifier));
 
-			if ((extension.contributes?.welcomeCategories || extension.contributes?.welcomeItems) && this.productService.quality === 'stable') {
+			if ((extension.contributes?.walkthroughs?.length) && this.productService.quality === 'stable') {
 				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but this is a Stable build and extension contributions are only available in Insiders. The contributed content will be disregarded.');
 				return;
 			}
 
-			const contributedCategories = new Map();
-
-			extension.contributes?.welcomeCategories?.forEach(category => {
-				const categoryID = extension.identifier.value + '.' + category.id;
-				contributedCategories.set(category.id, categoryID);
+			extension.contributes?.walkthroughs?.forEach(section => {
+				const categoryID = extension.identifier.value + '#' + section.id;
 				this.registry.registerCategory({
 					content: { type: 'items' },
-					description: category.description,
-					title: category.title,
+					description: section.description,
+					title: section.title,
 					id: categoryID,
 					icon: {
 						type: 'image',
@@ -160,31 +158,30 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 							? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
 							: DefaultIconPath
 					},
-					when: ContextKeyExpr.deserialize(category.when) ?? ContextKeyExpr.true(),
+					when: ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true(),
 				});
-			});
+				try {
 
-			Object.entries(extension.contributes?.welcomeItems ?? {}).forEach(([category, items]) =>
-				items.forEach((item, index) =>
-					this.registry.registerTask({
-						button: item.button,
-						description: item.description,
-						media: { type: 'image', altText: item.media.altText, path: convertPaths(item.media.path) },
-						doneOn: item.doneOn?.event
-							? { eventFired: item.doneOn.event }
-							: item.doneOn?.command ?
-								{ commandExecuted: item.doneOn.command }
-								: item.button.command
-									? { commandExecuted: item.button.command }
-									: { eventFired: `linkOpened:${item.button.link}` },
-						id: extension.identifier.value + '.' + item.id,
-						title: item.title,
-						when: ContextKeyExpr.deserialize(item.when) ?? ContextKeyExpr.true(),
-						category: contributedCategories.get(category) ?? category,
-						order: index,
-					})
-				)
-			);
+					section.tasks.forEach((task, index) =>
+						this.registry.registerTask({
+							button: task.button,
+							description: task.description,
+							media: { type: 'image', altText: task.media.altText, path: convertPaths(task.media.path) },
+							doneOn: task.doneOn?.command
+								? { commandExecuted: task.doneOn.command }
+								: task.button.command
+									? { commandExecuted: task.button.command }
+									: { eventFired: `linkOpened:${task.button.link}` },
+							id: extension.identifier.value + '#' + task.id,
+							title: task.title,
+							when: ContextKeyExpr.deserialize(task.when) ?? ContextKeyExpr.true(),
+							category: categoryID,
+							order: index,
+						}));
+				} catch (e) {
+					console.error('Error registering walkthrough tasks for ', categoryID, e);
+				}
+			});
 		}
 	}
 
@@ -262,6 +259,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			const task = this.registry.getTask(id);
 			this._onDidProgressTask.fire(this.getTaskProgress(task));
 		}
+	}
+
+	deprogressTask(id: string) {
+		delete this.taskProgress[id];
+		this.memento.saveMemento();
+		const task = this.registry.getTask(id);
+		this._onDidProgressTask.fire(this.getTaskProgress(task));
 	}
 
 	private progressByCommand(command: string) {

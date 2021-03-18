@@ -166,7 +166,8 @@ export interface ICommonNotebookEditor {
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
 	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
 	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDragEnd(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragEnd(cellId: string): void;
 }
 
 //#endregion
@@ -409,11 +410,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * Split a given cell into multiple cells of the same type using the selection start positions.
 	 */
 	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
-
-	/**
-	 * Joins the given cell either with the cell above or the one below depending on the given direction.
-	 */
-	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null>;
 
 	/**
 	 * Delete a cell from the notebook

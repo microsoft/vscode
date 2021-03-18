@@ -16,7 +16,6 @@ suite('ListViewInfoAccessor', () => {
 
 	test('basics', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
@@ -24,7 +23,8 @@ suite('ListViewInfoAccessor', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			(_, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 

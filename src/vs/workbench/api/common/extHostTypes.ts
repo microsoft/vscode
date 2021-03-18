@@ -1179,8 +1179,8 @@ export class DocumentSymbol {
 
 
 export enum CodeActionTriggerKind {
-	Automatic = 1,
-	Manual = 2,
+	Invoke = 1,
+	Automatic = 2,
 }
 
 @es5ClassCompat

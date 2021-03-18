@@ -3,23 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { expandCellRangesWithHiddenCells, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { Range } from 'vs/editor/common/core/range';
+import { CellOverflowToolbarGroups, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { CellEditState, expandCellRangesWithHiddenCells, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditType, cellRangeContains, cellRangesToIndexes, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, cellRangeContains, cellRangesToIndexes, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
 const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
 const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
 const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
+const SPLIT_CELL_COMMAND_ID = 'notebook.cell.split';
+const JOIN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.joinAbove';
+const JOIN_CELL_BELOW_COMMAND_ID = 'notebook.cell.joinBelow';
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
@@ -61,8 +68,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-
-async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+export async function moveCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const viewModel = context.notebookEditor.viewModel;
 	if (!viewModel) {
 		return;
@@ -176,7 +182,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-async function copyCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
+export async function copyCellRange(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const viewModel = context.notebookEditor.viewModel;
 	if (!viewModel) {
 		return;
@@ -242,3 +248,274 @@ async function copyCellRange(context: INotebookCellActionContext, direction: 'up
 		context.notebookEditor.revealCellRangeInView(focusRange);
 	}
 }
+
+export async function splitCell(context: INotebookCellActionContext): Promise<void> {
+	const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
+	if (newCells) {
+		context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], 'editor');
+	}
+}
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: SPLIT_CELL_COMMAND_ID,
+				title: localize('notebookActions.splitCell', "Split Cell"),
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
+					order: CellToolbarOrder.SplitCell,
+					group: CELL_TITLE_CELL_GROUP_ID,
+					// alt: {
+					// 	id: JOIN_CELL_BELOW_COMMAND_ID,
+					// 	title: localize('notebookActions.joinCellBelow', "Join with Next Cell")
+					// }
+				},
+				icon: icons.splitCellIcon,
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_EDITOR_CURSOR_BEGIN_END.toNegated()),
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH),
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		return splitCell(context);
+	}
+});
+
+export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[] } | null> {
+	if (!viewModel || !viewModel.metadata.editable) {
+		return null;
+	}
+
+	const cells = viewModel.viewCells.slice(range.start, range.end);
+
+	if (!cells.length) {
+		return null;
+	}
+
+	if (range.start === 0 && direction === 'above') {
+		return null;
+	}
+
+	if (range.end === viewModel.length && direction === 'below') {
+		return null;
+	}
+
+	for (let i = 0; i < cells.length; i++) {
+		const cell = cells[i];
+		if (!cell.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+			return null;
+		}
+
+		if (constraint && cell.cellKind !== constraint) {
+			return null;
+		}
+	}
+
+	if (direction === 'above') {
+		const above = viewModel.viewCells[range.start - 1] as CellViewModel;
+		if (constraint && above.cellKind !== constraint) {
+			return null;
+		}
+
+		if (!above.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+			return null;
+		}
+
+		const insertContent = cells.map(cell => (cell.textBuffer.getEOL() ?? '') + cell.getText()).join('');
+		const aboveCellLineCount = above.textBuffer.getLineCount();
+		const aboveCellLastLineEndColumn = above.textBuffer.getLineLength(aboveCellLineCount);
+
+		return {
+			edits: [
+				new ResourceTextEdit(above.uri, { range: new Range(aboveCellLineCount, aboveCellLastLineEndColumn + 1, aboveCellLineCount, aboveCellLastLineEndColumn + 1), text: insertContent }),
+				new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: range.start,
+						count: range.end - range.start,
+						cells: []
+					}
+				)
+			],
+			cell: above,
+			endFocus: { start: range.start - 1, end: range.start },
+			endSelections: [{ start: range.start - 1, end: range.start }]
+		};
+	} else {
+		const below = viewModel.viewCells[range.end] as CellViewModel;
+		if (constraint && below.cellKind !== constraint) {
+			return null;
+		}
+
+		if (!below.getEvaluatedMetadata(viewModel.notebookDocument.metadata).editable) {
+			return null;
+		}
+
+		const cell = cells[0];
+		const restCells = [...cells.slice(1), below];
+		const insertContent = restCells.map(cl => (cl.textBuffer.getEOL() ?? '') + cl.getText()).join('');
+
+		const cellLineCount = cell.textBuffer.getLineCount();
+		const cellLastLineEndColumn = cell.textBuffer.getLineLength(cellLineCount);
+
+		return {
+			edits: [
+				new ResourceTextEdit(cell.uri, { range: new Range(cellLineCount, cellLastLineEndColumn + 1, cellLineCount, cellLastLineEndColumn + 1), text: insertContent }),
+				new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
+					{
+						editType: CellEditType.Replace,
+						index: range.start + 1,
+						count: range.end - range.start,
+						cells: []
+					}
+				)
+			],
+			cell,
+			endFocus: { start: range.start, end: range.start + 1 },
+			endSelections: [{ start: range.start, end: range.start + 1 }]
+		};
+	}
+}
+
+export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
+	const viewModel = context.notebookEditor.viewModel;
+	let ret: {
+		edits: ResourceEdit[];
+		cell: ICellViewModel;
+		endFocus: ICellRange;
+		endSelections: ICellRange[];
+	} | null = null;
+
+	if (context.ui) {
+		const cellIndex = viewModel.getCellIndex(context.cell);
+		ret = await joinNotebookCells(viewModel, { start: cellIndex, end: cellIndex + 1 }, direction);
+		if (!ret) {
+			return;
+		}
+
+		await bulkEditService.apply(
+			ret?.edits,
+			{ quotableLabel: 'Join Notebook Cells' }
+		);
+		viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: ret.endFocus, selections: ret.endSelections });
+		ret.cell.editState = CellEditState.Editing;
+		context.notebookEditor.revealCellRangeInView(viewModel.getFocus());
+	} else {
+		const selections = viewModel.getSelections();
+		if (!selections.length) {
+			return;
+		}
+
+		const focus = viewModel.getFocus();
+		let edits: ResourceEdit[] = [];
+		let cell: ICellViewModel | null = null;
+		let cells: ICellViewModel[] = [];
+
+		for (let i = selections.length - 1; i >= 0; i--) {
+			const selection = selections[i];
+			const containFocus = cellRangeContains(selection, focus);
+
+			if (
+				selection.end >= viewModel.length && direction === 'below'
+				|| selection.start === 0 && direction === 'above'
+			) {
+				if (containFocus) {
+					cell = viewModel.getCellByIndex(focus.start);
+				}
+
+				cells.push(...viewModel.viewCells.slice(selection.start, selection.end));
+				continue;
+			}
+
+			const singleRet = await joinNotebookCells(viewModel, selection, direction);
+
+			if (!singleRet) {
+				return;
+			}
+
+			edits.push(...singleRet.edits);
+			cells.push(singleRet.cell);
+
+			if (containFocus) {
+				cell = singleRet.cell;
+			}
+		}
+
+		if (!edits.length) {
+			return;
+		}
+
+		if (!cell || !cells.length) {
+			return;
+		}
+
+		await bulkEditService.apply(
+			edits,
+			{ quotableLabel: 'Join Notebook Cells' }
+		);
+
+		cells.forEach(cell => {
+			cell.editState = CellEditState.Editing;
+		});
+
+		viewModel.updateSelectionsState({ kind: SelectionStateType.Handle, primary: cell.handle, selections: cells.map(cell => cell.handle) });
+		context.notebookEditor.revealCellRangeInView(viewModel.getFocus());
+	}
+}
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: JOIN_CELL_ABOVE_COMMAND_ID,
+				title: localize('notebookActions.joinCellAbove', "Join With Previous Cell"),
+				keybinding: {
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_J,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 10
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const bulkEditService = accessor.get(IBulkEditService);
+		return joinCellsWithSurrounds(bulkEditService, context, 'above');
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: JOIN_CELL_BELOW_COMMAND_ID,
+				title: localize('notebookActions.joinCellBelow', "Join With Next Cell"),
+				keybinding: {
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KEY_J,
+					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 11
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const bulkEditService = accessor.get(IBulkEditService);
+		return joinCellsWithSurrounds(bulkEditService, context, 'below');
+	}
+});

@@ -31,7 +31,7 @@ suite('NotebookEditorKernelManager', () => {
 	const loadKernelPreloads = async () => { };
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
-		return _withTestNotebook(instantiationService, cells, (_editor, viewModel, textModel) => callback(viewModel, textModel));
+		return _withTestNotebook(cells, (editor) => callback(editor.viewModel, editor.viewModel.notebookDocument));
 	}
 
 	test('ctor', () => {
