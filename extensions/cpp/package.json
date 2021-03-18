@@ -50,6 +50,13 @@
           "cpp"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "cuda-cpp",
+        "extensions": [
+          ".cu",
+          ".cuh"
+        ]
       }
     ],
     "grammars": [
