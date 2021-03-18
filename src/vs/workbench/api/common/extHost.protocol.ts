@@ -505,6 +505,8 @@ export interface BaseTransferQuickInput {
 
 	id: number;
 
+	title?: string;
+
 	type?: 'quickPick' | 'inputBox';
 
 	enabled?: boolean;
