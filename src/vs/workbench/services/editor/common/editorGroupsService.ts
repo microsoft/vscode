@@ -391,6 +391,11 @@ export interface IEditorGroup {
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
+	 * An event that is fired when an editor is about to move
+	 */
+	readonly onWillMoveEditor: Event<IEditorInput>;
+
+	/**
 	 * A unique identifier of this group that remains identical even if the
 	 * group is moved to different locations.
 	 */
@@ -477,7 +482,7 @@ export interface IEditorGroup {
 	 * @returns a promise that resolves around an IEditor instance unless
 	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, openContext?: OpenEditorContext): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Opens editors in this group.

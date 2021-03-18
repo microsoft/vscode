@@ -221,19 +221,6 @@ export interface IEditorInputFactoryRegistry {
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
-	 * Registers an editor input factory to a specific glob pattern
-	 * @param globPattern The glob pattern which that input factory supports
-	 * @param factory The factory
-	 */
-	registerEditorInputFactory(globPattern: string, factory: IEditorInputFactory): void;
-
-	/**
-	 * Given a glob pattern returns all the editor input factories associated with that pattetrn
-	 * @param globPattern The glob pattern
-	 */
-	getEditorInputFactory(globPattern: string): Array<IEditorInputFactory> | undefined;
-
-	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
 	 * is capable of serializing and deserializing editor inputs from string data.
 	 *
@@ -1487,7 +1474,6 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 
 	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputSerializer>> = new Map();
 	private readonly editorInputSerializerInstances: Map<string, IEditorInputSerializer> = new Map();
-	private readonly editorInputFactoryInstances: Map<string, Array<IEditorInputFactory>> = new Map();
 
 	private readonly customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
 
@@ -1520,20 +1506,6 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined {
 		return this.customEditorInputFactoryInstances.get(scheme);
-	}
-
-	registerEditorInputFactory(globPattern: string, factory: IEditorInputFactory): void {
-		let currentEntry = this.editorInputFactoryInstances.get(globPattern);
-		if (currentEntry) {
-			currentEntry.push(factory);
-			this.editorInputFactoryInstances.set(globPattern, currentEntry);
-		} else {
-			this.editorInputFactoryInstances.set(globPattern, [factory]);
-		}
-	}
-
-	getEditorInputFactory(globPattern: string): Array<IEditorInputFactory> | undefined {
-		return this.editorInputFactoryInstances.get(globPattern);
 	}
 
 	registerEditorInputSerializer(editorInputId: string, ctor: IConstructorSignature0<IEditorInputSerializer>): IDisposable {
