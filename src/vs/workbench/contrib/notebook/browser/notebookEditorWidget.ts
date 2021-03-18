@@ -761,7 +761,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			this._notebookTopToolbarContainer.style.display = 'none';
 		} else {
-			this._notebookTopToolbarContainer.style.display = 'inline-flex';
+			this._notebookTopToolbarContainer.style.display = 'flex';
 			const primaryGroup = groups.find(group => group[0] === 'navigation');
 			const primaryActions = primaryGroup ? primaryGroup[1] : [];
 			const secondaryActions = groups.filter(group => group[0] !== 'navigation').reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
@@ -1358,7 +1358,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
-		DOM.size(this._body, dimension.width, dimension.height - (this._useGlobalToolbar ? /** Toolbar height */ 30 : 0));
+		DOM.size(this._body, dimension.width, dimension.height - (this._useGlobalToolbar ? /** Toolbar height */ 24 : 0));
 		this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : 0 });
 		this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
 
