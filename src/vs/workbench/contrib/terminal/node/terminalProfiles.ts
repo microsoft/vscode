@@ -165,22 +165,25 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
 	let profiles: IPotentialTerminalProfile[] = [];
 	if (detectWslProfiles) {
-		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? logService?.trace('problem occurred when getting wsl distros', err) : r(stdout)));
+		const distroOutput = await new Promise<string>((resolve, reject) => {
+			cp.exec('wsl.exe -l', (err, stdout) => {
+				if (err) {
+					return reject('Problem occurred when getting wsl distros');
+				}
+				resolve(stdout);
+			});
+		});
 		if (distroOutput) {
 			let regex = new RegExp(/[\r?\n]/);
-			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
+			let distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
 			for (const distroName of distroNames) {
-				let s = '';
-				let counter = 0;
-				for (const c of Array.from(distroName)) {
-					if (counter % 2 === 1) {
-						// every other character is junk / a rectangle
-						s += c;
-					}
-					counter++;
-				}
+				// HACK: For some reason wsl.exe -l returns the string in an encoding where each
+				// character takes up 2 bytes, it's unclear how to decode this properly so instead
+				// we expect ascii and just remove all NUL chars
+				let s = distroName.replace(/\u0000/g, '');
+
 				if (s.endsWith('(Default)')) {
 					// Ubuntu (Default) -> Ubuntu bc (Default) won't work
 					s = s.substring(0, s.length - 10);
