@@ -9,12 +9,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { hash } from 'vs/base/common/hash';
 
-interface NotificationMetrics {
+export interface NotificationMetrics {
 	id: number;
 	source?: string;
 }
 
-type NotificationMetricsClassification = {
+export type NotificationMetricsClassification = {
 	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }
 };
