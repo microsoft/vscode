@@ -233,8 +233,8 @@ export interface ITerminalProfile {
 }
 
 export const enum ProfileSource {
-	'Git Bash',
-	'PowerShell'
+	gitbash = 'Git Bash',
+	pwsh = 'PowerShell'
 }
 
 export interface ITerminalExecutable {
