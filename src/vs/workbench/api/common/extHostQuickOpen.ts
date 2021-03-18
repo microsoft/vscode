@@ -16,6 +16,7 @@ import { ThemeIcon, QuickInputButtons } from 'vs/workbench/api/common/extHostTyp
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
+import Severity from 'vs/base/common/severity';
 
 export type Item = string | QuickPickItem;
 
@@ -632,7 +633,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		set validationMessage(validationMessage: string | undefined) {
 			this._validationMessage = validationMessage;
-			this.update({ validationMessage });
+			this.update({ validationMessage, severity: validationMessage ? Severity.Error : Severity.Ignore });
 		}
 	}
 

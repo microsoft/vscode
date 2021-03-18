@@ -48,6 +48,7 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -202,7 +203,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 
@@ -576,7 +578,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
 					this._notificationService.prompt(
 						Severity.Info,
-						nls.localize('configure terminal settings', "Some keybindings are dispatched to the workbench by default."),
+						nls.localize('keybindingHandling', "Some keybindings don't go to the terminal by default and are handled by {0} instead.", this._productService.nameLong),
 						[
 							{
 								label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
@@ -1127,16 +1129,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	@debounce(500)
 	public reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): void {
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
 
 		if (this._xterm) {
-			if (reset) {
-				this._xterm.reset();
-			} else {
+			if (!reset) {
 				// Ensure new processes' output starts at start of new line
 				this._xterm.write('\n\x1b[G');
 			}
@@ -1168,11 +1167,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
+		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
-		this._xtermTypeAhead?.reset(this._processManager);
+		this._xtermTypeAhead?.reset();
 	}
 
+	@debounce(1000)
 	public relaunch(): void {
 		this.reuseTerminal(this._shellLaunchConfig, true);
 	}

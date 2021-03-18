@@ -20,7 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { findWindowOnFile, findWindowOnWorkspaceOrFolder, findWindowOnExtensionDevelopmentPath } from 'vs/platform/windows/electron-main/windowsFinder';
 import { Emitter } from 'vs/base/common/event';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -41,6 +41,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { getPathLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileService } from 'vs/platform/files/common/files';
+import { cwd } from 'vs/base/common/process';
 
 //#region Helper Interfaces
 
@@ -149,7 +150,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -665,7 +667,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const uri = this.resourceFromOpenable(pathToOpen);
 
 				const options: MessageBoxOptions = {
-					title: product.nameLong,
+					title: this.productService.nameLong,
 					type: 'info',
 					buttons: [localize('ok', "OK")],
 					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
@@ -884,7 +886,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// Ensure the path is normalized and absolute
-		path = sanitizeFilePath(normalize(path), process.env['VSCODE_CWD'] || process.cwd());
+		path = sanitizeFilePath(normalize(path), cwd());
 
 		try {
 			const pathStat = statSync(path);

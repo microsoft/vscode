@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { FileAccess } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
-import { FileAccess } from 'vs/base/common/network';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
 
 let product: IProductConfiguration;
 
@@ -32,7 +32,9 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',
-				'ms-vscode.github-browser'
+				'ms-vscode.github-browser',
+				'ms-vscode.remotehub',
+				'ms-vscode.remotehub-insiders'
 			],
 		});
 	}

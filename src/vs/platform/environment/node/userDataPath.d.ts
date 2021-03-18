@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getDefaultUserDataPath } from 'vs/base/node/userDataPath';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
-suite('User data path', () => {
-
-	test('getDefaultUserDataPath', () => {
-		const path = getDefaultUserDataPath();
-		assert.ok(path.length > 0);
-	});
-});
+/**
+ * Returns the user data path to use with some rules:
+ * - respect portable mode
+ * - respect --user-data-dir CLI argument
+ * - respect VSCODE_APPDATA environment variable
+ */
+export function getUserDataPath(args: NativeParsedArgs): string;

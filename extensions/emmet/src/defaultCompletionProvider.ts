@@ -67,7 +67,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const lsDoc = toLSTextDocument(document);
 		position = document.validatePosition(position);
 
-		if (document.languageId === 'html') {
+		if (syntax === 'html') {
 			if (context.triggerKind === vscode.CompletionTriggerKind.TriggerForIncompleteCompletions) {
 				switch (this.lastCompletionType) {
 					case 'html':

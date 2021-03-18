@@ -19,8 +19,8 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
-import { localize } from 'vs/nls';
 import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -50,6 +50,8 @@ export interface IGettingStartedService {
 	getCategories(): IGettingStartedCategoryWithProgress[]
 
 	progressByEvent(eventName: string): void;
+	progressTask(id: string): void;
+	deprogressTask(id: string): void;
 }
 
 export class GettingStartedService extends Disposable implements IGettingStartedService {
@@ -78,6 +80,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IContextKeyService private readonly contextService: IContextKeyService,
 		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -137,18 +140,17 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (!this.trackedExtensions.has(ExtensionIdentifier.toKey(extension.identifier))) {
 			this.trackedExtensions.add(ExtensionIdentifier.toKey(extension.identifier));
 
-			if (extension.contributes?.gettingStarted?.length) {
-				if (!extension.enableProposedApi) {
-					console.warn('Extension', extension.identifier.value, 'contributes getting started content but has not enabled proposedApi. The contributed content will be disregarded.');
-					return;
-				}
+			if ((extension.contributes?.walkthroughs?.length) && this.productService.quality === 'stable') {
+				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but this is a Stable build and extension contributions are only available in Insiders. The contributed content will be disregarded.');
+				return;
+			}
 
-				const categoryID = `EXTContrib-${extension.identifier.value}`;
-
+			extension.contributes?.walkthroughs?.forEach(section => {
+				const categoryID = extension.identifier.value + '#' + section.id;
 				this.registry.registerCategory({
 					content: { type: 'items' },
-					description: localize('extContrib', "Learn more about {0}!", extension.displayName ?? extension.name),
-					title: extension.displayName || extension.name,
+					description: section.description,
+					title: section.title,
 					id: categoryID,
 					icon: {
 						type: 'image',
@@ -156,22 +158,30 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 							? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
 							: DefaultIconPath
 					},
-					when: ContextKeyExpr.true(),
+					when: ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true(),
 				});
-				extension.contributes?.gettingStarted.forEach((content, index) => {
-					this.registry.registerTask({
-						button: content.button,
-						description: content.description,
-						media: { type: 'image', altText: content.media.altText, path: convertPaths(content.media.path) },
-						doneOn: content.button.command ? { commandExecuted: content.button.command } : { eventFired: `linkOpened:${content.button.link}` },
-						id: content.id,
-						title: content.title,
-						when: ContextKeyExpr.deserialize(content.when) ?? ContextKeyExpr.true(),
-						category: categoryID,
-						order: index,
-					});
-				});
-			}
+				try {
+
+					section.tasks.forEach((task, index) =>
+						this.registry.registerTask({
+							button: task.button,
+							description: task.description,
+							media: { type: 'image', altText: task.media.altText, path: convertPaths(task.media.path) },
+							doneOn: task.doneOn?.command
+								? { commandExecuted: task.doneOn.command }
+								: task.button.command
+									? { commandExecuted: task.button.command }
+									: { eventFired: `linkOpened:${task.button.link}` },
+							id: extension.identifier.value + '#' + task.id,
+							title: task.title,
+							when: ContextKeyExpr.deserialize(task.when) ?? ContextKeyExpr.true(),
+							category: categoryID,
+							order: index,
+						}));
+				} catch (e) {
+					console.error('Error registering walkthrough tasks for ', categoryID, e);
+				}
+			});
 		}
 	}
 
@@ -241,7 +251,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		};
 	}
 
-	private progressTask(id: string) {
+	progressTask(id: string) {
 		const oldProgress = this.taskProgress[id];
 		if (!oldProgress || oldProgress.done !== true) {
 			this.taskProgress[id] = { done: true };
@@ -249,6 +259,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			const task = this.registry.getTask(id);
 			this._onDidProgressTask.fire(this.getTaskProgress(task));
 		}
+	}
+
+	deprogressTask(id: string) {
+		delete this.taskProgress[id];
+		this.memento.saveMemento();
+		const task = this.registry.getTask(id);
+		this._onDidProgressTask.fire(this.getTaskProgress(task));
 	}
 
 	private progressByCommand(command: string) {
