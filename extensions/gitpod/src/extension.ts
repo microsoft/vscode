@@ -29,6 +29,7 @@ import * as vscode from 'vscode';
 import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
 import { GitpodPluginModel } from './gitpod-plugin-model';
 import WebSocket = require('ws');
+import { NavigatorContext, PullRequestContext } from '@gitpod/gitpod-protocol/lib/protocol';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const pendingActivate: Promise<void>[] = [];
@@ -43,7 +44,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const workspaceId = workspaceInfoResponse.getWorkspaceId();
 	const gitpodHost = workspaceInfoResponse.getGitpodHost();
 	const gitpodApi = workspaceInfoResponse.getGitpodApi()!;
-	const workspaceContextUrl = workspaceInfoResponse.getWorkspaceContextUrl();
+	const workspaceContextUrl = vscode.Uri.parse(workspaceInfoResponse.getWorkspaceContextUrl());
 
 	//#region server connection
 	const factory = new JsonRpcProxyFactory<GitpodServer>();
@@ -118,7 +119,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.env.openExternal(vscode.Uri.parse(new GitpodHostUrl(gitpodHost).asSettings().toString()))
 	));
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.context', () =>
-		vscode.env.openExternal(vscode.Uri.parse(workspaceContextUrl))
+		vscode.env.openExternal(workspaceContextUrl)
 	));
 	context.subscriptions.push(vscode.commands.registerCommand('gitpod.open.documentation', () =>
 		vscode.env.openExternal(vscode.Uri.parse('https://www.gitpod.io/docs'))
@@ -797,6 +798,33 @@ export async function activate(context: vscode.ExtensionContext) {
 		});
 	}
 	context.subscriptions.push(observeNotifications());
+	//#endregion
+
+	//#region default layout
+	const layoutInitializedKey = 'gitpod:layoutInitialized';
+	const layoutInitialized = Boolean(context.globalState.get(layoutInitializedKey));
+	if (!layoutInitialized) {
+		context.globalState.update(layoutInitializedKey, true);
+
+		(async () => {
+			const listener = await pendingInstanceListener;
+			const workspaceContext = listener.info.workspace.context;
+
+			if (PullRequestContext.is(workspaceContext) && /github\.com/i.test(workspaceContextUrl.authority)) {
+				vscode.commands.executeCommand('pr.preload');
+			}
+			// TODO gitlab/bitbucket/any other git hoisting?
+
+			if (NavigatorContext.is(workspaceContext)) {
+				const location = vscode.Uri.file(path.join(checkoutLocation, workspaceContext.path));
+				if (workspaceContext.isFile) {
+					vscode.window.showTextDocument(location);
+				} else {
+					vscode.commands.executeCommand('revealInExplorer', location);
+				}
+			}
+		})();
+	}
 	//#endregion
 
 	await Promise.all(pendingActivate.map(p => p.catch(console.error)));

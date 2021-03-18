@@ -240,6 +240,9 @@ async function doStart(): Promise<IDisposable> {
 	}
 
 	const info: {
+		workspaceId: string
+		instanceId: string
+		checkoutLocation: string
 		workspaceLocationFile?: string
 		workspaceLocationFolder?: string
 		userHome: string
@@ -247,6 +250,7 @@ async function doStart(): Promise<IDisposable> {
 		gitpodApi: {
 			host: string
 		}
+		workspaceContextUrl: string
 	} = await infoResponse.json();
 	if (_state as any === 'terminated') {
 		return Disposable.None;

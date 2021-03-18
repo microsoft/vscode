@@ -224,7 +224,7 @@ async function installExtensionsFromServer(
 		try {
 			const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
 			const workspaceContextUrl = URI.parse(workspaceInfoResponse.getWorkspaceContextUrl());
-			if (workspaceContextUrl.authority === 'github.com') {
+			if (/github\.com/i.test(workspaceContextUrl.authority)) {
 				ids.push('github.vscode-pull-request-github');
 			}
 		} catch (e) {
