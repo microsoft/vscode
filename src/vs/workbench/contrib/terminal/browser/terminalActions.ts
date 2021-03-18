@@ -1466,7 +1466,10 @@ export function registerTerminalActions() {
 
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
-
+			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
+			if (customType) {
+				return commandService.executeCommand(customType.command);
+			}
 			if (detectedProfiles) {
 				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
 				if (launchConfig && !launchConfig.isWorkspaceProfile) {
@@ -1499,10 +1502,6 @@ export function registerTerminalActions() {
 					}
 				}
 			} else {
-				const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
-				if (customType) {
-					return commandService.executeCommand(customType.command);
-				}
 				console.warn(`Unmatched terminal item: "${item}"`);
 			}
 			return Promise.resolve();
