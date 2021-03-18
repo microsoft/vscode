@@ -47,6 +47,11 @@ export interface IFileWorkingCopyModel {
 	readonly onDidChangeContent: Event<IFileWorkingCopyModelContentChangedEvent>;
 
 	/**
+	 * An event that fires whenever the model is disposed.
+	 */
+	readonly onDispose: Event<void>;
+
+	/**
 	 * Snapshots the model's current content for writing.
 	 *
 	 * @param token support for cancellation
