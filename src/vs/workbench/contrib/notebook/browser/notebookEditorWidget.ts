@@ -733,6 +733,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!this._useGlobalToolbar) {
 			// schedule actions registration in next frame, otherwise we are seeing duplicated notbebook actions temporarily
 			DOM.scheduleAtNextAnimationFrame(() => {
+				this._toolbarActionDisposable.clear();
+				this._topToolbar.setActions([], []);
+				if (!this._isVisible || !this.hasFocus()) {
+					return;
+				}
+
 				groups.forEach(group => {
 					const groupName = group[0];
 					const actions = group[1];
