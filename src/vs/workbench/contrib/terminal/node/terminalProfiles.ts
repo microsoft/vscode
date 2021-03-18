@@ -201,7 +201,7 @@ async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logS
 async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProfiles?: any): Promise<ITerminalProfile[]> {
 	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const profiles = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
-	const detectedProfiles = await profiles.map(e => {
+	const detectedProfiles = profiles.map(e => {
 		return {
 			profileName: basename(e),
 			path: e
@@ -212,13 +212,23 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	}
 	const validProfiles: ITerminalProfile[] = [];
 
-	for (const [profileKey, value] of Object.entries(configProfiles)) {
+	for (const [profileName, value] of Object.entries(configProfiles)) {
 		if ((value as ITerminalExecutable).path) {
 			const configProfile = (value as ITerminalExecutable);
 			const path = configProfile.path;
-			const profile = Array.isArray(path) ? path.forEach(possiblePath => detectedProfiles.find(p => p.path.endsWith(possiblePath))) : detectedProfiles.find(p => p.path.endsWith(path));
-			if (profile) {
-				validProfiles.push({ profileName: profileKey, path: profile.path });
+			if (Array.isArray(path)) {
+				for (const possiblePath of path) {
+					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));
+					if (profile) {
+						validProfiles.push({ profileName, path: profile.path });
+						break;
+					}
+				}
+			} else {
+				const profile = detectedProfiles.find(p => p.path.endsWith(path));
+				if (profile) {
+					validProfiles.push({ profileName, path: profile.path });
+				}
 			}
 		}
 	}
