@@ -194,7 +194,7 @@ export const enum FileWorkingCopyState {
 	/**
 	 * A file working copy is in conflict mode when changes
 	 * cannot be saved because the underlying file has changed.
-	 * Models in conflict mode are always dirty.
+	 * File working copies in conflict mode are always dirty.
 	 */
 	CONFLICT,
 
@@ -257,6 +257,9 @@ export interface IFileWorkingCopyLoadOptions {
 	 * The contents to use for the file working copy if known. If not
 	 * provided, the contents will be retrieved from the underlying
 	 * resource or backup if present.
+	 *
+	 * If contents are provided, the file working copy will be marked
+	 * as dirty right from the beginning.
 	 */
 	contents?: VSBufferReadableStream;
 
@@ -335,8 +338,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// If we are currently orphaned, we check if the file was added back
 		if (this.inOrphanMode) {
-			const modelFileAdded = e.contains(this.resource, FileChangeType.ADDED);
-			if (modelFileAdded) {
+			const fileWorkingCopyResourceAdded = e.contains(this.resource, FileChangeType.ADDED);
+			if (fileWorkingCopyResourceAdded) {
 				newInOrphanModeGuess = false;
 				fileEventImpactsUs = true;
 			}
@@ -344,8 +347,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Otherwise we check if the file was deleted
 		else {
-			const modelFileDeleted = e.contains(this.resource, FileChangeType.DELETED);
-			if (modelFileDeleted) {
+			const fileWorkingCopyResourceDeleted = e.contains(this.resource, FileChangeType.DELETED);
+			if (fileWorkingCopyResourceDeleted) {
 				newInOrphanModeGuess = true;
 				fileEventImpactsUs = true;
 			}
@@ -388,9 +391,13 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private dirty = false;
 	private bufferSavedVersionId: number | undefined;
 
+	isDirty(): this is IResolvedFileWorkingCopy<T> {
+		return this.dirty;
+	}
+
 	setDirty(dirty: boolean): void {
 		if (!this.isResolved()) {
-			return; // only resolved models can be marked dirty
+			return; // only resolved working copies can be marked dirty
 		}
 
 		// Track dirty state and version id
@@ -427,10 +434,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		};
 	}
 
-	isDirty(): this is IResolvedFileWorkingCopy<T> {
-		return this.dirty;
-	}
-
 	//#endregion
 
 	//#region Load
@@ -448,10 +451,10 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 
 		// Unless there are explicit contents provided, it is important that we do not
-		// load a model that is dirty or is in the process of saving to prevent data
-		// loss.
+		// load a working copy that is dirty or is in the process of saving to prevent
+		// data loss.
 		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
-			this.logService.trace('[file working copy] load() - exit - without loading because model is dirty or being saved', this.resource.toString(true));
+			this.logService.trace('[file working copy] load() - exit - without loading because file working copy is dirty or being saved', this.resource.toString(true));
 
 			return this;
 		}
@@ -461,14 +464,14 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 	private async doLoad(options?: IFileWorkingCopyLoadOptions): Promise<IFileWorkingCopy<T>> {
 
-		// First check if we have contents to use for the file working copy
+		// First check if we have contents to use for the working copy
 		if (options?.contents) {
 			return this.loadFromBuffer(options.contents, options);
 		}
 
-		// Second, check if we have a backup to load from (only for new file working copies)
-		const isNewModel = !this.isResolved();
-		if (isNewModel) {
+		// Second, check if we have a backup to load from (only for new working copies)
+		const isNew = !this.isResolved();
+		if (isNew) {
 			const loadedFromBackup = await this.loadFromBackup(options);
 			if (loadedFromBackup) {
 				return loadedFromBackup;
@@ -527,10 +530,10 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		// Resolve backup if any
 		const backup = await this.backupFileService.resolve<IFileWorkingCopyBackupMetaData>(this.resource);
 
-		// Abort if someone else managed to resolve the model by now
-		let isNewModel = !this.isResolved();
-		if (!isNewModel) {
-			this.logService.trace('[file working copy] loadFromBackup() - exit - without loading because previously new model got created meanwhile', this.resource.toString(true));
+		// Abort if someone else managed to resolve the working copy by now
+		let isNew = !this.isResolved();
+		if (!isNew) {
+			this.logService.trace('[file working copy] loadFromBackup() - exit - without loading because previously new file working copy got created meanwhile', this.resource.toString(true));
 
 			return this; // imply that loading has happened in another operation
 		}
@@ -580,7 +583,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 
 		// Remember current version before doing any long running operation
-		// to ensure we are not changing a model that was changed meanwhile
+		// to ensure we are not changing a working copy that was changed
+		// meanwhile
 		const currentVersionId = this.versionId;
 
 		// Resolve Content
@@ -590,10 +594,10 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			// Clear orphaned state when loading was successful
 			this.setOrphaned(false);
 
-			// Return early if the model content has changed
+			// Return early if the working copy content has changed
 			// meanwhile to prevent loosing any changes
 			if (currentVersionId !== this.versionId) {
-				this.logService.trace('[file working copy] loadFromFile() - exit - without loading because model content changed', this.resource.toString(true));
+				this.logService.trace('[file working copy] loadFromFile() - exit - without loading because file working copy content changed', this.resource.toString(true));
 
 				return this;
 			}
@@ -610,9 +614,10 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 				return this;
 			}
 
-			// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
-			// we already have the model loaded, we can return to this state and update the orphaned
-			// flag to indicate that this model has no version on disk anymore.
+			// Ignore when a working copy has been resolved once and the file was deleted
+			// meanwhile. Since we already have the working copy loaded, we can return to
+			// this state and update the orphaned flag to indicate that this working copy
+			// has no version on disk anymore.
 			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
 				return this;
 			}
@@ -627,12 +632,12 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
-			this.logService.trace('[file working copy] loadFromContent() - exit - because model is disposed', this.resource.toString(true));
+			this.logService.trace('[file working copy] loadFromContent() - exit - because working copy is disposed', this.resource.toString(true));
 
 			return this;
 		}
 
-		// Update our resolved disk stat model
+		// Update our resolved disk stat
 		this.updateLastResolvedFileStat({
 			resource: this.resource,
 			name: content.name,
@@ -645,21 +650,21 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			isSymbolicLink: false
 		});
 
-		// Update Existing Model
+		// Update existing model if we had been resolved
 		if (this.isResolved()) {
 			this.doUpdateModel(content.value);
 		}
 
-		// Create New Model
+		// Create new model otherwise
 		else {
 			this.doCreateModel(content.value);
 		}
 
-		// Update model dirty flag. This is very important to call
-		// in both cases of dirty or not because it conditionally
-		// updates the `bufferSavedVersionId` to determine the
-		// version when to consider the model as saved again (e.g.
-		// when undoing back to the saved state)
+		// Update working copy dirty flag. This is very important to call
+		// in both cases of dirty or not because it conditionally updates
+		// the `bufferSavedVersionId` to determine the version when to consider
+		// the working copy as saved again (e.g. when undoing back to the
+		// saved state)
 		this.setDirty(!!dirty);
 
 		// Emit as event
@@ -674,7 +679,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		// Create model
 		this._model = this.delegate.createModel(contents);
 
-		// Model Listeners
+		// Model listeners
 		this.installModelListeners(this._model);
 	}
 
@@ -713,7 +718,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		// We need this information to throttle save participants to fix
 		// https://github.com/microsoft/vscode/issues/102542
 		if (isUndoingOrRedoing) {
-			this.lastModelContentChangeFromUndoRedo = Date.now();
+			this.lastContentChangeFromUndoRedo = Date.now();
 		}
 
 		// We mark check for a dirty-state change upon model content change, unless:
@@ -777,7 +782,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private versionId = 0;
 
 	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
-	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
+	private lastContentChangeFromUndoRedo: number | undefined = undefined;
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
@@ -789,7 +794,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		if (this.isReadonly()) {
 			this.logService.trace('[file working copy] save() - ignoring request for readonly resource', this.resource.toString(true));
 
-			return false; // if file working copy is readonly we do not attempt to save at all
+			return false; // if working copy is readonly we do not attempt to save at all
 		}
 
 		if (
@@ -798,7 +803,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		) {
 			this.logService.trace('[file working copy] save() - ignoring auto save request for file working copy that is in conflict or error', this.resource.toString(true));
 
-			return false; // if file working copy is in save conflict or error, do not save unless save reason is explicit
+			return false; // if working copy is in save conflict or error, do not save unless save reason is explicit
 		}
 
 		// Actually do save
@@ -830,7 +835,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Return early if not dirty (unless forced)
 		//
-		// Scenario: user invoked save action even though the file working copy is not dirty
+		// Scenario: user invoked save action even though the working copy is not dirty
 		if (!options.force && !this.dirty) {
 			this.logService.trace(`[file working copy] doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource.toString(true));
 
@@ -869,11 +874,11 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		return this.saveSequentializer.setPending(versionId, (async () => {
 
-			// A save participant can still change the file working copy now
+			// A save participant can still change the working copy now
 			// and since we are so close to saving we do not want to trigger
 			// another auto save or similar, so we block this
 			// In addition we update our version right after in case it changed
-			// because of a file working copy change
+			// because of a working copy change
 			// Save participants can also be skipped through API.
 			if (this.isResolved() && !options.skipSaveParticipants && this.isTextFileModel(this.model)) {
 				try {
@@ -891,8 +896,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 					// - the user has no chance to undo over the save participant
 					//
 					// Reported as: https://github.com/microsoft/vscode/issues/102542
-					if (options.reason === SaveReason.AUTO && typeof this.lastModelContentChangeFromUndoRedo === 'number') {
-						const timeFromUndoRedoToSave = Date.now() - this.lastModelContentChangeFromUndoRedo;
+					if (options.reason === SaveReason.AUTO && typeof this.lastContentChangeFromUndoRedo === 'number') {
+						const timeFromUndoRedoToSave = Date.now() - this.lastContentChangeFromUndoRedo;
 						if (timeFromUndoRedoToSave < FileWorkingCopy.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD) {
 							await timeout(FileWorkingCopy.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD - timeFromUndoRedoToSave);
 						}
@@ -929,7 +934,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 				return;
 			}
 
-			// We require a resolved file working copy from this point on, since we are about to write data to disk.
+			// We require a resolved working copy from this point on, since we are about to write data to disk.
 			if (!this.isResolved()) {
 				return;
 			}
@@ -967,7 +972,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		// Updated resolved stat with updated stat
 		this.updateLastResolvedFileStat(stat);
 
-		// Update dirty state unless file working copy has changed meanwhile
+		// Update dirty state unless working copy has changed meanwhile
 		if (versionId === this.versionId) {
 			this.logService.trace(`[file working copy] handleSaveSuccess(${versionId}) - setting dirty to false because versionId did not change`, this.resource.toString(true));
 			this.setDirty(false);
@@ -991,17 +996,17 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			throw error;
 		}
 
-		// In any case of an error, we mark the file working copy as dirty to prevent data loss
+		// In any case of an error, we mark the working copy as dirty to prevent data loss
 		// It could be possible that the write corrupted the file on disk (e.g. when
 		// an error happened after truncating the file) and as such we want to preserve
-		// the file working copy contents to prevent data loss.
+		// the working copy contents to prevent data loss.
 		this.setDirty(true);
 
-		// Flag as error state in the file working copy
+		// Flag as error state
 		this.inErrorMode = true;
 
 		// Look out for a save conflict
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+		if ((error as FileOperationError).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 			this.inConflictMode = true;
 		}
 
