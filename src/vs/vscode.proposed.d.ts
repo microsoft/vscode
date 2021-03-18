@@ -924,6 +924,24 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region allow title property to QuickPickOptions/InputBoxOptions: https://github.com/microsoft/vscode/issues/77423
+
+	interface QuickPickOptions {
+		/**
+		 * An optional string that represents the tile of the quick pick.
+		 */
+		title?: string;
+	}
+
+	interface InputBoxOptions {
+		/**
+		 * An optional string that represents the tile of the input box.
+		 */
+		title?: string;
+	}
+
+	//#endregion
+
 	//#region Provide a way for custom editors to process untitled files without relying on textDocument https://github.com/microsoft/vscode/issues/115631
 	/**
 	 * Additional information about the opening custom document.
@@ -2673,17 +2691,17 @@ declare module 'vscode' {
 	 */
 	export enum CodeActionTriggerKind {
 		/**
+		 * Code actions were explicitly requested by the user or by an extension.
+		 */
+		Invoke = 1,
+
+		/**
 		 * Code actions were requested automatically.
 		 *
 		 * This typically happens when current selection in a file changes, but can
 		 * also be triggered when file content changes.
 		 */
-		Automatic = 1,
-
-		/**
-		 * Code actions were requested maually by the user or an extension.
-		 */
-		Manual = 2,
+		Automatic = 2,
 	}
 
 	export interface CodeActionContext {

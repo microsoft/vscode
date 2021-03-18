@@ -1468,14 +1468,14 @@ export function registerTerminalActions() {
 			if (detectedProfiles) {
 				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
 				if (launchConfig && !launchConfig.isWorkspaceProfile) {
-					const instance = terminalService.createTerminal({ executable: launchConfig.path, name: launchConfig.profileName, args: launchConfig.args });
+					const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
 					terminalService.setActiveInstance(instance);
 				} else if (launchConfig && launchConfig.isWorkspaceProfile) {
 					notificationService.prompt(Severity.Info, `Do you allow this workspace to modify your terminal profile? ${item}`,
 						[{
 							label: 'Allow',
 							run: () => {
-								const instance = terminalService.createTerminal({ executable: launchConfig?.path, name: launchConfig?.profileName, args: launchConfig?.args });
+								const instance = terminalService.createTerminal({ executable: launchConfig?.path, args: launchConfig?.args });
 								terminalService.setActiveInstance(instance);
 							}
 						},

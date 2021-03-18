@@ -184,7 +184,7 @@
 					],
 					"additionalProperties": false
 				},
-				"remote.unconfiguredPortsAttributes": {
+				"unconfiguredPortsAttributes": {
 					"type": "object",
 					"properties": {
 						"onAutoForward": {
@@ -483,7 +483,7 @@
 					],
 					"additionalProperties": false
 				},
-				"remote.unconfiguredPortsAttributes": {
+				"unconfiguredPortsAttributes": {
 					"type": "object",
 					"properties": {
 						"onAutoForward": {
@@ -758,7 +758,7 @@
 					],
 					"additionalProperties": false
 				},
-				"remote.unconfiguredPortsAttributes": {
+				"unconfiguredPortsAttributes": {
 					"type": "object",
 					"properties": {
 						"onAutoForward": {
@@ -999,7 +999,7 @@
 					],
 					"additionalProperties": false
 				},
-				"remote.unconfiguredPortsAttributes": {
+				"unconfiguredPortsAttributes": {
 					"type": "object",
 					"properties": {
 						"onAutoForward": {
@@ -1209,7 +1209,7 @@
 					],
 					"additionalProperties": false
 				},
-				"remote.unconfiguredPortsAttributes": {
+				"unconfiguredPortsAttributes": {
 					"type": "object",
 					"properties": {
 						"onAutoForward": {

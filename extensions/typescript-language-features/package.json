@@ -27,7 +27,6 @@
   },
   "devDependencies": {
     "@types/node": "^12.19.9",
-    "@types/rimraf": "^2.0.4",
     "@types/semver": "^5.5.0"
   },
   "scripts": {

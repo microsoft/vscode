@@ -8,7 +8,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const rimraf = require('rimraf');
 
 const root = path.join(__dirname, 'node_modules', 'typescript');
 
@@ -21,7 +20,7 @@ function processRoot() {
 		if (!toKeep.has(name)) {
 			const filePath = path.join(root, name);
 			console.log(`Removed ${filePath}`);
-			rimraf.sync(filePath);
+			fs.rmdirSync(filePath, { recursive: true });
 		}
 	}
 }

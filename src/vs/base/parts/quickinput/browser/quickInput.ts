@@ -1406,6 +1406,7 @@ export class QuickInputController extends Disposable {
 					resolve(undefined);
 				}),
 			];
+			input.title = options.title;
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
@@ -1499,6 +1500,8 @@ export class QuickInputController extends Disposable {
 					resolve(undefined);
 				}),
 			];
+
+			input.title = options.title;
 			input.value = options.value || '';
 			input.valueSelection = options.valueSelection;
 			input.prompt = options.prompt;
