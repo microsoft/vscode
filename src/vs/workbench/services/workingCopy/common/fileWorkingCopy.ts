@@ -66,8 +66,6 @@ export interface IFileWorkingCopyModel {
 	 * Snapshots the model's current content for writing. This must include
 	 * any changes that were made to the model that are in memory.
 	 *
-	 * TODO@bpasero could this method return sync and not promise?
-	 *
 	 * @param token support for cancellation
 	 */
 	snapshot(token: CancellationToken): Promise<VSBufferReadableStream>;
@@ -89,7 +87,7 @@ export interface IFileWorkingCopyModel {
 	 * case of undo-redo.
 	 *
 	 * TODO@bpasero should find a better name here maybe together
-	 * with the pushStackElement concept since this is around
+	 * with the `pushStackElement` concept since this is around
 	 * undo/redo?
 	 */
 	getAlternativeVersionId(): number;
@@ -102,7 +100,9 @@ export interface IFileWorkingCopyModel {
 	 * save is triggered so that the user can always undo back
 	 * to the state before saving.
 	 *
-	 * TODO@bpasero rename to beforeSave()?
+	 * TODO@bpasero should find a better name here maybe together
+	 * with the `getAlternativeVersionId` concept since this is around
+	 * undo/redo?
 	 */
 	pushStackElement(): void;
 }
