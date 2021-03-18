@@ -82,6 +82,10 @@ export interface IFileWorkingCopyModel {
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
 
 	/**
+	 * Get the alternative version id of the model. This alternative version
+	 * id is not always incremented, it will return the same values in the
+	 * case of undo-redo.
+	 *
 	 * TODO@bpasero should find a better name here maybe together
 	 * with the pushStackElement concept since this is around
 	 * undo/redo?
@@ -156,7 +160,7 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	/**
 	 * An event for when the file working copy has been disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Provides access to the underlying model of this file
@@ -164,6 +168,11 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	 * has not been resolved, the model is `undefined`.
 	 */
 	readonly model: T | undefined;
+
+	/**
+	 * Resolves a file working copy.
+	 */
+	resolve(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
 
 	/**
 	 * Whether we have a resolved model or not.
@@ -174,11 +183,6 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	 * Whether the file working copy has been disposed or not.
 	 */
 	isDisposed(): boolean;
-
-	/**
-	 * Resolves a file working copy.
-	 */
-	resolve(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
 }
 
 export interface IResolvedFileWorkingCopy<T extends IFileWorkingCopyModel> extends IFileWorkingCopy<T> {
@@ -231,17 +235,6 @@ export const enum FileWorkingCopyState {
 	ERROR
 }
 
-/**
- * Metadata associated with a file working copy backup.
- */
-interface IFileWorkingCopyBackupMetaData {
-	mtime: number;
-	ctime: number;
-	size: number;
-	etag: string;
-	orphaned: boolean;
-}
-
 export interface IFileWorkingCopySaveOptions extends ISaveOptions {
 
 	/**
@@ -288,6 +281,17 @@ export interface IFileWorkingCopyResolveOptions {
 	forceReadFromDisk?: boolean;
 }
 
+/**
+ * Metadata associated with a file working copy backup.
+ */
+interface IFileWorkingCopyBackupMetaData {
+	mtime: number;
+	ctime: number;
+	size: number;
+	etag: string;
+	orphaned: boolean;
+}
+
 export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable implements IFileWorkingCopy<T>  {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.None;
@@ -318,8 +322,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	//#endregion
 
@@ -379,6 +383,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		if (fileEventImpactsUs && this.inOrphanMode !== newInOrphanModeGuess) {
 			let newInOrphanModeValidated: boolean = false;
 			if (newInOrphanModeGuess) {
+
 				// We have received reports of users seeing delete events even though the file still
 				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
 				// Since we do not want to mark the working copy as orphaned, we have to check if the
@@ -411,7 +416,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	//#region Dirty
 
 	private dirty = false;
-	private bufferSavedVersionId: number | undefined;
+	private savedVersionId: number | undefined;
 
 	isDirty(): this is IResolvedFileWorkingCopy<T> {
 		return this.dirty;
@@ -436,7 +441,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		const wasDirty = this.dirty;
 		const wasInConflictMode = this.inConflictMode;
 		const wasInErrorMode = this.inErrorMode;
-		const oldBufferSavedVersionId = this.bufferSavedVersionId;
+		const oldSavedVersionId = this.savedVersionId;
 
 		if (!dirty) {
 			this.dirty = false;
@@ -452,7 +457,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			this.dirty = wasDirty;
 			this.inConflictMode = wasInConflictMode;
 			this.inErrorMode = wasInErrorMode;
-			this.bufferSavedVersionId = oldBufferSavedVersionId;
+			this.savedVersionId = oldSavedVersionId;
 		};
 	}
 
@@ -488,13 +493,13 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// First check if we have contents to use for the working copy
 		if (options?.contents) {
-			return this.resolveFromBuffer(options.contents, options);
+			return this.resolveFromBuffer(options.contents);
 		}
 
 		// Second, check if we have a backup to resolve from (only for new working copies)
 		const isNew = !this.isResolved();
 		if (isNew) {
-			const resolvedFromBackup = await this.resolveFromBackup(options);
+			const resolvedFromBackup = await this.resolveFromBackup();
 			if (resolvedFromBackup) {
 				return resolvedFromBackup;
 			}
@@ -504,7 +509,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.resolveFromFile(options);
 	}
 
-	private async resolveFromBuffer(buffer: VSBufferReadableStream, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
+	private async resolveFromBuffer(buffer: VSBufferReadableStream): Promise<IFileWorkingCopy<T>> {
 		this.logService.trace('[file working copy] resolveFromBuffer()', this.resource.toString(true));
 
 		// Try to resolve metdata from disk
@@ -547,7 +552,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this;
 	}
 
-	private async resolveFromBackup(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T> | undefined> {
+	private async resolveFromBackup(): Promise<IFileWorkingCopy<T> | undefined> {
 
 		// Resolve backup if any
 		const backup = await this.backupFileService.resolve<IFileWorkingCopyBackupMetaData>(this.resource);
@@ -562,14 +567,14 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Try to resolve from backup if we have any
 		if (backup) {
-			return this.doResolveFromBackup(backup, options);
+			return this.doResolveFromBackup(backup);
 		}
 
 		// Otherwise signal back that resolving did not happen
 		return undefined;
 	}
 
-	private async doResolveFromBackup(backup: IResolvedBackup<IFileWorkingCopyBackupMetaData>, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
+	private async doResolveFromBackup(backup: IResolvedBackup<IFileWorkingCopyBackupMetaData>): Promise<IFileWorkingCopy<T>> {
 		this.logService.trace('[file working copy] doResolveFromBackup()', this.resource.toString(true));
 
 		// Resolve with backup
@@ -684,7 +689,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Update working copy dirty flag. This is very important to call
 		// in both cases of dirty or not because it conditionally updates
-		// the `bufferSavedVersionId` to determine the version when to consider
+		// the `savedVersionId` to determine the version when to consider
 		// the working copy as saved again (e.g. when undoing back to the
 		// saved state)
 		this.setDirty(!!dirty);
@@ -753,7 +758,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 			// The contents changed as a matter of Undo and the version reached matches the saved one
 			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
-			if (model.getAlternativeVersionId() === this.bufferSavedVersionId) {
+			if (model.getAlternativeVersionId() === this.savedVersionId) {
 				this.logService.trace('[file working copy] onModelContentChanged() - model content changed back to last saved version', this.resource.toString(true));
 
 				// Clear flags
@@ -872,7 +877,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		//
 		// Scenario A: auto save was triggered and is currently busy saving to disk. this takes long enough that another auto save
 		//             kicks in.
-		// Scenario B: save is very slow (e.g. network share) and the user manages to change the buffer and trigger another save
+		// Scenario B: save is very slow (e.g. network share) and the user manages to change the working copy and trigger another save
 		//             while the first save has not returned yet.
 		//
 		if (this.saveSequentializer.hasPending()) {
@@ -978,7 +983,12 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			const resolvedFileWorkingCopy = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, await resolvedFileWorkingCopy.model.snapshot(CancellationToken.None), {
+
+					// Snapshot working copy model contents
+					const snapshot = await resolvedFileWorkingCopy.model.snapshot(CancellationToken.None);
+
+					// Write them to disk
+					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, snapshot, {
 						mtime: lastResolvedFileStat.mtime,
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock
@@ -1058,7 +1068,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		// when undoing long enough to reach to a version that is saved and then to
 		// clear the dirty flag)
 		if (this.isResolved()) {
-			this.bufferSavedVersionId = this.model.getAlternativeVersionId();
+			this.savedVersionId = this.model.getAlternativeVersionId();
 		}
 	}
 
@@ -1183,7 +1193,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		this.inErrorMode = false;
 
 		// Event
-		this._onDispose.fire();
+		this._onWillDispose.fire();
 
 		super.dispose();
 	}
