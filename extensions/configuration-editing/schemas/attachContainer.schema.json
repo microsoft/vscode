@@ -75,7 +75,7 @@
 					],
 					"additionalProperties": false
 				},
-				"remote.unconfiguredPortsAttributes": {
+				"unconfiguredPortsAttributes": {
 					"type": "object",
 					"properties": {
 						"onAutoForward": {
