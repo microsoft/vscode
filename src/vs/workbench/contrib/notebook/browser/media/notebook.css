@@ -11,6 +11,25 @@
 	position: relative;
 }
 
+.monaco-workbench .notebookOverlay .notebook-top-toolbar {
+	width: 100%;
+	display: inline-flex;
+	padding-left: 20px;
+	margin-top: 4px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item .action-label {
+	background-size: 16px;
+	margin: auto;
+}
+
 .monaco-workbench .cell.markdown {
 	user-select: text;
 	-webkit-user-select: text;

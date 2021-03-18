@@ -26,8 +26,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -69,6 +69,8 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isWeb } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 const $ = DOM.$;
 
@@ -187,6 +189,7 @@ export class ListViewInfoAccessor extends Disposable {
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;
+	private _notebookTopToolbarContainer!: HTMLElement;
 	private _body!: HTMLElement;
 	private _overflowContainer!: HTMLElement;
 	private _webview: BackLayerWebView<ICommonCellInfo> | null = null;
@@ -214,6 +217,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _memento: Memento;
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocusEmitter.event;
+	private readonly _onDidBlurEmitter = this._register(new Emitter<void>());
+	public readonly onDidBlur = this._onDidBlurEmitter.event;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 	private _kernelManger: NotebookEditorKernelManager;
 	private _cellContextKeyManager: CellContextKeyManager | null = null;
@@ -509,6 +514,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _createBody(parent: HTMLElement): void {
+		this._notebookTopToolbarContainer = document.createElement('div');
+		this._notebookTopToolbarContainer.classList.add('notebook-top-toolbar');
+		DOM.append(parent, this._notebookTopToolbarContainer);
 		this._body = document.createElement('div');
 		this._body.classList.add('cell-list-container');
 		this._createCellList();
@@ -653,6 +661,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
 		this._register(widgetFocusTracker);
 		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
+		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
+
+		this._reigsterNotebookActionsToolbar();
+		this._register(this.onDidFocus(() => {
+			this._showNotebookActionsinEditorToolbar();
+		}));
+		this._register(this.onDidBlur(() => {
+			this._toolbarActionDisposable.clear();
+		}));
 	}
 
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
@@ -666,6 +683,85 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			},
 			getAnchor: () => e.anchor
 		});
+	}
+
+	private _notebookGlobalActionsMenu!: IMenu;
+	private _toolbarActionDisposable = this._register(new DisposableStore());
+	private _topToolbar!: ToolBar;
+	private _useGlobalToolbar: boolean = false;
+
+	private _reigsterNotebookActionsToolbar() {
+		const cellMenu = this.instantiationService.createInstance(CellMenus);
+		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.scopedContextKeyService));
+		this._register(this._notebookGlobalActionsMenu);
+
+		this._useGlobalToolbar = this.configurationService.getValue<boolean>('notebook.experimental.globalToolbar');
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('notebook.experimental.globalToolbar')) {
+				this._useGlobalToolbar = this.configurationService.getValue<boolean>('notebook.experimental.globalToolbar');
+				this._showNotebookActionsinEditorToolbar();
+			}
+		}));
+
+		this._topToolbar = new ToolBar(this._notebookTopToolbarContainer, this.contextMenuService, {
+			// getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			actionViewItemProvider: action => {
+				return createActionViewItem(this.instantiationService, action);
+			},
+			renderDropdownAsChildElement: true
+		});
+		this._register(this._topToolbar);
+
+		this._showNotebookActionsinEditorToolbar();
+		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
+			this._showNotebookActionsinEditorToolbar();
+		}));
+	}
+
+	private _showNotebookActionsinEditorToolbar() {
+		this._toolbarActionDisposable.clear();
+		this._topToolbar.setActions([], []);
+
+		if (!this._isVisible) {
+			return;
+		}
+
+		const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
+
+		if (!this._useGlobalToolbar) {
+			// schedule actions registration in next frame, otherwise we are seeing duplicated notbebook actions temporarily
+			DOM.scheduleAtNextAnimationFrame(() => {
+				groups.forEach(group => {
+					const groupName = group[0];
+					const actions = group[1];
+
+					let order = groupName === 'navigation' ? -10 : 0;
+					for (let i = 0; i < actions.length; i++) {
+						const menuItemAction = actions[i] as MenuItemAction;
+						this._toolbarActionDisposable.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+							command: menuItemAction.item,
+							title: menuItemAction.item.title,
+							group: groupName,
+							order: order
+						}));
+						order++;
+					}
+				});
+			});
+
+			this._notebookTopToolbarContainer.style.display = 'none';
+		} else {
+			this._notebookTopToolbarContainer.style.display = 'inline-flex';
+			const primaryGroup = groups.find(group => group[0] === 'navigation');
+			const primaryActions = primaryGroup ? primaryGroup[1] : [];
+			const secondaryActions = groups.filter(group => group[0] !== 'navigation').reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
+
+			this._topToolbar.setActions(primaryActions, secondaryActions);
+		}
+
+		if (this._dimension) {
+			this.layout(this._dimension);
+		}
 	}
 
 	private _updateForCursorNavigationMode(applyFocusChange: () => void): void {
@@ -1252,7 +1348,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
-		DOM.size(this._body, dimension.width, dimension.height);
+		DOM.size(this._body, dimension.width, dimension.height - (this._useGlobalToolbar ? /** Toolbar height */ 30 : 0));
 		this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : 0 });
 		this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
 
