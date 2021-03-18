@@ -691,6 +691,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _toolbarActionDisposable = this._register(new DisposableStore());
 	private _topToolbar!: ToolBar;
 	private _useGlobalToolbar: boolean = false;
+	private _editorToolbarDisposable: IDisposable | null = null;
 
 	private _reigsterNotebookActionsToolbar() {
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
@@ -732,7 +733,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (!this._useGlobalToolbar) {
 			// schedule actions registration in next frame, otherwise we are seeing duplicated notbebook actions temporarily
-			DOM.scheduleAtNextAnimationFrame(() => {
+			this._editorToolbarDisposable?.dispose();
+			this._editorToolbarDisposable = DOM.scheduleAtNextAnimationFrame(() => {
 				this._toolbarActionDisposable.clear();
 				this._topToolbar.setActions([], []);
 				if (!this._isVisible || !this.hasFocus()) {
