@@ -19,6 +19,9 @@ import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notificat
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { hash } from 'vs/base/common/hash';
+import { NotificationMetrics, NotificationMetricsClassification } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
@@ -32,7 +35,8 @@ export class NotificationsList extends Themable {
 		private readonly options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(themeService);
 	}
@@ -217,6 +221,10 @@ export class NotificationsList extends Themable {
 	hide(): void {
 		if (!this.isVisible || !this.list) {
 			return; // already hidden
+		}
+		if (this.viewModel.length > 0) {
+			const id = hash(this.viewModel[0].message.original.toString());
+			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', { id });
 		}
 
 		// Hide

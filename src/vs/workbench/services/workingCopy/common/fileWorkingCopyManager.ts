@@ -11,11 +11,11 @@ import { ResourceMap } from 'vs/base/common/map';
 import { ResourceQueue } from 'vs/base/common/async';
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * The only one that should be dealing with `IFileWorkingCopy` and handle all
@@ -107,9 +107,9 @@ export interface IFileWorkingCopyResolveOptions {
 	 * If the file working copy was already resolved before,
 	 * allows to trigger a reload of it to fetch the latest contents:
 	 * - async: resolve() will return immediately and trigger
-	 * a reload that will run in the background.
-	 * - sync: resolve() will only return resolved when the
-	 * file working copy has finished reloading.
+	 *          a reload that will run in the background.
+	 * -  sync: resolve() will only return resolved when the
+	 *          file working copy has finished reloading.
 	 */
 	reload?: {
 		async: boolean
@@ -147,16 +147,13 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 
 	private readonly workingCopyResolveQueue = this._register(new ResourceQueue());
 
-	get workingCopies(): IFileWorkingCopy<T>[] {
-		return [...this.mapResourceToWorkingCopy.values()];
-	}
-
 	constructor(
 		private readonly modelFactory: IFileWorkingCopyModelFactory<T>,
 		@IFileService private readonly fileService: IFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -169,7 +166,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(() => this.dispose);
+		this.lifecycleService.onShutdown(() => this.dispose());
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
@@ -199,10 +196,14 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 				try {
 					await workingCopy.resolve();
 				} catch (error) {
-					onUnexpectedError(error);
+					this.logService.error(error);
 				}
 			});
 		}
+	}
+
+	get workingCopies(): IFileWorkingCopy<T>[] {
+		return [...this.mapResourceToWorkingCopy.values()];
 	}
 
 	get(resource: URI): IFileWorkingCopy<T> | undefined {
@@ -343,7 +344,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 
 		// store in cache but remove when working copy gets disposed
 		this.mapResourceToWorkingCopy.set(resource, workingCopy);
-		this.mapResourceToDisposeListener.set(resource, workingCopy.onDispose(() => this.remove(resource)));
+		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
 	}
 
 	protected remove(resource: URI): void {

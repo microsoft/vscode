@@ -6,7 +6,7 @@
 import {
 	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
 	TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem, window, Position, ExtensionContext, env,
-	ShellQuotedString, ShellQuoting, commands, Location
+	ShellQuotedString, ShellQuoting, commands, Location, CancellationTokenSource
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -365,7 +365,11 @@ export function getPackageJsonUriFromTask(task: Task): Uri | null {
 }
 
 export async function hasPackageJson(): Promise<boolean> {
-	const files = await workspace.findFiles('**/package.json', undefined, 1);
+	const token = new CancellationTokenSource();
+	// Search for files for max 1 second.
+	const timeout = setTimeout(() => token.cancel(), 1000);
+	const files = await workspace.findFiles('**/package.json', undefined, 1, token.token);
+	clearTimeout(timeout);
 	return files.length > 0;
 }
 
