@@ -207,24 +207,15 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	const profiles = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 
 	let detectedProfiles: ITerminalProfile[] = [];
-	const duplicateFilters: Set<string> = new Set();
 	for (const profile of profiles) {
 		if (detectedProfiles.find(p => p.profileName === basename(profile))) {
-			duplicateFilters.add(basename(profile));
+			detectedProfiles = detectedProfiles.filter(p => p.profileName !== (basename(profile)));
 		}
 		detectedProfiles.push({ profileName: basename(profile), path: profile });
 	}
 
 	if (!quickLaunchOnly) {
 		return detectedProfiles;
-	}
-
-	for (const filter of duplicateFilters) {
-		const duplicateProfiles = detectedProfiles.filter(p => p.profileName === filter);
-		const sorted = duplicateProfiles.sort(p => p.path.length);
-		// keep only the longest path so it's a /usr/bin/path when possible
-		sorted.pop();
-		detectedProfiles = detectedProfiles.filter(p => !sorted.includes(p));
 	}
 
 	const validProfiles: ITerminalProfile[] = [];

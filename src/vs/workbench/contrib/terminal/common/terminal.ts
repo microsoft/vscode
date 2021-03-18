@@ -369,6 +369,8 @@ export enum TitleEventSource {
 	Sequence
 }
 
+export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
+
 export const enum TERMINAL_COMMAND_ID {
 	FIND_NEXT = 'workbench.action.terminal.findNext',
 	FIND_PREVIOUS = 'workbench.action.terminal.findPrevious',
