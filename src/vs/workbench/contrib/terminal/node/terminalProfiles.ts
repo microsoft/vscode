@@ -169,30 +169,30 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
 	let profiles: IPotentialTerminalProfile[] = [];
 	if (quickLaunchWslProfiles) {
-		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? logService?.trace('problem occurred when getting wsl distros', err) : r(stdout)));
+		const distroOutput = await new Promise<string>((resolve, reject) => {
+			cp.exec('wsl.exe -l', (err, stdout) => {
+				if (err) {
+					return reject('Problem occurred when getting wsl distros');
+				}
+				resolve(stdout);
+			});
+		});
 		if (distroOutput) {
 			let regex = new RegExp(/[\r?\n]/);
-			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
+			let distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
-			for (const distroName of distroNames) {
-				let s = '';
-				let counter = 0;
-				for (const c of Array.from(distroName)) {
-					if (counter % 2 === 1) {
-						// every other character is junk / a rectangle
-						s += c;
-					}
-					counter++;
-				}
-				if (s.endsWith('(Default)')) {
-					// (Default) -> Ubuntu bc (Default) won't work
-					s = s.substring(0, s.length - 10);
-				}
+			for (let distroName of distroNames) {
+				// HACK: For some reason wsl.exe -l returns the string in an encoding where each
+				// character takes up 2 bytes, it's unclear how to decode this properly so instead
+				// we expect ascii and just remove all NUL chars
+				distroName = distroName
+					.replace(/\u0000/g, '')
+					.replace(/ \(Default\)$/, '');
 
 				// docker-desktop-data is used by docker-desktop to store container images and isn't a valid profile type
-				if (s !== '' && s !== 'docker-desktop-data') {
-					let profile = { profileName: `${s} (WSL)`, paths: [wslPath], args: [`-d`, `${s}`] };
+				if (distroName !== '' && distroName !== 'docker-desktop-data') {
+					const profile = { profileName: `${distroName} (WSL)`, paths: [wslPath], args: [`-d`, `${distroName}`] };
 					profiles.push(profile);
 				}
 			}
