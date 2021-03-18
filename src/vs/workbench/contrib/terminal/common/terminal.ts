@@ -102,7 +102,7 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: ITerminalProfiles;
-	detectWslProfiles: boolean;
+	quickLaunchWslProfiles: boolean;
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -233,8 +233,8 @@ export interface ITerminalProfile {
 }
 
 export const enum ProfileSource {
-	gitbash = 'Git Bash',
-	pwsh = 'PowerShell'
+	GitBash = 'Git Bash',
+	Pwsh = 'PowerShell'
 }
 
 export interface ITerminalExecutable {

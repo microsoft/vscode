@@ -159,8 +159,8 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			}
 		},
-		'terminal.integrated.detectWslProfiles': {
-			description: localize('terminal.integrated.detectWslProfiles', 'Controls whether or not WSL distros are detected as default profiles'),
+		'terminal.integrated.quickLaunchWslProfiles': {
+			description: localize('terminal.integrated.quickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
 			type: 'boolean',
 			default: true
 		},
