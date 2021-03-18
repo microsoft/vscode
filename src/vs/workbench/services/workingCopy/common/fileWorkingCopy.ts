@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DefaultEndOfLine, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
@@ -26,10 +26,11 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 	 * Asks the file working copy delegate to create a model from the given
 	 * content.
 	 *
+	 * @param resource the `URI` of the model
 	 * @param contents the content of the model to create it
 	 * @param token support for cancellation
 	 */
-	createModel(contents: VSBufferReadableStream, token: CancellationToken): Promise<T>;
+	createModel(resource: URI, contents: VSBufferReadableStream, token: CancellationToken): Promise<T>;
 }
 
 /**
@@ -307,13 +308,17 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		@ILogService private readonly logService: ILogService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService
+		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService
 	) {
 		super();
 
 		if (!fileService.canHandleResource(this.resource)) {
 			throw new Error(`The file working copy resource ${this.resource.toString(true)} does not have an associated file system provider.`);
 		}
+
+		// Make known to working copy service
+		this._register(workingCopyService.registerWorkingCopy(this));
 
 		this.registerListeners();
 	}
@@ -671,7 +676,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		this.logService.trace('[file working copy] doCreateModel()', this.resource.toString(true));
 
 		// Create model
-		this._model = await this.modelFactory.createModel(contents, CancellationToken.None);
+		this._model = await this.modelFactory.createModel(this.resource, contents, CancellationToken.None);
 
 		// Model listeners
 		this.installModelListeners(this._model);
