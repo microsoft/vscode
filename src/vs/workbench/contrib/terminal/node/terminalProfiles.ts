@@ -207,11 +207,13 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	const profiles = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 
 	let detectedProfiles: ITerminalProfile[] = [];
+	let quickLaunchProfiles: ITerminalProfile[] = [];
 	for (const profile of profiles) {
-		if (detectedProfiles.find(p => p.profileName === basename(profile))) {
-			detectedProfiles = detectedProfiles.filter(p => p.profileName !== (basename(profile)));
-		}
 		detectedProfiles.push({ profileName: basename(profile), path: profile });
+		// choose only the first
+		if (!quickLaunchProfiles.find(p => p.profileName === basename(profile))) {
+			quickLaunchProfiles.push({ profileName: basename(profile), path: profile });
+		}
 	}
 
 	if (!quickLaunchOnly) {
