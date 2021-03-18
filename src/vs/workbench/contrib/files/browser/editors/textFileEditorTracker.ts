@@ -6,7 +6,7 @@
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -31,17 +31,28 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 	}
 
 	private registerListeners(): void {
-
 		// Ensure dirty text file and untitled models are always opened as editors
-		this._register(this.textFileService.files.onDidChangeDirty(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
-		this._register(this.textFileService.files.onDidSaveError(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
-		this._register(this.textFileService.untitled.onDidChangeDirty(model => this.ensureDirtyFilesAreOpenedWorker.work(model.resource)));
+		this._register(this.textFileService.files.onDidChangeDirty(model =>
+			this.ensureDirtyFilesAreOpenedAfterRestoredPhase(model.resource)));
+
+		this._register(this.textFileService.files.onDidSaveError(model =>
+			this.ensureDirtyFilesAreOpenedAfterRestoredPhase(model.resource)));
+
+		this._register(this.textFileService.untitled.onDidChangeDirty(model =>
+			this.ensureDirtyFilesAreOpenedAfterRestoredPhase(model.resource)));
 
 		// Update visible text file editors when focus is gained
-		this._register(this.hostService.onDidChangeFocus(hasFocus => hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
+		this._register(this.hostService.onDidChangeFocus(hasFocus =>
+			hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(() => this.dispose());
+		this.lifecycleService.onShutdown(() =>
+			this.dispose());
+	}
+
+	private ensureDirtyFilesAreOpenedAfterRestoredPhase(unit: URI): void {
+		this.lifecycleService.when(LifecyclePhase.Restored)
+			.then(() => this.ensureDirtyFilesAreOpenedWorker.work(unit));
 	}
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
