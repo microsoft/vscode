@@ -104,13 +104,13 @@ export const content: GettingStartedContent = [
 		}
 	},
 	{
-		id: 'topLevelSeeExtensions',
-		title: localize('gettingStarted.languageSupport.title', "Install Language Support"),
-		description: localize('gettingStarted.languageSupport.description', "Want even more features? Install extensions to add support for languages like Python, C, or Java."),
-		icon: Codicon.extensions,
+		id: 'topLevelCommandPalette',
+		title: localize('gettingStarted.topLevelCommandPalette.title', "Run a Command..."),
+		description: localize('gettingStarted.topLevelCommandPalette.description', "Use the command palette to view and run all of vscode's commands"),
+		icon: Codicon.symbolColor,
 		content: {
 			type: 'startEntry',
-			command: 'workbench.extensions.action.showPopularExtensions',
+			command: 'workbench.action.showCommands',
 		}
 	},
 	{
