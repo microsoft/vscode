@@ -559,16 +559,10 @@ export class TerminalService implements ITerminalService {
 	public async initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitPromise) {
 			await this._remoteTerminalsInitPromise;
-
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
 		} else if (this._localTerminalsInitPromise) {
 			await this._localTerminalsInitPromise;
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
-		} else if (!this.terminalTabs.length) {
+		}
+		if (this.terminalTabs.length === 0 && this.isProcessSupportRegistered) {
 			this.createTerminal();
 		}
 	}
