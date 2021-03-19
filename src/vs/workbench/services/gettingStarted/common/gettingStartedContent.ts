@@ -14,7 +14,7 @@ const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb,
 const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
 
 
-type GettingStartedItem = {
+export type BuiltinGettingStartedItem = {
 	id: string
 	title: string,
 	description: string,
@@ -26,30 +26,20 @@ type GettingStartedItem = {
 	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
 };
 
-type GettingStartedCategory = {
+export type BuiltinGettingStartedCategory = {
 	id: string
 	title: string,
 	description: string,
 	icon: ThemeIcon,
 	when?: string,
 	content:
-	| { type: 'items', items: GettingStartedItem[] }
+	| { type: 'items', items: BuiltinGettingStartedItem[] }
 	| { type: 'startEntry', command: string }
 };
 
-type GettingStartedContent = GettingStartedCategory[];
+type GettingStartedContent = BuiltinGettingStartedCategory[];
 
 export const content: GettingStartedContent = [
-	// {
-	// 	id: 'topLevelCommandPalette',
-	// 	title: localize('gettingStarted.commandPalette.title', "Command Palette"),
-	// 	description: localize('gettingStarted.commandPalette.description', "The one keybinding to show you everything VS Code can do."),
-	// 	icon: Codicon.symbolColor,
-	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'workbench.action.showCommands',
-	// 	}
-	// },
 	{
 		id: 'topLevelNewFile',
 		title: localize('gettingStarted.newFile.title', "New File"),
