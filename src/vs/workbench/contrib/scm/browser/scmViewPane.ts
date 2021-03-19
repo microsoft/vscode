@@ -1679,6 +1679,9 @@ class SCMInputWidget extends Disposable {
 		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
 		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
+		const onInputFontSizeChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontSize'));
+		this._register(onInputFontSizeChanged(() => this.inputEditor.updateOptions({ fontSize: this.getInputEditorFontSize() })));
+
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged));
 	}
 
@@ -1759,6 +1762,10 @@ class SCMInputWidget extends Disposable {
 		}
 
 		return this.defaultInputFontFamily;
+	}
+
+	private getInputEditorFontSize(): number {
+		return this.configurationService.getValue<number>('scm.inputFontSize');
 	}
 
 	clearValidation(): void {
