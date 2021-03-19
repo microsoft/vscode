@@ -56,6 +56,9 @@
         "extensions": [
           ".cu",
           ".cuh"
+        ],
+        "aliases": [
+          "CUDA C++"
         ]
       }
     ],
