@@ -1471,13 +1471,13 @@ export namespace NotebookCellData {
 	}
 
 	export function to(data: notebooks.ICellDto2): vscode.NotebookCellData {
-		return {
-			kind: NotebookCellKind.to(data.cellKind),
-			language: data.language,
-			source: data.source,
-			metadata: data.metadata ? NotebookCellMetadata.to(data.metadata) : new types.NotebookCellMetadata(),
-			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.to) : []
-		};
+		return new types.NotebookCellData(
+			NotebookCellKind.to(data.cellKind),
+			data.source,
+			data.language,
+			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
+			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
+		);
 	}
 }
 
