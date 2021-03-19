@@ -636,6 +636,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		this._firstRecorder = this._secondRecorder;
 		this._firstDisposable?.dispose();
 		this._firstDisposable = this._secondDisposable;
+		this._secondRecorder = undefined;
 		if (this._recordingTimeout) {
 			window.clearTimeout(this._recordingTimeout);
 		}
