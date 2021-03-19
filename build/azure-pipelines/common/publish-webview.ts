@@ -17,7 +17,7 @@ const fileNames = [
 ];
 
 async function assertContainer(blobService: azure.BlobService, container: string): Promise<void> {
-	await new Promise((c, e) => blobService.createContainerIfNotExists(container, { publicAccessLevel: 'blob' }, err => err ? e(err) : c()));
+	await new Promise<void>((c, e) => blobService.createContainerIfNotExists(container, { publicAccessLevel: 'blob' }, err => err ? e(err) : c()));
 }
 
 async function doesBlobExist(blobService: azure.BlobService, container: string, blobName: string): Promise<boolean | undefined> {
@@ -33,7 +33,7 @@ async function uploadBlob(blobService: azure.BlobService, container: string, blo
 		}
 	};
 
-	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(container, blobName, file, blobOptions, err => err ? e(err) : c()));
+	await new Promise<void>((c, e) => blobService.createBlockBlobFromLocalFile(container, blobName, file, blobOptions, err => err ? e(err) : c()));
 }
 
 async function publish(commit: string, files: readonly string[]): Promise<void> {

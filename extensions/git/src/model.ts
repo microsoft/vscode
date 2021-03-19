@@ -6,15 +6,17 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, RemoteSourceProvider, CredentialsProvider } from './api/git';
+import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler, PublishEvent } from './api/git';
 import { Askpass } from './askpass';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { IPushErrorHandlerRegistry } from './pushError';
+import { ApiRepository } from './api/api1';
 
 const localize = nls.loadMessageBundle();
 
@@ -46,7 +48,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourceProviderRegistry {
+export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -67,6 +69,13 @@ export class Model implements IRemoteSourceProviderRegistry {
 
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState = this._onDidChangeState.event;
+
+	private _onDidPublish = new EventEmitter<PublishEvent>();
+	readonly onDidPublish = this._onDidPublish.event;
+
+	firePublishEvent(repository: Repository, branch?: string) {
+		this._onDidPublish.fire({ repository: new ApiRepository(repository), branch: branch });
+	}
 
 	private _state: State = 'uninitialized';
 	get state(): State { return this._state; }
@@ -93,6 +102,8 @@ export class Model implements IRemoteSourceProviderRegistry {
 
 	private _onDidRemoveRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
 	readonly onDidRemoveRemoteSourceProvider = this._onDidRemoveRemoteSourceProvider.event;
+
+	private pushErrorHandlers = new Set<PushErrorHandler>();
 
 	private disposables: Disposable[] = [];
 
@@ -257,7 +268,7 @@ export class Model implements IRemoteSourceProviderRegistry {
 
 			// This can happen whenever `path` has the wrong case sensitivity in
 			// case insensitive file systems
-			// https://github.com/Microsoft/vscode/issues/33498
+			// https://github.com/microsoft/vscode/issues/33498
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 
 			if (this.getRepository(repositoryRoot)) {
@@ -269,12 +280,13 @@ export class Model implements IRemoteSourceProviderRegistry {
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this.globalState, this.outputChannel);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this, this.globalState, this.outputChannel);
 
 			this.open(repository);
 			await repository.status();
-		} catch (err) {
+		} catch (ex) {
 			// noop
+			this.outputChannel.appendLine(`Opening repository for path='${path}' failed; ex=${ex}`);
 		}
 	}
 
@@ -369,7 +381,7 @@ export class Model implements IRemoteSourceProviderRegistry {
 		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
 		const active = window.activeTextEditor;
 		const repository = active && this.getRepository(active.document.fileName);
-		const index = firstIndex(picks, pick => pick.repository === repository);
+		const index = picks.findIndex(pick => pick.repository === repository);
 
 		// Move repository pick containing the active text editor to appear first
 		if (index > -1) {
@@ -483,6 +495,15 @@ export class Model implements IRemoteSourceProviderRegistry {
 
 	getRemoteProviders(): RemoteSourceProvider[] {
 		return [...this.remoteSourceProviders.values()];
+	}
+
+	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
+		this.pushErrorHandlers.add(handler);
+		return toDisposable(() => this.pushErrorHandlers.delete(handler));
+	}
+
+	getPushErrorHandlers(): PushErrorHandler[] {
+		return [...this.pushErrorHandlers];
 	}
 
 	dispose(): void {

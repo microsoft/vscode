@@ -11,8 +11,8 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IDebugService, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
-import { addClass, removeClass, createStyleSheet } from 'vs/base/browser/dom';
 import { assertIsDefined } from 'vs/base/common/types';
+import { createStyleSheet } from 'vs/base/browser/dom';
 
 // colors for theming
 
@@ -59,9 +59,9 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 
 		const container = assertIsDefined(this.layoutService.getContainer(Parts.STATUSBAR_PART));
 		if (isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession)) {
-			addClass(container, 'debugging');
+			container.classList.add('debugging');
 		} else {
-			removeClass(container, 'debugging');
+			container.classList.remove('debugging');
 		}
 
 		// Container Colors
@@ -72,10 +72,10 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		// Border Color
 		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
 		if (borderColor) {
-			addClass(container, 'status-border-top');
+			container.classList.add('status-border-top');
 			container.style.setProperty('--status-border-top-color', borderColor.toString());
 		} else {
-			removeClass(container, 'status-border-top');
+			container.classList.remove('status-border-top');
 			container.style.removeProperty('--status-border-top-color');
 		}
 
@@ -84,7 +84,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 			this.styleElement = createStyleSheet(container);
 		}
 
-		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
+		this.styleElement.textContent = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
 	}
 
 	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {

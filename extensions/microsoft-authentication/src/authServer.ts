@@ -6,7 +6,6 @@
 import * as http from 'http';
 import * as url from 'url';
 import * as fs from 'fs';
-import * as net from 'net';
 import * as path from 'path';
 
 interface Deferred<T> {
@@ -14,56 +13,15 @@ interface Deferred<T> {
 	reject: (reason: any) => void;
 }
 
-const _typeof = {
-	number: 'number',
-	string: 'string',
-	undefined: 'undefined',
-	object: 'object',
-	function: 'function'
-};
-
-/**
- * @returns whether the provided parameter is undefined.
- */
-export function isUndefined(obj: any): obj is undefined {
-	return typeof (obj) === _typeof.undefined;
-}
-
-/**
- * @returns whether the provided parameter is undefined or null.
- */
-export function isUndefinedOrNull(obj: any): obj is undefined | null {
-	return isUndefined(obj) || obj === null;
-}
-
 /**
  * Asserts that the argument passed in is neither undefined nor null.
  */
-export function assertIsDefined<T>(arg: T | null | undefined): T {
-	if (isUndefinedOrNull(arg)) {
+function assertIsDefined<T>(arg: T | null | undefined): T {
+	if (typeof (arg) === 'undefined' || arg === null) {
 		throw new Error('Assertion Failed: argument is undefined or null');
 	}
 
 	return arg;
-}
-
-export function createTerminateServer(server: http.Server) {
-	const sockets: Record<number, net.Socket> = {};
-	let socketCount = 0;
-	server.on('connection', socket => {
-		const id = socketCount++;
-		sockets[id] = socket;
-		socket.on('close', () => {
-			delete sockets[id];
-		});
-	});
-	return async () => {
-		const result = new Promise<Error | undefined>(resolve => server.close(resolve));
-		for (const id in sockets) {
-			sockets[id].destroy();
-		}
-		return result;
-	};
 }
 
 export async function startServer(server: http.Server): Promise<string> {

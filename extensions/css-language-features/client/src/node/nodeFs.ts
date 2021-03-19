@@ -5,11 +5,11 @@
 
 import * as fs from 'fs';
 import { Uri } from 'vscode';
-import { getScheme, RequestService, FileType } from '../requests';
+import { RequestService, FileType } from '../requests';
 
 export function getNodeFSRequestService(): RequestService {
 	function ensureFileUri(location: string) {
-		if (getScheme(location) !== 'file') {
+		if (!location.startsWith('file://')) {
 			throw new Error('fileRequestService can only handle file URLs');
 		}
 	}

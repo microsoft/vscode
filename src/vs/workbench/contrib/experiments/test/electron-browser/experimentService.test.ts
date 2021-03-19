@@ -21,8 +21,7 @@ import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/teleme
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -32,6 +31,8 @@ import { IWillActivateEvent, IExtensionService } from 'vs/workbench/services/ext
 import { timeout } from 'vs/base/common/async';
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { OS } from 'vs/base/common/platform';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 interface ExperimentSettings {
 	enabled?: boolean;
@@ -46,8 +47,8 @@ let experimentData: { [i: string]: any; } = {
 const local = aLocalExtension('installedExtension1', { version: '1.0.0' });
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-	properties = assign({
+	manifest = Object.assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+	properties = Object.assign({
 		type: ExtensionType.User,
 		location: URI.file(`pub.${name}`),
 		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
@@ -95,6 +96,7 @@ suite('Experiment Service', () => {
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{ get: (a: string, b: StorageScope, c?: string) => c, getBoolean: (a: string, b: StorageScope, c?: boolean) => c, store: () => { }, remove: () => { } });
+		instantiationService.stub(IWorkspaceTrustService, new TestWorkspaceTrustService());
 
 		setup(() => {
 			instantiationService.stub(IProductService, {});

@@ -6,8 +6,8 @@ const path = require('path');
 
 module.exports = {
 	entry: {
-		index: './preview-src/index.ts',
-		pre: './preview-src/pre.ts'
+		index: path.join(__dirname, 'preview-src', 'index.ts'),
+		pre: path.join(__dirname, 'preview-src', 'pre.ts'),
 	},
 	module: {
 		rules: [
@@ -21,7 +21,6 @@ module.exports = {
 	resolve: {
 		extensions: ['.tsx', '.ts', '.js']
 	},
-	devtool: 'inline-source-map',
 	output: {
 		filename: '[name].js',
 		path: path.resolve(__dirname, 'media')

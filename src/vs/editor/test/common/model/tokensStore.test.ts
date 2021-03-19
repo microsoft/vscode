@@ -104,7 +104,7 @@ suite('TokensStore', () => {
 		model.applyEdits(edits);
 
 		const actualState = extractState(model);
-		assert.deepEqual(actualState, rawFinalState);
+		assert.deepStrictEqual(actualState, rawFinalState);
 
 		model.dispose();
 	}
@@ -191,7 +191,7 @@ suite('TokensStore', () => {
 			decodedTokens.push(lineTokens.getEndOffset(i), lineTokens.getMetadata(i));
 		}
 
-		assert.deepEqual(decodedTokens, [
+		assert.deepStrictEqual(decodedTokens, [
 			20, 16793600,
 			24, 17022976,
 			25, 16793600,
@@ -252,7 +252,7 @@ suite('TokensStore', () => {
 		]);
 
 		const lineTokens = store.addSemanticTokens(10, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
-		assert.equal(lineTokens.getCount(), 3);
+		assert.strictEqual(lineTokens.getCount(), 3);
 	});
 
 	test('partial tokens 2', () => {
@@ -293,7 +293,7 @@ suite('TokensStore', () => {
 		]);
 
 		const lineTokens = store.addSemanticTokens(20, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
-		assert.equal(lineTokens.getCount(), 3);
+		assert.strictEqual(lineTokens.getCount(), 3);
 	});
 
 	test('partial tokens 3', () => {
@@ -320,7 +320,7 @@ suite('TokensStore', () => {
 		]);
 
 		const lineTokens = store.addSemanticTokens(5, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
-		assert.equal(lineTokens.getCount(), 3);
+		assert.strictEqual(lineTokens.getCount(), 3);
 	});
 
 	test('issue #94133: Semantic colors stick around when using (only) range provider', () => {
@@ -337,7 +337,7 @@ suite('TokensStore', () => {
 		store.setPartial(new Range(1, 1, 1, 20), []);
 
 		const lineTokens = store.addSemanticTokens(1, new LineTokens(new Uint32Array([12, 1]), `enum Enum1 {`));
-		assert.equal(lineTokens.getCount(), 1);
+		assert.strictEqual(lineTokens.getCount(), 1);
 	});
 
 	test('bug', () => {
@@ -385,7 +385,7 @@ suite('TokensStore', () => {
 		);
 
 		const lineTokens = store.addSemanticTokens(36451, new LineTokens(new Uint32Array([60, 1]), `                        if (flags & ModifierFlags.Ambient) {`));
-		assert.equal(lineTokens.getCount(), 7);
+		assert.strictEqual(lineTokens.getCount(), 7);
 	});
 
 
@@ -424,7 +424,7 @@ suite('TokensStore', () => {
 		]), `const hello = 123;`));
 
 		const actual = toArr(lineTokens);
-		assert.deepEqual(actual, [
+		assert.deepStrictEqual(actual, [
 			5, createTMMetadata(5, FontStyle.Bold, 53),
 			6, createTMMetadata(1, FontStyle.None, 53),
 			11, createTMMetadata(1, FontStyle.None, 53),

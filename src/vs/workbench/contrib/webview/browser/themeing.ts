@@ -8,14 +8,16 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { DARK, IColorTheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
 	readonly themeLabel: string;
-	readonly styles: { readonly [key: string]: string | number; };
+	readonly styles: Readonly<WebviewStyles>;
 }
 
 export class WebviewThemeDataProvider extends Disposable {
@@ -93,8 +95,8 @@ enum ApiThemeClassName {
 namespace ApiThemeClassName {
 	export function fromTheme(theme: IColorTheme): ApiThemeClassName {
 		switch (theme.type) {
-			case LIGHT: return ApiThemeClassName.light;
-			case DARK: return ApiThemeClassName.dark;
+			case ColorScheme.LIGHT: return ApiThemeClassName.light;
+			case ColorScheme.DARK: return ApiThemeClassName.dark;
 			default: return ApiThemeClassName.highContrast;
 		}
 	}

@@ -37,14 +37,14 @@ function assertTrimTrailingWhitespaceCommand(text: string[], expected: IIdentifi
 	return withEditorModel(text, (model) => {
 		let op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
 		let actual = getEditOperation(model, op);
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	});
 }
 
 function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expected: IIdentifiedSingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
 		let actual = trimTrailingWhitespace(model, cursors);
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	});
 }
 

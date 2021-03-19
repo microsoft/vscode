@@ -1,4 +1,5 @@
 {
 	"displayName": "Quiet Light Theme",
-	"description": "Quiet light theme for Visual Studio Code"
+	"description": "Quiet light theme for Visual Studio Code",
+	"themeLabel": "Quiet Light"
 }

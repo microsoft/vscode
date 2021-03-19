@@ -8,6 +8,8 @@ import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorM
 import { toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
+import { FileOperation } from 'vs/platform/files/common/files';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 
 suite('Files - TextFileService', () => {
 
@@ -56,7 +58,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.equal(res?.toString(), model.resource.toString());
+		assert.strictEqual(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -69,7 +71,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.save(model.resource);
-		assert.equal(res?.toString(), model.resource.toString());
+		assert.strictEqual(res?.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -83,7 +85,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		const res = await accessor.textFileService.saveAs(model.resource);
-		assert.equal(res!.toString(), model.resource.toString());
+		assert.strictEqual(res!.toString(), model.resource.toString());
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
@@ -100,7 +102,7 @@ suite('Files - TextFileService', () => {
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 	});
 
-	test('create', async function () {
+	test('create does not overwrite existing model', async function () {
 		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
@@ -111,23 +113,55 @@ suite('Files - TextFileService', () => {
 		let eventCounter = 0;
 
 		const disposable1 = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async target => {
-				assert.equal(target.toString(), model.resource.toString());
+			participate: async files => {
+				assert.strictEqual(files[0].target.toString(), model.resource.toString());
 				eventCounter++;
 			}
 		});
 
-		const disposable2 = accessor.textFileService.onDidCreateTextFile(e => {
-			assert.equal(e.resource.toString(), model.resource.toString());
+		const disposable2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			assert.strictEqual(e.operation, FileOperation.CREATE);
+			assert.strictEqual(e.files[0].target.toString(), model.resource.toString());
 			eventCounter++;
 		});
 
-		await accessor.textFileService.create(model.resource, 'Foo');
+		await accessor.textFileService.create([{ resource: model.resource, value: 'Foo' }]);
 		assert.ok(!accessor.textFileService.isDirty(model.resource));
 
-		assert.equal(eventCounter, 2);
+		assert.strictEqual(eventCounter, 2);
 
 		disposable1.dispose();
 		disposable2.dispose();
+	});
+
+	test('Filename Suggestion - Suggest prefix only when there are no relevant extensions', () => {
+		ModesRegistry.registerLanguage({
+			id: 'plumbus0',
+			extensions: ['.one', '.two']
+		});
+
+		let suggested = accessor.textFileService.suggestFilename('shleem', 'Untitled-1');
+		assert.strictEqual(suggested, 'Untitled-1');
+	});
+
+	test('Filename Suggestion - Suggest prefix with first extension', () => {
+		ModesRegistry.registerLanguage({
+			id: 'plumbus1',
+			extensions: ['.shleem', '.gazorpazorp'],
+			filenames: ['plumbus']
+		});
+
+		let suggested = accessor.textFileService.suggestFilename('plumbus1', 'Untitled-1');
+		assert.strictEqual(suggested, 'Untitled-1.shleem');
+	});
+
+	test('Filename Suggestion - Suggest filename if there are no extensions', () => {
+		ModesRegistry.registerLanguage({
+			id: 'plumbus2',
+			filenames: ['plumbus', 'shleem', 'gazorpazorp']
+		});
+
+		let suggested = accessor.textFileService.suggestFilename('plumbus2', 'Untitled-1');
+		assert.strictEqual(suggested, 'plumbus');
 	});
 });

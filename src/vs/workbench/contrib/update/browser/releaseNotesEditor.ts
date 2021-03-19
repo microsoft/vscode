@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/releasenoteseditor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
+import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OS } from 'vs/base/common/platform';
+import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -15,18 +20,15 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
-import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { generateUuid } from 'vs/base/common/uuid';
+import { asText, IRequestService } from 'vs/platform/request/common/request';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { renderMarkdownDocument } from 'vs/workbench/contrib/markdown/common/markdownDocumentRenderer';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ReleaseNotesManager {
 
@@ -82,6 +84,8 @@ export class ReleaseNotesManager {
 				{
 					tryRestoreScrollPosition: true,
 					enableFindWidget: true,
+				},
+				{
 					localResourceRoots: []
 				},
 				undefined);
@@ -95,16 +99,20 @@ export class ReleaseNotesManager {
 		return true;
 	}
 
-	private loadReleaseNotes(version: string): Promise<string> {
+	private async loadReleaseNotes(version: string): Promise<string> {
 		const match = /^(\d+\.\d+)\./.exec(version);
 		if (!match) {
-			return Promise.reject(new Error('not found'));
+			throw new Error('not found');
 		}
 
 		const versionLabel = match[1].replace(/\./g, '_');
 		const baseUrl = 'https://code.visualstudio.com/raw';
 		const url = `${baseUrl}/v${versionLabel}.md`;
 		const unassigned = nls.localize('unassigned', "unassigned");
+
+		const escapeMdHtml = (text: string): string => {
+			return escape(text).replace(/\\/g, '\\\\');
+		};
 
 		const patchKeybindings = (text: string): string => {
 			const kb = (match: string, kb: string) => {
@@ -133,22 +141,47 @@ export class ReleaseNotesManager {
 				return resolvedKeybindings[0].getLabel() || unassigned;
 			};
 
+			const kbCode = (match: string, binding: string) => {
+				const resolved = kb(match, binding);
+				return resolved ? `<code title="${binding}">${escapeMdHtml(resolved)}</code>` : resolved;
+			};
+
+			const kbstyleCode = (match: string, binding: string) => {
+				const resolved = kbstyle(match, binding);
+				return resolved ? `<code title="${binding}">${escapeMdHtml(resolved)}</code>` : resolved;
+			};
+
 			return text
-				.replace(/kb\(([a-z.\d\-]+)\)/gi, kb)
-				.replace(/kbstyle\(([^\)]+)\)/gi, kbstyle);
+				.replace(/`kb\(([a-z.\d\-]+)\)`/gi, kbCode)
+				.replace(/`kbstyle\(([^\)]+)\)`/gi, kbstyleCode)
+				.replace(/kb\(([a-z.\d\-]+)\)/gi, (match, binding) => escapeMarkdownSyntaxTokens(kb(match, binding)))
+				.replace(/kbstyle\(([^\)]+)\)/gi, (match, binding) => escapeMarkdownSyntaxTokens(kbstyle(match, binding)));
+		};
+
+		const fetchReleaseNotes = async () => {
+			let text;
+			try {
+				text = await asText(await this._requestService.request({ url }, CancellationToken.None));
+			} catch {
+				throw new Error('Failed to fetch release notes');
+			}
+
+			if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
+				throw new Error('Invalid release notes');
+			}
+
+			return patchKeybindings(text);
 		};
 
 		if (!this._releaseNotesCache.has(version)) {
-			this._releaseNotesCache.set(version, this._requestService.request({ url }, CancellationToken.None)
-				.then(asText)
-				.then(text => {
-					if (!text || !/^#\s/.test(text)) { // release notes always starts with `#` followed by whitespace
-						return Promise.reject(new Error('Invalid release notes'));
-					}
-
-					return Promise.resolve(text);
-				})
-				.then(text => patchKeybindings(text)));
+			this._releaseNotesCache.set(version, (async () => {
+				try {
+					return await fetchReleaseNotes();
+				} catch (err) {
+					this._releaseNotesCache.delete(version);
+					throw err;
+				}
+			})());
 		}
 
 		return this._releaseNotesCache.get(version)!;
@@ -257,10 +290,16 @@ export class ReleaseNotesManager {
 					}
 
 					code {
+						font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+						font-size: 14px;
+						line-height: 19px;
+					}
+
+					pre code {
 						font-family: var(--vscode-editor-font-family);
 						font-weight: var(--vscode-editor-font-weight);
 						font-size: var(--vscode-editor-font-size);
-						line-height: 19px;
+						line-height: 1.5;
 					}
 
 					code > div {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { endsWith } from 'vs/base/common/strings';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -13,7 +12,7 @@ const SecondLevelDomainMatcher = /([^@:.]+\.[^@:.]+)(:\d+)?$/;
 const RemoteMatcher = /^\s*url\s*=\s*(.+\S)\s*$/mg;
 const AnyButDot = /[^.]/g;
 
-export const SecondLevelDomainWhitelist = [
+export const AllowedSecondLevelDomains = [
 	'github.com',
 	'bitbucket.org',
 	'visualstudio.com',
@@ -54,7 +53,7 @@ function extractDomain(url: string): string | null {
 	return null;
 }
 
-export function getDomainsOfRemotes(text: string, whitelist: string[]): string[] {
+export function getDomainsOfRemotes(text: string, allowedDomains: readonly string[]): string[] {
 	const domains = new Set<string>();
 	let match: RegExpExecArray | null;
 	while (match = RemoteMatcher.exec(text)) {
@@ -64,16 +63,9 @@ export function getDomainsOfRemotes(text: string, whitelist: string[]): string[]
 		}
 	}
 
-	const whitemap = whitelist.reduce((map, key) => {
-		map[key] = true;
-		return map;
-	}, Object.create(null));
-
-	const elements: string[] = [];
-	domains.forEach(e => elements.push(e));
-
-	return elements
-		.map(key => whitemap[key] ? key : key.replace(AnyButDot, 'a'));
+	const allowedDomainsSet = new Set(allowedDomains);
+	return Array.from(domains)
+		.map(key => allowedDomainsSet.has(key) ? key : key.replace(AnyButDot, 'a'));
 }
 
 function stripPort(authority: string): string | null {
@@ -83,7 +75,7 @@ function stripPort(authority: string): string | null {
 
 function normalizeRemote(host: string | null, path: string, stripEndingDotGit: boolean): string | null {
 	if (host && path) {
-		if (stripEndingDotGit && endsWith(path, '.git')) {
+		if (stripEndingDotGit && path.endsWith('.git')) {
 			path = path.substr(0, path.length - 4);
 		}
 		return (path.indexOf('/') === 0) ? `${host}${path}` : `${host}/${path}`;

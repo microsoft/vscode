@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -116,15 +116,16 @@ export abstract class FormattingConflicts {
 		if (selector) {
 			return await selector(formatter, document, mode);
 		}
-		return formatter[0];
+		return undefined;
 	}
 }
 
-export async function formatDocumentRangeWithSelectedProvider(
+export async function formatDocumentRangesWithSelectedProvider(
 	accessor: ServicesAccessor,
 	editorOrModel: ITextModel | IActiveCodeEditor,
-	range: Range,
+	rangeOrRanges: Range | Range[],
 	mode: FormattingMode,
+	progress: IProgress<DocumentRangeFormattingEditProvider>,
 	token: CancellationToken
 ): Promise<void> {
 
@@ -133,15 +134,16 @@ export async function formatDocumentRangeWithSelectedProvider(
 	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
-		await instaService.invokeFunction(formatDocumentRangeWithProvider, selected, editorOrModel, range, token);
+		progress.report(selected);
+		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
 	}
 }
 
-export async function formatDocumentRangeWithProvider(
+export async function formatDocumentRangesWithProvider(
 	accessor: ServicesAccessor,
 	provider: DocumentRangeFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
-	range: Range,
+	rangeOrRanges: Range | Range[],
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
@@ -156,39 +158,53 @@ export async function formatDocumentRangeWithProvider(
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	let edits: TextEdit[] | undefined;
-	try {
-		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
-			model,
-			range,
-			model.getFormattingOptions(),
-			cts.token
-		);
-		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
-
-		if (cts.token.isCancellationRequested) {
-			return true;
+	// make sure that ranges don't overlap nor touch each other
+	let ranges: Range[] = [];
+	let len = 0;
+	for (let range of asArray(rangeOrRanges).sort(Range.compareRangesUsingStarts)) {
+		if (len > 0 && Range.areIntersectingOrTouching(ranges[len - 1], range)) {
+			ranges[len - 1] = Range.fromPositions(ranges[len - 1].getStartPosition(), range.getEndPosition());
+		} else {
+			len = ranges.push(range);
 		}
-
-	} finally {
-		cts.dispose();
 	}
 
-	if (!edits || edits.length === 0) {
+	const allEdits: TextEdit[] = [];
+	for (let range of ranges) {
+		try {
+			const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+				model,
+				range,
+				model.getFormattingOptions(),
+				cts.token
+			);
+			const minEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+			if (minEdits) {
+				allEdits.push(...minEdits);
+			}
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+		} finally {
+			cts.dispose();
+		}
+	}
+
+	if (allEdits.length === 0) {
 		return false;
 	}
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits, true);
-		alertFormattingEdits(edits);
+		FormattingEdit.execute(editorOrModel, allEdits, true);
+		alertFormattingEdits(allEdits);
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
 		// use model to apply edits
-		const [{ range }] = edits;
+		const [{ range }] = allEdits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		model.pushEditOperations([initialSelection], edits.map(edit => {
+		model.pushEditOperations([initialSelection], allEdits.map(edit => {
 			return {
 				text: edit.text,
 				range: Range.lift(edit.range),

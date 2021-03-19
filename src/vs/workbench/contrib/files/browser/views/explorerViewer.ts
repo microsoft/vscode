@@ -9,18 +9,18 @@ import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, BinarySize } from 'vs/platform/files/common/files';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, ByteSize } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, isEqualOrParent, basename, distinctParents } from 'vs/base/common/resources';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { dirname, joinPath, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
@@ -29,19 +29,18 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensionsNumeric, compareFileNamesNumeric } from 'vs/base/common/comparers';
+import { compareFileNamesDefault, compareFileExtensionsDefault } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
-import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
-import { ITask, sequence } from 'vs/base/common/async';
+import { RunOnceWorker } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
@@ -57,6 +56,9 @@ import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -134,6 +136,7 @@ export interface ICompressedNavigationController {
 	first(): void;
 	last(): void;
 	setIndex(index: number): void;
+	updateCollapsed(collapsed: boolean): void;
 }
 
 export class CompressedNavigationController implements ICompressedNavigationController, IDisposable {
@@ -153,7 +156,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData) {
+	constructor(private id: string, readonly items: ExplorerItem[], templateData: IFileTemplateData, private depth: number, private collapsed: boolean) {
 		this._index = items.length - 1;
 
 		this.updateLabels(templateData);
@@ -162,13 +165,17 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 	private updateLabels(templateData: IFileTemplateData): void {
 		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
-
+		let parents = '';
 		for (let i = 0; i < this.labels.length; i++) {
-			this.labels[i].setAttribute('aria-label', this.items[i].name);
+			const ariaLabel = parents.length ? `${this.items[i].name}, compact, ${parents}` : this.items[i].name;
+			this.labels[i].setAttribute('aria-label', ariaLabel);
+			this.labels[i].setAttribute('aria-level', `${this.depth + i}`);
+			parents = parents.length ? `${this.items[i].name} ${parents}` : this.items[i].name;
 		}
+		this.updateCollapsed(this.collapsed);
 
 		if (this._index < this.labels.length) {
-			DOM.addClass(this.labels[this._index], 'active');
+			this.labels[this._index].classList.add('active');
 		}
 	}
 
@@ -209,11 +216,18 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 			return;
 		}
 
-		DOM.removeClass(this.labels[this._index], 'active');
+		this.labels[this._index].classList.remove('active');
 		this._index = index;
-		DOM.addClass(this.labels[this._index], 'active');
+		this.labels[this._index].classList.add('active');
 
 		this._onDidChange.fire();
+	}
+
+	updateCollapsed(collapsed: boolean): void {
+		this.collapsed = collapsed;
+		for (let i = 0; i < this.labels.length; i++) {
+			this.labels[i].setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+		}
 	}
 
 	dispose(): void {
@@ -245,7 +259,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
@@ -275,7 +290,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const stat = node.element;
 		const editableData = this.explorerService.getEditableData(stat);
 
-		DOM.removeClass(templateData.label.element, 'compressed');
+		templateData.label.element.classList.remove('compressed');
 
 		// File Label
 		if (!editableData) {
@@ -299,7 +314,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// File Label
 		if (!editableData) {
-			DOM.addClass(templateData.label.element, 'compressed');
+			templateData.label.element.classList.add('compressed');
 			templateData.label.element.style.display = 'flex';
 
 			const disposables = new DisposableStore();
@@ -308,7 +323,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			const label = node.element.elements.map(e => e.name);
 			disposables.add(this.renderStat(stat, label, id, node.filterData, templateData));
 
-			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData);
+			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
 			disposables.add(compressedNavigationController);
 			this.compressedNavigationControllers.set(stat, compressedNavigationController);
 
@@ -330,7 +345,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// Input Box
 		else {
-			DOM.removeClass(templateData.label.element, 'compressed');
+			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
 			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
 		}
@@ -436,7 +451,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
-					if (inputBox.validate()) {
+					if (!inputBox.validate()) {
 						done(true, true);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
@@ -481,6 +496,22 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		return element.name;
 	}
 
+	getAriaLevel(element: ExplorerItem): number {
+		// We need to comput aria level on our own since children of compact folders will otherwise have an incorrect level	#107235
+		let depth = 0;
+		let parent = element.parent;
+		while (parent) {
+			parent = parent.parent;
+			depth++;
+		}
+
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			depth = depth + 1;
+		}
+
+		return depth;
+	}
+
 	getActiveDescendantId(stat: ExplorerItem): string | undefined {
 		const compressedNavigationController = this.compressedNavigationControllers.get(stat);
 		return compressedNavigationController?.currentId;
@@ -501,8 +532,7 @@ interface CachedParsedExpression {
  * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
  */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
-	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
-	private hiddenUris = new Set<URI>();
+	private hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 	private editorsAffectingFilter = new Set<IEditorInput>();
 	private _onDidChange = new Emitter<void>();
 	private toDispose: IDisposable[] = [];
@@ -512,8 +542,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('files.exclude')) {
@@ -523,24 +553,30 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
 			const editors = this.editorService.visibleEditors;
 			let shouldFire = false;
-			this.hiddenUris.forEach(u => {
-				editors.forEach(e => {
-					if (e.resource && isEqualOrParent(e.resource, u)) {
-						// A filtered resource suddenly became visible since user opened an editor
-						shouldFire = true;
-					}
-				});
-			});
 
-			this.editorsAffectingFilter.forEach(e => {
-				if (editors.indexOf(e) === -1) {
+			for (const e of editors) {
+				if (!e.resource) {
+					continue;
+				}
+
+				const stat = this.explorerService.findClosest(e.resource);
+				if (stat && stat.isExcluded) {
+					// A filtered resource suddenly became visible since user opened an editor
+					shouldFire = true;
+					break;
+				}
+			}
+
+			for (const e of this.editorsAffectingFilter) {
+				if (!editors.includes(e)) {
 					// Editor that was affecting filtering is no longer visible
 					shouldFire = true;
+					break;
 				}
-			});
+			}
+
 			if (shouldFire) {
 				this.editorsAffectingFilter.clear();
-				this.hiddenUris.clear();
 				this._onDidChange.fire();
 			}
 		}));
@@ -569,20 +605,12 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		if (shouldFire) {
 			this.editorsAffectingFilter.clear();
-			this.hiddenUris.clear();
 			this._onDidChange.fire();
 		}
 	}
 
-	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
-		const isVisible = this.isVisible(stat, parentVisibility);
-		if (isVisible) {
-			this.hiddenUris.delete(stat.resource);
-		} else {
-			this.hiddenUris.add(stat.resource);
-		}
-
-		return isVisible;
+	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		return this.isVisible(stat, parentVisibility);
 	}
 
 	private isVisible(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
@@ -591,7 +619,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			stat.isExcluded = true;
 			return false;
 		}
-		if (this.explorerService.getEditableData(stat) || stat.isRoot) {
+		if (this.explorerService.getEditableData(stat)) {
 			return true; // always visible
 		}
 
@@ -600,8 +628,8 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		if ((cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
-			const editor = editors.find(e => e.resource && isEqualOrParent(e.resource, stat.resource));
-			if (editor) {
+			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
+			if (editor && stat.root === this.explorerService.findClosestRoot(stat.resource)) {
 				this.editorsAffectingFilter.add(editor);
 				return true; // Show all opened files and their parents
 			}
@@ -655,7 +683,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				if (statA.isDirectory && statB.isDirectory) {
-					return compareFileNamesNumeric(statA.name, statB.name);
+					return compareFileNamesDefault(statA.name, statB.name);
 				}
 
 				break;
@@ -689,29 +717,42 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		// Sort Files
 		switch (sortOrder) {
 			case 'type':
-				return compareFileExtensionsNumeric(statA.name, statB.name);
+				return compareFileExtensionsDefault(statA.name, statB.name);
 
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
 					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
 				}
 
-				return compareFileNamesNumeric(statA.name, statB.name);
+				return compareFileNamesDefault(statA.name, statB.name);
 
 			default: /* 'default', 'mixed', 'filesFirst' */
-				return compareFileNamesNumeric(statA.name, statB.name);
+				return compareFileNamesDefault(statA.name, statB.name);
 		}
 	}
 }
 
-const getFileOverwriteConfirm = (name: string) => {
-	return <IConfirmation>{
+function getFileOverwriteConfirm(name: string): IConfirmation {
+	return {
 		message: localize('confirmOverwrite', "A file or folder with the name '{0}' already exists in the destination folder. Do you want to replace it?", name),
 		detail: localize('irreversible', "This action is irreversible!"),
 		primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
 		type: 'warning'
 	};
-};
+}
+
+function getMultipleFilesOverwriteConfirm(files: URI[]): IConfirmation {
+	if (files.length > 1) {
+		return {
+			message: localize('confirmManyOverwrites', "The following {0} files and/or folders already exist in the destination folder. Do you want to replace them?", files.length),
+			detail: getFileNamesMessage(files) + '\n' + localize('irreversible', "This action is irreversible!"),
+			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+			type: 'warning'
+		};
+	}
+
+	return getFileOverwriteConfirm(basename(files[0]));
+}
 
 interface IWebkitDataTransfer {
 	items: IWebkitDataTransferItem[];
@@ -734,6 +775,16 @@ interface IWebkitDataTransferItemEntryReader {
 	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void
 }
 
+interface IUploadOperation {
+	startTime: number;
+	progressScheduler: RunOnceWorker<IProgressStep>;
+
+	filesTotal: number;
+	filesUploaded: number;
+
+	totalBytesUploaded: number;
+}
+
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
@@ -752,10 +803,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkingCopyFileService private workingCopyFileService: IWorkingCopyFileService,
 		@IHostService private hostService: IHostService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.toDispose = [];
 
@@ -786,11 +837,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 							this.compressedDragOverElement = iconLabelName.element;
 							this.compressedDropTargetDisposable.dispose();
 							this.compressedDropTargetDisposable = toDisposable(() => {
-								DOM.removeClass(iconLabelName.element, 'drop-target');
+								iconLabelName.element.classList.remove('drop-target');
 								this.compressedDragOverElement = undefined;
 							});
 
-							DOM.addClass(iconLabelName.element, 'drop-target');
+							iconLabelName.element.classList.add('drop-target');
 						}
 
 						return typeof result === 'boolean' ? result : { ...result, feedback: [] };
@@ -808,12 +859,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
-		const fromDesktop = data instanceof DesktopDragAndDropData;
-		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
+		const isNative = data instanceof NativeDragAndDropData;
+		const effect = (isNative || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
 
-		// Desktop DND
-		if (fromDesktop) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
+		// Native DND
+		if (isNative) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
 			}
 		}
@@ -846,7 +897,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return true; // Root folder can not be moved to a non root file stat.
 				}
 
-				if (source.resource.toString() === target.resource.toString()) {
+				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
 					return true; // Can not move anything onto itself
 				}
 
@@ -855,11 +906,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return false;
 				}
 
-				if (!isCopy && dirname(source.resource).toString() === target.resource.toString()) {
+				if (!isCopy && this.uriIdentityService.extUri.isEqual(dirname(source.resource), target.resource)) {
 					return true; // Can not move a file to the same parent unless we copy
 				}
 
-				if (isEqualOrParent(target.resource, source.resource)) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(target.resource, source.resource)) {
 					return true; // Can not move a parent folder into one of its children
 				}
 
@@ -917,14 +968,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
-			const fileResources = items.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
+			const fileResources = items.filter(s => s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
 			if (fileResources.length) {
 				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
 			}
 		}
 	}
 
-	drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+	async drop(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
 		this.compressedDropTargetDisposable.dispose();
 
 		// Find compressed target
@@ -946,22 +997,46 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (target.isReadonly) {
 			return;
 		}
+		const resolvedTarget = target;
+		if (!resolvedTarget) {
+			return;
+		}
 
 		// Desktop DND (Import file)
-		if (data instanceof DesktopDragAndDropData) {
+		if (data instanceof NativeDragAndDropData) {
+			const cts = new CancellationTokenSource();
+
 			if (isWeb) {
-				this.handleWebExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+				// Indicate progress globally
+				const dropPromise = this.progressService.withProgress({
+					location: ProgressLocation.Window,
+					delay: 800,
+					cancellable: true,
+					title: localize('uploadingFiles', "Uploading")
+				}, async progress => {
+					try {
+						await this.handleWebExternalDrop(resolvedTarget, originalEvent, progress, cts.token);
+					} catch (error) {
+						this.notificationService.warn(error);
+					}
+				}, () => cts.dispose(true));
+				// Also indicate progress in the files view
+				this.progressService.withProgress({ location: VIEW_ID, delay: 500 }, () => dropPromise);
 			} else {
-				this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+				try {
+					await this.handleExternalDrop(resolvedTarget, originalEvent, cts.token);
+				} catch (error) {
+					this.notificationService.warn(error);
+				}
 			}
 		}
 		// In-Explorer DND (Move/Copy file)
 		else {
-			this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
+			this.handleExplorerDrop(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, resolvedTarget, originalEvent).then(undefined, e => this.notificationService.warn(e));
 		}
 	}
 
-	private async handleWebExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleWebExternalDrop(target: ExplorerItem, originalEvent: DragEvent, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		const items = (originalEvent.dataTransfer as unknown as IWebkitDataTransfer).items;
 
 		// Somehow the items thing is being modified at random, maybe as a security
@@ -973,72 +1048,86 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const results: { isFile: boolean, resource: URI }[] = [];
-		const cts = new CancellationTokenSource();
-		const operation = { total: entries.length, worked: 0 };
+		const operation: IUploadOperation = {
+			startTime: Date.now(),
+			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
 
-		// Start upload and report progress globally
-		const uploadPromise = this.progressService.withProgress({
-			location: ProgressLocation.Window,
-			delay: 800,
-			cancellable: true,
-			title: localize('uploadingFiles', "Uploading")
-		}, async progress => {
-			for (let entry of entries) {
+			filesTotal: entries.length,
+			filesUploaded: 0,
 
-				// Confirm overwrite as needed
-				if (target && entry.name && target.getChild(entry.name)) {
-					const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
-					if (!confirmed) {
-						continue;
-					}
+			totalBytesUploaded: 0
+		};
 
-					await this.workingCopyFileService.delete(joinPath(target.resource, entry.name), { recursive: true });
+		for (let entry of entries) {
+			if (token.isCancellationRequested) {
+				break;
+			}
+
+			// Confirm overwrite as needed
+			if (target && entry.name && target.getChild(entry.name)) {
+				const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(entry.name));
+				if (!confirmed) {
+					continue;
 				}
 
-				// Upload entry
-				const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, operation, cts.token);
-				if (result) {
-					results.push(result);
+				await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
+					undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
+					progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
+				});
+
+				if (token.isCancellationRequested) {
+					break;
 				}
 			}
-		}, () => cts.dispose(true));
 
-		// Also indicate progress in the files view
-		this.progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => uploadPromise);
+			// Upload entry
+			const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, operation, token);
+			if (result) {
+				results.push(result);
+			}
+		}
 
-		// Wait until upload is done
-		await uploadPromise;
+		operation.progressScheduler.dispose();
 
 		// Open uploaded file in editor only if we upload just one
-		if (!cts.token.isCancellationRequested && results.length === 1 && results[0].isFile) {
-			await this.editorService.openEditor({ resource: results[0].resource, options: { pinned: true } });
+		const firstUploadedFile = results[0];
+		if (!token.isCancellationRequested && firstUploadedFile?.isFile) {
+			await this.editorService.openEditor({ resource: firstUploadedFile.resource, options: { pinned: true } });
 		}
 	}
 
-	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: { total: number; worked: number; }, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
+	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IUploadOperation, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
 
 		// Report progress
-		let totalBytesUploaded = 0;
+		let fileBytesUploaded = 0;
 		const reportProgress = (fileSize: number, bytesUploaded: number): void => {
-			totalBytesUploaded += bytesUploaded;
+			fileBytesUploaded += bytesUploaded;
+			operation.totalBytesUploaded += bytesUploaded;
 
+			const bytesUploadedPerSecond = operation.totalBytesUploaded / ((Date.now() - operation.startTime) / 1000);
+
+			// Small file
 			let message: string;
-			if (operation.total === 1 && entry.name) {
-				message = entry.name;
-			} else {
-				message = localize('uploadProgress', "{0} of {1} files", operation.worked, operation.total);
+			if (fileSize < ByteSize.MB) {
+				if (operation.filesTotal === 1) {
+					message = `${entry.name}`;
+				} else {
+					message = localize('uploadProgressSmallMany', "{0} of {1} files ({2}/s)", operation.filesUploaded, operation.filesTotal, ByteSize.formatSize(bytesUploadedPerSecond));
+				}
 			}
 
-			if (fileSize > BinarySize.MB) {
-				message = localize('uploadProgressDetail', "{0} ({1} of {2})", message, BinarySize.formatSize(totalBytesUploaded), BinarySize.formatSize(fileSize));
+			// Large file
+			else {
+				message = localize('uploadProgressLarge', "{0} ({1} of {2}, {3}/s)", entry.name, ByteSize.formatSize(fileBytesUploaded), ByteSize.formatSize(fileSize), ByteSize.formatSize(bytesUploadedPerSecond));
 			}
 
-			progress.report({ message });
+			// Report progress but limit to update only once per second
+			operation.progressScheduler.work({ message });
 		};
-		operation.worked++;
+		operation.filesUploaded++;
 		reportProgress(0, 0);
 
 		// Handle file upload
@@ -1050,12 +1139,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return undefined;
 			}
 
-			// Chrome/Edge/Firefox support stream method
-			if (typeof file.stream === 'function') {
-				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress);
+			// Chrome/Edge/Firefox support stream method, but only use it for
+			// larger files to reduce the overhead of the streaming approach
+			if (typeof file.stream === 'function' && file.size > ByteSize.MB) {
+				await this.doUploadWebFileEntryBuffered(resource, file, reportProgress, token);
 			}
 
-			// Fallback to unbuffered upload for other browsers
+			// Fallback to unbuffered upload for other browsers or small files
 			else {
 				await this.doUploadWebFileEntryUnbuffered(resource, file, reportProgress);
 			}
@@ -1084,10 +1174,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				} else {
 					done = true; // an empty array is a signal that all entries have been read
 				}
-			} while (!done);
+			} while (!done && !token.isCancellationRequested);
 
 			// Update operation total based on new counts
-			operation.total += childEntries.length;
+			operation.filesTotal += childEntries.length;
 
 			// Upload all entries as files to target
 			const folderTarget = target && target.getChild(entry.name) || undefined;
@@ -1099,9 +1189,14 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async doUploadWebFileEntryBuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void): Promise<void> {
-		const writeableStream = newWriteableBufferStream();
-		const writeFilePromise = this.fileService.writeFile(resource, writeableStream, { progress: byteLength => progressReporter(file.size, byteLength) });
+	private async doUploadWebFileEntryBuffered(resource: URI, file: File, progressReporter: (fileSize: number, bytesUploaded: number) => void, token: CancellationToken): Promise<void> {
+		const writeableStream = newWriteableBufferStream({
+			// Set a highWaterMark to prevent the stream
+			// for file upload to produce large buffers
+			// in-memory
+			highWaterMark: 10
+		});
+		const writeFilePromise = this.fileService.writeFile(resource, writeableStream);
 
 		// Read the file in chunks using File.stream() web APIs
 		try {
@@ -1109,13 +1204,32 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			let res = await reader.read();
 			while (!res.done) {
-				writeableStream.write(VSBuffer.wrap(res.value));
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+
+				// Write buffer into stream but make sure to wait
+				// in case the highWaterMark is reached
+				const buffer = VSBuffer.wrap(res.value);
+				await writeableStream.write(buffer);
+
+				if (token.isCancellationRequested) {
+					return undefined;
+				}
+
+				// Report progress
+				progressReporter(file.size, buffer.byteLength);
 
 				res = await reader.read();
 			}
-			writeableStream.end(res.value instanceof Uint8Array ? VSBuffer.wrap(res.value) : undefined);
+			writeableStream.end(undefined);
 		} catch (error) {
-			writeableStream.end(error);
+			writeableStream.error(error);
+			writeableStream.end();
+		}
+
+		if (token.isCancellationRequested) {
+			return undefined;
 		}
 
 		// Wait for file being written to target
@@ -1128,7 +1242,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			reader.onload = async event => {
 				try {
 					if (event.target?.result instanceof ArrayBuffer) {
-						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)), { progress: byteLength => progressReporter(file.size, byteLength) });
+						const buffer = VSBuffer.wrap(new Uint8Array(event.target.result));
+						await this.fileService.writeFile(resource, buffer);
+
+						// Report progress
+						progressReporter(file.size, buffer.byteLength);
 					} else {
 						throw new Error('Could not read from dropped file.');
 					}
@@ -1144,18 +1262,22 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		});
 	}
 
-	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleExternalDrop(target: ExplorerItem, originalEvent: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Check for dropped external files to be folders
 		const droppedResources = extractResources(originalEvent, true);
 		const result = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
 
+		if (token.isCancellationRequested) {
+			return;
+		}
+
 		// Pass focus to window
 		this.hostService.focus();
 
-		// Handle folders by adding to workspace if we are in workspace context
+		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
 		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
-		if (folders.length > 0) {
+		if (folders.length > 0 && target.isRoot) {
 			const buttons = [
 				folders.length > 1 ? localize('copyFolders', "&&Copy Folders") : localize('copyFolder', "&&Copy Folder"),
 				localize('cancel', "Cancel")
@@ -1174,7 +1296,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				return this.workspaceEditingService.addFolders(folders);
 			}
 			if (choice === buttons.length - 2) {
-				return this.addResources(target, droppedResources.map(res => res.resource));
+				return this.addResources(target, droppedResources.map(res => res.resource), token);
 			}
 
 			return undefined;
@@ -1182,15 +1304,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.addResources(target, droppedResources.map(res => res.resource));
+			return this.addResources(target, droppedResources.map(res => res.resource), token);
 		}
 	}
 
-	private async addResources(target: ExplorerItem, resources: URI[]): Promise<void> {
+	private async addResources(target: ExplorerItem, resources: URI[], token: CancellationToken): Promise<void> {
 		if (resources && resources.length > 0) {
 
 			// Resolve target to check for name collisions and ask user
 			const targetStat = await this.fileService.resolve(target.resource);
+
+			if (token.isCancellationRequested) {
+				return;
+			}
 
 			// Check for name collisions
 			const targetNames = new Set<string>();
@@ -1201,29 +1327,33 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				});
 			}
 
-			// Run add in sequence
-			const addPromisesFactory: ITask<Promise<void>>[] = [];
-			await Promise.all(resources.map(async resource => {
+			const resourcesFiltered = (await Promise.all(resources.map(async resource => {
 				if (targetNames.has(caseSensitive ? basename(resource) : basename(resource).toLowerCase())) {
 					const confirmationResult = await this.dialogService.confirm(getFileOverwriteConfirm(basename(resource)));
 					if (!confirmationResult.confirmed) {
-						return;
+						return undefined;
 					}
 				}
+				return resource;
+			}))).filter(r => r instanceof URI) as URI[];
+			const resourceFileEdits = resourcesFiltered.map(resource => {
+				const sourceFileName = basename(resource);
+				const targetFile = joinPath(target.resource, sourceFileName);
+				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
+			});
 
-				addPromisesFactory.push(async () => {
-					const sourceFile = resource;
-					const targetFile = joinPath(target.resource, basename(sourceFile));
+			await this.explorerService.applyBulkEdit(resourceFileEdits, {
+				undoLabel: resourcesFiltered.length === 1 ? localize('copyFile', "Copy {0}", basename(resourcesFiltered[0])) : localize('copynFile', "Copy {0} resources", resourcesFiltered.length),
+				progressLabel: resourcesFiltered.length === 1 ? localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) : localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length)
+			});
 
-					const stat = await this.workingCopyFileService.copy(sourceFile, targetFile, true);
-					// if we only add one file, just open it directly
-					if (resources.length === 1 && !stat.isDirectory) {
-						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
-					}
-				});
-			}));
-
-			await sequence(addPromisesFactory);
+			// if we only add one file, just open it directly
+			if (resourceFileEdits.length === 1) {
+				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
+				if (item && !item.isDirectory) {
+					this.editorService.openEditor({ resource: item.resource, options: { pinned: true } });
+				}
+			}
 		}
 	}
 
@@ -1257,12 +1387,18 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// Check for confirmation checkbox
 			if (confirmation.checkboxChecked === true) {
-				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false, ConfigurationTarget.USER);
+				await this.configurationService.updateValue(FileDragAndDrop.CONFIRM_DND_SETTING_KEY, false);
 			}
 		}
 
-		const rootDropPromise = this.doHandleRootDrop(items.filter(s => s.isRoot), target);
-		await Promise.all(items.filter(s => !s.isRoot).map(source => this.doHandleExplorerDrop(source, target, isCopy)).concat(rootDropPromise));
+		await this.doHandleRootDrop(items.filter(s => s.isRoot), target);
+
+		const sources = items.filter(s => !s.isRoot);
+		if (isCopy) {
+			await this.doHandleExplorerDropOnCopy(sources, target);
+		} else {
+			return this.doHandleExplorerDropOnMove(sources, target);
+		}
 	}
 
 	private doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem): Promise<void> {
@@ -1280,7 +1416,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				uri: folders[index].uri,
 				name: folders[index].name
 			};
-			if (target instanceof ExplorerItem && folders[index].uri.toString() === target.resource.toString()) {
+			if (target instanceof ExplorerItem && this.uriIdentityService.extUri.isEqual(folders[index].uri, target.resource)) {
 				targetIndex = index;
 			}
 
@@ -1298,36 +1434,53 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
 	}
 
-	private async doHandleExplorerDrop(source: ExplorerItem, target: ExplorerItem, isCopy: boolean): Promise<void> {
-		// Reuse duplicate action if user copies
-		if (isCopy) {
-			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.workingCopyFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
-			if (!stat.isDirectory) {
-				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
-			}
+	private async doHandleExplorerDropOnCopy(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
+		// Reuse duplicate action when user copies
+		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+		const resourceFileEdits = sources.map(({ resource, isDirectory }) => (new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming), { copy: true })));
+		const labelSufix = getFileOrFolderLabelSufix(sources);
+		await this.explorerService.applyBulkEdit(resourceFileEdits, {
+			undoLabel: localize('copy', "Copy {0}", labelSufix),
+			progressLabel: localize('copying', "Copying {0}", labelSufix),
+		});
 
-			return;
-		}
+		const editors = resourceFileEdits.filter(edit => {
+			const item = edit.newResource ? this.explorerService.findClosest(edit.newResource) : undefined;
+			return item && !item.isDirectory;
+		}).map(edit => ({ resource: edit.newResource, options: { pinned: true } }));
 
-		// Otherwise move
-		const targetResource = joinPath(target.resource, source.name);
-		if (source.isReadonly) {
-			// Do not allow moving readonly items
-			return Promise.resolve();
-		}
+		await this.editorService.openEditors(editors);
+	}
+
+	private async doHandleExplorerDropOnMove(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
+
+		// Do not allow moving readonly items
+		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
+		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const options = {
+			undoLabel: localize('move', "Move {0}", labelSufix),
+			progressLabel: localize('moving', "Moving {0}", labelSufix)
+		};
 
 		try {
-			await this.workingCopyFileService.move(source.resource, targetResource);
+			await this.explorerService.applyBulkEdit(resourceFileEdits, options);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-				const confirm = getFileOverwriteConfirm(source.name);
+
+				const overwrites: URI[] = [];
+				for (const edit of resourceFileEdits) {
+					if (edit.newResource && await this.fileService.exists(edit.newResource)) {
+						overwrites.push(edit.newResource);
+					}
+				}
+
+				const confirm = getMultipleFilesOverwriteConfirm(overwrites);
 				// Move with overwrite if the user confirms
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.workingCopyFileService.move(source.resource, targetResource, true /* overwrite */);
+						await this.explorerService.applyBulkEdit(resourceFileEdits.map(re => new ResourceFileEdit(re.oldResource, re.newResource, { overwrite: true })), options);
 					} catch (error) {
 						this.notificationService.error(error);
 					}
@@ -1385,8 +1538,8 @@ function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Ele
 
 	let element: HTMLElement | null = target;
 
-	while (element && !DOM.hasClass(element, 'monaco-list-row')) {
-		if (DOM.hasClass(element, 'label-name') && element.hasAttribute('data-icon-label-count')) {
+	while (element && !element.classList.contains('monaco-list-row')) {
+		if (element.classList.contains('label-name') && element.hasAttribute('data-icon-label-count')) {
 			const count = Number(element.getAttribute('data-icon-label-count'));
 			const index = Number(element.getAttribute('data-icon-label-index'));
 
@@ -1410,4 +1563,19 @@ export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<Exp
 	isIncompressible(stat: ExplorerItem): boolean {
 		return stat.isRoot || !stat.isDirectory || stat instanceof NewExplorerItem || (!stat.parent || stat.parent.isRoot);
 	}
+}
+
+function getFileOrFolderLabelSufix(items: ExplorerItem[]): string {
+	if (items.length === 1) {
+		return items[0].name;
+	}
+
+	if (items.every(i => i.isDirectory)) {
+		return `${items.length} folders`;
+	}
+	if (items.every(i => !i.isDirectory)) {
+		return `${items.length} files`;
+	}
+
+	return `${items.length} files and folders`;
 }

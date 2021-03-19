@@ -7,26 +7,6 @@
 	position: relative;
 }
 
-.monaco-workbench .timeline-view.pane-header .description {
-	display: block;
-	font-weight: normal;
-	margin-left: 10px;
-	opacity: 0.6;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	text-transform: none;
-	white-space: nowrap;
-}
-
-.monaco-workbench .timeline-view.pane-header:not(.expanded) .description {
-	display: none;
-}
-
-.monaco-workbench .timeline-view.pane-header .description span.codicon {
-	font-size: 9px;
-	margin-left: 2px;
-}
-
 .monaco-workbench .timeline-tree-view .message.timeline-subtle {
 	opacity: 0.5;
 	padding: 10px 22px 0 22px;
@@ -60,18 +40,24 @@
 	opacity: 0.25;
 }
 
-.timeline-tree-view  .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
+.timeline-tree-view .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
 .timeline-tree-view .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
 .timeline-tree-view .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before {
 	display: none;
 }
 
+.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container .timeline-timestamp {
+	display: inline-block;
+}
+
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp {
 	visibility: hidden;
+	width: 10px;
 }
 
 .timeline-tree-view .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp,
 .timeline-tree-view .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp,
 .timeline-tree-view .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp {
 	visibility: visible !important;
+	width: initial;
 }

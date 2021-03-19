@@ -8,9 +8,11 @@ import { DecorationsService } from 'vs/workbench/services/decorations/browser/de
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
+import * as resources from 'vs/base/common/resources';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ConsoleLogService } from 'vs/platform/log/common/log';
+import { mock } from 'vs/base/test/common/mock';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 suite('DecorationsService', function () {
 
@@ -20,7 +22,12 @@ suite('DecorationsService', function () {
 		if (service) {
 			service.dispose();
 		}
-		service = new DecorationsService(new TestThemeService(), new ConsoleLogService());
+		service = new DecorationsService(
+			new TestThemeService(),
+			new class extends mock<IUriIdentityService>() {
+				extUri = resources.extUri;
+			}
+		);
 	});
 
 	test('Async provider, async/evented result', function () {
@@ -94,7 +101,7 @@ suite('DecorationsService', function () {
 
 		// un-register -> ensure good event
 		let didSeeEvent = false;
-		let p = new Promise(resolve => {
+		let p = new Promise<void>(resolve => {
 			service.onDidChangeDecorations(e => {
 				assert.equal(e.affectsResource(uri), true);
 				assert.deepEqual(service.getDecoration(uri, false), undefined);
@@ -275,7 +282,7 @@ suite('DecorationsService', function () {
 		data = service.getDecoration(uri2, true)!;
 		assert.ok(data.tooltip); // emphazied items...
 
-		return new Promise((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			let l = service.onDidChangeDecorations(e => {
 				l.dispose();
 				try {

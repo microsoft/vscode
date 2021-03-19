@@ -11,6 +11,11 @@ export interface Sender {
 	send(channel: string, msg: unknown): void;
 }
 
+/**
+ * The Electron `Protocol` leverages Electron style IPC communication (`ipcRenderer`, `ipcMain`)
+ * for the implementation of the `IMessagePassingProtocol`. That style of API requires a channel
+ * name for sending data.
+ */
 export class Protocol implements IMessagePassingProtocol {
 
 	constructor(private sender: Sender, readonly onMessage: Event<VSBuffer>) { }
@@ -23,7 +28,7 @@ export class Protocol implements IMessagePassingProtocol {
 		}
 	}
 
-	dispose(): void {
+	disconnect(): void {
 		this.sender.send('vscode:disconnect', null);
 	}
 }

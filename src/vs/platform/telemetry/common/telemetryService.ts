@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -20,7 +21,6 @@ export interface ITelemetryServiceConfig {
 	sendErrorTelemetry?: boolean;
 	commonProperties?: Promise<{ [name: string]: any }>;
 	piiPaths?: string[];
-	trueMachineId?: string;
 }
 
 export class TelemetryService implements ITelemetryService {
@@ -32,6 +32,7 @@ export class TelemetryService implements ITelemetryService {
 
 	private _appender: ITelemetryAppender;
 	private _commonProperties: Promise<{ [name: string]: any; }>;
+	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
 	private _enabled: boolean;
@@ -76,15 +77,12 @@ export class TelemetryService implements ITelemetryService {
 					usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
 				};
 				this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
-
-				if (config.trueMachineId) {
-					type MachineIdDisambiguationClassification = {
-						correctedMachineId: { endPoint: 'MacAddressHash', classification: 'EndUserPseudonymizedInformation', purpose: 'FeatureInsight' };
-					};
-					this.publicLog2<{ correctedMachineId: string }, MachineIdDisambiguationClassification>('machineIdDisambiguation', { correctedMachineId: config.trueMachineId });
-				}
 			});
 		}
+	}
+
+	setExperimentProperty(name: string, value: string): void {
+		this._experimentProperties[name] = value;
 	}
 
 	setEnabled(value: boolean): void {
@@ -92,7 +90,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	private _updateUserOptIn(): void {
-		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
+		const config = this._configurationService?.getValue<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 
@@ -107,9 +105,10 @@ export class TelemetryService implements ITelemetryService {
 		let sessionId = values['sessionID'];
 		let instanceId = values['common.instanceId'];
 		let machineId = values['common.machineId'];
+		let firstSessionDate = values['common.firstSessionDate'];
 		let msftInternal = values['common.msftInternal'];
 
-		return { sessionId, instanceId, machineId, msftInternal };
+		return { sessionId, instanceId, machineId, firstSessionDate, msftInternal };
 	}
 
 	dispose(): void {
@@ -126,6 +125,9 @@ export class TelemetryService implements ITelemetryService {
 
 			// (first) add common properties
 			data = mixin(data, values);
+
+			// (next) add experiment properties
+			data = mixin(data, this._experimentProperties);
 
 			// (last) remove all PII from data
 			data = cloneAndChange(data, value => {
@@ -207,6 +209,7 @@ export class TelemetryService implements ITelemetryService {
 
 const TELEMETRY_SECTION_ID = 'telemetry';
 
+
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
 	'order': 110,
@@ -215,7 +218,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	'properties': {
 		'telemetry.enableTelemetry': {
 			'type': 'boolean',
-			'description': localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service."),
+			'markdownDescription':
+				!product.privacyStatementUrl ?
+					localize('telemetry.enableTelemetry', "Enable usage data and errors to be sent to a Microsoft online service.") :
+					localize('telemetry.enableTelemetryMd', "Enable usage data and errors to be sent to a Microsoft online service. Read our privacy statement [here]({0}).", product.privacyStatementUrl),
 			'default': true,
 			'tags': ['usesOnlineServices']
 		}

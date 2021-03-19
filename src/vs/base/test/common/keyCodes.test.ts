@@ -10,7 +10,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 suite('keyCodes', () => {
 
 	function testBinaryEncoding(expected: Keybinding | null, k: number, OS: OperatingSystem): void {
-		assert.deepEqual(createKeybinding(k, OS), expected);
+		assert.deepStrictEqual(createKeybinding(k, OS), expected);
 	}
 
 	test('MAC binary encoding', () => {

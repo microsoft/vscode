@@ -1,0 +1,30 @@
+{
+	"name": "Code - OSS",
+
+	// Image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
+	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-main",
+
+	"workspaceMount": "source=${localWorkspaceFolder},target=/home/node/workspace/vscode,type=bind,consistency=cached",
+	"workspaceFolder": "/home/node/workspace/vscode",
+	"overrideCommand": false,
+	"runArgs": [ "--init", "--security-opt", "seccomp=unconfined"],
+
+	"settings": {
+		"terminal.integrated.shell.linux": "/bin/bash",
+		"resmon.show.battery": false,
+		"resmon.show.cpufreq": false
+	},
+
+	// noVNC, VNC, debug ports
+	"forwardPorts": [6080, 5901, 9222],
+
+	"extensions": [
+		"dbaeumer.vscode-eslint",
+		"mutantdino.resourcemonitor"
+	],
+
+	// Optionally loads a cached yarn install for the repo
+	"postCreateCommand": ".devcontainer/cache/restore-diff.sh",
+
+	"remoteUser": "node"
+}

@@ -56,6 +56,10 @@
 	overflow: hidden;
 }
 
+.monaco-tl-twistie::before {
+	border-radius: 20px;
+}
+
 .monaco-tl-twistie.collapsed::before {
 	transform: rotate(-90deg);
 }

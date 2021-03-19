@@ -103,7 +103,7 @@ declare module "vinyl" {
 
 	/**
 	 * This is required as per:
-	 * https://github.com/Microsoft/TypeScript/issues/5073
+	 * https://github.com/microsoft/TypeScript/issues/5073
 	 */
 	namespace File {}
 

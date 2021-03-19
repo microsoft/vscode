@@ -78,9 +78,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 				}
 
 				const result = await provider.provideTimeline(uri, options, token);
-				// Intentional == we don't know how a provider will respond
-				// eslint-disable-next-line eqeqeq
-				if (result == null) {
+				if (result === undefined || result === null) {
 					return undefined;
 				}
 

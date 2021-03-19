@@ -8,10 +8,8 @@ import * as paths from 'vs/base/common/path';
 import { URI, uriToFsPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
-import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
-import { TernarySearchTree } from 'vs/base/common/map';
 
 export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
@@ -44,8 +42,8 @@ export interface IExtUri {
 	/**
 	 * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
 	 *
-	 * @param base A uri which is "longer"
-	 * @param parentCandidate A uri which is "shorter" then `base`
+	 * @param base A uri which is "longer" or at least same length as `parentCandidate`
+	 * @param parentCandidate A uri which is "shorter" or up to same length as `base`
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
 	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
@@ -57,6 +55,11 @@ export interface IExtUri {
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
 	getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
+
+	/**
+	 * Whether the casing of the path-component of the uri should be ignored.
+	 */
+	ignorePathCasing(uri: URI): boolean;
 
 	// --- path math
 
@@ -159,6 +162,10 @@ export class ExtUri implements IExtUri {
 			path: this._ignorePathCasing(uri) ? uri.path.toLowerCase() : undefined,
 			fragment: ignoreFragment ? null : undefined
 		}).toString();
+	}
+
+	ignorePathCasing(uri: URI): boolean {
+		return this._ignorePathCasing(uri);
 	}
 
 	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
@@ -313,6 +320,7 @@ export class ExtUri implements IExtUri {
 	}
 }
 
+
 /**
  * Unbiased utility that takes uris "as they are". This means it can be interchanged with
  * uri#toString() usages. The following is true
@@ -323,36 +331,52 @@ export class ExtUri implements IExtUri {
 export const extUri = new ExtUri(() => false);
 
 /**
- * BIASED utility that always ignores the casing of uris path. ONLY use these util if you
+ * BIASED utility that _mostly_ ignored the case of urs paths. ONLY use this util if you
  * understand what you are doing.
  *
- * Note that `IUriIdentityService#extUri` is a better replacement for this because that utility
- * knows when path casing matters and when not.
+ * This utility is INCOMPATIBLE with `uri.toString()`-usages and both CANNOT be used interchanged.
+ *
+ * When dealing with uris from files or documents, `extUri` (the unbiased friend)is sufficient
+ * because those uris come from a "trustworthy source". When creating unknown uris it's always
+ * better to use `IUriIdentityService` which exposes an `IExtUri`-instance which knows when path
+ * casing matters.
+ */
+export const extUriBiasedIgnorePathCase = new ExtUri(uri => {
+	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
+	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
+	return uri.scheme === Schemas.file ? !isLinux : true;
+});
+
+
+/**
+ * BIASED utility that always ignores the casing of uris paths. ONLY use this util if you
+ * understand what you are doing.
+ *
+ * This utility is INCOMPATIBLE with `uri.toString()`-usages and both CANNOT be used interchanged.
+ *
+ * When dealing with uris from files or documents, `extUri` (the unbiased friend)is sufficient
+ * because those uris come from a "trustworthy source". When creating unknown uris it's always
+ * better to use `IUriIdentityService` which exposes an `IExtUri`-instance which knows when path
+ * casing matters.
  */
 export const extUriIgnorePathCase = new ExtUri(_ => true);
 
-const exturiBiasedIgnorePathCase = new ExtUri(uri => {
-	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
-	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
-	return uri && uri.scheme === Schemas.file ? !isLinux : true;
-});
-
-export const isEqual = exturiBiasedIgnorePathCase.isEqual.bind(exturiBiasedIgnorePathCase);
-export const isEqualOrParent = exturiBiasedIgnorePathCase.isEqualOrParent.bind(exturiBiasedIgnorePathCase);
-export const getComparisonKey = exturiBiasedIgnorePathCase.getComparisonKey.bind(exturiBiasedIgnorePathCase);
-export const basenameOrAuthority = exturiBiasedIgnorePathCase.basenameOrAuthority.bind(exturiBiasedIgnorePathCase);
-export const basename = exturiBiasedIgnorePathCase.basename.bind(exturiBiasedIgnorePathCase);
-export const extname = exturiBiasedIgnorePathCase.extname.bind(exturiBiasedIgnorePathCase);
-export const dirname = exturiBiasedIgnorePathCase.dirname.bind(exturiBiasedIgnorePathCase);
+export const isEqual = extUri.isEqual.bind(extUri);
+export const isEqualOrParent = extUri.isEqualOrParent.bind(extUri);
+export const getComparisonKey = extUri.getComparisonKey.bind(extUri);
+export const basenameOrAuthority = extUri.basenameOrAuthority.bind(extUri);
+export const basename = extUri.basename.bind(extUri);
+export const extname = extUri.extname.bind(extUri);
+export const dirname = extUri.dirname.bind(extUri);
 export const joinPath = extUri.joinPath.bind(extUri);
-export const normalizePath = exturiBiasedIgnorePathCase.normalizePath.bind(exturiBiasedIgnorePathCase);
-export const relativePath = exturiBiasedIgnorePathCase.relativePath.bind(exturiBiasedIgnorePathCase);
-export const resolvePath = exturiBiasedIgnorePathCase.resolvePath.bind(exturiBiasedIgnorePathCase);
-export const isAbsolutePath = exturiBiasedIgnorePathCase.isAbsolutePath.bind(exturiBiasedIgnorePathCase);
-export const isEqualAuthority = exturiBiasedIgnorePathCase.isEqualAuthority.bind(exturiBiasedIgnorePathCase);
-export const hasTrailingPathSeparator = exturiBiasedIgnorePathCase.hasTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
-export const removeTrailingPathSeparator = exturiBiasedIgnorePathCase.removeTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
-export const addTrailingPathSeparator = exturiBiasedIgnorePathCase.addTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
+export const normalizePath = extUri.normalizePath.bind(extUri);
+export const relativePath = extUri.relativePath.bind(extUri);
+export const resolvePath = extUri.resolvePath.bind(extUri);
+export const isAbsolutePath = extUri.isAbsolutePath.bind(extUri);
+export const isEqualAuthority = extUri.isEqualAuthority.bind(extUri);
+export const hasTrailingPathSeparator = extUri.hasTrailingPathSeparator.bind(extUri);
+export const removeTrailingPathSeparator = extUri.removeTrailingPathSeparator.bind(extUri);
+export const addTrailingPathSeparator = extUri.addTrailingPathSeparator.bind(extUri);
 
 //#endregion
 
@@ -410,42 +434,15 @@ export namespace DataUri {
 	}
 }
 
-export class ResourceGlobMatcher {
-
-	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }> = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>();
-
-	constructor(
-		globalExpression: IExpression,
-		rootExpressions: { root: URI, expression: IExpression }[]
-	) {
-		this.globalExpression = parse(globalExpression);
-		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
-		}
-	}
-
-	matches(resource: URI): boolean {
-		const rootExpression = this.expressionsByRoot.findSubstr(resource);
-		if (rootExpression) {
-			const path = relativePath(rootExpression.root, resource);
-			if (path && !!rootExpression.expression(path)) {
-				return true;
-			}
-		}
-		return !!this.globalExpression(resource.path);
-	}
-}
-
-export function toLocalResource(resource: URI, authority: string | undefined): URI {
+export function toLocalResource(resource: URI, authority: string | undefined, localScheme: string): URI {
 	if (authority) {
 		let path = resource.path;
 		if (path && path[0] !== paths.posix.sep) {
 			path = paths.posix.sep + path;
 		}
 
-		return resource.with({ scheme: Schemas.vscodeRemote, authority, path });
+		return resource.with({ scheme: localScheme, authority, path });
 	}
 
-	return resource.with({ scheme: Schemas.file });
+	return resource.with({ scheme: localScheme });
 }

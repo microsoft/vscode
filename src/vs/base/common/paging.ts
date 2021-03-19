@@ -187,18 +187,3 @@ export function mapPager<T, R>(pager: IPager<T>, fn: (t: T) => R): IPager<R> {
 		getPage: (pageIndex, token) => pager.getPage(pageIndex, token).then(r => r.map(fn))
 	};
 }
-
-/**
- * Merges two pagers.
- */
-export function mergePagers<T>(one: IPager<T>, other: IPager<T>): IPager<T> {
-	return {
-		firstPage: [...one.firstPage, ...other.firstPage],
-		total: one.total + other.total,
-		pageSize: one.pageSize + other.pageSize,
-		getPage(pageIndex: number, token): Promise<T[]> {
-			return Promise.all([one.getPage(pageIndex, token), other.getPage(pageIndex, token)])
-				.then(([onePage, otherPage]) => [...onePage, ...otherPage]);
-		}
-	};
-}

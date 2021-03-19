@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as objects from 'vs/base/common/objects';
+import * as os from 'os';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
+import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IDiagnosticsService, PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { URI } from 'vs/base/common/uri';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { FileAccess } from 'vs/base/common/network';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -37,11 +38,13 @@ export class IssueMainService implements ICommonIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.registerListeners();
 	}
@@ -52,7 +55,7 @@ export class IssueMainService implements ICommonIssueService {
 				.then(result => {
 					const [info, remoteData] = result;
 					this.diagnosticsService.getSystemInfo(info, remoteData).then(msg => {
-						event.sender.send('vscode:issueSystemInfoResponse', msg);
+						this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
 					});
 				});
 		});
@@ -83,7 +86,7 @@ export class IssueMainService implements ICommonIssueService {
 				this.logService.error(`Listing processes failed: ${e}`);
 			}
 
-			event.sender.send('vscode:listProcessesResponse', processes);
+			this.safeSend(event, 'vscode:listProcessesResponse', processes);
 		});
 
 		ipcMain.on('vscode:issueReporterClipboard', (event: IpcMainEvent) => {
@@ -99,14 +102,14 @@ export class IssueMainService implements ICommonIssueService {
 			if (this._issueWindow) {
 				this.dialogMainService.showMessageBox(messageOptions, this._issueWindow)
 					.then(result => {
-						event.sender.send('vscode:issueReporterClipboardResponse', result.response === 0);
+						this.safeSend(event, 'vscode:issueReporterClipboardResponse', result.response === 0);
 					});
 			}
 		});
 
 		ipcMain.on('vscode:issuePerformanceInfoRequest', (event: IpcMainEvent) => {
 			this.getPerformanceInfo().then(msg => {
-				event.sender.send('vscode:issuePerformanceInfoResponse', msg);
+				this.safeSend(event, 'vscode:issuePerformanceInfoResponse', msg);
 			});
 		});
 
@@ -154,7 +157,7 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		ipcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
-			shell.openExternal(arg);
+			this.nativeHostMainService.openExternal(undefined, arg);
 		});
 
 		ipcMain.on('vscode:closeIssueReporter', (event: IpcMainEvent) => {
@@ -171,116 +174,129 @@ export class IssueMainService implements ICommonIssueService {
 
 		ipcMain.on('vscode:windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
-				event.sender.send('vscode:windowsInfoResponse', info.windows);
+				this.safeSend(event, 'vscode:windowsInfoResponse', info.windows);
 			});
 		});
 	}
 
-	openReporter(data: IssueReporterData): Promise<void> {
-		return new Promise(_ => {
-			if (!this._issueWindow) {
-				this._issueParentWindow = BrowserWindow.getFocusedWindow();
-				if (this._issueParentWindow) {
-					const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
-
-					this._issueWindow = new BrowserWindow({
-						fullscreen: false,
-						width: position.width,
-						height: position.height,
-						minWidth: 300,
-						minHeight: 200,
-						x: position.x,
-						y: position.y,
-						title: localize('issueReporter', "Issue Reporter"),
-						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
-						webPreferences: {
-							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
-							nodeIntegration: true,
-							enableWebSQL: false
-						}
-					});
-
-					this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
-
-					// Modified when testing UI
-					const features: IssueReporterFeatures = {};
-
-					this.logService.trace('issueService#openReporter: opening issue reporter');
-					this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
-
-					this._issueWindow.on('close', () => this._issueWindow = null);
-
-					this._issueParentWindow.on('closed', () => {
-						if (this._issueWindow) {
-							this._issueWindow.close();
-							this._issueWindow = null;
-						}
-					});
-				}
-			}
-
-			if (this._issueWindow) {
-				this._issueWindow.focus();
-			}
-		});
+	private safeSend(event: IpcMainEvent, channel: string, ...args: unknown[]): void {
+		if (!event.sender.isDestroyed()) {
+			event.sender.send(channel, ...args);
+		}
 	}
 
-	openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-		return new Promise(_ => {
-			// Create as singleton
-			if (!this._processExplorerWindow) {
-				this._processExplorerParentWindow = BrowserWindow.getFocusedWindow();
-				if (this._processExplorerParentWindow) {
-					const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 500);
-					this._processExplorerWindow = new BrowserWindow({
-						skipTaskbar: true,
-						resizable: true,
-						fullscreen: false,
-						width: position.width,
-						height: position.height,
-						minWidth: 300,
-						minHeight: 200,
-						x: position.x,
-						y: position.y,
-						backgroundColor: data.styles.backgroundColor,
-						title: localize('processExplorer', "Process Explorer"),
-						webPreferences: {
-							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
-							nodeIntegration: true,
-							enableWebSQL: false
-						}
-					});
+	async openReporter(data: IssueReporterData): Promise<void> {
+		if (!this._issueWindow) {
+			this._issueParentWindow = BrowserWindow.getFocusedWindow();
+			if (this._issueParentWindow) {
+				const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
 
-					this._processExplorerWindow.setMenuBarVisibility(false);
+				this._issueWindow = new BrowserWindow({
+					fullscreen: false,
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					title: localize('issueReporter', "Issue Reporter"),
+					backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
+					webPreferences: {
+						preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+						v8CacheOptions: 'bypassHeatCheck',
+						enableWebSQL: false,
+						enableRemoteModule: false,
+						spellcheck: false,
+						nativeWindowOpen: true,
+						zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+						sandbox: true,
+						contextIsolation: true
+					}
+				});
 
-					const windowConfiguration = {
-						appRoot: this.environmentService.appRoot,
-						nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
-						windowId: this._processExplorerWindow.id,
-						userEnv: this.userEnv,
-						machineId: this.machineId,
-						data
-					};
+				this._issueWindow.setMenuBarVisibility(false); // workaround for now, until a menu is implemented
 
-					this._processExplorerWindow.loadURL(
-						toLauchUrl('vs/code/electron-browser/processExplorer/processExplorer.html', windowConfiguration));
+				// Modified when testing UI
+				const features: IssueReporterFeatures = {};
 
-					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
+				this.logService.trace('issueService#openReporter: opening issue reporter');
+				this._issueWindow.loadURL(this.getIssueReporterPath(data, features));
 
-					this._processExplorerParentWindow.on('close', () => {
-						if (this._processExplorerWindow) {
-							this._processExplorerWindow.close();
-							this._processExplorerWindow = null;
-						}
-					});
-				}
+				this._issueWindow.on('close', () => this._issueWindow = null);
+
+				this._issueParentWindow.on('closed', () => {
+					if (this._issueWindow) {
+						this._issueWindow.close();
+						this._issueWindow = null;
+					}
+				});
 			}
+		}
 
-			// Focus
-			if (this._processExplorerWindow) {
-				this._processExplorerWindow.focus();
+		if (this._issueWindow) {
+			this._issueWindow.focus();
+		}
+	}
+
+	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
+		// Create as singleton
+		if (!this._processExplorerWindow) {
+			this._processExplorerParentWindow = BrowserWindow.getFocusedWindow();
+			if (this._processExplorerParentWindow) {
+				const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 500);
+				this._processExplorerWindow = new BrowserWindow({
+					skipTaskbar: true,
+					resizable: true,
+					fullscreen: false,
+					width: position.width,
+					height: position.height,
+					minWidth: 300,
+					minHeight: 200,
+					x: position.x,
+					y: position.y,
+					backgroundColor: data.styles.backgroundColor,
+					title: localize('processExplorer', "Process Explorer"),
+					webPreferences: {
+						preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+						v8CacheOptions: 'bypassHeatCheck',
+						enableWebSQL: false,
+						enableRemoteModule: false,
+						spellcheck: false,
+						nativeWindowOpen: true,
+						zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+						sandbox: true,
+						contextIsolation: true
+					}
+				});
+
+				this._processExplorerWindow.setMenuBarVisibility(false);
+
+				const windowConfiguration = {
+					appRoot: this.environmentMainService.appRoot,
+					windowId: this._processExplorerWindow.id,
+					userEnv: this.userEnv,
+					machineId: this.machineId,
+					data
+				};
+
+				this._processExplorerWindow.loadURL(
+					toWindowUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
+
+				this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
+
+				this._processExplorerParentWindow.on('close', () => {
+					if (this._processExplorerWindow) {
+						this._processExplorerWindow.close();
+						this._processExplorerWindow = null;
+					}
+				});
 			}
-		});
+		}
+
+		// Focus
+		if (this._processExplorerWindow) {
+			this._processExplorerWindow.focus();
+		}
 	}
 
 	public async getSystemStatus(): Promise<string> {
@@ -382,22 +398,35 @@ export class IssueMainService implements ICommonIssueService {
 		}
 
 		const windowConfiguration = {
-			appRoot: this.environmentService.appRoot,
-			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
+			appRoot: this.environmentMainService.appRoot,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			userEnv: this.userEnv,
 			data,
-			features
+			features,
+			disableExtensions: this.environmentMainService.disableExtensions,
+			os: {
+				type: os.type(),
+				arch: os.arch(),
+				release: os.release(),
+			},
+			product: {
+				nameShort: this.productService.nameShort,
+				version: !!this.productService.darwinUniversalAssetId ? `${this.productService.version} (Universal)` : this.productService.version,
+				commit: this.productService.commit,
+				date: this.productService.date,
+				reportIssueUrl: this.productService.reportIssueUrl,
+				reportMarketplaceIssueUrl: this.productService.reportMarketplaceIssueUrl
+			}
 		};
 
-		return toLauchUrl('vs/code/electron-browser/issue/issueReporter.html', windowConfiguration);
+		return toWindowUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration);
 	}
 }
 
-function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
+function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): string {
 	const environment = parseArgs(process.argv, OPTIONS);
-	const config = objects.assign(environment, windowConfiguration);
+	const config = Object.assign(environment, windowConfiguration);
 	for (const keyValue of Object.keys(config)) {
 		const key = keyValue as keyof typeof config;
 		if (config[key] === undefined || config[key] === null || config[key] === '') {
@@ -405,5 +434,8 @@ function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 		}
 	}
 
-	return `${require.toUrl(pathToHtml)}?config=${encodeURIComponent(JSON.stringify(config))}`;
+	return FileAccess
+		.asBrowserUri(modulePathToHtml, require, true)
+		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+		.toString(true);
 }

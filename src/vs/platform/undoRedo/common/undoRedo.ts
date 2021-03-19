@@ -18,6 +18,10 @@ export interface IResourceUndoRedoElement {
 	readonly type: UndoRedoElementType.Resource;
 	readonly resource: URI;
 	readonly label: string;
+	/**
+	 * Show a message to the user confirming when trying to undo this element
+	 */
+	readonly confirmBeforeUndo?: boolean;
 	undo(): Promise<void> | void;
 	redo(): Promise<void> | void;
 }
@@ -26,9 +30,17 @@ export interface IWorkspaceUndoRedoElement {
 	readonly type: UndoRedoElementType.Workspace;
 	readonly resources: readonly URI[];
 	readonly label: string;
+	/**
+	 * Show a message to the user confirming when trying to undo this element
+	 */
+	readonly confirmBeforeUndo?: boolean;
 	undo(): Promise<void> | void;
 	redo(): Promise<void> | void;
-	split(): IResourceUndoRedoElement[];
+
+	/**
+	 * If implemented, indicates that this undo/redo element can be split into multiple per resource elements.
+	 */
+	split?(): IResourceUndoRedoElement[];
 
 	/**
 	 * If implemented, will be invoked before calling `undo()` or `redo()`.
@@ -46,34 +58,94 @@ export interface IPastFutureElements {
 }
 
 export interface UriComparisonKeyComputer {
-	/**
-	 * Return `null` if you don't own this URI.
-	 */
-	getComparisonKey(uri: URI): string | null;
+	getComparisonKey(uri: URI): string;
+}
+
+export class ResourceEditStackSnapshot {
+	constructor(
+		public readonly resource: URI,
+		public readonly elements: number[]
+	) { }
+}
+
+export class UndoRedoGroup {
+	private static _ID = 0;
+
+	public readonly id: number;
+	private order: number;
+
+	constructor() {
+		this.id = UndoRedoGroup._ID++;
+		this.order = 1;
+	}
+
+	public nextOrder(): number {
+		if (this.id === 0) {
+			return 0;
+		}
+		return this.order++;
+	}
+
+	public static None = new UndoRedoGroup();
+}
+
+export class UndoRedoSource {
+	private static _ID = 0;
+
+	public readonly id: number;
+	private order: number;
+
+	constructor() {
+		this.id = UndoRedoSource._ID++;
+		this.order = 1;
+	}
+
+	public nextOrder(): number {
+		if (this.id === 0) {
+			return 0;
+		}
+		return this.order++;
+	}
+
+	public static None = new UndoRedoSource();
 }
 
 export interface IUndoRedoService {
 	readonly _serviceBrand: undefined;
 
-	registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
+	/**
+	 * Register an URI -> string hasher.
+	 * This is useful for making multiple URIs share the same undo-redo stack.
+	 */
+	registerUriComparisonKeyComputer(scheme: string, uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
 
+	/**
+	 * Get the hash used internally for a certain URI.
+	 * This uses any registered `UriComparisonKeyComputer`.
+	 */
 	getUriComparisonKey(resource: URI): string;
 
 	/**
 	 * Add a new element to the `undo` stack.
 	 * This will destroy the `redo` stack.
 	 */
-	pushElement(element: IUndoRedoElement): void;
+	pushElement(element: IUndoRedoElement, group?: UndoRedoGroup, source?: UndoRedoSource): void;
 
 	/**
-	 * Get the last pushed element. If the last pushed element has been undone, returns null.
+	 * Get the last pushed element for a resource.
+	 * If the last pushed element has been undone, returns null.
 	 */
 	getLastElement(resource: URI): IUndoRedoElement | null;
 
+	/**
+	 * Get all the elements associated with a resource.
+	 * This includes the past and the future.
+	 */
 	getElements(resource: URI): IPastFutureElements;
 
-	hasElements(resource: URI): boolean;
-
+	/**
+	 * Validate or invalidate stack elements associated with a resource.
+	 */
 	setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void;
 
 	/**
@@ -81,9 +153,18 @@ export interface IUndoRedoService {
 	 */
 	removeElements(resource: URI): void;
 
-	canUndo(resource: URI): boolean;
-	undo(resource: URI): Promise<void> | void;
+	/**
+	 * Create a snapshot of the current elements on the undo-redo stack for a resource.
+	 */
+	createSnapshot(resource: URI): ResourceEditStackSnapshot;
+	/**
+	 * Attempt (as best as possible) to restore a certain snapshot previously created with `createSnapshot` for a resource.
+	 */
+	restoreSnapshot(snapshot: ResourceEditStackSnapshot): void;
 
-	canRedo(resource: URI): boolean;
-	redo(resource: URI): Promise<void> | void;
+	canUndo(resource: URI | UndoRedoSource): boolean;
+	undo(resource: URI | UndoRedoSource): Promise<void> | void;
+
+	canRedo(resource: URI | UndoRedoSource): boolean;
+	redo(resource: URI | UndoRedoSource): Promise<void> | void;
 }

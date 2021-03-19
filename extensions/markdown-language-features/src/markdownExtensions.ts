@@ -70,7 +70,7 @@ export namespace MarkdownContributions {
 
 		const previewStyles = getContributedStyles(contributions, extension);
 		const previewScripts = getContributedScripts(contributions, extension);
-		const previewResourceRoots = previewStyles.length || previewScripts.length ? [vscode.Uri.file(extension.extensionPath)] : [];
+		const previewResourceRoots = previewStyles.length || previewScripts.length ? [extension.extensionUri] : [];
 		const markdownItPlugins = getContributedMarkdownItPlugins(contributions, extension);
 
 		return {

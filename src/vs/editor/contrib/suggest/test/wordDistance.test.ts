@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
+import { mock } from 'vs/base/test/common/mock';
 import { EditorWorkerHost, EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -81,9 +81,14 @@ suite('suggest, word distance', function () {
 
 		distance = await WordDistance.create(service, editor);
 
+		disposables.add(service);
 		disposables.add(mode);
 		disposables.add(model);
 		disposables.add(editor);
+	});
+
+	teardown(function () {
+		disposables.clear();
 	});
 
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {

@@ -5,16 +5,35 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
-import { ISpliceable } from 'vs/base/common/sequence';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel, IObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
-import { IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { Event } from 'vs/base/common/event';
 import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { memoize } from 'vs/base/common/decorators';
+import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 
 export interface IObjectTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
+}
+
+export interface IObjectTreeSetChildrenOptions<T> {
+
+	/**
+	 * If set, child updates will recurse the given number of levels even if
+	 * items in the splice operation are unchanged. `Infinity` is a valid value.
+	 */
+	readonly diffDepth?: number;
+
+	/**
+	 * Identity provider used to optimize splice() calls in the IndexTree. If
+	 * this is not present, optimized splicing is not enabled.
+	 *
+	 * Warning: if this is present, calls to `setChildren()` will not replace
+	 * or update nodes if their identity is the same, even if the elements are
+	 * different. For this, you should call `rerender()`.
+	 */
+	readonly diffIdentityProvider?: IIdentityProvider<T>;
 }
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
@@ -33,8 +52,8 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
 
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty()): void {
-		this.model.setChildren(element, children);
+	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
+		this.model.setChildren(element, children, options);
 	}
 
 	rerender(element?: T): void {
@@ -46,7 +65,11 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		this.model.rerender(element);
 	}
 
-	resort(element: T, recursive = true): void {
+	updateElementHeight(element: T, height: number): void {
+		this.model.updateElementHeight(element, height);
+	}
+
+	resort(element: T | null, recursive = true): void {
 		this.model.resort(element, recursive);
 	}
 
@@ -54,7 +77,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		return this.model.has(element);
 	}
 
-	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: IObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new ObjectTreeModel(user, view, options);
 	}
 }
@@ -124,10 +147,11 @@ class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateDat
 		this.renderer.disposeTemplate(templateData.data);
 	}
 
-	renderTwistie?(element: T, twistieElement: HTMLElement): void {
+	renderTwistie?(element: T, twistieElement: HTMLElement): boolean {
 		if (this.renderer.renderTwistie) {
-			this.renderer.renderTwistie(element, twistieElement);
+			return this.renderer.renderTwistie(element, twistieElement);
 		}
+		return false;
 	}
 }
 
@@ -184,11 +208,11 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options));
 	}
 
-	setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty()): void {
-		this.model.setChildren(element, children);
+	setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(), options?: IObjectTreeSetChildrenOptions<T>): void {
+		this.model.setChildren(element, children, options);
 	}
 
-	protected createModel(user: string, view: ISpliceable<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
+	protected createModel(user: string, view: IList<ITreeNode<T, TFilterData>>, options: ICompressibleObjectTreeOptions<T, TFilterData>): ITreeModel<T | null, TFilterData, T | null> {
 		return new CompressibleObjectTreeModel(user, view, options);
 	}
 

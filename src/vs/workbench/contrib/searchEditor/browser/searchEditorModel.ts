@@ -34,7 +34,7 @@ export class SearchEditorModel {
 		@IModeService private readonly modeService: IModeService) {
 		this.onModelResolved = new Promise<ITextModel>(resolve => this.resolveContents = resolve);
 		this.onModelResolved.then(model => this.cachedContentsModel = model);
-		this.ongoingResolve = backupService.resolve(existingData.backingUri ?? modelUri)
+		this.ongoingResolve = backupService.resolve(modelUri)
 			.then(backup => modelService.getModel(modelUri) ?? (backup ? modelService.createModel(backup.value, modeService.create('search-result'), modelUri) : undefined))
 			.then(model => { if (model) { this.resolveContents(model); } });
 	}

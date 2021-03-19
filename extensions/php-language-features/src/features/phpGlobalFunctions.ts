@@ -1416,7 +1416,7 @@ export const globalfunctions: IEntries = {
 	},
 	date_format: {
 		description: 'Returns date formatted according to given format',
-		signature: '( string $format , DateTimeInterface $object ): string'
+		signature: '( DateTimeInterface $object , string $format ): string'
 	},
 	date_offset_get: {
 		description: 'Returns the timezone offset',

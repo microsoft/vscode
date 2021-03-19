@@ -17,7 +17,7 @@ class GitHubCredentialProvider implements CredentialsProvider {
 		}
 
 		const session = await getSession();
-		return { username: session.account.id, password: await session.getAccessToken() };
+		return { username: session.account.id, password: session.accessToken };
 	}
 }
 

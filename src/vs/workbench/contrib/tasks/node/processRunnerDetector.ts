@@ -218,7 +218,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private resolveCommandOptions(workspaceFolder: IWorkspaceFolder, options: CommandOptions): CommandOptions {
-		// TODO@Dirk adopt new configuration resolver service https://github.com/Microsoft/vscode/issues/31365
+		// TODO@Dirk adopt new configuration resolver service https://github.com/microsoft/vscode/issues/31365
 		let result = Objects.deepClone(options);
 		if (result.cwd) {
 			result.cwd = this.configurationResolverService.resolve(workspaceFolder, result.cwd);
@@ -230,7 +230,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGulp(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult | null> {
-		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('gulpfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('gulpfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'gulp', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -240,7 +240,7 @@ export class ProcessRunnerDetector {
 	}
 
 	private tryDetectGrunt(workspaceFolder: IWorkspaceFolder, list: boolean): Promise<DetectorResult | null> {
-		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('Gruntfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('Gruntfile.js'))).then((stat) => { // TODO@Dirk (https://github.com/microsoft/vscode/issues/29454)
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
 			return this.runDetection(process, 'grunt', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
@@ -255,10 +255,10 @@ export class ProcessRunnerDetector {
 			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });
 			return this.runDetection(process, 'jake', true, config.matcher, ProcessRunnerDetector.DefaultProblemMatchers, list);
 		};
-		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('Jakefile'))).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+		return Promise.resolve(this.fileService.resolve(workspaceFolder.toResource('Jakefile'))).then((stat) => { // TODO@Dirk (https://github.com/microsoft/vscode/issues/29454)
 			return run();
 		}, (err: any) => {
-			return this.fileService.resolve(workspaceFolder.toResource('Jakefile.js')).then((stat) => { // TODO@Dirk (https://github.com/Microsoft/vscode/issues/29454)
+			return this.fileService.resolve(workspaceFolder.toResource('Jakefile.js')).then((stat) => { // TODO@Dirk (https://github.com/microsoft/vscode/issues/29454)
 				return run();
 			}, (err: any) => {
 				return null;
@@ -363,7 +363,7 @@ export class ProcessRunnerDetector {
 		if (taskName === build) {
 			taskInfo.index = index;
 			taskInfo.exact = 4;
-		} else if ((Strings.startsWith(taskName, build) || Strings.endsWith(taskName, build)) && taskInfo.exact < 4) {
+		} else if ((taskName.startsWith(build) || taskName.endsWith(build)) && taskInfo.exact < 4) {
 			taskInfo.index = index;
 			taskInfo.exact = 3;
 		} else if (taskName.indexOf(build) !== -1 && taskInfo.exact < 3) {
@@ -379,7 +379,7 @@ export class ProcessRunnerDetector {
 		if (taskName === test) {
 			taskInfo.index = index;
 			taskInfo.exact = 3;
-		} else if ((Strings.startsWith(taskName, test) || Strings.endsWith(taskName, test)) && taskInfo.exact < 3) {
+		} else if ((taskName.startsWith(test) || taskName.endsWith(test)) && taskInfo.exact < 3) {
 			taskInfo.index = index;
 			taskInfo.exact = 2;
 		} else if (taskName.indexOf(test) !== -1 && taskInfo.exact < 2) {

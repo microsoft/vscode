@@ -6,7 +6,7 @@
 import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
 
 export const terminalConfiguration: IConfigurationNode = {
@@ -15,6 +15,11 @@ export const terminalConfiguration: IConfigurationNode = {
 	title: localize('terminalIntegratedConfigurationTitle', "Integrated Terminal"),
 	type: 'object',
 	properties: {
+		'terminal.integrated.sendKeybindingsToShell': {
+			markdownDescription: localize('terminal.integrated.sendKeybindingsToShell', "Dispatches most keybindings to the terminal instead of the workbench, overriding `#terminal.integrated.commandsToSkipShell#`, which can be used alternatively for fine tuning."),
+			type: 'boolean',
+			default: false
+		},
 		'terminal.integrated.automationShell.linux': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
@@ -75,6 +80,90 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: []
 		},
+		'terminal.integrated.profiles.windows': {
+			markdownDescription: localize({
+				key: 'terminal.integrated.profiles.windows',
+				comment: ['{0}, {1}, {2}, and {3} are the `source`, `pathOrPaths`, `profileName`, and optional `args` settings keys']
+			},
+				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1}, {2}, and optional {3}", '`source`', '`pathOrPaths`', '`profileName`', '`args`.'),
+			type: 'object',
+			default: {
+				'PowerShell': {
+					source: 'PowerShell'
+				},
+				'Git Bash': {
+					source: 'Git Bash'
+				},
+				'Command Prompt': {
+					path:
+						[
+							'${env:windir}\\Sysnative\\cmd.exe',
+							'${env:windir}\\System32\\cmd.exe'
+						],
+					args: []
+				},
+				'Windows PowerShell': {
+					comment: 'note that this will not be included in the quickSelect drop down if another version of powershell is installed',
+					path:
+						[
+							'${env:windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+							'${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+						],
+					args: []
+				},
+				'WSL': null,
+				'Cygwin': null
+			},
+		},
+		'terminal.integrated.profiles.osx': {
+			markdownDescription: localize({
+				key: 'terminal.integrated.profile.osx',
+				comment: ['{0}, {1}, and {2} are the `pathOrPaths`, `profileName`, and optional `args` settings keys']
+			},
+				"The osx shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`pathOrPaths`', '`profileName`', '`args`.'),
+			type: 'object',
+			default: {
+				'bash': {
+					pathOrPaths: 'bash'
+				},
+				'zsh': {
+					pathOrPaths: 'zsh'
+				},
+				'fish': {
+					pathOrPaths: 'fish'
+				},
+				'tmux': {
+					pathOrPaths: 'tmux'
+				}
+			},
+		},
+		'terminal.integrated.profiles.linux': {
+			markdownDescription: localize({
+				key: 'terminal.integrated.profile.linux',
+				comment: ['{0}, {1}, and {2} are the `pathOrPaths`, `profileName`, and optional `args` settings keys']
+			},
+				"The linux shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`pathOrPaths`', '`profileName`', '`args`.'),
+			type: 'object',
+			default: {
+				'bash': {
+					pathOrPaths: 'bash'
+				},
+				'zsh': {
+					pathOrPaths: 'zsh'
+				},
+				'fish': {
+					pathOrPaths: 'fish'
+				},
+				'tmux': {
+					pathOrPaths: 'tmux'
+				}
+			}
+		},
+		'terminal.integrated.quickLaunchWslProfiles': {
+			description: localize('terminal.integrated.quickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',
@@ -84,6 +173,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.macOptionClickForcesSelection', "Controls whether to force selection when using Option+click on macOS. This will force a regular (line) selection and disallow the use of column selection mode. This enables copying and pasting using the regular terminal selection, for example, when mouse mode is enabled in tmux."),
 			type: 'boolean',
 			default: false
+		},
+		'terminal.integrated.altClickMovesCursor': {
+			markdownDescription: localize('terminal.integrated.altClickMovesCursor', "If enabled, alt/option + click will reposition the prompt cursor to underneath the mouse when `#editor.multiCursorModifier#` is set to `'alt'` (the default value). This may not work reliably depending on your shell."),
+			type: 'boolean',
+			default: true
 		},
 		'terminal.integrated.copyOnSelection': {
 			description: localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
@@ -136,15 +230,41 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: 1
 		},
 		'terminal.integrated.fontWeight': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
+			'anyOf': [
+				{
+					type: 'number',
+					minimum: MINIMUM_FONT_WEIGHT,
+					maximum: MAXIMUM_FONT_WEIGHT,
+					errorMessage: localize('terminal.integrated.fontWeightError', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
+				},
+				{
+					type: 'string',
+					pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+				},
+				{
+					enum: SUGGESTIONS_FONT_WEIGHT,
+				}
+			],
+			description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 			default: 'normal'
 		},
 		'terminal.integrated.fontWeightBold': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
+			'anyOf': [
+				{
+					type: 'number',
+					minimum: MINIMUM_FONT_WEIGHT,
+					maximum: MAXIMUM_FONT_WEIGHT,
+					errorMessage: localize('terminal.integrated.fontWeightError', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
+				},
+				{
+					type: 'string',
+					pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+				},
+				{
+					enum: SUGGESTIONS_FONT_WEIGHT,
+				}
+			],
+			description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 			default: 'bold'
 		},
 		'terminal.integrated.cursorBlinking': {
@@ -185,7 +305,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
 				localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
 				localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
-				localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl) and this will only be enabled for new terminals (not hot swappable like the other renderers).")
+				localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl).")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
@@ -218,7 +338,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.commandsToSkipShell': {
-			markdownDescription: localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell and instead always be handled by Code. This allows the use of keybindings that would normally be consumed by the shell to act the same as when the terminal is not focused, for example ctrl+p to launch Quick Open. Use the command prefixed with `-` to remove default commands from the list.\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
+			markdownDescription: localize('terminal.integrated.commandsToSkipShell', "A set of command IDs whose keybindings will not be sent to the shell but instead always be handled by VS Code. This allows keybindings that would normally be consumed by the shell to act instead the same as when the terminal is not focused, for example `Ctrl+P` to launch Quick Open.\n\n&nbsp;\n\nMany commands are skipped by default. To override a default and pass that command's keybinding to the shell instead, add the command prefixed with the `-` character. For example add `-workbench.action.quickOpen` to allow `Ctrl+P` to reach the shell.\n\n&nbsp;\n\nThe following list of default skipped commands is truncated when viewed in Settings Editor. To see the full list, [open the default settings JSON](command:workbench.action.openRawDefaultSettings 'Open Default Settings (JSON)') and search for the first command from the list below.\n\n&nbsp;\n\nDefault Skipped Commands:\n\n{0}", DEFAULT_COMMANDS_TO_SKIP_SHELL.sort().map(command => `- ${command}`).join('\n')),
 			type: 'array',
 			items: {
 				type: 'string'
@@ -231,7 +351,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.allowMnemonics': {
-			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes will skip the shell when true. This does nothing on macOS."),
+			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (eg. alt+f) to trigger the open the menubar. Note that this will cause all alt keystrokes to skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
 			default: false
 		},
@@ -274,6 +394,11 @@ export const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.environmentChangesIndicator.warnonly', "Only show the warning indicator when a terminal's environment is 'stale', not the information indicator that shows a terminal has had its environment modified by an extension."),
 			],
 			default: 'warnonly'
+		},
+		'terminal.integrated.environmentChangesRelaunch': {
+			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),
+			type: 'boolean',
+			default: true
 		},
 		'terminal.integrated.showExitAlert': {
 			description: localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
@@ -325,11 +450,47 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.localEchoLatencyThreshold': {
+			description: localize('terminal.integrated.localEchoLatencyThreshold', "Experimental: length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
+			type: 'integer',
+			minimum: -1,
+			default: 30,
+		},
+		'terminal.integrated.localEchoExcludePrograms': {
+			description: localize('terminal.integrated.localEchoExcludePrograms', "Experimental: local echo will be disabled when any of these program names are found in the terminal title."),
+			type: 'array',
+			items: {
+				type: 'string',
+				uniqueItems: true
+			},
+			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
+		},
+		'terminal.integrated.localEchoStyle': {
+			description: localize('terminal.integrated.localEchoStyle', "Experimental: terminal style of locally echoed text; either a font style or an RGB color."),
+			default: 'dim',
+			oneOf: [
+				{
+					type: 'string',
+					default: 'dim',
+					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted'],
+				},
+				{
+					type: 'string',
+					format: 'color-hex',
+					default: '#ff0000',
+				}
+			]
+		},
+		'terminal.integrated.enablePersistentSessions': {
+			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions for the workspace across window reloads."),
+			type: 'boolean',
+			default: true
 		}
 	}
 };
 
-export function getTerminalShellConfiguration(getSystemShell?: (p: Platform) => string): IConfigurationNode {
+function getTerminalShellConfigurationStub(linux: string, osx: string, windows: string): IConfigurationNode {
 	return {
 		id: 'terminal',
 		order: 100,
@@ -337,29 +498,34 @@ export function getTerminalShellConfiguration(getSystemShell?: (p: Platform) => 
 		type: 'object',
 		properties: {
 			'terminal.integrated.shell.linux': {
-				markdownDescription:
-					getSystemShell
-						? localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Linux))
-						: localize('terminal.integrated.shell.linux.noDefault', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				markdownDescription: linux,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.osx': {
-				markdownDescription:
-					getSystemShell
-						? localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Mac))
-						: localize('terminal.integrated.shell.osx.noDefault', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				markdownDescription: osx,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.windows': {
-				markdownDescription:
-					getSystemShell
-						? localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", getSystemShell(Platform.Windows))
-						: localize('terminal.integrated.shell.windows.noDefault', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+				markdownDescription: windows,
 				type: ['string', 'null'],
 				default: null
 			}
 		}
 	};
+}
+
+export function getNoDefaultTerminalShellConfiguration(): IConfigurationNode {
+	return getTerminalShellConfigurationStub(
+		localize('terminal.integrated.shell.linux.noDefault', "The path of the shell that the terminal uses on Linux. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+		localize('terminal.integrated.shell.osx.noDefault', "The path of the shell that the terminal uses on macOS. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
+		localize('terminal.integrated.shell.windows.noDefault', "The path of the shell that the terminal uses on Windows. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."));
+}
+
+export async function getTerminalShellConfiguration(getSystemShell: (p: Platform) => Promise<string>): Promise<IConfigurationNode> {
+	return getTerminalShellConfigurationStub(
+		localize('terminal.integrated.shell.linux', "The path of the shell that the terminal uses on Linux (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Linux)),
+		localize('terminal.integrated.shell.osx', "The path of the shell that the terminal uses on macOS (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Mac)),
+		localize('terminal.integrated.shell.windows', "The path of the shell that the terminal uses on Windows (default: {0}). [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration).", await getSystemShell(Platform.Windows)));
 }

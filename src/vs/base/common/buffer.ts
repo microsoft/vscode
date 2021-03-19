@@ -34,8 +34,9 @@ export class VSBuffer {
 		return new VSBuffer(actual);
 	}
 
-	static fromString(source: string): VSBuffer {
-		if (hasBuffer) {
+	static fromString(source: string, options?: { dontUseNodeBuffer?: boolean; }): VSBuffer {
+		const dontUseNodeBuffer = options?.dontUseNodeBuffer || false;
+		if (!dontUseNodeBuffer && hasBuffer) {
 			return new VSBuffer(Buffer.from(source));
 		} else if (hasTextEncoder) {
 			if (!textEncoder) {
@@ -194,6 +195,8 @@ export interface VSBufferReadableStream extends streams.ReadableStream<VSBuffer>
 
 export interface VSBufferWriteableStream extends streams.WriteableStream<VSBuffer> { }
 
+export interface VSBufferReadableBufferedStream extends streams.ReadableBufferedStream<VSBuffer> { }
+
 export function readableToBuffer(readable: VSBufferReadable): VSBuffer {
 	return streams.consumeReadable<VSBuffer>(readable, chunks => VSBuffer.concat(chunks));
 }
@@ -204,6 +207,21 @@ export function bufferToReadable(buffer: VSBuffer): VSBufferReadable {
 
 export function streamToBuffer(stream: streams.ReadableStream<VSBuffer>): Promise<VSBuffer> {
 	return streams.consumeStream<VSBuffer>(stream, chunks => VSBuffer.concat(chunks));
+}
+
+export async function bufferedStreamToBuffer(bufferedStream: streams.ReadableBufferedStream<VSBuffer>): Promise<VSBuffer> {
+	if (bufferedStream.ended) {
+		return VSBuffer.concat(bufferedStream.buffer);
+	}
+
+	return VSBuffer.concat([
+
+		// Include already read chunks...
+		...bufferedStream.buffer,
+
+		// ...and all additional chunks
+		await streamToBuffer(bufferedStream.stream)
+	]);
 }
 
 export function bufferToStream(buffer: VSBuffer): streams.ReadableStream<VSBuffer> {

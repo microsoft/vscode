@@ -3,22 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as nls from 'vs/nls';
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import * as errors from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { originalFSPath } from 'vs/base/common/resources';
+import { joinPath, originalFSPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
@@ -32,7 +30,7 @@ interface IExtensionCacheData {
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
 	if (!_SystemExtensionsRoot) {
-		_SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+		_SystemExtensionsRoot = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 	}
 	return _SystemExtensionsRoot;
 }
@@ -40,7 +38,7 @@ function getSystemExtensionsRoot(): string {
 let _ExtraDevSystemExtensionsRoot: string | null = null;
 function getExtraDevSystemExtensionsRoot(): string {
 	if (!_ExtraDevSystemExtensionsRoot) {
-		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
+		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions'));
 	}
 	return _ExtraDevSystemExtensionsRoot;
 }
@@ -54,9 +52,10 @@ export class CachedExtensionScanner {
 
 	constructor(
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IHostService private readonly _hostService: IHostService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
 			this._scannedExtensionsResolve = resolve;
@@ -68,8 +67,8 @@ export class CachedExtensionScanner {
 	public async scanSingleExtension(path: string, isBuiltin: boolean, log: ILog): Promise<IExtensionDescription | null> {
 		const translations = await this.translationConfig;
 
-		const version = product.version;
-		const commit = product.commit;
+		const version = this._productService.version;
+		const commit = this._productService.commit;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;
 		const input = new ExtensionScannerInput(version, commit, locale, devMode, path, isBuiltin, false, translations);
@@ -79,7 +78,7 @@ export class CachedExtensionScanner {
 	public async startScanningExtensions(log: ILog): Promise<void> {
 		try {
 			const translations = await this.translationConfig;
-			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, log, translations);
+			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, this._productService, log, translations);
 
 			let result = new Map<string, IExtensionDescription>();
 			system.forEach((systemExtension) => {
@@ -152,7 +151,7 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			const cacheRawContents = await pfs.readFile(cacheFile, 'utf8');
+			const cacheRawContents = await fs.promises.readFile(cacheFile, 'utf8');
 			return JSON.parse(cacheRawContents);
 		} catch (err) {
 			// That's ok...
@@ -166,7 +165,7 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			await pfs.mkdirp(cacheFolder);
+			await fs.promises.mkdir(cacheFolder, { recursive: true });
 		} catch (err) {
 			// That's ok...
 		}
@@ -185,7 +184,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			const folderStat = await pfs.stat(input.absoluteFolderPath);
+			const folderStat = await fs.promises.stat(input.absoluteFolderPath);
 			input.mtime = folderStat.mtime.getTime();
 		} catch (err) {
 			// That's ok...
@@ -225,7 +224,7 @@ export class CachedExtensionScanner {
 	private static async _readTranslationConfig(): Promise<Translations> {
 		if (platform.translationsConfigFile) {
 			try {
-				const content = await pfs.readFile(platform.translationsConfigFile, 'utf8');
+				const content = await fs.promises.readFile(platform.translationsConfigFile, 'utf8');
 				return JSON.parse(content) as Translations;
 			} catch (err) {
 				// no problemo
@@ -239,12 +238,13 @@ export class CachedExtensionScanner {
 		notificationService: INotificationService,
 		environmentService: INativeWorkbenchEnvironmentService,
 		extensionEnablementService: IWorkbenchExtensionEnablementService,
+		productService: IProductService,
 		log: ILog,
 		translations: Translations
 	): Promise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 
-		const version = product.version;
-		const commit = product.commit;
+		const version = productService.version;
+		const commit = productService.commit;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;
 
@@ -260,10 +260,10 @@ export class CachedExtensionScanner {
 		let finalBuiltinExtensions: Promise<IExtensionDescription[]> = builtinExtensions;
 
 		if (devMode) {
-			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(product.builtInExtensions || []);
+			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(productService.builtInExtensions || []);
 
-			const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
-			const controlFile = pfs.readFile(controlFilePath, 'utf8')
+			const controlFilePath = joinPath(environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
+			const controlFile = fs.promises.readFile(controlFilePath, 'utf8')
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
 			const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
@@ -274,18 +274,14 @@ export class CachedExtensionScanner {
 			finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
 		}
 
-		const userExtensions = (
-			extensionEnablementService.allUserExtensionsDisabled || !environmentService.extensionsPath
-				? Promise.resolve([])
-				: this._scanExtensionsWithCache(
-					hostService,
-					notificationService,
-					environmentService,
-					USER_MANIFEST_CACHE_FILE,
-					new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
-					log
-				)
-		);
+		const userExtensions = (this._scanExtensionsWithCache(
+			hostService,
+			notificationService,
+			environmentService,
+			USER_MANIFEST_CACHE_FILE,
+			new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
+			log
+		));
 
 		// Always load developed extensions while extensions development
 		let developedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);

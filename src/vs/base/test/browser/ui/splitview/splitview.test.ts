@@ -91,7 +91,7 @@ suite('Splitview', () => {
 		splitview.addView(view2, 20);
 		splitview.addView(view3, 20);
 
-		let viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
+		let viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 3, 'split view should have 3 views');
 
 		let sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
@@ -99,7 +99,7 @@ suite('Splitview', () => {
 
 		splitview.removeView(2);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
+		viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 2, 'split view should have 2 views');
 
 		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
@@ -107,7 +107,7 @@ suite('Splitview', () => {
 
 		splitview.removeView(0);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
+		viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 1, 'split view should have 1 view');
 
 		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
@@ -115,7 +115,7 @@ suite('Splitview', () => {
 
 		splitview.removeView(0);
 
-		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
+		viewQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-scrollable-element > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 0, 'split view should have no views');
 
 		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');

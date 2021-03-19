@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { resolvePath, joinPath } from './requests';
+import { Utils } from 'vscode-uri';
 
 export function getCustomDataSource(toDispose: Disposable[]) {
 	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
@@ -50,7 +50,7 @@ function getCustomDataPathsInAllWorkspaces(): string[] {
 		if (Array.isArray(paths)) {
 			for (const path of paths) {
 				if (typeof path === 'string') {
-					dataPaths.push(resolvePath(rootFolder, path).toString());
+					dataPaths.push(Utils.resolvePath(rootFolder, path).toString());
 				}
 			}
 		}
@@ -76,17 +76,13 @@ function getCustomDataPathsInAllWorkspaces(): string[] {
 
 function getCustomDataPathsFromAllExtensions(): string[] {
 	const dataPaths: string[] = [];
-
 	for (const extension of extensions.all) {
-		const contributes = extension.packageJSON && extension.packageJSON.contributes;
-
-		if (contributes && contributes.css && contributes.css.customData && Array.isArray(contributes.css.customData)) {
-			const relativePaths: string[] = contributes.css.customData;
-			relativePaths.forEach(rp => {
-				dataPaths.push(joinPath(extension.extensionUri, rp).toString());
-			});
+		const customData = extension.packageJSON?.contributes?.css?.customData;
+		if (Array.isArray(customData)) {
+			for (const rp of customData) {
+				dataPaths.push(Utils.joinPath(extension.extensionUri, rp).toString());
+			}
 		}
 	}
-
 	return dataPaths;
 }

@@ -14,47 +14,71 @@ export async function activate(context: vscode.ExtensionContext) {
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
-	const loginService = new GitHubAuthenticationProvider();
+	const loginService = new GitHubAuthenticationProvider(context, telemetryReporter);
 
-	await loginService.initialize();
+	await loginService.initialize(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('github.provide-token', () => {
 		return loginService.manuallyProvideToken();
 	}));
 
-	vscode.authentication.registerAuthenticationProvider({
-		id: 'github',
-		displayName: 'GitHub',
-		supportsMultipleAccounts: false,
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('github', 'GitHub', {
 		onDidChangeSessions: onDidChangeSessions.event,
-		getSessions: () => Promise.resolve(loginService.sessions),
-		login: async (scopeList: string[]) => {
+		getSessions: (scopes?: string[]) => loginService.getSessions(scopes),
+		createSession: async (scopeList: string[]) => {
 			try {
+				/* __GDPR__
+					"login" : { }
+				*/
 				telemetryReporter.sendTelemetryEvent('login');
-				const session = await loginService.login(scopeList.sort().join(' '));
+
+				const session = await loginService.createSession(scopeList.sort().join(' '));
 				Logger.info('Login success!');
-				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
+				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
 				return session;
 			} catch (e) {
+				// If login was cancelled, do not notify user.
+				if (e.message === 'Cancelled') {
+					/* __GDPR__
+						"loginCancelled" : { }
+					*/
+					telemetryReporter.sendTelemetryEvent('loginCancelled');
+					throw e;
+				}
+
+				/* __GDPR__
+					"loginFailed" : { }
+				*/
 				telemetryReporter.sendTelemetryEvent('loginFailed');
+
 				vscode.window.showErrorMessage(`Sign in failed: ${e}`);
 				Logger.error(e);
 				throw e;
 			}
 		},
-		logout: async (id: string) => {
+		removeSession: async (id: string) => {
 			try {
+				/* __GDPR__
+					"logout" : { }
+				*/
 				telemetryReporter.sendTelemetryEvent('logout');
-				await loginService.logout(id);
-				onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
+
+				const session = await loginService.removeSession(id);
+				if (session) {
+					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+				}
 			} catch (e) {
+				/* __GDPR__
+					"logoutFailed" : { }
+				*/
 				telemetryReporter.sendTelemetryEvent('logoutFailed');
+
 				vscode.window.showErrorMessage(`Sign out failed: ${e}`);
 				Logger.error(e);
 				throw e;
 			}
 		}
-	});
+	}, { supportsMultipleAccounts: false }));
 
 	return;
 }

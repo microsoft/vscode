@@ -5,12 +5,12 @@
 
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
+import { isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { NOTIFICATIONS_LINKS, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_ERROR_ICON_FOREGROUND, NOTIFICATIONS_WARNING_ICON_FOREGROUND, NOTIFICATIONS_INFO_ICON_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, Themable } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { NotificationsListDelegate, NotificationRenderer } from 'vs/workbench/browser/parts/notifications/notificationsViewer';
@@ -19,24 +19,26 @@ import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notificat
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { hash } from 'vs/base/common/hash';
+import { NotificationMetrics, NotificationMetricsClassification } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
 	private listDelegate: NotificationsListDelegate | undefined;
-	private viewModel: INotificationViewItem[];
+	private viewModel: INotificationViewItem[] = [];
 	private isVisible: boolean | undefined;
 
 	constructor(
-		private container: HTMLElement,
-		private options: IListOptions<INotificationViewItem>,
+		private readonly container: HTMLElement,
+		private readonly options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(themeService);
-
-		this.viewModel = [];
 	}
 
 	show(focus?: boolean): void {
@@ -68,7 +70,7 @@ export class NotificationsList extends Themable {
 
 		// List Container
 		this.listContainer = document.createElement('div');
-		addClass(this.listContainer, 'notifications-list-container');
+		this.listContainer.classList.add('notifications-list-container');
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 
@@ -220,6 +222,10 @@ export class NotificationsList extends Themable {
 		if (!this.isVisible || !this.list) {
 			return; // already hidden
 		}
+		if (this.viewModel.length > 0) {
+			const id = hash(this.viewModel[0].message.original.toString());
+			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', { id });
+		}
 
 		// Hide
 		this.isVisible = false;
@@ -280,7 +286,7 @@ export class NotificationsList extends Themable {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 	const linkColor = theme.getColor(NOTIFICATIONS_LINKS);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a { color: ${linkColor}; }`);

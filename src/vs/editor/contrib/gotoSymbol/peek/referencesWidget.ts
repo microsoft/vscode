@@ -6,7 +6,6 @@
 import 'vs/css!./referencesWidget';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { GestureEvent } from 'vs/base/browser/touch';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -34,6 +33,8 @@ import { FileReferences, OneReference, ReferencesModel } from '../referencesMode
 import { FuzzyScore } from 'vs/base/common/filters';
 import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 
 class DecorationsManager implements IDisposable {
@@ -111,19 +112,21 @@ class DecorationsManager implements IDisposable {
 			return;
 		}
 
-		this._decorations.forEach((reference, decorationId) => {
+		for (let [decorationId, reference] of this._decorations) {
+
 			const newRange = model.getDecorationRange(decorationId);
 
 			if (!newRange) {
-				return;
+				continue;
 			}
 
 			let ignore = false;
-
 			if (Range.equalsRange(newRange, reference.range)) {
-				return;
+				continue;
 
-			} else if (Range.spansMultipleLines(newRange)) {
+			}
+
+			if (Range.spansMultipleLines(newRange)) {
 				ignore = true;
 
 			} else {
@@ -141,7 +144,7 @@ class DecorationsManager implements IDisposable {
 			} else {
 				reference.range = newRange;
 			}
-		});
+		}
 
 		for (let i = 0, len = toRemove.length; i < len; i++) {
 			this._decorations.delete(toRemove[i]);
@@ -150,11 +153,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	removeDecorations(): void {
-		let toRemove: string[] = [];
-		this._decorations.forEach((value, key) => {
-			toRemove.push(key);
-		});
-		this._editor.deltaDecorations(toRemove, []);
+		this._editor.deltaDecorations([...this._decorations.keys()], []);
 		this._decorations.clear();
 	}
 }
@@ -210,7 +209,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private _previewNotAvailableMessage!: TextModel;
 	private _previewContainer!: HTMLElement;
 	private _messageContainer!: HTMLElement;
-	private _dim: dom.Dimension = { height: 0, width: 0 };
+	private _dim = new dom.Dimension(0, 0);
 
 	constructor(
 		editor: ICodeEditor,
@@ -222,8 +221,9 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
 		@ILabelService private readonly _uriLabel: ILabelService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
+		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true }, _instantiationService);
 
 		this._applyTheme(themeService.getColorTheme());
 		this._callOnDispose.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
@@ -319,10 +319,21 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			accessibilityProvider: new AccessibilityProvider(),
 			keyboardNavigationLabelProvider: this._instantiationService.createInstance(StringRepresentationProvider),
 			identityProvider: new IdentityProvider(),
+			openOnSingleClick: true,
+			selectionNavigation: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
 			}
 		};
+		if (this._defaultTreeKeyboardSupport) {
+			// the tree will consume `Escape` and prevent the widget from closing
+			this._callOnDispose.add(dom.addStandardDisposableListener(this._treeContainer, 'keydown', (e) => {
+				if (e.equals(KeyCode.Escape)) {
+					this._keybindingService.dispatchEvent(e, e.target);
+					e.stopPropagation();
+				}
+			}, true));
+		}
 		this._tree = this._instantiationService.createInstance(
 			ReferencesTree,
 			'ReferencesWidget',
@@ -374,22 +385,13 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				this._onDidSelectReference.fire({ element, kind, source: 'tree' });
 			}
 		};
-		this._tree.onDidChangeFocus(e => {
-			onEvent(e.elements[0], 'show');
-		});
 		this._tree.onDidOpen(e => {
-			if (e.browserEvent instanceof MouseEvent && (e.browserEvent.ctrlKey || e.browserEvent.metaKey || e.browserEvent.altKey)) {
-				// modifier-click -> open to the side
-				onEvent(e.elements[0], 'side');
-			} else if (e.browserEvent instanceof KeyboardEvent || (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2) || (<GestureEvent>e.browserEvent).tapCount === 2) {
-				// keybinding (list service command)
-				// OR double click
-				// OR double tap
-				// -> close widget and goto target
-				onEvent(e.elements[0], 'goto');
+			if (e.sideBySide) {
+				onEvent(e.element, 'side');
+			} else if (e.editorOptions.pinned) {
+				onEvent(e.element, 'goto');
 			} else {
-				// preview location
-				onEvent(e.elements[0], 'show');
+				onEvent(e.element, 'show');
 			}
 		});
 
@@ -404,7 +406,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 	protected _doLayoutBody(heightInPixel: number, widthInPixel: number): void {
 		super._doLayoutBody(heightInPixel, widthInPixel);
-		this._dim = { height: heightInPixel, width: widthInPixel };
+		this._dim = new dom.Dimension(widthInPixel, heightInPixel);
 		this.layoutData.heightInLines = this._viewZone ? this._viewZone.heightInLines : this.layoutData.heightInLines;
 		this._splitView.layout(widthInPixel);
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
@@ -439,7 +441,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 		if (this._model.isEmpty) {
 			this.setTitle('');
-			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
+			this._messageContainer.innerText = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
 			return Promise.resolve(undefined);
 		}
@@ -489,6 +491,11 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			}
 		}
 		return undefined;
+	}
+
+	async revealReference(reference: OneReference): Promise<void> {
+		await this._revealReference(reference, false);
+		this._onDidSelectReference.fire({ element: reference, kind: 'goto', source: 'tree' });
 	}
 
 	private _revealedReference?: OneReference;

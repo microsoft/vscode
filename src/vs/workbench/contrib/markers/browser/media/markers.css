@@ -20,6 +20,11 @@
 	flex: 1;
 }
 
+.pane-header .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
 .monaco-workbench.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
 }
@@ -44,15 +49,23 @@
 	display: none;
 }
 
-.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters {
+.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.markers-filters {
 	line-height: 20px;
 	height: 20px;
 	min-width: 22px;
 	margin-left: 4px;
 }
 
+.pane-header .markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.markers-filters {
+	line-height: 18px;
+	height: 18px;
+	width: 28px;
+	margin-right: 0px;
+	justify-content: center;
+}
+
 .panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
-	max-width: 600px;
+	max-width: 400px;
 	min-width: 300px;
 	margin-right: 10px;
 }

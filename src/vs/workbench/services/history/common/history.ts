@@ -40,11 +40,6 @@ export interface IHistoryService {
 	last(): void;
 
 	/**
-	 * Removes an entry from history.
-	 */
-	remove(input: IEditorInput | IResourceEditorInput): void;
-
-	/**
 	 * Clears all history.
 	 */
 	clear(): void;
@@ -58,6 +53,11 @@ export interface IHistoryService {
 	 * Get the entire history of editors that were opened.
 	 */
 	getHistory(): ReadonlyArray<IEditorInput | IResourceEditorInput>;
+
+	/**
+	 * Removes an entry from history.
+	 */
+	removeFromHistory(input: IEditorInput | IResourceEditorInput): void;
 
 	/**
 	 * Looking at the editor history, returns the workspace root of the last file that was

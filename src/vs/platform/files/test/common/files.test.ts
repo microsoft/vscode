@@ -9,38 +9,108 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { FileChangeType, FileChangesEvent, isParent } from 'vs/platform/files/common/files';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { toResource } from 'vs/base/test/common/utils';
-import { extUri } from 'vs/base/common/resources';
 
 suite('Files', () => {
 
-	test('FileChangesEvent', function () {
-		let changes = [
+	test('FileChangesEvent - basics', function () {
+		const changes = [
 			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED },
 			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
 			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED },
 			{ resource: toResource.call(this, '/bar/deleted.txt'), type: FileChangeType.DELETED },
-			{ resource: toResource.call(this, '/bar/folder'), type: FileChangeType.DELETED }
+			{ resource: toResource.call(this, '/bar/folder'), type: FileChangeType.DELETED },
+			{ resource: toResource.call(this, '/BAR/FOLDER'), type: FileChangeType.DELETED }
 		];
 
-		let r1 = new FileChangesEvent(changes, extUri);
+		for (const ignorePathCasing of [false, true]) {
+			const event = new FileChangesEvent(changes, ignorePathCasing);
 
-		assert(!r1.contains(toResource.call(this, '/foo'), FileChangeType.UPDATED));
-		assert(r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED));
-		assert(!r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED));
-		assert(!r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.DELETED));
+			assert(!event.contains(toResource.call(this, '/foo'), FileChangeType.UPDATED));
+			assert(event.affects(toResource.call(this, '/foo'), FileChangeType.UPDATED));
+			assert(event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED));
+			assert(event.affects(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED));
+			assert(event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED));
+			assert(event.affects(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED));
+			assert(event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED));
+			assert(!event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED, FileChangeType.DELETED));
+			assert(!event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED));
+			assert(!event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.DELETED));
+			assert(!event.affects(toResource.call(this, '/foo/updated.txt'), FileChangeType.DELETED));
 
-		assert(r1.contains(toResource.call(this, '/bar/folder'), FileChangeType.DELETED));
-		assert(r1.contains(toResource.call(this, '/bar/folder/somefile'), FileChangeType.DELETED));
-		assert(r1.contains(toResource.call(this, '/bar/folder/somefile/test.txt'), FileChangeType.DELETED));
-		assert(!r1.contains(toResource.call(this, '/bar/folder2/somefile'), FileChangeType.DELETED));
+			assert(event.contains(toResource.call(this, '/bar/folder'), FileChangeType.DELETED));
+			assert(event.contains(toResource.call(this, '/BAR/FOLDER'), FileChangeType.DELETED));
+			assert(event.affects(toResource.call(this, '/BAR'), FileChangeType.DELETED));
+			if (ignorePathCasing) {
+				assert(event.contains(toResource.call(this, '/BAR/folder'), FileChangeType.DELETED));
+				assert(event.affects(toResource.call(this, '/bar'), FileChangeType.DELETED));
+			} else {
+				assert(!event.contains(toResource.call(this, '/BAR/folder'), FileChangeType.DELETED));
+				assert(event.affects(toResource.call(this, '/bar'), FileChangeType.DELETED));
+			}
+			assert(event.contains(toResource.call(this, '/bar/folder/somefile'), FileChangeType.DELETED));
+			assert(event.contains(toResource.call(this, '/bar/folder/somefile/test.txt'), FileChangeType.DELETED));
+			assert(event.contains(toResource.call(this, '/BAR/FOLDER/somefile/test.txt'), FileChangeType.DELETED));
+			if (ignorePathCasing) {
+				assert(event.contains(toResource.call(this, '/BAR/folder/somefile/test.txt'), FileChangeType.DELETED));
+			} else {
+				assert(!event.contains(toResource.call(this, '/BAR/folder/somefile/test.txt'), FileChangeType.DELETED));
+			}
+			assert(!event.contains(toResource.call(this, '/bar/folder2/somefile'), FileChangeType.DELETED));
 
-		assert.strictEqual(5, r1.changes.length);
-		assert.strictEqual(1, r1.getAdded().length);
-		assert.strictEqual(true, r1.gotAdded());
-		assert.strictEqual(2, r1.getUpdated().length);
-		assert.strictEqual(true, r1.gotUpdated());
-		assert.strictEqual(2, r1.getDeleted().length);
-		assert.strictEqual(true, r1.gotDeleted());
+			assert.strictEqual(6, event.changes.length);
+			assert.strictEqual(1, event.getAdded().length);
+			assert.strictEqual(true, event.gotAdded());
+			assert.strictEqual(2, event.getUpdated().length);
+			assert.strictEqual(true, event.gotUpdated());
+			assert.strictEqual(ignorePathCasing ? 2 : 3, event.getDeleted().length);
+			assert.strictEqual(true, event.gotDeleted());
+		}
+	});
+
+	test('FileChangesEvent - supports multiple changes on file tree', function () {
+		for (const type of [FileChangeType.ADDED, FileChangeType.UPDATED, FileChangeType.DELETED]) {
+			const changes = [
+				{ resource: toResource.call(this, '/foo/bar/updated.txt'), type },
+				{ resource: toResource.call(this, '/foo/bar/otherupdated.txt'), type },
+				{ resource: toResource.call(this, '/foo/bar'), type },
+				{ resource: toResource.call(this, '/foo'), type },
+				{ resource: toResource.call(this, '/bar'), type },
+				{ resource: toResource.call(this, '/bar/foo'), type },
+				{ resource: toResource.call(this, '/bar/foo/updated.txt'), type },
+				{ resource: toResource.call(this, '/bar/foo/otherupdated.txt'), type }
+			];
+
+			for (const ignorePathCasing of [false, true]) {
+				const event = new FileChangesEvent(changes, ignorePathCasing);
+
+				for (const change of changes) {
+					assert(event.contains(change.resource, type));
+					assert(event.affects(change.resource, type));
+				}
+
+				assert(event.affects(toResource.call(this, '/foo'), type));
+				assert(event.affects(toResource.call(this, '/bar'), type));
+				assert(event.affects(toResource.call(this, '/'), type));
+				assert(!event.affects(toResource.call(this, '/foobar'), type));
+
+				assert(!event.contains(toResource.call(this, '/some/foo/bar'), type));
+				assert(!event.affects(toResource.call(this, '/some/foo/bar'), type));
+				assert(!event.contains(toResource.call(this, '/some/bar'), type));
+				assert(!event.affects(toResource.call(this, '/some/bar'), type));
+
+				switch (type) {
+					case FileChangeType.ADDED:
+						assert.strictEqual(8, event.getAdded().length);
+						break;
+					case FileChangeType.UPDATED:
+						assert.strictEqual(8, event.getUpdated().length);
+						break;
+					case FileChangeType.DELETED:
+						assert.strictEqual(8, event.getDeleted().length);
+						break;
+				}
+			}
+		}
 	});
 
 	function testIsEqual(testMethod: (pA: string, pB: string, ignoreCase: boolean) => boolean): void {

@@ -11,6 +11,7 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { toLocalISOString } from 'vs/base/common/date';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Promises } from 'vs/base/common/async';
 
 export class UserDataSyncBackupStoreService extends Disposable implements IUserDataSyncBackupStoreService {
 
@@ -86,9 +87,9 @@ export class UserDataSyncBackupStoreService extends Disposable implements IUserD
 				if (remaining < 10) {
 					toDelete = toDelete.slice(10 - remaining);
 				}
-				await Promise.all(toDelete.map(stat => {
+				await Promises.settled(toDelete.map(async stat => {
 					this.logService.info('Deleting from backup', stat.resource.path);
-					this.fileService.del(stat.resource);
+					await this.fileService.del(stat.resource);
 				}));
 			}
 		} catch (e) {

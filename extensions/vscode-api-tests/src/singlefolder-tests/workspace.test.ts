@@ -5,14 +5,17 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled } from '../utils';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled, revertAllDirty, assertNoRpc } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 import { TestFS } from '../memfs';
 
 suite('vscode API - workspace', () => {
 
-	teardown(closeAllEditors);
+	teardown(async function () {
+		assertNoRpc();
+		await closeAllEditors();
+	});
 
 	test('MarkdownString', function () {
 		let md = new vscode.MarkdownString();
@@ -60,12 +63,19 @@ suite('vscode API - workspace', () => {
 		}
 	});
 
-	test('openTextDocument', () => {
-		let len = vscode.workspace.textDocuments.length;
-		return vscode.workspace.openTextDocument(join(vscode.workspace.rootPath || '', './simple.txt')).then(doc => {
-			assert.ok(doc);
-			assert.equal(vscode.workspace.textDocuments.length, len + 1);
-		});
+	test('openTextDocument', async () => {
+		const uri = await createRandomFile();
+
+		// not yet there
+		const existing1 = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+		assert.equal(existing1, undefined);
+
+		// open and assert its there
+		const doc = await vscode.workspace.openTextDocument(uri);
+		assert.ok(doc);
+		assert.equal(doc.uri.toString(), uri.toString());
+		const existing2 = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === uri.toString());
+		assert.equal(existing2 === doc, true);
 	});
 
 	test('openTextDocument, illegal path', () => {
@@ -125,7 +135,10 @@ suite('vscode API - workspace', () => {
 			let d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
 
 			return vscode.window.showTextDocument(doc).then(() => {
-				return doc.save().then(() => {
+				return doc.save().then((didSave: boolean) => {
+
+					assert.equal(didSave, true, `FAILED to save${doc.uri.toString()}`);
+
 					assert.ok(closed === doc);
 					assert.ok(!doc.isDirty);
 					assert.ok(fs.existsSync(path));
@@ -281,7 +294,7 @@ suite('vscode API - workspace', () => {
 		const file = await createRandomFile();
 		let disposables: vscode.Disposable[] = [];
 
-		await vscode.workspace.saveAll();
+		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
 		let pendingAsserts: Function[] = [];
 		let onDidOpenTextDocument = false;
@@ -322,6 +335,8 @@ suite('vscode API - workspace', () => {
 		const file = await createRandomFile();
 		let disposables: vscode.Disposable[] = [];
 		let pendingAsserts: Function[] = [];
+
+		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
 		let onDidSaveTextDocument = false;
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
@@ -527,7 +542,7 @@ suite('vscode API - workspace', () => {
 		assert.equal(callCount, 1);
 		assert.equal(doc.getText(), 'call0');
 
-		return new Promise(resolve => {
+		return new Promise<void>(resolve => {
 
 			let subscription = vscode.workspace.onDidChangeTextDocument(event => {
 				assert.ok(event.document === doc);
@@ -542,7 +557,7 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles', () => {
-		return vscode.workspace.findFiles('**/*.png').then((res) => {
+		return vscode.workspace.findFiles('**/image.png').then((res) => {
 			assert.equal(res.length, 2);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
@@ -563,14 +578,14 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles - exclude', () => {
-		return vscode.workspace.findFiles('**/*.png').then((res) => {
+		return vscode.workspace.findFiles('**/image.png').then((res) => {
 			assert.equal(res.length, 2);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
 	test('findFiles, exclude', () => {
-		return vscode.workspace.findFiles('**/*.png', '**/sub/**').then((res) => {
+		return vscode.workspace.findFiles('**/image.png', '**/sub/**').then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
@@ -964,5 +979,154 @@ suite('vscode API - workspace', () => {
 		const expected = 'import1;import2;';
 		// const expected2 = 'import2;import1;';
 		assert.equal(document.getText(), expected);
+	});
+
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+
+		const file1New = await createRandomFile();
+		const file2New = await createRandomFile();
+
+		const event = new Promise<vscode.FileWillRenameEvent>(resolve => {
+			let sub = vscode.workspace.onWillRenameFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const we = new vscode.WorkspaceEdit();
+		we.renameFile(file1, file1New, { overwrite: true });
+		we.renameFile(file2, file2New, { overwrite: true });
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].oldUri.toString(), file1.toString());
+		assert.strictEqual(e.files[1].oldUri.toString(), file2.toString());
+	});
+
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
+			let sub = vscode.workspace.onWillCreateFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const file1 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
+		const file2 = vscode.Uri.parse(`fake-fs:/${rndName()}`);
+
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(file1, { overwrite: true });
+		we.createFile(file2, { overwrite: true });
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].toString(), file1.toString());
+		assert.strictEqual(e.files[1].toString(), file2.toString());
+	});
+
+	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867', async function () {
+
+		const file1 = await createRandomFile();
+		const file2 = await createRandomFile();
+
+		const event = new Promise<vscode.FileWillDeleteEvent>(resolve => {
+			let sub = vscode.workspace.onWillDeleteFiles(e => {
+				sub.dispose();
+				resolve(e);
+			});
+		});
+
+		const we = new vscode.WorkspaceEdit();
+		we.deleteFile(file1);
+		we.deleteFile(file2);
+		await vscode.workspace.applyEdit(we);
+
+		const e = await event;
+
+		assert.strictEqual(e.files.length, 2);
+		assert.strictEqual(e.files[0].toString(), file1.toString());
+		assert.strictEqual(e.files[1].toString(), file2.toString());
+	});
+
+	test('issue #107739 - Redo of rename Java Class name has no effect', async () => {
+		const file = await createRandomFile('hello');
+		const fileName = basename(file.fsPath);
+		const newFile = vscode.Uri.parse(file.toString().replace(fileName, `${fileName}2`));
+
+		// apply edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.insert(file, new vscode.Position(0, 5), '2');
+			we.renameFile(file, newFile);
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// show the new document
+		{
+			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
+		}
+
+		// undo and show the old document
+		{
+			await vscode.commands.executeCommand('undo');
+			const document = await vscode.workspace.openTextDocument(file);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello');
+		}
+
+		// redo and show the new document
+		{
+			await vscode.commands.executeCommand('redo');
+			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
+		}
+
+	});
+
+	test('issue #110141 - TextEdit.setEndOfLine applies an edit and invalidates redo stack even when no change is made', async () => {
+		const file = await createRandomFile('hello\nworld');
+
+		const document = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(document);
+
+		// apply edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.insert(file, new vscode.Position(0, 5), '2');
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// check the document
+		{
+			assert.equal(document.getText(), 'hello2\nworld');
+			assert.equal(document.isDirty, true);
+		}
+
+		// apply no-op edit
+		{
+			const we = new vscode.WorkspaceEdit();
+			we.set(file, [vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]);
+			await vscode.workspace.applyEdit(we);
+		}
+
+		// undo
+		{
+			await vscode.commands.executeCommand('undo');
+			assert.equal(document.getText(), 'hello\nworld');
+			assert.equal(document.isDirty, false);
+		}
 	});
 });

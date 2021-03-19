@@ -46,12 +46,4 @@ export interface IClipboardService {
 	 * Find out if resources are copied to the clipboard.
 	 */
 	hasResources(): Promise<boolean>;
-
-
-
-	/** @deprecated */
-	readFindTextSync(): string;
-
-	/** @deprecated */
-	writeFindTextSync(text: string): void;
 }
