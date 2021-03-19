@@ -31,7 +31,7 @@ suite('Workbench - TerminalProfiles', () => {
 						showQuickLaunchWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
-					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
+					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['-l'] }];
 					assert.deepStrictEqual(profiles, expected);
 				});
 				// 	test('should detect cmd prompt', async () => {
