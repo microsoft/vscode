@@ -396,9 +396,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<void>;
 
-	// todo@rebornix used in diff editor...
-	lastResolvedFileStat: IFileStatWithMetadata | undefined;
-
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel;
@@ -534,8 +531,7 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 	}
 
 	pushStackElement(): void {
-		//todo@jrieken -> stack element needs a name(?)
-		this._notebookModel.pushStackElement('', undefined, undefined);
+		this._notebookModel.pushStackElement(nls.localize('save', 'Save Notebook'), undefined, undefined);
 	}
 }
 
