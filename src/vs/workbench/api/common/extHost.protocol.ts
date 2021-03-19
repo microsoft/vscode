@@ -1858,6 +1858,7 @@ export interface INotebookKernelInfoDto2 {
 	isPreferred?: boolean;
 	preloads?: UriComponents[];
 	supportedLanguages?: string[]
+	implementsInterrupt?: boolean;
 }
 
 export interface ExtHostNotebookShape {

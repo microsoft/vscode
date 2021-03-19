@@ -275,12 +275,12 @@ export interface NotebookCellsChangeLanguageEvent {
 export interface NotebookCellsChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellMetadata;
 	readonly index: number;
-	readonly metadata: NotebookCellMetadata | undefined;
+	readonly metadata: NotebookCellMetadata;
 }
 
 export interface NotebookDocumentChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeDocumentMetadata;
-	readonly metadata: NotebookDocumentMetadata | undefined;
+	readonly metadata: NotebookDocumentMetadata;
 }
 
 export interface NotebookDocumentUnknownChangeEvent {
@@ -760,6 +760,7 @@ export interface INotebookKernel {
 	isPreferred?: boolean;
 	preloads?: URI[];
 	supportedLanguages?: string[]
+	implementsInterrupt?: boolean;
 
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;

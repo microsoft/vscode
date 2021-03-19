@@ -351,6 +351,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._kernelManger = instantiationService.createInstance(NotebookEditorKernelManager, <IKernelManagerDelegate>{
 			getId() { return that.getId(); },
 			loadKernelPreloads: that._loadKernelPreloads.bind(that),
+			onDidChangeViewModel: that.onDidChangeModel,
 			get viewModel() { return that.viewModel; },
 			getContributedNotebookProviders(resource?: URI) {
 				return that.notebookService.getContributedNotebookProviders(resource);

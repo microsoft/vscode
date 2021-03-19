@@ -506,6 +506,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 						isPreferred: dto.isPreferred,
 						preloads: dto.preloads?.map(u => URI.revive(u)),
 						supportedLanguages: dto.supportedLanguages,
+						implementsInterrupt: dto.implementsInterrupt,
 						resolve: (uri: URI, editorId: string, token: CancellationToken): Promise<void> => {
 							this._logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
 							return this._proxy.$resolveNotebookKernel(handle, editorId, uri, dto.friendlyId, token);

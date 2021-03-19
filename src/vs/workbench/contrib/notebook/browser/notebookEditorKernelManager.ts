@@ -8,17 +8,17 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Memento } from 'vs/workbench/common/memento';
-import { ICellViewModel, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { configureKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { cellIndexesToRanges, CellKind, ICellRange, INotebookKernel, NotebookCellExecutionState, NotebookRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
@@ -26,6 +26,7 @@ const NotebookEditorActiveKernelCache = 'workbench.editor.notebook.activeKernel'
 
 export interface IKernelManagerDelegate {
 	viewModel: NotebookViewModel | undefined;
+	onDidChangeViewModel: Event<void>;
 	getId(): string;
 	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
@@ -49,6 +50,12 @@ export class NotebookEditorKernelManager extends Disposable {
 	private readonly _notebookExecuting: IContextKey<boolean>;
 	private readonly _notebookHasMultipleKernels: IContextKey<boolean>;
 	private readonly _notebookKernelCount: IContextKey<number>;
+	private readonly _interruptibleKernel: IContextKey<boolean>;
+	private readonly _someCellRunning: IContextKey<boolean>;
+
+	private _cellStateListeners: IDisposable[] = [];
+	private _executionCount = 0;
+	private _viewModelDisposables: DisposableStore;
 
 	get activeKernel() {
 		return this._activeKernel;
@@ -66,6 +73,8 @@ export class NotebookEditorKernelManager extends Disposable {
 		if (this._activeKernel === kernel) {
 			return;
 		}
+
+		this._interruptibleKernel.set(!!kernel?.implementsInterrupt);
 
 		this._activeKernel = kernel;
 		this._activeKernelResolvePromise = undefined;
@@ -107,6 +116,45 @@ export class NotebookEditorKernelManager extends Disposable {
 		this._notebookExecuting = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(contextKeyService);
 		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(contextKeyService);
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
+		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
+		this._someCellRunning = NOTEBOOK_HAS_RUNNING_CELL.bindTo(contextKeyService);
+
+		this._viewModelDisposables = this._register(new DisposableStore());
+		this._register(this._delegate.onDidChangeViewModel(() => {
+			this._viewModelDisposables.clear();
+			this.initCellListeners();
+		}));
+	}
+
+	private initCellListeners(): void {
+		dispose(this._cellStateListeners);
+		this._cellStateListeners = [];
+
+		if (!this._delegate.viewModel) {
+			return;
+		}
+
+		const addCellStateListener = (c: ICellViewModel) => {
+			return (c as CellViewModel).onDidChangeState(() => {
+				if (c.metadata?.runState === NotebookCellExecutionState.Pending) {
+					this._executionCount++;
+				} else if (c.metadata?.runState === NotebookCellExecutionState.Idle) {
+					this._executionCount--;
+				}
+
+				this._someCellRunning.set(this._executionCount > 0);
+			});
+		};
+
+		this._cellStateListeners = this._delegate.viewModel.viewCells.map(addCellStateListener);
+
+		this._viewModelDisposables.add(this._delegate.viewModel.onDidChangeViewCells(e => {
+			e.splices.reverse().forEach(splice => {
+				const [start, deleted, newCells] = splice;
+				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(addCellStateListener));
+				dispose(deletedCells);
+			});
+		}));
 	}
 
 	public async setKernels(tokenSource: CancellationTokenSource) {
@@ -422,10 +470,14 @@ export class NotebookEditorKernelManager extends Disposable {
 			throw new Error('Cell is not executable: ' + cell.uri);
 		}
 
+		if (!this.activeKernel) {
+			return;
+		}
+
 		const idx = this._delegate.viewModel.getCellIndex(cell);
 		const range = cellIndexesToRanges([idx]);
 		this._activeKernelExecuted = true;
-		await this._activeKernel?.executeNotebookCellsRequest(this._delegate.viewModel.uri, range);
+		await this._activeKernel!.executeNotebookCellsRequest(this._delegate.viewModel.uri, range);
 	}
 
 	private canExecuteNotebook(): boolean {
