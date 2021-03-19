@@ -49,6 +49,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1065,10 +1066,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					xterm.writeln(exitCodeMessage);
 				}
 				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-					let message = this._shellLaunchConfig.waitOnExit;
-					// Bold the message and add an extra new line to make it stand out from the rest of the output
-					message = `\r\n\x1b[1m${message}\x1b[0m`;
-					xterm.writeln(message);
+					xterm.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
 				}
 				// Disable all input if the terminal is exiting and listen for next keypress
 				xterm.setOption('disableStdin', true);
