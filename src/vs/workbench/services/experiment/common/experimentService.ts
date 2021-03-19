@@ -181,7 +181,8 @@ enum TargetPopulation {
 
 export class ExperimentService implements ITASExperimentService {
 	_serviceBrand: undefined;
-	private tasClient: Promise<TASClient> | undefined;
+	private tasClientNetworkInitialized: Promise<TASClient> | undefined;
+	private tasClientDiskInitialized: Promise<TASClient> | undefined;
 	private telemetry: ExperimentServiceTelemetry | undefined;
 	private static MEMENTO_ID = 'experiment.service.memento';
 
@@ -199,7 +200,9 @@ export class ExperimentService implements ITASExperimentService {
 	) {
 
 		if (productService.tasConfig && this.experimentsEnabled && this.telemetryService.isOptedIn) {
-			this.tasClient = this.setupTASClient();
+			this.tasClientDiskInitialized = new Promise(resolve => {
+				this.tasClientNetworkInitialized = this.setupTASClient(resolve);
+			});
 		}
 
 		// For development purposes, configure the delay until tas local tas treatment ovverrides are avilable
@@ -221,7 +224,7 @@ export class ExperimentService implements ITASExperimentService {
 
 		const startSetup = Date.now();
 
-		if (!this.tasClient) {
+		if (!this.tasClientNetworkInitialized || !this.tasClientDiskInitialized) {
 			return undefined;
 		}
 
@@ -229,27 +232,34 @@ export class ExperimentService implements ITASExperimentService {
 			return undefined;
 		}
 
-		const result = (await this.tasClient).getTreatmentVariable<T>('vscode', name);
+		let waitedForNetwork = false;
+		let result = (await this.tasClientDiskInitialized).getTreatmentVariable<T>('vscode', name);
+		if (result === undefined) {
+			result = (await this.tasClientNetworkInitialized).getTreatmentVariable<T>('vscode', name);
+			waitedForNetwork = true;
+		}
 
 		type TAASClientReadTreatmentData = {
 			treatmentName: string;
 			treatmentValue: string;
 			readTime: number;
+			waitedForNetwork: boolean;
 		};
 
 		type TAASClientReadTreatmentCalssification = {
 			treatmentValue: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
 			treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
+			waitedForNetwork: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', };
 			readTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<TAASClientReadTreatmentData, TAASClientReadTreatmentCalssification>('tasClientReadTreatmentComplete',
-			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result) });
+			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result), waitedForNetwork });
 
 		return result;
 	}
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {
-		if (!this.tasClient) {
+		if (!this.tasClientNetworkInitialized) {
 			return undefined;
 		}
 
@@ -257,12 +267,12 @@ export class ExperimentService implements ITASExperimentService {
 			return undefined;
 		}
 
-		await this.tasClient;
+		await this.tasClientNetworkInitialized;
 
 		return this.telemetry?.assignmentContext;
 	}
 
-	private async setupTASClient(): Promise<TASClient> {
+	private async setupTASClient(onDiskInitialized: (client: TASClient) => void): Promise<TASClient> {
 		const startSetup = Date.now();
 		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
 		const targetPopulation = telemetryInfo.msftInternal ? TargetPopulation.Internal : (this.productService.quality === 'stable' ? TargetPopulation.Public : TargetPopulation.Insiders);
@@ -292,6 +302,7 @@ export class ExperimentService implements ITASExperimentService {
 		});
 
 		await tasClient.initializePromise;
+		onDiskInitialized(tasClient);
 		await tasClient.getTreatmentVariableAsync('vscode', 'initialize');
 
 		type TAASClientSetupData = { setupTime: number; };
