@@ -8,7 +8,7 @@ import { EditorModel, IRevertOptions, ISaveOptions } from 'vs/workbench/common/e
 import { Emitter, Event } from 'vs/base/common/event';
 import { CellEditType, CellKind, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -30,11 +30,12 @@ import { canceled } from 'vs/base/common/errors';
 
 export class ComplexNotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
+	private readonly _onDidSave = this._register(new Emitter<void>());
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 
+	readonly onDidSave = this._onDidSave.event;
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
-	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
@@ -47,6 +48,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	constructor(
 		readonly resource: URI,
 		readonly viewType: string,
+		private readonly _contentProvider: IMainNotebookController,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IBackupFileService private readonly _backupFileService: IBackupFileService,
@@ -67,7 +69,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			get name() { return that._name; }
 			readonly capabilities = that.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = that.onDidChangeDirty;
-			readonly onDidChangeContent = that.onDidChangeContent;
+			readonly onDidChangeContent = that._onDidChangeContent.event;
 			isDirty(): boolean { return that.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return that.backup(token); }
 			save(): Promise<boolean> { return that.save(); }
@@ -126,7 +128,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return {};
 		}
 
-		const backupId = await this._notebookService.backup(this.viewType, this.resource, token);
+		const backupId = await this._contentProvider.backup(this.resource, token);
 		if (token.isCancellationRequested) {
 			return {};
 		}
@@ -136,7 +138,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			meta: {
 				mtime: stats?.mtime ?? Date.now(),
 				viewType: this.notebook.viewType,
-				backupId: backupId
+				backupId
 			}
 		};
 	}
@@ -193,7 +195,9 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 	private async _loadFromProvider(backupId: string | undefined): Promise<void> {
 
-		const data = await this._notebookService.fetchNotebookRawData(this.viewType, this.resource, backupId, CancellationToken.None, (await this.getUntitledDocumentData(this.resource)));
+		const untitledData = await this.getUntitledDocumentData(this.resource);
+		const data = await this._contentProvider.open(this.resource, backupId, untitledData, CancellationToken.None);
+
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 
 		if (this.isDisposed()) {
@@ -331,10 +335,11 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			if (!this.isResolved()) {
 				return;
 			}
-			await this._notebookService.save(this.notebook.viewType, this.notebook.uri, CancellationToken.None);
+			await this._contentProvider.save(this.notebook.uri, CancellationToken.None);
 			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true));
 			this._lastResolvedFileStat = await this._resolveStats(this.resource);
 			this.setDirty(false);
+			this._onDidSave.fire();
 		})()).then(() => {
 			return true;
 		});
@@ -358,10 +363,11 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return true;
 		}
 
-		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, CancellationToken.None);
+		await this._contentProvider.saveAs(this.notebook.uri, targetResource, CancellationToken.None);
 		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true));
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
 		this.setDirty(false);
+		this._onDidSave.fire();
 		return true;
 	}
 
@@ -388,6 +394,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 export class SimpleNotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
 	readonly onDidChangeDirty: Event<void>;
+	readonly onDidSave: Event<void>;
 
 	// todo@rebornix used in diff editor...
 	lastResolvedFileStat: IFileStatWithMetadata | undefined;
@@ -397,14 +404,15 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly notebook: NotebookTextModel;
 
 	constructor(
-		private _workingCopy: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>
+		private readonly _workingCopy: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>
 	) {
 		super();
 		this.resource = _workingCopy.resource;
 		this.viewType = _workingCopy.model.notebookModel.viewType;
 		this.notebook = _workingCopy.model.notebookModel;
 
-		this.onDidChangeDirty = _workingCopy.onDidChangeDirty.bind(_workingCopy);
+		this.onDidChangeDirty = Event.signal(_workingCopy.onDidChangeDirty);
+		this.onDidSave = Event.signal(_workingCopy.onDidSave);
 	}
 
 	dispose(): void {
@@ -430,7 +438,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
 		// todo@bpasero,jrieken is this right?
-		this._workingCopy = <IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>await this._workingCopy.resolve(options);
+		// resolve return a working copy but I believe it is always THIS
+		await this._workingCopy.resolve(options);
 		return this;
 	}
 

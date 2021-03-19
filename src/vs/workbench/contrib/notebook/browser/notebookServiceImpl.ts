@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { flatten } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -250,9 +249,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<URI>());
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
-
-	private readonly _onNotebookDocumentSaved: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onNotebookDocumentSaved: Event<URI> = this._onNotebookDocumentSaved.event;
 
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
@@ -522,47 +518,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[] {
 		return Array.from(this._markdownRenderersInfos);
-	}
-
-	// --- notebook documents: IO
-
-	private _withComplexProvider(viewType: string): ComplexNotebookProviderInfo {
-		const result = this._notebookProviders.get(viewType);
-		if (!(result instanceof ComplexNotebookProviderInfo)) {
-			throw new Error(`having NO provider for ${viewType}`);
-		}
-		return result;
-	}
-
-	async fetchNotebookRawData(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
-		if (!await this.canResolve(viewType)) {
-			throw new Error(`CANNOT fetch notebook data, there is NO provider for '${viewType}'`);
-		}
-		const provider = this._withComplexProvider(viewType)!;
-		return await provider.controller.openNotebook(viewType, uri, backupId, token, untitledDocumentData);
-	}
-
-	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._withComplexProvider(viewType);
-		const ret = await provider.controller.save(resource, token);
-		if (ret) {
-			this._onNotebookDocumentSaved.fire(resource);
-		}
-		return ret;
-	}
-
-	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._withComplexProvider(viewType);
-		const ret = await provider.controller.saveAs(resource, target, token);
-		if (ret) {
-			this._onNotebookDocumentSaved.fire(resource);
-		}
-		return ret;
-	}
-
-	async backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined> {
-		const provider = this._withComplexProvider(viewType);
-		return provider.controller.backup(uri, token);
 	}
 
 	// --- notebook documents: create, destory, retrieve, enumerate

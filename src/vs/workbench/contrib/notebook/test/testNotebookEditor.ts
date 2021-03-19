@@ -53,6 +53,9 @@ export class TestCell extends NotebookCellTextModel {
 export class NotebookEditorTestModel extends EditorModel implements INotebookEditorModel {
 	private _dirty = false;
 
+	protected readonly _onDidSave = this._register(new Emitter<void>());
+	readonly onDidSave = this._onDidSave.event;
+
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
@@ -107,6 +110,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		if (this._notebook) {
 			this._dirty = false;
 			this._onDidChangeDirty.fire();
+			this._onDidSave.fire();
 			// todo, flush all states
 			return true;
 		}

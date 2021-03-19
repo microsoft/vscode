@@ -26,7 +26,7 @@ export interface IMainNotebookController {
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 
-	openNotebook(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
+	open(uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string>;
@@ -65,7 +65,7 @@ export interface INotebookService {
 
 	onDidRemoveNotebookDocument: Event<URI>;
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
-	onNotebookDocumentSaved: Event<URI>;
+
 	onDidChangeKernels: Event<URI | undefined>;
 	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>;
 
@@ -91,11 +91,6 @@ export interface INotebookService {
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
-
-	fetchNotebookRawData(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<INotebookRawData>;
-	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
-	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
 
 	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: unknown): void;
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;

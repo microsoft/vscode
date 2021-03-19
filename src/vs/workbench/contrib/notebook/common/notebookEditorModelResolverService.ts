@@ -10,7 +10,7 @@ import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileW
 import { combinedDisposable, DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
@@ -18,12 +18,19 @@ export const INotebookEditorModelResolverService = createDecorator<INotebookEdit
 
 export interface INotebookEditorModelResolverService {
 	readonly _serviceBrand: undefined;
+
+	onDidSaveNotebook: Event<URI>;
+
 	resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
 }
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
 	private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>;
+	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
+
+	private readonly _onDidSaveNotebook = new Emitter<URI>();
+	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;
 
 	constructor(
 		@IInstantiationService readonly _instantiationService: IInstantiationService,
@@ -42,21 +49,28 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		const uri = URI.parse(key);
 		const info = await this._notebookService.withNotebookDataProvider(uri);
 
+		let result: IResolvedNotebookEditorModel;
+
 		if (info instanceof ComplexNotebookProviderInfo) {
-			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType);
-			return model.load();
+			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType, info.controller);
+			result = await model.load();
 
 		} else if (info instanceof SimpleNotebookProviderInfo) {
 			const workingCopy = await this._workingCopyManager.resolve(uri);
-			return new SimpleNotebookEditorModel(<IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy);
+			result = new SimpleNotebookEditorModel(<IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy);
 
 		} else {
 			throw new Error(`CANNOT open ${key}, no provider found`);
 		}
+
+		this._modelListener.set(result, result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)));
+		return result;
 	}
 
 	protected destroyReferencedObject(_key: string, object: Promise<IResolvedNotebookEditorModel>): void {
 		object.then(model => {
+			this._modelListener.get(model)?.dispose();
+			this._modelListener.delete(model);
 			this._notebookService.destoryNotebookDocument(model.viewType, model.notebook);
 			model.dispose();
 		}).catch(err => {
@@ -71,11 +85,14 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 
 	private readonly _data: NotebookModelReferenceCollection;
 
+	readonly onDidSaveNotebook: Event<URI>;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService
 	) {
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
+		this.onDidSaveNotebook = this._data.onDidSaveNotebook;
 	}
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {
