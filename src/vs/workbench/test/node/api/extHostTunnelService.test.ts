@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
 import { findPorts, getSockets, loadConnectionTable, loadListeningPorts } from 'vs/workbench/api/node/extHostTunnelService';
 
 const tcp =
