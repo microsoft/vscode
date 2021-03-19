@@ -68,11 +68,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
-			],
-			args: [
-				'-l',
-				'-i'
+				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
 			]
 		},
 		{
@@ -147,7 +143,11 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 					let sourceKey = (value as ITerminalProfileSource).source;
 					const profile = detectedProfiles?.find(profile => profile.profileName === sourceKey.toString());
 					if (profile) {
-						validProfiles?.push({ profileName: profileKey, path: profile.path, args: profile.args });
+						if (profile.args) {
+							validProfiles?.push({ profileName: profileKey, path: profile.path, args: profile.args });
+						} else {
+							validProfiles?.push({ profileName: profileKey, path: profile.path });
+						}
 					} else {
 						logService?.trace(`No source with key ${sourceKey}`);
 					}
