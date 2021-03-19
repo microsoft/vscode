@@ -998,10 +998,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	getStat(): IFileStatWithMetadata | undefined {
-		return this.lastResolvedFileStat;
-	}
-
 	dispose(): void {
 		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
 

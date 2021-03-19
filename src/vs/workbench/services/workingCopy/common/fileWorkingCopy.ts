@@ -1165,10 +1165,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	getStat(): IFileStatWithMetadata | undefined {
-		return this.lastResolvedFileStat;
-	}
-
 	//#endregion
 
 	//#region Dispose
