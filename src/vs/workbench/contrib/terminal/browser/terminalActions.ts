@@ -21,7 +21,7 @@ import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
@@ -1438,7 +1438,6 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, item?: string) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalContributionService = accessor.get(ITerminalContributionService);
-			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
 			if (!item || !item.split) {
 				return Promise.resolve(null);
@@ -1460,7 +1459,7 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const detectedProfiles = await terminalService.getAvailableProfiles();
+			const quickSelectProfiles = await terminalService.getAvailableProfiles();
 
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
@@ -1468,28 +1467,12 @@ export function registerTerminalActions() {
 			if (customType) {
 				return commandService.executeCommand(customType.command);
 			}
-			terminalService.configHelper.setWorkspaceShellAllowed(false);
-			if (detectedProfiles) {
-				const launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
+			if (quickSelectProfiles) {
+				const launchConfig = quickSelectProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
 				if (launchConfig) {
-					if (!terminalService.configHelper.checkWorkspaceShellPermissions() || !launchConfig.isWorkspaceProfile) {
+					if (!launchConfig.isWorkspaceProfile || !terminalService.configHelper.checkWorkspaceShellPermissions()) {
 						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
 						terminalService.setActiveInstance(instance);
-					} else {
-						notificationService.prompt(Severity.Info, `Do you allow this workspace to modify your terminal profile? ${profileSelection} with path ${launchConfig.path}`,
-							[{
-								label: 'Allow',
-								run: () => {
-									terminalService.configHelper.setWorkspaceShellAllowed(true);
-									const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
-									terminalService.setActiveInstance(instance);
-								}
-							},
-							{
-								label: 'Disallow',
-								run: () => { }
-							}]
-						);
 					}
 				} else {
 					console.warn(`No profile with name "${profileSelection}"`);
