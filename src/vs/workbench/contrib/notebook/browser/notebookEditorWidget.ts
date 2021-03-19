@@ -722,19 +722,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _showNotebookActionsinEditorToolbar() {
-		this._toolbarActionDisposable.clear();
-		this._topToolbar.setActions([], []);
-
-		if (!this._isVisible) {
-			return;
-		}
-
-		const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
-
 		if (!this._useGlobalToolbar) {
 			// schedule actions registration in next frame, otherwise we are seeing duplicated notbebook actions temporarily
 			this._editorToolbarDisposable?.dispose();
 			this._editorToolbarDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+				const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
 				this._toolbarActionDisposable.clear();
 				this._topToolbar.setActions([], []);
 				if (!this._isVisible || !this.hasFocus()) {
@@ -761,6 +753,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			this._notebookTopToolbarContainer.style.display = 'none';
 		} else {
+			this._toolbarActionDisposable.clear();
+			this._topToolbar.setActions([], []);
+			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
 			this._notebookTopToolbarContainer.style.display = 'flex';
 			const primaryGroup = groups.find(group => group[0] === 'navigation');
 			const primaryActions = primaryGroup ? primaryGroup[1] : [];
@@ -769,7 +764,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._topToolbar.setActions(primaryActions, secondaryActions);
 		}
 
-		if (this._dimension) {
+		if (this._dimension && this._isVisible) {
 			this.layout(this._dimension);
 		}
 	}
