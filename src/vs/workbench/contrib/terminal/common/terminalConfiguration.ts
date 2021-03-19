@@ -118,44 +118,44 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.profiles.osx': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.profile.osx',
-				comment: ['{0}, {1}, and {2} are the `path`, `profileName`, and optional `args` settings keys']
+				comment: ['{0}, {1}, and {2} are the `pathOrPaths`, `profileName`, and optional `args` settings keys']
 			},
-				"The osx shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`path`', '`profileName`', '`args`.'),
+				"The osx shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`pathOrPaths`', '`profileName`', '`args`.'),
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					pathOrPaths: 'bash'
 				},
 				'zsh': {
-					path: 'zsh'
+					pathOrPaths: 'zsh'
 				},
 				'fish': {
-					path: 'fish'
+					pathOrPaths: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					pathOrPaths: 'tmux'
 				}
 			},
 		},
 		'terminal.integrated.profiles.linux': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.profile.linux',
-				comment: ['{0}, {1}, and {2} are the `path`, `profileName`, and optional `args` settings keys']
+				comment: ['{0}, {1}, and {2} are the `pathOrPaths`, `profileName`, and optional `args` settings keys']
 			},
-				"The linux shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`path`', '`profileName`', '`args`.'),
+				"The linux shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`pathOrPaths`', '`profileName`', '`args`.'),
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					pathOrPaths: 'bash'
 				},
 				'zsh': {
-					path: 'zsh'
+					pathOrPaths: 'zsh'
 				},
 				'fish': {
-					path: 'fish'
+					pathOrPaths: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					pathOrPaths: 'tmux'
 				}
 			}
 		},
