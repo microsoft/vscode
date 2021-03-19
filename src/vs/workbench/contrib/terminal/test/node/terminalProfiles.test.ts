@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+// import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { ITerminalProfiles, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
 export interface ITestTerminalConfig {
@@ -32,7 +32,7 @@ suite('Workbench - TerminalProfiles', () => {
 					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
 					assert.deepStrictEqual(profiles, expected);
-				});
+          ));
 				// 	test('should detect cmd prompt', async () => {
 				// 		const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
 				// 		let config: ITestTerminalConfig = {
