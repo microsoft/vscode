@@ -535,9 +535,10 @@ export class NotebookFileWorkingCopyModelFactory implements IFileWorkingCopyMode
 	) { }
 
 	async createModel(resource: URI, stream: VSBufferReadableStream, token: CancellationToken): Promise<NotebookFileWorkingCopyModel> {
-		const info = this._notebookService.getNotebookDataProvider(resource);
+
+		const info = await this._notebookService.withNotebookDataProvider(resource);
 		if (!(info instanceof SimpleNotebookProviderInfo)) {
-			throw new Error('CANNOT open file notebook this provider');
+			throw new Error('CANNOT open file notebook with this provider');
 		}
 
 		const data = await info.serializer.dataToNotebook(await streamToBuffer(stream));

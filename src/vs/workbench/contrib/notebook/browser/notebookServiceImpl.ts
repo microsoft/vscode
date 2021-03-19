@@ -473,12 +473,17 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		});
 	}
 
-	getNotebookDataProvider(resource: URI): ComplexNotebookProviderInfo | SimpleNotebookProviderInfo | undefined {
+	async withNotebookDataProvider(resource: URI): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
 		const [first] = this._notebookProviderInfoStore.getContributedNotebook(resource);
 		if (!first) {
-			return undefined;
+			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
 		}
-		return this._notebookProviders.get(first.id);
+		await this.canResolve(first.id);
+		const result = this._notebookProviders.get(first.id);
+		if (!result) {
+			throw new Error(`NO provider registered for view type: '${first.id}'`);
+		}
+		return result;
 	}
 
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable {

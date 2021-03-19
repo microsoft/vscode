@@ -21,8 +21,7 @@ export interface INotebookEditorModelResolverService {
 	resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
 }
 
-
-export class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
+class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
 	private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>;
 
@@ -41,7 +40,7 @@ export class NotebookModelReferenceCollection extends ReferenceCollection<Promis
 
 	protected async createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
 		const uri = URI.parse(key);
-		const info = this._notebookService.getNotebookDataProvider(uri);
+		const info = await this._notebookService.withNotebookDataProvider(uri);
 
 		if (info instanceof ComplexNotebookProviderInfo) {
 			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType);
