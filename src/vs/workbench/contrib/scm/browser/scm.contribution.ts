@@ -200,8 +200,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.inputFontSize': {
 			type: 'number',
-			minimum: 6,
-			maximum: 100,
 			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
 			default: 13
 		},
