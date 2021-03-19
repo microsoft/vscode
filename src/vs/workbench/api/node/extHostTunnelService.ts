@@ -145,7 +145,7 @@ export async function findPorts(connections: { socket: number, ip: string, port:
 	return ports;
 }
 
-export async function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort & { ppid: number }>): Promise<Map<number, CandidatePort & { ppid: number }>> {
+export function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort & { ppid: number }>): Map<number, CandidatePort & { ppid: number }> {
 	const ports: Map<number, CandidatePort & { ppid: number }> = new Map();
 	const rootProcesses = getRootProcesses(rootProcessesStdout);
 
@@ -155,17 +155,19 @@ export async function tryFindRootPorts(connections: { socket: number, ip: string
 			ports.set(connection.port, previousPort);
 			continue;
 		}
-		const rootProcess = rootProcesses.find((value) => value.cmd.includes(`${connection.port}`));
-		if (rootProcess) {
-			// There are often 2 processes that "look" like they could match the port.
-			// The one we want is usually the child of the other.
-			const firstFound = ports.get(connection.port);
-			if (firstFound && firstFound.ppid === rootProcess.pid) {
-				// The first one we found with this port number is actually the child of the the one we
-				// just came accross. Keep it.
-				continue;
-			}
-			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: rootProcess.pid, detail: rootProcess.cmd, ppid: rootProcess.ppid });
+		const rootProcessMatch = rootProcesses.find((value) => value.cmd.includes(`${connection.port}`));
+		if (rootProcessMatch) {
+			let bestMatch = rootProcessMatch;
+			// There are often several processes that "look" like they could match the port.
+			// The one we want is usually the child of the other. Find the most child process.
+			let mostChild: { pid: number, cmd: string, ppid: number } | undefined;
+			do {
+				mostChild = rootProcesses.find(value => value.ppid === bestMatch.pid);
+				if (mostChild) {
+					bestMatch = mostChild;
+				}
+			} while (mostChild);
+			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: bestMatch.pid, detail: bestMatch.cmd, ppid: bestMatch.ppid });
 		}
 	}
 
@@ -410,7 +412,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			}));
 			// TODO: remove
 			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) root processes ${rootProcesses}`);
-			this._foundRootPorts = await tryFindRootPorts(unFoundConnections, rootProcesses, this._foundRootPorts);
+			this._foundRootPorts = tryFindRootPorts(unFoundConnections, rootProcesses, this._foundRootPorts);
 			heuristicPorts = Array.from(this._foundRootPorts.values());
 			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) heuristic ports ${heuristicPorts.join(', ')}`);
 

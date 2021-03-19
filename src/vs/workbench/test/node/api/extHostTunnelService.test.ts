@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts } from 'vs/workbench/api/node/extHostTunnelService';
+import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts, tryFindRootPorts } from 'vs/workbench/api/node/extHostTunnelService';
 
 const tcp =
 	`  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -263,9 +263,12 @@ suite('ExtHostTunnelService', () => {
 		assert.notStrictEqual(result.find(value => value.port === 3002), undefined);
 	});
 
-	test('getRootProcesses', function () {
-		const result = getRootProcesses(psStdOut);
-		assert.strictEqual(result.length, 6);
+	test('tryFindRootPorts', function () {
+		const rootProcesses = getRootProcesses(psStdOut);
+		assert.strictEqual(rootProcesses.length, 6);
+		const result = tryFindRootPorts([{ socket: 1000, ip: '127.0.0.1', port: 5000 }], psStdOut, new Map());
+		assert.strictEqual(result.size, 1);
+		assert.strictEqual(result.get(5000)?.pid, 514);
 	});
 
 	test('findPorts', async function () {
