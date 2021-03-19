@@ -138,7 +138,7 @@ export async function findPorts(connections: { socket: number, ip: string, port:
 		const pid = socketMap[socket] ? socketMap[socket].pid : undefined;
 		const command: string | undefined = pid ? processMap[pid]?.cmd : undefined;
 		if (pid && command && !knownExcludeCmdline(command)) {
-			ports.push({ host: ip, port, detail: command, pid: pid });
+			ports.push({ host: ip, port, detail: command, pid });
 		}
 	});
 	return ports;
@@ -387,19 +387,24 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			if (!foundConnection) {
 				unFoundConnections.push(connection);
 			}
-			return connection;
+			return foundConnection;
 		}));
 
 		const foundPorts = findPorts(filteredConnections, socketMap, processes);
 		let heuristicPorts: CandidatePort[] | undefined;
+		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) number of possible root ports ${unFoundConnections.length}`);
 		if (unFoundConnections.length > 0) {
 			const rootProcesses: string = await (new Promise(resolve => {
 				exec('ps -F -A -l | grep root', (error, stdout, stderr) => {
 					resolve(stdout);
 				});
 			}));
+			// TODO: remove
+			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) root processes ${rootProcesses}`);
 			this._foundRootPorts = await tryFindRootPorts(unFoundConnections, rootProcesses, this._foundRootPorts);
 			heuristicPorts = Array.from(this._foundRootPorts.values());
+			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) heuristic ports ${heuristicPorts.join(', ')}`);
+
 		}
 		return heuristicPorts ? foundPorts.then(foundCandidates => {
 			if (heuristicPorts) {
