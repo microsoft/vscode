@@ -8,7 +8,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionManagementService, ILocalExtension, InstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { FileChangeType, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, FileSystemProviderCapabilities, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtUri } from 'vs/base/common/resources';
@@ -41,13 +41,31 @@ export class ExtensionsWatcher extends Disposable {
 		const extensionsResource = URI.file(environmentService.extensionsPath);
 		const extUri = new ExtUri(resource => !fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive));
 		this._register(fileService.watch(extensionsResource));
-		this._register(Event.filter(fileService.onDidFilesChange,
-			e => e.changes.some(change =>
-				extUri.isEqual(extUri.dirname(change.resource), extensionsResource) // extensions dir is parent
-				&& (change.type === FileChangeType.ADDED || change.type === FileChangeType.DELETED) // file added or removed
-				&& !extUri.basename(change.resource).startsWith('.') // ignore changes to files starting with `.`
-			))
-			(() => this.onDidChange()));
+		this._register(Event.filter(fileService.onDidFilesChange, e => e.changes.some(change => this.doesChangeAffects(change, extensionsResource, extUri)))(() => this.onDidChange()));
+	}
+
+	private doesChangeAffects(change: IFileChange, extensionsResource: URI, extUri: ExtUri): boolean {
+		// Is not immediate child of extensions resource
+		if (!extUri.isEqual(extUri.dirname(change.resource), extensionsResource)) {
+			return false;
+		}
+
+		// .obsolete file changed
+		if (extUri.isEqual(change.resource, extUri.joinPath(extensionsResource, '.obsolete'))) {
+			return true;
+		}
+
+		// Only interested in added/deleted changes
+		if (change.type !== FileChangeType.ADDED && change.type !== FileChangeType.DELETED) {
+			return false;
+		}
+
+		// Ingore changes to files starting with `.`
+		if (extUri.basename(change.resource).startsWith('.')) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private onInstallExtension(e: InstallExtensionEvent): void {
