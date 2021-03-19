@@ -664,7 +664,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		const editor = new ExtHostNotebookEditor(
 			editorId,
-			document.notebookDocument.viewType,
 			this._proxy,
 			document,
 			data.visibleRanges.map(typeConverters.NotebookCellRange.to),

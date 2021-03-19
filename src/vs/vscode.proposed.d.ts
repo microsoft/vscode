@@ -1378,28 +1378,6 @@ declare module 'vscode' {
 		appendNotebookCellOutputItems(uri: Uri, index: number, outputId: string, items: NotebookCellOutputItem[], metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
-	export interface NotebookEditorEdit {
-		replaceMetadata(value: NotebookDocumentMetadata): void;
-		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellOutput(index: number, outputs: NotebookCellOutput[]): void;
-		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
-	}
-
-	export interface NotebookEditor {
-		/**
-		 * Perform an edit on the notebook associated with this notebook editor.
-		 *
-		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
-		 * be used to make edits. Note that the edit-builder is only valid while the
-		 * callback executes.
-		 *
-		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
-		 * @return A promise that resolves with a value indicating if the edits could be applied.
-		 */
-		// @jrieken REMOVE maybe
-		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
-	}
-
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookSerializer

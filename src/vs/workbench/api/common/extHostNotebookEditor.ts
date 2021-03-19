@@ -7,81 +7,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
-
-interface INotebookEditData {
-	documentVersionId: number;
-	cellEdits: ICellEditOperation[];
-}
-
-class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
-
-	private readonly _documentVersionId: number;
-
-	private _finalized: boolean = false;
-	private _collectedEdits: ICellEditOperation[] = [];
-
-	constructor(documentVersionId: number) {
-		this._documentVersionId = documentVersionId;
-	}
-
-	finalize(): INotebookEditData {
-		this._finalized = true;
-		return {
-			documentVersionId: this._documentVersionId,
-			cellEdits: this._collectedEdits
-		};
-	}
-
-	private _throwIfFinalized() {
-		if (this._finalized) {
-			throw new Error('Edit is only valid while callback runs');
-		}
-	}
-
-	replaceMetadata(value: vscode.NotebookDocumentMetadata): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.DocumentMetadata,
-			metadata: value
-		});
-	}
-
-	replaceCellMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.Metadata,
-			index,
-			metadata
-		});
-	}
-
-	replaceCellOutput(index: number, outputs: vscode.NotebookCellOutput[]): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.Output,
-			index,
-			outputs: outputs.map(output => {
-				return extHostConverter.NotebookCellOutput.from(output);
-			})
-		});
-	}
-
-	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
-		this._throwIfFinalized();
-		if (from === to && cells.length === 0) {
-			return;
-		}
-		this._collectedEdits.push({
-			editType: CellEditType.Replace,
-			index: from,
-			count: to - from,
-			cells: cells.map(extHostConverter.NotebookCellData.from)
-		});
-	}
-}
 
 export class ExtHostNotebookEditor {
 
@@ -101,7 +28,6 @@ export class ExtHostNotebookEditor {
 
 	constructor(
 		readonly id: string,
-		private readonly _viewType: string,
 		private readonly _proxy: MainThreadNotebookShape,
 		readonly notebookData: ExtHostNotebookDocument,
 		visibleRanges: vscode.NotebookCellRange[],
@@ -148,11 +74,6 @@ export class ExtHostNotebookEditor {
 				get onDidDispose() {
 					return that.onDidDispose;
 				},
-				edit(callback) {
-					const edit = new NotebookEditorCellEditBuilder(this.document.version);
-					callback(edit);
-					return that._applyEdit(edit.finalize());
-				},
 				get kernel() {
 					return that._kernel;
 				},
@@ -182,42 +103,6 @@ export class ExtHostNotebookEditor {
 
 	_acceptSelections(selections: vscode.NotebookCellRange[]): void {
 		this._selections = selections;
-	}
-
-	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
-
-		// return when there is nothing to do
-		if (editData.cellEdits.length === 0) {
-			return Promise.resolve(true);
-		}
-
-		const compressedEdits: ICellEditOperation[] = [];
-		let compressedEditsIndex = -1;
-
-		for (let i = 0; i < editData.cellEdits.length; i++) {
-			if (compressedEditsIndex < 0) {
-				compressedEdits.push(editData.cellEdits[i]);
-				compressedEditsIndex++;
-				continue;
-			}
-
-			const prevIndex = compressedEditsIndex;
-			const prev = compressedEdits[prevIndex];
-
-			if (prev.editType === CellEditType.Replace && editData.cellEdits[i].editType === CellEditType.Replace) {
-				const edit = editData.cellEdits[i];
-				if ((edit.editType !== CellEditType.DocumentMetadata) && prev.index === edit.index) {
-					prev.cells.push(...(editData.cellEdits[i] as ICellReplaceEdit).cells);
-					prev.count += (editData.cellEdits[i] as ICellReplaceEdit).count;
-					continue;
-				}
-			}
-
-			compressedEdits.push(editData.cellEdits[i]);
-			compressedEditsIndex++;
-		}
-
-		return this._proxy.$tryApplyEdits(this._viewType, this.notebookData.uri, editData.documentVersionId, compressedEdits);
 	}
 
 	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookCellRange): void {
