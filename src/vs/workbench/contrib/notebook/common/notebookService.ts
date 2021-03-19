@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, INotebookKernelProvider, INotebookKernel, TransientMetadata, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, INotebookKernelProvider, INotebookKernel, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -22,20 +22,41 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 
 export interface IMainNotebookController {
 	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
-	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
+	options: TransientOptions;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
 
-	openNotebook(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
+	open(uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string>;
 }
 
+export interface INotebookSerializer {
+	options: TransientOptions;
+	dataToNotebook(data: VSBuffer): Promise<NotebookDataDto>
+	notebookToData(data: NotebookDataDto): Promise<VSBuffer>;
+}
 
 export interface INotebookRawData {
 	data: NotebookDataDto;
 	transientOptions: TransientOptions;
+}
+
+export class ComplexNotebookProviderInfo {
+	constructor(
+		readonly viewType: string,
+		readonly controller: IMainNotebookController,
+		readonly extensionData: NotebookExtensionDescription
+	) { }
+}
+
+export class SimpleNotebookProviderInfo {
+	constructor(
+		readonly viewType: string,
+		readonly serializer: INotebookSerializer,
+		readonly extensionData: NotebookExtensionDescription
+	) { }
 }
 
 export interface INotebookService {
@@ -44,10 +65,13 @@ export interface INotebookService {
 
 	onDidRemoveNotebookDocument: Event<URI>;
 	onDidAddNotebookDocument: Event<NotebookTextModel>;
-	onNotebookDocumentSaved: Event<URI>;
+
 	onDidChangeKernels: Event<URI | undefined>;
 	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelFriendlyId: string | undefined; }>;
+
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
+	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
+	withNotebookDataProvider(resource: URI): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[];
 
@@ -66,12 +90,6 @@ export interface INotebookService {
 	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
-	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
-
-	fetchNotebookRawData(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<INotebookRawData>;
-	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
-	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined>;
 
 	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: unknown): void;
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
