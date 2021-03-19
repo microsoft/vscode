@@ -42,22 +42,17 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		{
 			profileName: 'Git Bash',
 			paths: [
-				`${process.env['ProgramFiles']}\\Git\\git-cmd.exe`
-			],
-			args: [
-				'--comand=usr/bin/bash.exe',
-				'-l',
-				'-i'
-			]
-		},
-		{
-			profileName: 'Git Bash',
-			paths: [
+				`${process.env['ProgramFiles']}\\Git\\git-cmd.exe`,
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
+			],
+			args: [
+				'--command=usr/bin/bash.exe',
+				'-l',
+				'-i'
 			]
 		},
 		{
@@ -153,6 +148,18 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 
 	// include any custom profiles
 	detectedProfiles.push(...quickLaunchProfiles.filter(p => !detectedProfiles.find(profile => profile.profileName === p.profileName && profile.path === p.path && profile.args === p.args)));
+
+	if (!detectedProfiles.find(p => p.path.endsWith('git-cmd.exe'))) {
+		// remove args so git bash launches
+		const gitBashProfile = detectedProfiles.find(p => p.path.endsWith('bash.exe'));
+		const quickGitBashProfile = quickLaunchProfiles.find(p => p.path.endsWith('bash.exe'));
+		if (gitBashProfile) {
+			gitBashProfile.args = undefined;
+		}
+		if (quickGitBashProfile) {
+			quickGitBashProfile.args = undefined;
+		}
+	}
 
 	if (showQuickLaunchWslProfiles) {
 		quickLaunchProfiles.push(...detectedProfiles.filter(p => p.path.endsWith('wsl.exe')));
