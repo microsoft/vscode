@@ -114,13 +114,14 @@ function knownExcludeCmdline(command: string): boolean {
 
 export function getRootProcesses(stdout: string) {
 	const lines = stdout.trim().split('\n');
-	const mapped: { pid: number, cmd: string }[] = [];
+	const mapped: { pid: number, cmd: string, ppid: number }[] = [];
 	lines.forEach(line => {
-		const match = /^\d+\s+\D+\s+root\s+(\d+).+\d+\:\d+\:\d+\s+(.+)$/.exec(line)!;
-		if (match && match.length >= 3) {
+		const match = /^\d+\s+\D+\s+root\s+(\d+)\s+(\d+).+\d+\:\d+\:\d+\s+(.+)$/.exec(line)!;
+		if (match && match.length >= 4) {
 			mapped.push({
 				pid: parseInt(match[1], 10),
-				cmd: match[2]
+				ppid: parseInt(match[2]),
+				cmd: match[3]
 			});
 		}
 	});
@@ -144,8 +145,8 @@ export async function findPorts(connections: { socket: number, ip: string, port:
 	return ports;
 }
 
-export async function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort>): Promise<Map<number, CandidatePort>> {
-	const ports: Map<number, CandidatePort> = new Map();
+export async function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort & { ppid: number }>): Promise<Map<number, CandidatePort & { ppid: number }>> {
+	const ports: Map<number, CandidatePort & { ppid: number }> = new Map();
 	const rootProcesses = getRootProcesses(rootProcessesStdout);
 
 	for (const connection of connections) {
@@ -156,7 +157,15 @@ export async function tryFindRootPorts(connections: { socket: number, ip: string
 		}
 		const rootProcess = rootProcesses.find((value) => value.cmd.includes(`${connection.port}`));
 		if (rootProcess) {
-			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: rootProcess.pid, detail: rootProcess.cmd });
+			// There are often 2 processes that "look" like they could match the port.
+			// The one we want is usually the child of the other.
+			const firstFound = ports.get(connection.port);
+			if (firstFound && firstFound.ppid === rootProcess.pid) {
+				// The first one we found with this port number is actually the child of the the one we
+				// just came accross. Keep it.
+				continue;
+			}
+			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: rootProcess.pid, detail: rootProcess.cmd, ppid: rootProcess.ppid });
 		}
 	}
 
@@ -172,7 +181,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
-	private _foundRootPorts: Map<number, CandidatePort> = new Map();
+	private _foundRootPorts: Map<number, CandidatePort & { ppid: number }> = new Map();
 
 	private _providerHandleCounter: number = 0;
 	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider, selector: PortAttributesProviderSelector }> = new Map();
