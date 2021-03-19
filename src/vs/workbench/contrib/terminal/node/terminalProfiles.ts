@@ -67,7 +67,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
 				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 			],
-			args: ['-l']
+			args: ['--login']
 		},
 		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, quickLaunchWslProfiles, logService),
 		... await getPowershellProfiles()

@@ -822,6 +822,18 @@ export class TerminalService implements ITerminalService {
 			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
 		};
 		const quickPickItems = profiles.map((p): IQuickPickItem => {
+			if (p.args) {
+				if (typeof p.args === 'string') {
+					return { label: p.profileName, description: `${p.path} ${p.args}` };
+				}
+				const argsString = p.args.map(e => {
+					if (e.includes(' ')) {
+						return `"${e.replace('/"/g', '\\"')}"`;
+					}
+					return e;
+				});
+				return { label: p.profileName, description: `${p.path} ${argsString}` };
+			}
 			return { label: p.profileName, description: p.path };
 		});
 		const value = await this._quickInputService.pick(quickPickItems, options);
