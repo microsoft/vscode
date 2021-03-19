@@ -53,6 +53,17 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		{
 			profileName: 'Git Bash',
 			paths: [
+				`${process.env['ProgramFiles']}\\Git\\git-cmd.exe`
+			],
+			args: [
+				'--comand=usr/bin/bash.exe',
+				'-l',
+				'-i'
+			]
+		},
+		{
+			profileName: 'Git Bash',
+			paths: [
 				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
