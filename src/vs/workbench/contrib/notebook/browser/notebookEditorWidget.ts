@@ -670,6 +670,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._showNotebookActionsinEditorToolbar();
 		}));
 		this._register(this.onDidBlur(() => {
+			this._editorToolbarDisposable?.dispose();
 			this._toolbarActionDisposable.clear();
 		}));
 	}
@@ -729,6 +730,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
 				this._toolbarActionDisposable.clear();
 				this._topToolbar.setActions([], []);
+				if (!this.viewModel) {
+					return;
+				}
+
 				if (!this._isVisible || !this.hasFocus()) {
 					return;
 				}
@@ -741,8 +746,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					for (let i = 0; i < actions.length; i++) {
 						const menuItemAction = actions[i] as MenuItemAction;
 						this._toolbarActionDisposable.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-							command: menuItemAction.item,
-							title: menuItemAction.item.title,
+							command: {
+								id: menuItemAction.item.id,
+								title: menuItemAction.item.title + ' ' + this.viewModel?.uri.scheme,
+								category: menuItemAction.item.category,
+								tooltip: menuItemAction.item.tooltip,
+								icon: menuItemAction.item.icon,
+								precondition: menuItemAction.item.precondition,
+								toggled: menuItemAction.item.toggled,
+							},
+							title: menuItemAction.item.title + ' ' + this.viewModel?.uri.scheme,
 							group: groupName,
 							order: order
 						}));
@@ -1415,6 +1428,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
 		this._editorFocus.set(focused);
 		this.viewModel?.setFocus(focused);
+
+		if (!focused) {
+			this._editorToolbarDisposable?.dispose();
+			this._toolbarActionDisposable.clear();
+		}
 	}
 
 	hasFocus() {
