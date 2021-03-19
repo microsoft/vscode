@@ -147,7 +147,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 	private readonly mapResourceToWorkingCopy = new ResourceMap<IFileWorkingCopy<T>>();
 	private readonly mapResourceToWorkingCopyListeners = new ResourceMap<IDisposable>();
 	private readonly mapResourceToDisposeListener = new ResourceMap<IDisposable>();
-	private readonly mapResourceToPendingWorkingCopyResolve = new ResourceMap<Promise<IFileWorkingCopy<T>>>();
+	private readonly mapResourceToPendingWorkingCopyResolve = new ResourceMap<Promise<void>>();
 
 	private readonly workingCopyResolveQueue = this._register(new ResourceQueue());
 
@@ -224,7 +224,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 			await pendingResolve;
 		}
 
-		let workingCopyPromise: Promise<IFileWorkingCopy<T>>;
+		let workingCopyResolve: Promise<void>;
 		let workingCopy = this.get(resource);
 		let didCreateWorkingCopy = false;
 
@@ -233,7 +233,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 
 			// Always reload if contents are provided
 			if (options?.contents) {
-				workingCopyPromise = workingCopy.resolve(options);
+				workingCopyResolve = workingCopy.resolve(options);
 			}
 
 			// Reload async or sync based on options
@@ -241,19 +241,19 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 
 				// async reload: trigger a reload but return immediately
 				if (options.reload.async) {
-					workingCopyPromise = Promise.resolve(workingCopy);
 					workingCopy.resolve(options);
+					workingCopyResolve = Promise.resolve();
 				}
 
 				// sync reload: do not return until working copy reloaded
 				else {
-					workingCopyPromise = workingCopy.resolve(options);
+					workingCopyResolve = workingCopy.resolve(options);
 				}
 			}
 
 			// Do not reload
 			else {
-				workingCopyPromise = Promise.resolve(workingCopy);
+				workingCopyResolve = Promise.resolve();
 			}
 		}
 
@@ -262,13 +262,13 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 			didCreateWorkingCopy = true;
 
 			const newWorkingCopy = workingCopy = this.instantiationService.createInstance(FileWorkingCopy, resource, this.labelService.getUriBasenameLabel(resource), this.modelFactory) as unknown as IFileWorkingCopy<T>;
-			workingCopyPromise = workingCopy.resolve(options);
+			workingCopyResolve = workingCopy.resolve(options);
 
 			this.registerWorkingCopy(newWorkingCopy);
 		}
 
 		// Store pending resolve to avoid race conditions
-		this.mapResourceToPendingWorkingCopyResolve.set(resource, workingCopyPromise);
+		this.mapResourceToPendingWorkingCopyResolve.set(resource, workingCopyResolve);
 
 		// Make known to manager (if not already known)
 		this.add(resource, workingCopy);
@@ -285,18 +285,20 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		}
 
 		try {
-			const resolvedWorkingCopy = await workingCopyPromise;
+
+			// Wait for working copy to resolve
+			await workingCopyResolve;
 
 			// Remove from pending resolves
 			this.mapResourceToPendingWorkingCopyResolve.delete(resource);
 
 			// File working copy can be dirty if a backup was restored, so we make sure to
 			// have this event delivered if we created the working copy here
-			if (didCreateWorkingCopy && resolvedWorkingCopy.isDirty()) {
-				this._onDidChangeDirty.fire(resolvedWorkingCopy);
+			if (didCreateWorkingCopy && workingCopy.isDirty()) {
+				this._onDidChangeDirty.fire(workingCopy);
 			}
 
-			return resolvedWorkingCopy;
+			return workingCopy;
 		} catch (error) {
 
 			// Free resources of this invalid working copy
