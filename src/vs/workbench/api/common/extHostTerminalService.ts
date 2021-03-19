@@ -780,7 +780,7 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public $getAvailableProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
-		return new Promise(() => []);
+		throw new NotSupportedError();
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {

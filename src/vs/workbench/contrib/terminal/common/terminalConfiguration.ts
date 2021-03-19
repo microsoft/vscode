@@ -95,7 +95,7 @@ export const terminalConfiguration: IConfigurationNode = {
 					source: 'Git Bash'
 				},
 				'Command Prompt': {
-					pathOrPaths:
+					path:
 						[
 							'${env:windir}\\Sysnative\\cmd.exe',
 							'${env:windir}\\System32\\cmd.exe'
@@ -104,7 +104,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'Windows PowerShell': {
 					comment: 'note that this will not be included in the quickSelect drop down if another version of powershell is installed',
-					pathOrPaths:
+					path:
 						[
 							'${env:windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 							'${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
