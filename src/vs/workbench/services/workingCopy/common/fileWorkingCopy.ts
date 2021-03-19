@@ -43,7 +43,7 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
  * typically only available after the working copy has been
  * resolved via it's `resolve()` method.
  */
-export interface IFileWorkingCopyModel {
+export interface IFileWorkingCopyModel extends Disposable {
 
 	/**
 	 * An even that fires whenever the content of the file working
@@ -699,8 +699,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {
 		this.logService.trace('[file working copy] doCreateModel()', this.resource.toString(true));
 
-		// Create model
-		this._model = await this.modelFactory.createModel(this.resource, contents, CancellationToken.None);
+		// Create model and dispose it when we get disposed
+		this._model = this._register(await this.modelFactory.createModel(this.resource, contents, CancellationToken.None));
 
 		// Model listeners
 		this.installModelListeners(this._model);

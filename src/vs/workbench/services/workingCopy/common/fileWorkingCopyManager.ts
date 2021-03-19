@@ -61,12 +61,13 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> {
 
 	/**
 	 * Returns the file working copy for the provided resource
-	 * or undefined if none.
+	 * or `undefined` if none.
 	 */
 	get(resource: URI): IFileWorkingCopy<T> | undefined;
 
 	/**
-	 * Allows to resolve a file working copy.
+	 * Allows to resolve a file working copy. Callers must dispose the working
+	 * copy when no longer needed.
 	 */
 	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
 
@@ -74,6 +75,9 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> {
 	 * Waits for the file working copy to be ready to be disposed. There may be
 	 * conditions under which the file working copy cannot be disposed, e.g. when
 	 * it is dirty. Once the promise is settled, it is safe to dispose.
+	 *
+	 * TODO@bpasero this is a bit fishy, should this not be inside the working copy
+	 * itself?
 	 */
 	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true>;
 }
