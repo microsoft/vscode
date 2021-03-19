@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -43,7 +43,7 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
  * typically only available after the working copy has been
  * resolved via it's `resolve()` method.
  */
-export interface IFileWorkingCopyModel extends Disposable {
+export interface IFileWorkingCopyModel extends IDisposable {
 
 	/**
 	 * An even that fires whenever the content of the file working

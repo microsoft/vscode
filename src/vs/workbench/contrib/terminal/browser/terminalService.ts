@@ -831,7 +831,7 @@ export class TerminalService implements ITerminalService {
 						return `"${e.replace('/"/g', '\\"')}"`;
 					}
 					return e;
-				});
+				}).join(' ');
 				return { label: p.profileName, description: `${p.path} ${argsString}` };
 			}
 			return { label: p.profileName, description: p.path };

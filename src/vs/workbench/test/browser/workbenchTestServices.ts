@@ -256,7 +256,9 @@ export class TestServiceAccessor {
 		@IConfigurationService public testConfigurationService: TestConfigurationService,
 		@IBackupFileService public backupFileService: TestBackupFileService,
 		@IHostService public hostService: TestHostService,
-		@IQuickInputService public quickInputService: IQuickInputService
+		@IQuickInputService public quickInputService: IQuickInputService,
+		@ILabelService public labelService: ILabelService,
+		@ILogService public logService: ILogService
 	) { }
 }
 
