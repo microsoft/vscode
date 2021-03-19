@@ -163,7 +163,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-browser-code-loading',
 
 		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log',
+		'log-level',
 	];
 
 	// Read argv config
@@ -209,7 +209,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					}
 					break;
 
-				case 'log':
+				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
 					}
