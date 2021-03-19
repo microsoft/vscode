@@ -40,9 +40,6 @@ const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.worksp
 const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceTrusted);
 const unknownIcon = registerCodicon('workspace-unknown-icon', Codicon.workspaceUnknown);
 
-class WorkspaceTrustExtensionDelegate extends Delegate {
-	getHeight() { return super.getHeight() + 36; }
-}
 
 export class WorkspaceTrustEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.workspaceTrust';
@@ -270,7 +267,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new WorkspaceTrustExtensionDelegate());
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();
 
