@@ -202,9 +202,8 @@ export class ExperimentService implements ITASExperimentService {
 			this.tasClient = this.setupTASClient();
 		}
 
-		// For development purposes, configure the delay until tas local tas treatment ovverrides are avilable
-		// 2000ms is the default and represents approximately the p90 delay of reading from the tas service.
-		const overrideDelay = this.configurationService.getValue<number>('experiments.overrideDelay') ?? 2000;
+		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
+		const overrideDelay = this.configurationService.getValue<number>('experiments.overrideDelay') ?? 0;
 		this.overrideInitDelay = new Promise(resolve => setTimeout(resolve, overrideDelay));
 	}
 
