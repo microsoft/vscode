@@ -20,8 +20,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { hash } from 'vs/base/common/hash';
-import { NotificationMetrics, NotificationMetricsClassification } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
+import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
@@ -223,8 +222,8 @@ export class NotificationsList extends Themable {
 			return; // already hidden
 		}
 		if (this.viewModel.length > 0) {
-			const id = hash(this.viewModel[0].message.original.toString());
-			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', { id });
+			const notification = this.viewModel[0];
+			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.silent));
 		}
 
 		// Hide
