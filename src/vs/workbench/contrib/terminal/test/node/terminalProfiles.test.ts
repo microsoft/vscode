@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // import * as assert from 'assert';
+import assert = require('assert');
 import { isWindows } from 'vs/base/common/platform';
-import { ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProfiles, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
 export interface ITestTerminalConfig {
@@ -32,7 +33,7 @@ suite('Workbench - TerminalProfiles', () => {
 					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
 					assert.deepStrictEqual(profiles, expected);
-          ));
+				});
 				// 	test('should detect cmd prompt', async () => {
 				// 		const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
 				// 		let config: ITestTerminalConfig = {
@@ -49,18 +50,21 @@ suite('Workbench - TerminalProfiles', () => {
 				// 		const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
 				// 		assert.deepStrictEqual(expected, profiles);
 				// 	});
-			});
+			}
+			);
 		}
+
 	});
+
+	function createStatProvider(expectedPaths: string[]): IStatProvider {
+		const provider = {
+			stat(path: string) {
+				return expectedPaths.includes(path);
+			},
+			lstat(path: string) {
+				return expectedPaths.includes(path);
+			}
+		};
+		return provider;
+	}
 });
-function createStatProvider(expectedPaths: string[]): IStatProvider {
-	const provider = {
-		stat(path: string) {
-			return expectedPaths.includes(path);
-		},
-		lstat(path: string) {
-			return expectedPaths.includes(path);
-		}
-	};
-	return provider;
-}
