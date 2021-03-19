@@ -15,11 +15,11 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Memento } from 'vs/workbench/common/memento';
-import { ICellViewModel, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { configureKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { cellIndexesToRanges, CellKind, ICellRange, INotebookKernel, NotebookCellExecutionState, NotebookRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellIndexesToRanges, CellKind, ICellRange, INotebookKernel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
 const NotebookEditorActiveKernelCache = 'workbench.editor.notebook.activeKernel';
@@ -47,7 +47,6 @@ export class NotebookEditorKernelManager extends Disposable {
 	private _contributedKernelsComputePromise: CancelablePromise<INotebookKernel[]> | null = null;
 	private _initialKernelComputationDone: boolean = false;
 
-	private readonly _notebookExecuting: IContextKey<boolean>;
 	private readonly _notebookHasMultipleKernels: IContextKey<boolean>;
 	private readonly _notebookKernelCount: IContextKey<number>;
 	private readonly _interruptibleKernel: IContextKey<boolean>;
@@ -113,7 +112,6 @@ export class NotebookEditorKernelManager extends Disposable {
 
 		this._activeKernelMemento = new Memento(NotebookEditorActiveKernelCache, storageService);
 
-		this._notebookExecuting = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(contextKeyService);
 		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(contextKeyService);
 		this._notebookKernelCount = NOTEBOOK_KERNEL_COUNT.bindTo(contextKeyService);
 		this._interruptibleKernel = NOTEBOOK_INTERRUPTIBLE_KERNEL.bindTo(contextKeyService);
@@ -213,15 +211,6 @@ export class NotebookEditorKernelManager extends Disposable {
 		this._contributedKernelsComputePromise = null;
 
 		return result;
-	}
-
-	updateForMetadata(): void {
-		if (!this._delegate.viewModel) {
-			return;
-		}
-
-		const notebookMetadata = this._delegate.viewModel.metadata;
-		this._notebookExecuting.set(notebookMetadata.runState === NotebookRunState.Running);
 	}
 
 	private async _setKernelsFromProviders(provider: NotebookProviderInfo, kernels: INotebookKernel[], tokenSource: CancellationTokenSource) {
@@ -414,12 +403,12 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
-		if (this._delegate.viewModel.metadata.runState !== NotebookRunState.Running) {
-			return;
-		}
-
 		await this._ensureActiveKernel();
-		// await this._activeKernel?.cancelNotebookCell!(this._delegate.viewModel.uri, undefined);
+
+		const fullRange: ICellRange = {
+			start: 0, end: this._delegate.viewModel.length
+		};
+		await this._activeKernel?.cancelNotebookCellExecution!(this._delegate.viewModel.uri, [fullRange]);
 	}
 
 	async executeNotebook(): Promise<void> {

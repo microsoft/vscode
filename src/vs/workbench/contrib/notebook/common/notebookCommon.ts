@@ -61,7 +61,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellEditable: true,
 	cellHasExecutionOrder: true,
 	custom: {},
-	runState: NotebookRunState.Idle,
 	trusted: true
 };
 
@@ -70,7 +69,6 @@ export interface NotebookDocumentMetadata {
 	cellEditable: boolean;
 	cellHasExecutionOrder: boolean;
 	custom?: { [key: string]: unknown };
-	runState?: NotebookRunState;
 	trusted: boolean;
 }
 

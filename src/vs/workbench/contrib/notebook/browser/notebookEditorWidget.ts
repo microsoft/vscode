@@ -968,8 +968,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._editorEditable.set(!!notebookMetadata?.editable);
 		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
-
-		this._kernelManger.updateForMetadata();
 	}
 
 	private async _resolveWebview(): Promise<BackLayerWebView<ICommonCellInfo> | null> {
