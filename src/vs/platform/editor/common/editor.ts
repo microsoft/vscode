@@ -19,6 +19,11 @@ export interface IEditorModel {
 	load(): Promise<IEditorModel>;
 
 	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean;
+
+	/**
 	 * Dispose associated resources
 	 */
 	dispose(): void;
@@ -104,6 +109,19 @@ export enum EditorActivation {
 	 * automatically.
 	 */
 	PRESERVE
+}
+
+export enum EditorOverride {
+
+	/**
+	 * Displays a picker and allows the user to decide which editor to use
+	 */
+	PICK = 1,
+
+	/**
+	 * Disables overrides
+	 */
+	DISABLED
 }
 
 export enum EditorOpenContext {
@@ -199,10 +217,10 @@ export interface IEditorOptions {
 	/**
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
-	 * - `false`: disable overrides
 	 * - `string`: specific override by id
+	 * - `EditorOverride`: specific override handling
 	 */
-	readonly override?: false | string;
+	readonly override?: string | EditorOverride;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

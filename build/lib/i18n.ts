@@ -339,13 +339,14 @@ export class XLF {
 
 							let val = unit.target[0];
 							if (typeof val !== 'string') {
-								val = val._;
+								// We allow empty source values so support them for translations as well.
+								val = val._ ? val._ : '';
 							}
-							if (key && val) {
-								messages[key] = decodeEntities(val);
-							} else {
-								reject(new Error(`XLF parsing error: XLIFF file ${originalFilePath} does not contain full localization data. ID or target translation for one of the trans-unit nodes is not present.`));
+							if (!key) {
+								reject(new Error(`XLF parsing error: trans-unit ${JSON.stringify(unit, undefined, 0)} defined in file ${originalFilePath} is missing the ID attribute.`));
+								return;
 							}
+							messages[key] = decodeEntities(val);
 						});
 						files.push({ messages: messages, originalFilePath: originalFilePath, language: language.toLowerCase() });
 					}
@@ -996,7 +997,7 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
 function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string): Promise<any> {
-	return new Promise((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
 		const data = JSON.stringify({ content: xlfFile.contents.toString() });
 		const options = {
 			hostname: apiHostname,
@@ -1188,7 +1189,7 @@ interface I18nPack {
 	};
 }
 
-const i18nPackVersion = "1.0.0";
+const i18nPackVersion = '1.0.0';
 
 export interface TranslationPath {
 	id: string;

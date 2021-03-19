@@ -8,10 +8,19 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
+import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
+import { NpmScriptLensProvider } from './npmScriptLens';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
+
+function invalidateScriptCaches() {
+	invalidateHoverScriptsCache();
+	invalidateTasksCache();
+	if (treeDataProvider) {
+		treeDataProvider.refresh();
+	}
+}
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	configureHttpRequest();
@@ -23,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	const canRunNPM = canRunNpmInCurrentWorkspace();
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr, canRunNPM));
+	registerTaskProvider(context);
 
 	treeDataProvider = registerExplorer(context);
 
@@ -40,7 +50,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		}
 	}));
 
-	registerTaskProvider(context);
 	registerHoverProvider(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
@@ -50,6 +59,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}
 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
+	context.subscriptions.push(vscode.commands.registerCommand('npm.refresh', () => {
+		invalidateScriptCaches();
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('npm.packageManager', (args) => {
+		if (args instanceof vscode.Uri) {
+			return getPackageManager(context, args);
+		}
+		return '';
+	}));
+	context.subscriptions.push(new NpmScriptLensProvider());
 }
 
 function canRunNpmInCurrentWorkspace() {
@@ -59,16 +78,8 @@ function canRunNpmInCurrentWorkspace() {
 	return false;
 }
 
+let taskProvider: NpmTaskProvider;
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
-
-	function invalidateScriptCaches() {
-		invalidateHoverScriptsCache();
-		invalidateTasksCache();
-		if (treeDataProvider) {
-			treeDataProvider.refresh();
-		}
-	}
-
 	if (vscode.workspace.workspaceFolders) {
 		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
 		watcher.onDidChange((_e) => invalidateScriptCaches());
@@ -79,8 +90,8 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		let workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders((_e) => invalidateScriptCaches());
 		context.subscriptions.push(workspaceWatcher);
 
-		let provider: vscode.TaskProvider = new NpmTaskProvider();
-		let disposable = vscode.tasks.registerTaskProvider('npm', provider);
+		taskProvider = new NpmTaskProvider(context);
+		let disposable = vscode.tasks.registerTaskProvider('npm', taskProvider);
 		context.subscriptions.push(disposable);
 		return disposable;
 	}
@@ -89,7 +100,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 
 function registerExplorer(context: vscode.ExtensionContext): NpmScriptsTreeDataProvider | undefined {
 	if (vscode.workspace.workspaceFolders) {
-		let treeDataProvider = new NpmScriptsTreeDataProvider(context);
+		let treeDataProvider = new NpmScriptsTreeDataProvider(context, taskProvider!);
 		const view = vscode.window.createTreeView('npm', { treeDataProvider: treeDataProvider, showCollapseAll: true });
 		context.subscriptions.push(view);
 		return treeDataProvider;

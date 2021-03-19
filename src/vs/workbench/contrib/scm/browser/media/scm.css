@@ -8,8 +8,18 @@
 	position: relative;
 }
 
+.scm-overflow-widgets-container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+	z-index: 5000;
+}
+
 .scm-view .monaco-tl-contents > div {
-	margin-right: 12px;
+	padding-right: 12px;
 	overflow: hidden;
 }
 
@@ -39,6 +49,7 @@
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	min-width: 50px;
 }
 
 .scm-view .scm-provider > .label > .name {
@@ -77,11 +88,12 @@
 	margin: 0;
 	background-repeat: no-repeat;
 	background-position: center;
+	background-size: contain;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
 	font-size: 12px;
-	padding-right: 2px;
+	margin-right: 2px;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {
@@ -146,6 +158,7 @@
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 	max-width: fit-content;
+	max-width: -moz-fit-content;
 }
 
 .scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,
@@ -168,6 +181,7 @@
 .scm-view .monaco-list-row .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
+	color: inherit;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 }
@@ -178,7 +192,7 @@
 
 .scm-view .scm-input {
 	height: 100%;
-	margin-left: 9px;
+	padding-left: 8px;
 }
 
 .scm-view .scm-editor {
@@ -231,4 +245,15 @@
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .mtk1 {
 	color: inherit;
+}
+
+/* Repositories */
+
+.scm-repositories-view .scm-provider {
+	margin: 0 12px 0 20px;
+	overflow: hidden;
+}
+
+.scm-repositories-view .scm-provider > .label > .name {
+	font-weight: normal;
 }

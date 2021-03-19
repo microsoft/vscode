@@ -9,7 +9,7 @@ import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callS
 import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import type { IScope, IExpression } from 'vs/workbench/contrib/debug/common/debug';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 
 suite('Debug - Hover', () => {
 	test('find expression in stack frame', async () => {
@@ -27,14 +27,14 @@ suite('Debug - Hover', () => {
 			name: 'internalModule.js',
 			path: 'a/b/c/d/internalModule.js',
 			sourceReference: 10,
-		}, 'aDebugSessionId');
+		}, 'aDebugSessionId', mockUriIdentityService);
 
 		let scope: Scope;
 		stackFrame = new class extends StackFrame {
 			getScopes(): Promise<IScope[]> {
 				return Promise.resolve([scope]);
 			}
-		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		}(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 
 		let variableA: Variable;
@@ -52,16 +52,16 @@ suite('Debug - Hover', () => {
 		}(session, 1, scope, 2, 'A', 'A', undefined!, 0, 0, {}, 'string');
 		variableB = new Variable(session, 1, scope, 2, 'B', 'A.B', undefined!, 0, 0, {}, 'string');
 
-		assert.equal(await findExpressionInStackFrame(stackFrame, []), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A']), variableA);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['doesNotExist', 'no']), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['a']), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['B']), undefined);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A', 'B']), variableB);
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A', 'C']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, []), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), variableA);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['doesNotExist', 'no']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['a']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['B']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A', 'B']), variableB);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A', 'C']), undefined);
 
 		// We do not search in expensive scopes
 		scope.expensive = true;
-		assert.equal(await findExpressionInStackFrame(stackFrame, ['A']), undefined);
+		assert.strictEqual(await findExpressionInStackFrame(stackFrame, ['A']), undefined);
 	});
 });

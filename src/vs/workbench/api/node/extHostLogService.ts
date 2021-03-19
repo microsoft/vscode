@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, DelegatedLogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogService, LogLevel } from 'vs/platform/log/common/log';
 import { ExtHostLogServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Schemas } from 'vs/base/common/network';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
-import { dirname } from 'vs/base/common/resources';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 
-export class ExtHostLogService extends DelegatedLogService implements ILogService, ExtHostLogServiceShape {
+export class ExtHostLogService extends LogService implements ILogService, ExtHostLogServiceShape {
 
 	constructor(
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
 		if (initData.logFile.scheme !== Schemas.file) { throw new Error('Only file-logging supported'); }
-		super(new SpdLogService(ExtensionHostLogFileName, dirname(initData.logFile).fsPath, initData.logLevel));
+		super(new SpdLogLogger(ExtensionHostLogFileName, initData.logFile.fsPath, true, initData.logLevel));
 	}
 
 	$setLevel(level: LogLevel): void {

@@ -60,7 +60,12 @@ export interface IRPCProtocolLogger {
 
 const noop = () => { };
 
+const _RPCProtocolSymbol = Symbol.for('rpcProtocol');
+const _RPCProxySymbol = Symbol.for('rpcProxy');
+
 export class RPCProtocol extends Disposable implements IRPCProtocol {
+
+	[_RPCProtocolSymbol] = true;
 
 	private static readonly UNRESPONSIVE_TIME = 3 * 1000; // 3s
 
@@ -182,20 +187,23 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	}
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		const rpcId = identifier.nid;
+		const { nid: rpcId, sid } = identifier;
 		if (!this._proxies[rpcId]) {
-			this._proxies[rpcId] = this._createProxy(rpcId);
+			this._proxies[rpcId] = this._createProxy(rpcId, sid);
 		}
 		return this._proxies[rpcId];
 	}
 
-	private _createProxy<T>(rpcId: number): T {
+	private _createProxy<T>(rpcId: number, debugName: string): T {
 		let handler = {
 			get: (target: any, name: PropertyKey) => {
 				if (typeof name === 'string' && !target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
 						return this._remoteCall(rpcId, name, myArgs);
 					};
+				}
+				if (name === _RPCProxySymbol) {
+					return debugName;
 				}
 				return target[name];
 			}

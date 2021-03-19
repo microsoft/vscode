@@ -157,7 +157,7 @@ export class InputBox extends Widget {
 
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		let wrapper = dom.append(this.element, $('.wrapper'));
+		let wrapper = dom.append(this.element, $('.ibwrapper'));
 		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
@@ -170,7 +170,7 @@ export class InputBox extends Widget {
 			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
 
 			this.mirror = dom.append(wrapper, $('div.mirror'));
-			this.mirror.innerHTML = '&#160;';
+			this.mirror.innerText = '\u00a0';
 
 			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
 
@@ -292,6 +292,9 @@ export class InputBox extends Widget {
 
 		if (range) {
 			this.input.setSelectionRange(range.start, range.end);
+			if (range.end === this.input.value.length) {
+				this.input.scrollLeft = this.input.scrollWidth;
+			}
 		}
 	}
 
@@ -398,7 +401,7 @@ export class InputBox extends Widget {
 		return !!this.validation && !this.validation(this.value);
 	}
 
-	public validate(): boolean {
+	public validate(): MessageType | undefined {
 		let errorMsg: IMessage | null = null;
 
 		if (this.validation) {
@@ -414,7 +417,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		return !errorMsg;
+		return errorMsg?.type;
 	}
 
 	public stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {
@@ -529,7 +532,7 @@ export class InputBox extends Widget {
 		if (mirrorTextContent) {
 			this.mirror.textContent = value + suffix;
 		} else {
-			this.mirror.innerHTML = '&#160;';
+			this.mirror.innerText = '\u00a0';
 		}
 
 		this.layout();

@@ -124,4 +124,31 @@ suite('git smoke test', function () {
 		assert.equal(repository.state.workingTreeChanges.length, 0);
 		assert.equal(repository.state.indexChanges.length, 0);
 	});
+		
+	test('rename/delete conflict', async function () {
+		cp.execSync('git branch test', { cwd });
+		cp.execSync('git checkout test', { cwd });
+
+		fs.unlinkSync(file('app.js'));
+		cp.execSync('git add .', { cwd });
+
+		await repository.commit('commit on test');
+		cp.execSync('git checkout master', { cwd });
+
+		fs.renameSync(file('app.js'), file('rename.js'));
+		cp.execSync('git add .', { cwd });
+		await repository.commit('commit on master');
+
+		try {
+			cp.execSync('git merge test', { cwd });
+		} catch (e) { }
+		
+		setTimeout(() => {
+			commands.executeCommand('workbench.scm.focus');
+		}, 2e3);
+
+		await new Promise(resolve => {
+			setTimeout(resolve, 5e3);
+		});
+	});
 });

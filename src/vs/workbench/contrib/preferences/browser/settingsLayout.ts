@@ -4,23 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
-
-export interface ITOCEntry {
+export interface ITOCEntry<T> {
 	id: string;
 	label: string;
-
-	children?: ITOCEntry[];
-	settings?: Array<string | ISetting>;
+	children?: ITOCEntry<T>[];
+	settings?: Array<T>;
 }
 
-export const commonlyUsedData: ITOCEntry = {
+export const commonlyUsedData: ITOCEntry<string> = {
 	id: 'commonlyUsed',
 	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations']
+	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
 };
 
-export const tocData: ITOCEntry = {
+export const tocData: ITOCEntry<string> = {
 	id: 'root',
 	label: 'root',
 	children: [
@@ -139,6 +136,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/debug',
 					label: localize('debug', "Debug"),
 					settings: ['debug.*', 'launch']
+				},
+				{
+					id: 'features/testing',
+					label: localize('testing', "Testing"),
+					settings: ['testing.*']
 				},
 				{
 					id: 'features/scm',

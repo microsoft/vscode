@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { LanguageId } from 'vs/editor/common/modes';
-import { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
+import type { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TMScopeRegistry, IValidGrammarDefinition, IValidEmbeddedLanguagesMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 

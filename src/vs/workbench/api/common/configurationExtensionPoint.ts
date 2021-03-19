@@ -28,6 +28,10 @@ const configurationEntrySchema: IJSONSchema = {
 		properties: {
 			description: nls.localize('vscode.extension.contributes.configuration.properties', 'Description of the configuration properties.'),
 			type: 'object',
+			propertyNames: {
+				pattern: '\\S+',
+				patternErrorMessage: nls.localize('vscode.extension.contributes.configuration.property.empty', 'Property should not be empty.'),
+			},
 			additionalProperties: {
 				anyOf: [
 					{ $ref: 'http://json-schema.org/draft-07/schema#' },

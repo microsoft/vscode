@@ -13,11 +13,18 @@
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
  *   fakeLoad?: boolean,
  *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
+ *   onElectron?: boolean,
+ *   useParentPostMessage: boolean,
  * }} WebviewHost
  */
 
 (function () {
 	'use strict';
+
+	const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
+		navigator.userAgent &&
+		navigator.userAgent.indexOf('CriOS') === -1 &&
+		navigator.userAgent.indexOf('FxiOS') === -1;
 
 	/**
 	 * Use polling to track focus of main webview and iframes within the webview
@@ -51,9 +58,15 @@
 		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
 	};
 
+	const vscodePostMessageFuncName = '__vscode_post_message__';
+
 	const defaultCssRules = `
+	html {
+		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+	}
+
 	body {
-		background-color: var(--vscode-editor-background);
+		background-color: transparent;
 		color: var(--vscode-editor-foreground);
 		font-family: var(--vscode-font-family);
 		font-weight: var(--vscode-font-weight);
@@ -131,15 +144,22 @@
 
 	/**
 	 * @param {boolean} allowMultipleAPIAcquire
+	 * @param {boolean} useParentPostMessage
 	 * @param {*} [state]
 	 * @return {string}
 	 */
-	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
+	function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
-			const acquireVsCodeApi = (function() {
-				const originalPostMessage = window.parent.postMessage.bind(window.parent);
-				const targetOrigin = '*';
+			globalThis.acquireVsCodeApi = (function() {
+				const originalPostMessage = window.parent['${useParentPostMessage ? 'postMessage' : vscodePostMessageFuncName}'].bind(window.parent);
+				const doPostMessage = (channel, data) => {
+					${useParentPostMessage
+				? `originalPostMessage({ command: channel, data: data }, '*');`
+				: `originalPostMessage(channel, data);`
+			}
+				};
+
 				let acquired = false;
 
 				let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
@@ -151,11 +171,11 @@
 					acquired = true;
 					return Object.freeze({
 						postMessage: function(msg) {
-							return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
+							doPostMessage('onmessage', msg);
 						},
 						setState: function(newState) {
 							state = newState;
-							originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
+							doPostMessage('do-update-state', JSON.stringify(newState));
 							return newState;
 						},
 						getState: function() {
@@ -182,7 +202,6 @@
 		const initData = {
 			initialScrollProgress: undefined,
 		};
-
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -281,11 +300,32 @@
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
 			// if needed
-			if (isCopyPasteOrCut(e) || isUndoRedo(e)) {
+			if (isUndoRedo(e)) {
 				e.preventDefault();
+			} else if (isCopyPasteOrCut(e)) {
+				if (host.onElectron) {
+					e.preventDefault();
+				} else {
+					return; // let the browser handle this
+				}
 			}
 
 			host.postMessage('did-keydown', {
+				key: e.key,
+				keyCode: e.keyCode,
+				code: e.code,
+				shiftKey: e.shiftKey,
+				altKey: e.altKey,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				repeat: e.repeat
+			});
+		};
+		/**
+		 * @param {KeyboardEvent} e
+		 */
+		const handleInnerUp = (e) => {
+			host.postMessage('did-keyup', {
 				key: e.key,
 				keyCode: e.keyCode,
 				code: e.code,
@@ -303,7 +343,8 @@
 		 */
 		function isCopyPasteOrCut(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['c', 'v', 'x'].includes(e.key);
+			const shiftInsert = e.shiftKey && e.key.toLowerCase() === 'insert';
+			return (hasMeta && ['c', 'v', 'x'].includes(e.key.toLowerCase())) || shiftInsert;
 		}
 
 		/**
@@ -312,7 +353,7 @@
 		 */
 		function isUndoRedo(e) {
 			const hasMeta = e.ctrlKey || e.metaKey;
-			return hasMeta && ['z', 'y'].includes(e.key);
+			return hasMeta && ['z', 'y'].includes(e.key.toLowerCase());
 		}
 
 		let isHandlingScroll = false;
@@ -374,14 +415,14 @@
 			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.id = '_vscodeApiScript';
-				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
+				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, host.useParentPostMessage, data.state);
 				newDocument.head.prepend(defaultScript);
 			}
 
 			// apply default styles
 			const defaultStyles = newDocument.createElement('style');
 			defaultStyles.id = '_defaultStyles';
-			defaultStyles.innerHTML = defaultCssRules;
+			defaultStyles.textContent = defaultCssRules;
 			newDocument.head.prepend(defaultStyles);
 
 			applyStyles(newDocument, newDocument.body);
@@ -427,10 +468,20 @@
 
 			// propagate focus
 			host.onMessage('focus', () => {
-				const target = getActiveFrame();
-				if (target) {
-					target.contentWindow.focus();
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					// Focus the top level webview instead
+					window.focus();
+					return;
 				}
+
+				if (document.activeElement === activeFrame) {
+					// We are already focused on the iframe (or one of its children) so no need
+					// to refocus.
+					return;
+				}
+
+				activeFrame.contentWindow.focus();
 			});
 
 			// update iframe-contents
@@ -480,13 +531,16 @@
 				const newFrame = document.createElement('iframe');
 				newFrame.setAttribute('id', 'pending-frame');
 				newFrame.setAttribute('frameborder', '0');
-				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
+				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
+				newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
 				if (host.fakeLoad) {
 					// We should just be able to use srcdoc, but I wasn't
 					// seeing the service worker applying properly.
 					// Fake load an empty on the correct origin and then write real html
 					// into it to get around this.
 					newFrame.src = `./fake.html?id=${ID}`;
+				} else {
+					newFrame.src = `about:blank?webviewFrame`;
 				}
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
@@ -514,7 +568,7 @@
 					}, 0);
 				}
 
-				if (host.fakeLoad) {
+				if (host.fakeLoad && !options.allowScripts && isSafari) {
 					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
 					// Use polling instead.
 					const interval = setInterval(() => {
@@ -524,7 +578,7 @@
 							return;
 						}
 
-						if (newFrame.contentDocument.readyState === 'complete') {
+						if (newFrame.contentDocument.readyState !== 'loading') {
 							clearInterval(interval);
 							onFrameLoaded(newFrame.contentDocument);
 						}
@@ -542,7 +596,7 @@
 				 */
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
-						// Workaround for https://github.com/Microsoft/vscode/issues/12865
+						// Workaround for https://github.com/microsoft/vscode/issues/12865
 						// check new scrollY and reset if necessary
 						setInitialScrollPosition(contentDocument.body, contentWindow);
 					}
@@ -563,6 +617,10 @@
 
 						contentWindow.addEventListener('scroll', handleInnerScroll);
 						contentWindow.addEventListener('wheel', handleWheel);
+
+						if (document.hasFocus()) {
+							contentWindow.focus();
+						}
 
 						pendingMessages.forEach((data) => {
 							contentWindow.postMessage(data, '*');
@@ -599,6 +657,7 @@
 					newFrame.contentWindow.addEventListener('click', handleInnerClick);
 					newFrame.contentWindow.addEventListener('auxclick', handleAuxClick);
 					newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+					newFrame.contentWindow.addEventListener('keyup', handleInnerUp);
 					newFrame.contentWindow.addEventListener('contextmenu', e => e.preventDefault());
 
 					if (host.onIframeLoaded) {
@@ -647,6 +706,15 @@
 				onFocus: () => host.postMessage('did-focus'),
 				onBlur: () => host.postMessage('did-blur')
 			});
+
+			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (command, data) => {
+				switch (command) {
+					case 'onmessage':
+					case 'do-update-state':
+						host.postMessage(command, data);
+						break;
+				}
+			};
 
 			// signal ready
 			host.postMessage('webview-ready', {});

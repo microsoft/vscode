@@ -21,7 +21,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { isEqual } from 'vs/base/common/resources';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 
-export const ctxHasSymbols = new RawContextKey('hasSymbols', false);
+export const ctxHasSymbols = new RawContextKey('hasSymbols', false, localize('hasSymbols', "Whether there are symbol locations that can be navigated via keyboard-only."));
 
 export const ISymbolNavigationService = createDecorator<ISymbolNavigationService>('ISymbolNavigationService');
 
@@ -55,8 +55,8 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 	reset(): void {
 		this._ctxHasSymbols.reset();
-		dispose(this._currentState);
-		dispose(this._currentMessage);
+		this._currentState?.dispose();
+		this._currentMessage?.dispose();
 		this._currentModel = undefined;
 		this._currentIdx = -1;
 	}
@@ -138,7 +138,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 	private _showMessage(): void {
 
-		dispose(this._currentMessage);
+		this._currentMessage?.dispose();
 
 		const kb = this._keybindingService.lookupKeybinding('editor.gotoNextSymbolFromResult');
 		const message = kb
@@ -209,7 +209,7 @@ class EditorState {
 	}
 
 	private _onDidRemoveEditor(editor: ICodeEditor): void {
-		dispose(this._listener.get(editor));
+		this._listener.get(editor)?.dispose();
 		this._listener.delete(editor);
 	}
 }

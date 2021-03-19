@@ -5,10 +5,12 @@
 
 import * as assert from 'assert';
 import { debug, workspace, Disposable, commands, window } from 'vscode';
-import { disposeAll } from '../utils';
+import { assertNoRpc, disposeAll } from '../utils';
 import { basename } from 'path';
 
 suite('vscode API - debug', function () {
+
+	teardown(assertNoRpc);
 
 	test('breakpoints', async function () {
 		assert.equal(debug.breakpoints.length, 0);

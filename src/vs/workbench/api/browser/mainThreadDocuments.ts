@@ -13,13 +13,13 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { Emitter } from 'vs/base/common/event';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class BoundModelReferenceCollection {
 
@@ -46,8 +46,8 @@ export class BoundModelReferenceCollection {
 		}
 	}
 
-	add(uri: URI, ref: IReference<ITextEditorModel>): void {
-		const length = ref.object.textEditorModel.getValueLength();
+	add(uri: URI, ref: IReference<any>, length: number = 0): void {
+		// const length = ref.object.textEditorModel.getValueLength();
 		let handle: any;
 		let entry: { uri: URI, length: number, dispose(): void };
 		const dispose = () => {
@@ -126,7 +126,8 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@IPathService private readonly _pathService: IPathService
 	) {
 		super();
 		this._modelService = modelService;
@@ -201,12 +202,12 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldModeId: string; }): void {
-		let { model, oldModeId } = event;
+		let { model } = event;
 		const modelUrl = model.uri;
 		if (!this._modelIsSynced.has(modelUrl.toString())) {
 			return;
 		}
-		this._proxy.$acceptModelModeChanged(model.uri, oldModeId, model.getLanguageIdentifier().language);
+		this._proxy.$acceptModelModeChanged(model.uri, model.getLanguageIdentifier().language);
 	}
 
 	private _onModelRemoved(modelUrl: URI): void {
@@ -265,13 +266,13 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private _handleAsResourceInput(uri: URI): Promise<URI> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
-			this._modelReferenceCollection.add(uri, ref);
+			this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
 			return ref.object.textEditorModel.uri;
 		});
 	}
 
 	private _handleUntitledScheme(uri: URI): Promise<URI> {
-		const asLocalUri = toLocalResource(uri, this._environmentService.configuration.remoteAuthority);
+		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
 		return this._fileService.resolve(asLocalUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));

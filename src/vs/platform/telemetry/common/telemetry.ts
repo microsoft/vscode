@@ -12,6 +12,7 @@ export interface ITelemetryInfo {
 	sessionId: string;
 	machineId: string;
 	instanceId: string;
+	firstSessionDate: string;
 	msftInternal?: boolean;
 }
 
@@ -51,10 +52,24 @@ export interface ITelemetryService {
 	isOptedIn: boolean;
 }
 
+export interface ITelemetryEndpoint {
+	id: string;
+	aiKey: string;
+	sendErrorTelemetry: boolean;
+}
+
+export const ICustomEndpointTelemetryService = createDecorator<ICustomEndpointTelemetryService>('customEndpointTelemetryService');
+
+export interface ICustomEndpointTelemetryService {
+	readonly _serviceBrand: undefined;
+
+	publicLog(endpoint: ITelemetryEndpoint, eventName: string, data?: ITelemetryData): Promise<void>;
+	publicLogError(endpoint: ITelemetryEndpoint, errorEventName: string, data?: ITelemetryData): Promise<void>;
+}
+
 // Keys
 export const instanceStorageKey = 'telemetry.instanceId';
 export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 export const machineIdKey = 'telemetry.machineId';
-export const crashReporterIdStorageKey = 'crashReporter.guid';

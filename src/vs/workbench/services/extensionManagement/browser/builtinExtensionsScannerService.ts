@@ -10,6 +10,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { FileAccess } from 'vs/base/common/network';
 
 interface IScannedBuiltinExtension {
 	extensionPath: string;
@@ -62,17 +63,14 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	}
 
 	private _getBuiltinExtensionsUrl(environmentService: IWorkbenchEnvironmentService): URI | undefined {
-		if (environmentService.options?.builtinExtensionsServiceUrl) {
-			return URI.parse(environmentService.options?.builtinExtensionsServiceUrl);
-		}
 		let enableBuiltinExtensions: boolean;
 		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
 			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;
 		} else {
-			enableBuiltinExtensions = environmentService.configuration.remoteAuthority ? false : true;
+			enableBuiltinExtensions = environmentService.remoteAuthority ? false : true;
 		}
 		if (enableBuiltinExtensions) {
-			return URI.parse(require.toUrl('../../../../../../extensions'));
+			return FileAccess.asBrowserUri('../../../../../../extensions', require);
 		}
 		return undefined;
 	}

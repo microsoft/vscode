@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, toggleClass, addClass, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -19,7 +18,7 @@ import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsE
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorDropTarget, IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
@@ -32,6 +31,7 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { Promises } from 'vs/base/common/async';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -58,7 +58,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 
 	set gridWidget(grid: Grid<T> | undefined) {
-		this.element.innerHTML = '';
+		this.element.innerText = '';
 
 		if (grid) {
 			this.element.appendChild(grid.element);
@@ -93,11 +93,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidActiveGroupChange = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidActiveGroupChange = this._onDidActiveGroupChange.event;
+	private readonly _onDidChangeActiveGroup = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
 
-	private readonly _onDidGroupIndexChange = this._register(new Emitter<IEditorGroupView>());
-	readonly onDidGroupIndexChange = this._onDidGroupIndexChange.event;
+	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeGroupIndex = this._onDidChangeGroupIndex.event;
 
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
@@ -113,11 +113,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 
-	private readonly _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange = Event.any(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event);
+	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = Event.any(this.onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
 
-	private readonly _onDidEditorPartOptionsChange = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
-	readonly onDidEditorPartOptionsChange = this._onDidEditorPartOptionsChange.event;
+	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
+	readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
 
 	//#endregion
 
@@ -148,8 +148,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
 
-		this.workspaceMemento = this.getMemento(StorageScope.WORKSPACE);
-		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
+		this.workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.globalMemento = this.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 		this._whenRestored = new Promise(resolve => (this.whenRestoredResolve = resolve));
 
@@ -177,7 +177,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this._partOptions = newPartOptions;
 
-		this._onDidEditorPartOptionsChange.fire({ oldPartOptions, newPartOptions });
+		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions });
 	}
 
 	//#region IEditorGroupsService
@@ -427,7 +427,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				layout.orientation,
 				this.isTwoDimensionalGrid() ?
 					this.gridWidget.orientation :			// preserve original orientation for 2-dimensional grids
-					orthogonal(this.gridWidget.orientation) // otherwise flip (fix https://github.com/Microsoft/vscode/issues/52975)
+					orthogonal(this.gridWidget.orientation) // otherwise flip (fix https://github.com/microsoft/vscode/issues/52975)
 			),
 			groups: layout.groups
 		});
@@ -550,7 +550,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 					this.updateContainer();
 					break;
 				case GroupChangeKind.GROUP_INDEX:
-					this._onDidGroupIndexChange.fire(groupView);
+					this._onDidChangeGroupIndex.fire(groupView);
 					break;
 			}
 		}));
@@ -588,7 +588,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.doRestoreGroup(group);
 
 		// Event
-		this._onDidActiveGroupChange.fire(group);
+		this._onDidChangeActiveGroup.fire(group);
 	}
 
 	private doRestoreGroup(group: IEditorGroupView): void {
@@ -764,6 +764,18 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return targetView;
 	}
 
+	mergeAllGroups(target = this.activeGroup): IEditorGroupView {
+		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (group === target) {
+				continue; // keep target
+			}
+
+			this.mergeGroup(group, target);
+		}
+
+		return target;
+	}
+
 	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
@@ -820,7 +832,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Container
 		this.element = parent;
 		this.container = document.createElement('div');
-		addClass(this.container, 'content');
+		this.container.classList.add('content');
 		parent.appendChild(this.container);
 
 		// Grid control with center layout
@@ -833,20 +845,20 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// No drop in the editor
 		const overlay = document.createElement('div');
-		addClass(overlay, 'drop-block-overlay');
+		overlay.classList.add('drop-block-overlay');
 		parent.appendChild(overlay);
 
 		// Hide the block if a mouse down event occurs #99065
-		this._register(addDisposableGenericMouseDownListner(overlay, e => {
-			toggleClass(overlay, 'visible', false);
+		this._register(addDisposableGenericMouseDownListner(overlay, () => {
+			overlay.classList.remove('visible');
 		}));
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragStart: e => {
-				toggleClass(overlay, 'visible', true);
+				overlay.classList.add('visible');
 			},
 			onDragEnd: e => {
-				toggleClass(overlay, 'visible', false);
+				overlay.classList.remove('visible');
 			}
 		}));
 
@@ -944,7 +956,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		}
 
 		// Signal restored
-		Promise.all(this.groups.map(group => group.whenRestored)).finally(() => {
+		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
 			if (this.whenRestoredResolve) {
 				this.whenRestoredResolve();
 			}
@@ -1046,14 +1058,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.gridWidget.boundarySashes = boundarySashes;
 		this.gridWidgetView.gridWidget = gridWidget;
 
-		this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
+		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 
 		this.onDidSetGridWidget.fire(undefined);
 	}
 
 	private updateContainer(): void {
 		const container = assertIsDefined(this.container);
-		toggleClass(container, 'empty', this.isEmpty);
+		container.classList.toggle('empty', this.isEmpty);
 	}
 
 	private notifyGroupIndexChange(): void {
@@ -1075,7 +1087,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
 
 		// Layout editor container
-		this.doLayout(contentAreaSize);
+		this.doLayout(Dimension.lift(contentAreaSize));
 	}
 
 	private doLayout(dimension: Dimension): void {

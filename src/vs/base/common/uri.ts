@@ -108,7 +108,7 @@ export class URI implements UriComponents {
 			&& typeof (<URI>thing).path === 'string'
 			&& typeof (<URI>thing).query === 'string'
 			&& typeof (<URI>thing).scheme === 'string'
-			&& typeof (<URI>thing).fsPath === 'function'
+			&& typeof (<URI>thing).fsPath === 'string'
 			&& typeof (<URI>thing).with === 'function'
 			&& typeof (<URI>thing).toString === 'function';
 	}
@@ -345,7 +345,7 @@ export class URI implements UriComponents {
 	 */
 	static joinPath(uri: URI, ...pathFragment: string[]): URI {
 		if (!uri.path) {
-			throw new Error(`[UriError]: cannot call joinPaths on URI without path`);
+			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
 		}
 		let newPath: string;
 		if (isWindows && uri.scheme === 'file') {

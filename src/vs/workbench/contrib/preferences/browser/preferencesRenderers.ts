@@ -24,14 +24,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { DefaultSettingsHeaderWidget, EditPreferenceWidget, SettingsGroupTitleWidget, SettingsHeaderWidget, preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
+import { DefaultSettingsHeaderWidget, EditPreferenceWidget, SettingsGroupTitleWidget, SettingsHeaderWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { IFilterResult, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { find } from 'vs/base/common/arrays';
+import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -321,7 +323,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		const { key, overrideOf } = setting;
 		if (overrideOf) {
 			const setting = this.getSetting(overrideOf);
-			return find(setting!.overrides!, override => override.key === key);
+			return setting!.overrides!.find(override => override.key === key);
 		}
 		const settingsGroups = this.filterResult ? this.filterResult.filteredGroups : this.preferencesModel.settingsGroups;
 		return this.getPreference(key, settingsGroups);
@@ -570,14 +572,9 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	private createDecoration(range: IRange): IModelDeltaDecoration {
 		return {
 			range,
-			options: FilteredMatchesRenderer._FIND_MATCH
+			options: FindDecorations._FIND_MATCH_DECORATION
 		};
 	}
-
-	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch'
-	});
 
 	private computeHiddenRanges(filteredGroups: ISettingsGroup[] | undefined, allSettingsGroups: ISettingsGroup[]): IRange[] {
 		// Hide the contents of hidden groups
@@ -615,15 +612,10 @@ export class HighlightMatchesRenderer extends Disposable {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match)));
 	}
 
-	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch'
-	});
-
 	private createDecoration(range: IRange): IModelDeltaDecoration {
 		return {
 			range,
-			options: HighlightMatchesRenderer._FIND_MATCH
+			options: FindDecorations._FIND_MATCH_DECORATION
 		};
 	}
 
@@ -747,7 +739,7 @@ class EditSettingRenderer extends Disposable {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(preferencesEditIcon.classNames) === -1) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(ThemeIcon.asClassName(settingsEditIcon)) === -1) {
 					return false;
 				}
 			}
@@ -762,7 +754,7 @@ class EditSettingRenderer extends Disposable {
 			if (configurationNode) {
 				if (this.isDefaultSettings()) {
 					if (setting.key === 'launch') {
-						// Do not show because of https://github.com/Microsoft/vscode/issues/32593
+						// Do not show because of https://github.com/microsoft/vscode/issues/32593
 						return false;
 					}
 					return true;
@@ -955,7 +947,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		private editor: ICodeEditor,
 		private settingsEditorModel: SettingsEditorModel,
 		@IMarkerService private markerService: IMarkerService,
-		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
@@ -1013,12 +1005,12 @@ class UnsupportedSettingsRenderer extends Disposable {
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
-		if (this.workbenchEnvironmentService.configuration.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
+		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
 				...setting.range,
-				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied in this window. It will be applied when you open local window.")
+				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied in this window. It will be applied when you open a local window.")
 			});
 		}
 	}
@@ -1115,7 +1107,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 									endColumn: setting.valueRange.endColumn
 								});
 							}
-						} else if (setting.key !== 'settings') {
+						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority') {
 							markerData.push({
 								severity: MarkerSeverity.Hint,
 								tags: [MarkerTag.Unnecessary],

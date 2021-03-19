@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -29,7 +30,7 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): void;
+	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined;
 
 	/**
 	 * Hides the hover if it was visible.
@@ -39,9 +40,10 @@ export interface IHoverService {
 
 export interface IHoverOptions {
 	/**
-	 * The text to display in the primary section of the hover.
+	 * The text to display in the primary section of the hover. The type of text determines the
+	 * default `hideOnHover` behavior.
 	 */
-	text: IMarkdownString;
+	text: IMarkdownString | string;
 
 	/**
 	 * The target for the hover. This determines the position of the hover and it will only be
@@ -69,10 +71,21 @@ export interface IHoverOptions {
 
 	/**
 	 * Whether to hide the hover when the mouse leaves the `target` and enters the actual hover.
-	 * This is false by default and note that it will be ignored if any `actions` are provided such
-	 * that they are accessible.
+	 * This is false by default when text is an `IMarkdownString` and true when `text` is a
+	 * `string`. Note that this will be ignored if any `actions` are provided as hovering is
+	 * required to make them accessible.
+	 *
+	 * In general hiding on hover is desired for:
+	 * - Regular text where selection is not important
+	 * - Markdown that contains no links where selection is not important
 	 */
 	hideOnHover?: boolean;
+
+	/**
+	 * Whether to anchor the hover above (default) or below the target. This option will be ignored
+	 * if there is not enough room to layout the hover in the specified anchor position.
+	 */
+	anchorPosition?: AnchorPosition;
 }
 
 export interface IHoverAction {
@@ -109,4 +122,10 @@ export interface IHoverTarget extends IDisposable {
 	 * wrapped text.
 	 */
 	readonly targetElements: readonly HTMLElement[];
+
+	/**
+	 * An optional absolute x coordinate to position the hover with, for example to position the
+	 * hover using `MouseEvent.pageX`.
+	 */
+	x?: number;
 }

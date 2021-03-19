@@ -8,6 +8,7 @@ import { join, dirname, basename } from 'vs/base/common/path';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Promises } from 'vs/base/common/async';
 
 export class LogsDataCleaner extends Disposable {
 
@@ -31,7 +32,7 @@ export class LogsDataCleaner extends Disposable {
 				const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
 				const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
-				return Promise.all(toDelete.map(name => rimraf(join(logsRoot, name))));
+				return Promises.settled(toDelete.map(name => rimraf(join(logsRoot, name))));
 			}).then(null, onUnexpectedError);
 		}, 10 * 1000);
 

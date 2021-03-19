@@ -6,7 +6,7 @@
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, WorkspaceFolder } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, OutputChannel, version as vscodeVersion, WorkspaceFolder } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -20,6 +20,7 @@ import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
@@ -33,17 +34,23 @@ export async function deactivate(): Promise<any> {
 }
 
 async function createModel(context: ExtensionContext, outputChannel: OutputChannel, telemetryReporter: TelemetryReporter, disposables: Disposable[]): Promise<Model> {
-	const pathHint = workspace.getConfiguration('git').get<string>('path');
+	const pathHint = workspace.getConfiguration('git').get<string | string[]>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 
 	const askpass = await Askpass.create(outputChannel, context.storagePath);
 	disposables.push(askpass);
 
-	const env = askpass.getEnv();
-	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, env);
+	const environment = askpass.getEnv();
+	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, environment);
 	disposables.push(terminalEnvironmentManager);
 
-	const git = new Git({ gitPath: info.path, version: info.version, env });
+
+	const git = new Git({
+		gitPath: info.path,
+		userAgent: `git/${info.version} (${(os as any).version?.() ?? os.type()} ${os.release()}; ${os.platform()} ${os.arch()}) vscode/${vscodeVersion} (${env.appName})`,
+		version: info.version,
+		env: environment,
+	});
 	const model = new Model(git, askpass, context.globalState, outputChannel);
 	disposables.push(model);
 
@@ -66,12 +73,13 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
+	const cc = new CommandCenter(git, model, outputChannel, telemetryReporter);
 	disposables.push(
-		new CommandCenter(git, model, outputChannel, telemetryReporter),
+		cc,
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitProtocolHandler(),
-		new GitTimelineProvider(model)
+		new GitTimelineProvider(model, cc)
 	);
 
 	checkGitVersion(info);
@@ -169,7 +177,14 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	}
 }
 
+let _context: ExtensionContext;
+export function getExtensionContext(): ExtensionContext {
+	return _context;
+}
+
 export async function activate(context: ExtensionContext): Promise<GitExtension> {
+	_context = context;
+
 	const result = await _activate(context);
 	context.subscriptions.push(registerAPICommands(result));
 	return result;

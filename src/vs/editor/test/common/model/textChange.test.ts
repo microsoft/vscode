@@ -75,7 +75,7 @@ suite('TextChangeCompressor', () => {
 			};
 		});
 		let actualDoResult = getResultingContent(initialText, compressedDoTextEdits);
-		assert.equal(actualDoResult, finalText);
+		assert.strictEqual(actualDoResult, finalText);
 
 		let compressedUndoTextEdits: IGeneratedEdit[] = compressedTextChanges.map((change) => {
 			return {
@@ -85,7 +85,7 @@ suite('TextChangeCompressor', () => {
 			};
 		});
 		let actualUndoResult = getResultingContent(finalText, compressedUndoTextEdits);
-		assert.equal(actualUndoResult, initialText);
+		assert.strictEqual(actualUndoResult, initialText);
 	}
 
 	test('simple 1', () => {

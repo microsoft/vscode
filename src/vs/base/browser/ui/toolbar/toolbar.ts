@@ -5,18 +5,18 @@
 
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
-import { Action, IActionRunner, IAction, IActionViewItemProvider, SubmenuAction } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action, IActionRunner, IAction, SubmenuAction } from 'vs/base/common/actions';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { Codicon, CSSIcon, registerCodicon } from 'vs/base/common/codicons';
 import { EventMultiplexer } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 
-const toolBarMoreIcon = registerIcon('toolbar-more', Codicon.more);
+const toolBarMoreIcon = registerCodicon('toolbar-more', Codicon.more);
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;
@@ -26,6 +26,8 @@ export interface IToolBarOptions {
 	actionRunner?: IActionRunner;
 	toggleMenuTitle?: string;
 	anchorAlignmentProvider?: () => AnchorAlignment;
+	renderDropdownAsChildElement?: boolean;
+	moreIcon?: CSSIcon;
 }
 
 /**
@@ -71,9 +73,9 @@ export class ToolBar extends Disposable {
 							actionViewItemProvider: this.options.actionViewItemProvider,
 							actionRunner: this.actionRunner,
 							keybindingProvider: this.options.getKeyBinding,
-							classNames: toolBarMoreIcon.classNames,
+							classNames: CSSIcon.asClassNameArray(options.moreIcon ?? toolBarMoreIcon),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
-							menuAsChild: true
+							menuAsChild: !!this.options.renderDropdownAsChildElement
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
@@ -91,10 +93,9 @@ export class ToolBar extends Disposable {
 				}
 
 				if (action instanceof SubmenuAction) {
-					const actions = Array.isArray(action.actions) ? action.actions : action.actions();
 					const result = new DropdownMenuActionViewItem(
 						action,
-						actions,
+						action.actions,
 						contextMenuProvider,
 						{
 							actionViewItemProvider: this.options.actionViewItemProvider,

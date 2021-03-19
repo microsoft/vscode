@@ -14,10 +14,8 @@ const task = require('./lib/task');
 const vfs = require('vinyl-fs');
 const flatmap = require('gulp-flatmap');
 const gunzip = require('gulp-gunzip');
-const untar = require('gulp-untar');
 const File = require('vinyl');
 const fs = require('fs');
-const remote = require('gulp-remote-retry-src');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
 const cp = require('child_process');
@@ -37,19 +35,11 @@ const BUILD_TARGETS = [
 
 const noop = () => { return Promise.resolve(); };
 
-gulp.task('vscode-reh-win32-ia32-min', noop);
-gulp.task('vscode-reh-win32-x64-min', noop);
-gulp.task('vscode-reh-darwin-min', noop);
-gulp.task('vscode-reh-linux-x64-min', noop);
-gulp.task('vscode-reh-linux-armhf-min', noop);
-gulp.task('vscode-reh-linux-arm64-min', noop);
-gulp.task('vscode-reh-linux-alpine-min', noop);
-
-gulp.task('vscode-reh-web-win32-ia32-min', noop);
-gulp.task('vscode-reh-web-win32-x64-min', noop);
-gulp.task('vscode-reh-web-darwin-min', noop);
-gulp.task('vscode-reh-web-linux-x64-min', noop);
-gulp.task('vscode-reh-web-linux-alpine-min', noop);
+BUILD_TARGETS.forEach(({ platform, arch }) => {
+	for (const target of ['reh', 'reh-web']) {
+		gulp.task(`vscode-${target}-${platform}${ arch ? `-${arch}` : '' }-min`, noop);
+	}
+});
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
@@ -78,13 +68,17 @@ BUILD_TARGETS.forEach(({ platform, arch }) => {
 	}));
 });
 
-const defaultNodeTask = gulp.task(`node-${process.platform}-${process.arch}`);
+const arch = process.platform === 'darwin' ? 'x64' : process.arch;
+const defaultNodeTask = gulp.task(`node-${process.platform}-${arch}`);
 
 if (defaultNodeTask) {
 	gulp.task(task.define('node', defaultNodeTask));
 }
 
 function nodejs(platform, arch) {
+	const remote = require('gulp-remote-retry-src');
+	const untar = require('gulp-untar');
+
 	if (arch === 'ia32') {
 		arch = 'x86';
 	}

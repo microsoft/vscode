@@ -6,12 +6,12 @@
 import * as assert from 'assert';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { TestServiceClient } from './testService';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 function createClient(): Client {
 	return new Client(getPathFromAmdModule(require, 'bootstrap-fork'), {
 		serverName: 'TestServer',
-		env: { AMD_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
+		env: { VSCODE_AMD_ENTRYPOINT: 'vs/base/parts/ipc/test/node/testApp', verbose: true }
 	});
 }
 

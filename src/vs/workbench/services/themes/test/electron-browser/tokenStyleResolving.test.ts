@@ -12,16 +12,14 @@ import { isString } from 'vs/base/common/types';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import { ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
 
-function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; italic?: boolean } | undefined): TokenStyle {
+function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; italic?: boolean; } | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
 	return new TokenStyle(foregroundColor, styleFlags && styleFlags.bold, styleFlags && styleFlags.underline, styleFlags && styleFlags.italic);
 }
@@ -65,7 +63,7 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 }
 
 
-function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }, language = 'typescript') {
+function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle; }, language = 'typescript') {
 	const colorIndex = themeData.tokenColorMap;
 
 	for (let qualifiedClassifier in expected) {
@@ -88,124 +86,22 @@ suite('Themes - TokenStyleResolving', () => {
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 
-	test('color defaults - monokai', async () => {
+	test('color defaults', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-monokai/themes/monokai-color-theme.json');
-		themeData.location = URI.file(themeLocation);
+		themeData.location = FileAccess.asFileUri('./color-theme.json', require);
 		await themeData.ensureLoaded(extensionResourceLoaderService);
 
 		assert.equal(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
-			'comment': ts('#88846f', undefinedStyle),
-			'variable': ts('#F8F8F2', unsetStyle),
-			'type': ts('#A6E22E', { bold: false, underline: true, italic: false }),
-			'function': ts('#A6E22E', unsetStyle),
-			'string': ts('#E6DB74', undefinedStyle),
-			'number': ts('#AE81FF', undefinedStyle),
-			'keyword': ts('#F92672', undefinedStyle)
+			'comment': ts('#000000', undefinedStyle),
+			'variable': ts('#111111', unsetStyle),
+			'type': ts('#333333', { bold: false, underline: true, italic: false }),
+			'function': ts('#333333', unsetStyle),
+			'string': ts('#444444', undefinedStyle),
+			'number': ts('#555555', undefinedStyle),
+			'keyword': ts('#666666', undefinedStyle)
 		});
-
-	});
-
-	test('color defaults - dark+', async () => {
-		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/dark_plus.json');
-		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(extensionResourceLoaderService);
-
-		assert.equal(themeData.isLoaded, true);
-
-		assertTokenStyles(themeData, {
-			'comment': ts('#6A9955', undefinedStyle),
-			'variable': ts('#9CDCFE', undefinedStyle),
-			'type': ts('#4EC9B0', undefinedStyle),
-			'function': ts('#DCDCAA', undefinedStyle),
-			'string': ts('#CE9178', undefinedStyle),
-			'number': ts('#B5CEA8', undefinedStyle),
-			'keyword': ts('#C586C0', undefinedStyle)
-		});
-
-	});
-
-	test('color defaults - light vs', async () => {
-		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/light_vs.json');
-		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(extensionResourceLoaderService);
-
-		assert.equal(themeData.isLoaded, true);
-
-		assertTokenStyles(themeData, {
-			'comment': ts('#008000', undefinedStyle),
-			'variable': ts(undefined, undefinedStyle),
-			'type': ts(undefined, undefinedStyle),
-			'function': ts(undefined, undefinedStyle),
-			'string': ts('#a31515', undefinedStyle),
-			'number': ts('#098658', undefinedStyle),
-			'keyword': ts('#0000ff', undefinedStyle)
-		});
-
-	});
-
-	test('color defaults - hc', async () => {
-		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-defaults/themes/hc_black.json');
-		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(extensionResourceLoaderService);
-
-		assert.equal(themeData.isLoaded, true);
-
-		assertTokenStyles(themeData, {
-			'comment': ts('#7ca668', undefinedStyle),
-			'variable': ts('#9CDCFE', undefinedStyle),
-			'type': ts('#4EC9B0', undefinedStyle),
-			'function': ts('#DCDCAA', undefinedStyle),
-			'string': ts('#ce9178', undefinedStyle),
-			'number': ts('#b5cea8', undefinedStyle),
-			'keyword': ts('#C586C0', undefinedStyle)
-		});
-
-	});
-
-	test('color defaults - kimbie dark', async () => {
-		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-kimbie-dark/themes/kimbie-dark-color-theme.json');
-		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(extensionResourceLoaderService);
-
-		assert.equal(themeData.isLoaded, true);
-
-		assertTokenStyles(themeData, {
-			'comment': ts('#a57a4c', undefinedStyle),
-			'variable': ts('#dc3958', undefinedStyle),
-			'type': ts('#f06431', undefinedStyle),
-			'function': ts('#8ab1b0', undefinedStyle),
-			'string': ts('#889b4a', undefinedStyle),
-			'number': ts('#f79a32', undefinedStyle),
-			'keyword': ts('#98676a', undefinedStyle)
-		});
-
-	});
-
-	test('color defaults - abyss', async () => {
-		const themeData = ColorThemeData.createUnloadedTheme('foo');
-		const themeLocation = getPathFromAmdModule(require, '../../../../../../../extensions/theme-abyss/themes/abyss-color-theme.json');
-		themeData.location = URI.file(themeLocation);
-		await themeData.ensureLoaded(extensionResourceLoaderService);
-
-		assert.equal(themeData.isLoaded, true);
-
-		assertTokenStyles(themeData, {
-			'comment': ts('#384887', undefinedStyle),
-			'variable': ts(undefined, unsetStyle),
-			'type': ts('#ffeebb', { underline: true, bold: false, italic: false }),
-			'function': ts('#ddbb88', unsetStyle),
-			'string': ts('#22aa44', undefinedStyle),
-			'number': ts('#f280d0', undefinedStyle),
-			'keyword': ts('#225588', undefinedStyle)
-		});
-
 	});
 
 	test('resolveScopes', async () => {

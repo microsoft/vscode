@@ -201,9 +201,10 @@ select, input, textarea {
 }
 
 
-.validation-error {
+#issue-reporter .validation-error {
 	font-size: 12px;
-	margin-top: 1em;
+	padding: 10px;
+	border-top: 0px !important;
 }
 
 
@@ -256,8 +257,7 @@ a {
 }
 
 .section .input-group .validation-error {
-	margin-left: calc(15% + 5px);
-	padding: 10px;
+	margin-left: 100px;
 }
 
 .section .inline-form-control, .section .inline-label {
@@ -268,7 +268,7 @@ a {
 	width: 95px;
 }
 
-.section .inline-form-control {
+.section .inline-form-control, .section .input-group .validation-error  {
 	width: calc(100% - 100px);
 }
 
@@ -294,8 +294,12 @@ a {
 		margin-left: calc(15% + 1em);
 	}
 
-	.section .inline-form-control  {
+	.section .inline-form-control, .section .input-group .validation-error  {
 		width: calc(85% - 5px);
+	}
+
+	.section .input-group .validation-error {
+		margin-left: calc(15% + 4px);
 	}
 }
 
@@ -308,7 +312,7 @@ a {
 		margin-left: 1em;
 	}
 
-	.section .inline-form-control {
+	.section .inline-form-control, .section .input-group .validation-error  {
 		width: 100%;
 	}
 

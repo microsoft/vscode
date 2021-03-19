@@ -15,7 +15,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor, alignment: MainThreadStatusBarAlignment, priority: number }> = new Map();
-	static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
+	private static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -27,7 +27,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
 		let role: string | undefined = undefined;
@@ -37,7 +37,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		} else {
 			ariaLabel = text ? text.replace(MainThreadStatusBar.CODICON_REGEXP, (_match, codiconName) => codiconName) : '';
 		}
-		const entry: IStatusbarEntry = { text, tooltip, command, color, ariaLabel, role };
+		const entry: IStatusbarEntry = { text, tooltip, command, color, backgroundColor, ariaLabel, role };
 
 		if (typeof priority === 'undefined') {
 			priority = 0;

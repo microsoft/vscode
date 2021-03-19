@@ -49,11 +49,11 @@ function assertAnswer(originalStr: string, modifiedStr: string, changes: IDiffCh
 	let modifiedAnswer = maskBasedSubstring(modifiedStr, modifiedMask);
 
 	if (onlyLength) {
-		assert.equal(originalAnswer.length, answerStr.length);
-		assert.equal(modifiedAnswer.length, answerStr.length);
+		assert.strictEqual(originalAnswer.length, answerStr.length);
+		assert.strictEqual(modifiedAnswer.length, answerStr.length);
 	} else {
-		assert.equal(originalAnswer, answerStr);
-		assert.equal(modifiedAnswer, answerStr);
+		assert.strictEqual(originalAnswer, answerStr);
+		assert.strictEqual(modifiedAnswer, answerStr);
 	}
 }
 
@@ -106,18 +106,18 @@ suite('Diff - Ported from VS', () => {
 		let predicateCallCount = 0;
 
 		let diff = new LcsDiff(new StringDiffSequence(left), new StringDiffSequence(right), function (leftIndex, longestMatchSoFar) {
-			assert.equal(predicateCallCount, 0);
+			assert.strictEqual(predicateCallCount, 0);
 
 			predicateCallCount++;
 
-			assert.equal(leftIndex, 1);
+			assert.strictEqual(leftIndex, 1);
 
 			// cancel processing
 			return false;
 		});
 		let changes = diff.ComputeDiff(true).changes;
 
-		assert.equal(predicateCallCount, 1);
+		assert.strictEqual(predicateCallCount, 1);
 
 		// Doesn't include 'c', 'd', or 'e', since we quit on the first request
 		assertAnswer(left, right, changes, 'abf');

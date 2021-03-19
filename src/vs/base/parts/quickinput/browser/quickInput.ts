@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/quickInput';
-import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS, ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox, IQuickPickItemButtonEvent, QuickPickInput, IQuickPickSeparator, IKeyMods, IQuickPickAcceptEvent, NO_KEY_MODS, ItemActivation, QuickInputHideReason, IQuickInputHideEvent } from 'vs/base/parts/quickinput/common/quickInput';
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
@@ -27,8 +27,11 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
-import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { registerCodicon, Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { escape } from 'vs/base/common/strings';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { isString } from 'vs/base/common/types';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -54,7 +57,7 @@ export interface IQuickInputStyles {
 	countBadge: ICountBadgetyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
-	list: IListStyles & { listInactiveFocusForeground?: Color; pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
 }
 
 export interface IQuickInputWidgetStyles {
@@ -70,7 +73,7 @@ const $ = dom.$;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 
-const backButtonIcon = registerIcon('quick-input-back', Codicon.arrowLeft);
+const backButtonIcon = registerCodicon('quick-input-back', Codicon.arrowLeft);
 
 const backButton = {
 	iconClass: backButtonIcon.classNames,
@@ -84,7 +87,8 @@ interface QuickInputUI {
 	leftActionBar: ActionBar;
 	titleBar: HTMLElement;
 	title: HTMLElement;
-	description: HTMLElement;
+	description1: HTMLElement;
+	description2: HTMLElement;
 	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	filterContainer: HTMLElement;
@@ -119,6 +123,7 @@ type Visibilities = {
 	description?: boolean;
 	checkAll?: boolean;
 	inputBox?: boolean;
+	checkBox?: boolean;
 	visibleCount?: boolean;
 	count?: boolean;
 	message?: boolean;
@@ -129,6 +134,7 @@ type Visibilities = {
 };
 
 class QuickInput extends Disposable implements IQuickInput {
+	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _title: string | undefined;
 	private _description: string | undefined;
@@ -140,9 +146,14 @@ class QuickInput extends Disposable implements IQuickInput {
 	private _busy = false;
 	private _ignoreFocusOut = false;
 	private _buttons: IQuickInputButton[] = [];
+	protected noValidationMessage = QuickInput.noPromptMessage;
+	private _validationMessage: string | undefined;
+	private _lastValidationMessage: string | undefined;
+	private _severity: Severity = Severity.Ignore;
+	private _lastSeverity: Severity | undefined;
 	private buttonsUpdated = false;
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
-	private readonly onDidHideEmitter = this._register(new Emitter<void>());
+	private readonly onDidHideEmitter = this._register(new Emitter<IQuickInputHideEvent>());
 	private readonly onDisposeEmitter = this._register(new Emitter<void>());
 
 	protected readonly visibleDisposables = this._register(new DisposableStore());
@@ -237,6 +248,24 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.update();
 	}
 
+	get validationMessage() {
+		return this._validationMessage;
+	}
+
+	set validationMessage(validationMessage: string | undefined) {
+		this._validationMessage = validationMessage;
+		this.update();
+	}
+
+	get severity() {
+		return this._severity;
+	}
+
+	set severity(severity: Severity) {
+		this._severity = severity;
+		this.update();
+	}
+
 	readonly onDidTriggerButton = this.onDidTriggerButtonEmitter.event;
 
 	show(): void {
@@ -262,10 +291,10 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.ui.hide();
 	}
 
-	didHide(): void {
+	didHide(reason = QuickInputHideReason.Other): void {
 		this.visible = false;
 		this.visibleDisposables.clear();
-		this.onDidHideEmitter.fire();
+		this.onDidHideEmitter.fire({ reason });
 	}
 
 	readonly onDidHide = this.onDidHideEmitter.event;
@@ -278,11 +307,14 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
 		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
-			this.ui.title.innerHTML = '&nbsp;';
+			this.ui.title.innerText = '\u00a0;';
 		}
 		const description = this.getDescription();
-		if (this.ui.description.textContent !== description) {
-			this.ui.description.textContent = description;
+		if (this.ui.description1.textContent !== description) {
+			this.ui.description1.textContent = description;
+		}
+		if (this.ui.description2.textContent !== description) {
+			this.ui.description2.textContent = description;
 		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
@@ -321,6 +353,16 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
 		this.ui.setContextKey(this.contextKey);
+
+		const validationMessage = this.validationMessage || this.noValidationMessage;
+		if (this._lastValidationMessage !== validationMessage) {
+			this._lastValidationMessage = validationMessage;
+			dom.reset(this.ui.message, ...renderLabelWithIcons(escape(validationMessage)));
+		}
+		if (this._lastSeverity !== this.severity) {
+			this._lastSeverity = this.severity;
+			this.showMessageDecoration(this.severity);
+		}
 	}
 
 	private getTitle() {
@@ -352,7 +394,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	protected showMessageDecoration(severity: Severity) {
 		this.ui.inputBox.showDecoration(severity);
-		if (severity === Severity.Error) {
+		if (severity !== Severity.Ignore) {
 			const styles = this.ui.inputBox.stylesForType(severity);
 			this.ui.message.style.color = styles.foreground ? `${styles.foreground}` : '';
 			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
@@ -381,7 +423,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
-	private _ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
+	private _ariaLabel: string | undefined;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickAcceptEvent>());
@@ -407,13 +449,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private readonly onDidTriggerItemButtonEmitter = this._register(new Emitter<IQuickPickItemButtonEvent<T>>());
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
-	private _validationMessage: string | undefined;
 	private _ok: boolean | 'default' = 'default';
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
+	private _hideCheckAll: boolean | undefined;
 
 	get quickNavigate() {
 		return this._quickNavigate;
@@ -435,8 +477,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	filterValue = (value: string) => value;
 
-	set ariaLabel(ariaLabel: string) {
-		this._ariaLabel = ariaLabel || QuickPick.DEFAULT_ARIA_LABEL;
+	set ariaLabel(ariaLabel: string | undefined) {
+		this._ariaLabel = ariaLabel;
 		this.update();
 	}
 
@@ -578,15 +620,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		this.update();
 	}
 
-	get validationMessage() {
-		return this._validationMessage;
-	}
-
-	set validationMessage(validationMessage: string | undefined) {
-		this._validationMessage = validationMessage;
-		this.update();
-	}
-
 	get customButton() {
 		return this._customButton;
 	}
@@ -637,6 +670,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set hideInput(hideInput: boolean) {
 		this._hideInput = hideInput;
+		this.update();
+	}
+
+	get hideCheckAll() {
+		return !!this._hideCheckAll;
+	}
+
+	set hideCheckAll(hideCheckAll: boolean) {
+		this._hideCheckAll = hideCheckAll;
 		this.update();
 	}
 
@@ -856,11 +898,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				hideInput = true;
 			}
 		}
-		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
+		this.ui.container.classList.toggle('hidden-input', hideInput && !this.description);
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description,
-			checkAll: this.canSelectMany,
+			checkAll: this.canSelectMany && !this._hideCheckAll,
+			checkBox: this.canSelectMany,
 			inputBox: !hideInput,
 			progressBar: !hideInput,
 			visibleCount: true,
@@ -884,8 +927,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		if (inputShownJustForScreenReader) {
 			this.ui.inputBox.ariaLabel = '';
-		} else if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
-			this.ui.inputBox.ariaLabel = this.ariaLabel;
+		} else {
+			const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+				this.ui.inputBox.ariaLabel = ariaLabel;
+			}
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
@@ -942,13 +988,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				this.selectedItemsToConfirm = null;
 			}
 		}
-		if (this.validationMessage) {
-			this.ui.message.textContent = this.validationMessage;
-			this.showMessageDecoration(Severity.Error);
-		} else {
-			this.ui.message.textContent = null;
-			this.showMessageDecoration(Severity.Ignore);
-		}
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		this.ui.setComboboxAccessibility(true);
@@ -956,22 +995,22 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)
 			this.ui.list.domFocus();
+
+			// Focus the first element in the list if multiselect is enabled
+			if (this.canSelectMany) {
+				this.ui.list.focus(QuickInputListFocus.First);
+			}
 		}
 	}
 }
 
 class InputBox extends QuickInput implements IInputBox {
-
-	private static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
-
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
 	private _password = false;
 	private _prompt: string | undefined;
-	private noValidationMessage = InputBox.noPromptMessage;
-	private _validationMessage: string | undefined;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 
@@ -1016,16 +1055,7 @@ class InputBox extends QuickInput implements IInputBox {
 		this._prompt = prompt;
 		this.noValidationMessage = prompt
 			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
-			: InputBox.noPromptMessage;
-		this.update();
-	}
-
-	get validationMessage() {
-		return this._validationMessage;
-	}
-
-	set validationMessage(validationMessage: string | undefined) {
-		this._validationMessage = validationMessage;
+			: QuickInput.noPromptMessage;
 		this.update();
 	}
 
@@ -1073,14 +1103,7 @@ class InputBox extends QuickInput implements IInputBox {
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
 		}
-		if (!this.validationMessage && this.ui.message.textContent !== this.noValidationMessage) {
-			this.ui.message.textContent = this.noValidationMessage;
-			this.showMessageDecoration(Severity.Ignore);
-		}
-		if (this.validationMessage && this.ui.message.textContent !== this.validationMessage) {
-			this.ui.message.textContent = this.validationMessage;
-			this.showMessageDecoration(Severity.Error);
-		}
+
 	}
 }
 
@@ -1150,8 +1173,7 @@ export class QuickInputController extends Disposable {
 		const rightActionBar = this._register(new ActionBar(titleBar));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
-		const description = dom.append(container, $('.quick-input-description'));
-
+		const description1 = dom.append(container, $('.quick-input-description'));
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
@@ -1166,6 +1188,7 @@ export class QuickInputController extends Disposable {
 			}
 		}));
 
+		const description2 = dom.append(headerContainer, $('.quick-input-description'));
 		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
 		const filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
 
@@ -1198,7 +1221,7 @@ export class QuickInputController extends Disposable {
 		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
 		const progressBar = new ProgressBar(container);
-		dom.addClass(progressBar.getContainer(), 'quick-input-progress');
+		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
 		this._register(list.onChangedAllVisibleChecked(checked => {
@@ -1232,7 +1255,7 @@ export class QuickInputController extends Disposable {
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
-				this.hide();
+				this.hide(QuickInputHideReason.Blur);
 			}
 			this.previousFocusElement = undefined;
 		}));
@@ -1248,7 +1271,7 @@ export class QuickInputController extends Disposable {
 					break;
 				case KeyCode.Escape:
 					dom.EventHelper.stop(e, true);
-					this.hide();
+					this.hide(QuickInputHideReason.Gesture);
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -1280,7 +1303,8 @@ export class QuickInputController extends Disposable {
 			leftActionBar,
 			titleBar,
 			title,
-			description,
+			description1,
+			description2,
 			rightActionBar,
 			checkAll,
 			filterContainer,
@@ -1382,11 +1406,9 @@ export class QuickInputController extends Disposable {
 					resolve(undefined);
 				}),
 			];
+			input.title = options.title;
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
-			if (options.placeHolder) {
-				input.ariaLabel = options.placeHolder;
-			}
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
@@ -1415,8 +1437,24 @@ export class QuickInputController extends Disposable {
 		});
 	}
 
+	private setValidationOnInput(input: IInputBox, validationResult: string | {
+		content: string;
+		severity: Severity;
+	} | null | undefined) {
+		if (validationResult && isString(validationResult)) {
+			input.severity = Severity.Error;
+			input.validationMessage = validationResult;
+		} else if (validationResult && !isString(validationResult)) {
+			input.severity = validationResult.severity;
+			input.validationMessage = validationResult.content;
+		} else {
+			input.severity = Severity.Ignore;
+			input.validationMessage = undefined;
+		}
+	}
+
 	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
-		return new Promise<string>((resolve, reject) => {
+		return new Promise<string | undefined>((resolve) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -1435,7 +1473,7 @@ export class QuickInputController extends Disposable {
 					}
 					validation.then(result => {
 						if (value === validationValue) {
-							input.validationMessage = result || undefined;
+							this.setValidationOnInput(input, result);
 						}
 					});
 				}),
@@ -1446,11 +1484,11 @@ export class QuickInputController extends Disposable {
 						validationValue = value;
 					}
 					validation.then(result => {
-						if (!result) {
+						if (!result || (!isString(result) && result.severity !== Severity.Error)) {
 							resolve(value);
 							input.hide();
 						} else if (value === validationValue) {
-							input.validationMessage = result;
+							this.setValidationOnInput(input, result);
 						}
 					});
 				}),
@@ -1462,6 +1500,8 @@ export class QuickInputController extends Disposable {
 					resolve(undefined);
 				}),
 			];
+
+			input.title = options.title;
 			input.value = options.value || '';
 			input.valueSelection = options.valueSelection;
 			input.prompt = options.prompt;
@@ -1496,7 +1536,8 @@ export class QuickInputController extends Disposable {
 		this.setEnabled(true);
 		ui.leftActionBar.clear();
 		ui.title.textContent = '';
-		ui.description.textContent = '';
+		ui.description1.textContent = '';
+		ui.description2.textContent = '';
 		ui.rightActionBar.clear();
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
@@ -1505,7 +1546,7 @@ export class QuickInputController extends Disposable {
 		ui.inputBox.showDecoration(Severity.Ignore);
 		ui.visibleCount.setCount(0);
 		ui.count.setCount(0);
-		ui.message.textContent = '';
+		dom.reset(ui.message);
 		ui.progressBar.stop();
 		ui.list.setElements([]);
 		ui.list.matchOnDescription = false;
@@ -1527,7 +1568,8 @@ export class QuickInputController extends Disposable {
 	private setVisibilities(visibilities: Visibilities) {
 		const ui = this.getUI();
 		ui.title.style.display = visibilities.title ? '' : 'none';
-		ui.description.style.display = visibilities.description ? '' : 'none';
+		ui.description1.style.display = visibilities.description && (visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
+		ui.description2.style.display = visibilities.description && !(visibilities.inputBox || visibilities.checkAll) ? '' : 'none';
 		ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
 		ui.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		ui.visibleCountContainer.style.display = visibilities.visibleCount ? '' : 'none';
@@ -1537,7 +1579,7 @@ export class QuickInputController extends Disposable {
 		ui.message.style.display = visibilities.message ? '' : 'none';
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.display(!!visibilities.list);
-		ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');
+		ui.container.classList[visibilities.checkBox ? 'add' : 'remove']('show-checkboxes');
 		this.updateLayout(); // TODO
 	}
 
@@ -1575,7 +1617,7 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	hide() {
+	hide(reason?: QuickInputHideReason) {
 		const controller = this.controller;
 		if (controller) {
 			const focusChanged = !this.ui?.container.contains(document.activeElement);
@@ -1590,7 +1632,7 @@ export class QuickInputController extends Disposable {
 					this.options.returnFocus();
 				}
 			}
-			controller.didHide();
+			controller.didHide(reason);
 		}
 	}
 
@@ -1672,7 +1714,7 @@ export class QuickInputController extends Disposable {
 			this.ui.container.style.backgroundColor = quickInputBackground ? quickInputBackground.toString() : '';
 			this.ui.container.style.color = quickInputForeground ? quickInputForeground.toString() : '';
 			this.ui.container.style.border = contrastBorder ? `1px solid ${contrastBorder}` : '';
-			this.ui.container.style.boxShadow = widgetShadow ? `0 5px 8px ${widgetShadow}` : '';
+			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.inputBox.style(this.styles.inputBox);
 			this.ui.count.style(this.styles.countBadge);
 			this.ui.ok.style(this.styles.button);
@@ -1681,10 +1723,6 @@ export class QuickInputController extends Disposable {
 			this.ui.list.style(this.styles.list);
 
 			const content: string[] = [];
-			if (this.styles.list.listInactiveFocusForeground) {
-				content.push(`.monaco-list .monaco-list-row.focused { color:  ${this.styles.list.listInactiveFocusForeground}; }`);
-				content.push(`.monaco-list .monaco-list-row.focused:hover { color:  ${this.styles.list.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
-			}
 			if (this.styles.list.pickerGroupBorder) {
 				content.push(`.quick-input-list .quick-input-list-entry { border-top-color:  ${this.styles.list.pickerGroupBorder}; }`);
 			}
@@ -1692,8 +1730,8 @@ export class QuickInputController extends Disposable {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
 			const newStyles = content.join('\n');
-			if (newStyles !== this.ui.styleSheet.innerHTML) {
-				this.ui.styleSheet.innerHTML = newStyles;
+			if (newStyles !== this.ui.styleSheet.textContent) {
+				this.ui.styleSheet.textContent = newStyles;
 			}
 		}
 	}

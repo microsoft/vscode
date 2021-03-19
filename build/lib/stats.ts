@@ -9,7 +9,6 @@ import * as es from 'event-stream';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as File from 'vinyl';
-import * as appInsights from 'applicationinsights';
 
 class Entry {
 	constructor(readonly name: string, public totalCount: number, public totalSize: number) { }
@@ -75,6 +74,7 @@ export function createStatsStream(group: string, log?: boolean): es.ThroughStrea
 }
 
 export function submitAllStats(productJson: any, commit: string): Promise<boolean> {
+	const appInsights = require('applicationinsights') as typeof import('applicationinsights');
 
 	const sorted: Entry[] = [];
 	// move entries for single files to the front

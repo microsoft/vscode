@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as ts from 'typescript';
+import type * as ts from 'typescript';
 
 const TYPESCRIPT_LIB_FOLDER = path.dirname(require.resolve('typescript/lib/lib.d.ts'));
 
@@ -82,7 +82,8 @@ function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArr
 }
 
 export function shake(options: ITreeShakingOptions): ITreeShakingResult {
-	const languageService = createTypeScriptLanguageService(options);
+	const ts = require('typescript') as typeof import('typescript');
+	const languageService = createTypeScriptLanguageService(ts, options);
 	const program = languageService.getProgram()!;
 
 	const globalDiagnostics = program.getGlobalDiagnostics();
@@ -103,15 +104,15 @@ export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
-	markNodes(languageService, options);
+	markNodes(ts, languageService, options);
 
-	return generateResult(languageService, options.shakeLevel);
+	return generateResult(ts, languageService, options.shakeLevel);
 }
 
 //#region Discovery, LanguageService & Setup
-function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.LanguageService {
+function createTypeScriptLanguageService(ts: typeof import('typescript'), options: ITreeShakingOptions): ts.LanguageService {
 	// Discover referenced files
-	const FILES = discoverAndReadFiles(options);
+	const FILES = discoverAndReadFiles(ts, options);
 
 	// Add fake usage files
 	options.inlineEntryPoints.forEach((inlineEntryPoint, index) => {
@@ -125,18 +126,18 @@ function createTypeScriptLanguageService(options: ITreeShakingOptions): ts.Langu
 	});
 
 	// Resolve libs
-	const RESOLVED_LIBS = processLibFiles(options);
+	const RESOLVED_LIBS = processLibFiles(ts, options);
 
 	const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
 
-	const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, compilerOptions);
+	const host = new TypeScriptLanguageServiceHost(ts, RESOLVED_LIBS, FILES, compilerOptions);
 	return ts.createLanguageService(host);
 }
 
 /**
  * Read imports and follow them until all files have been handled
  */
-function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
+function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
 	const FILES: IFileMap = {};
 
 	const in_queue: { [module: string]: boolean; } = Object.create(null);
@@ -199,7 +200,7 @@ function discoverAndReadFiles(options: ITreeShakingOptions): IFileMap {
 /**
  * Read lib files and follow lib references
  */
-function processLibFiles(options: ITreeShakingOptions): ILibMap {
+function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): ILibMap {
 
 	const stack: string[] = [...options.compilerOptions.lib];
 	const result: ILibMap = {};
@@ -232,11 +233,13 @@ interface IFileMap { [fileName: string]: string; }
  */
 class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 
+	private readonly _ts: typeof import('typescript');
 	private readonly _libs: ILibMap;
 	private readonly _files: IFileMap;
 	private readonly _compilerOptions: ts.CompilerOptions;
 
-	constructor(libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
+	constructor(ts: typeof import('typescript'), libs: ILibMap, files: IFileMap, compilerOptions: ts.CompilerOptions) {
+		this._ts = ts;
 		this._libs = libs;
 		this._files = files;
 		this._compilerOptions = compilerOptions;
@@ -262,15 +265,15 @@ class TypeScriptLanguageServiceHost implements ts.LanguageServiceHost {
 	}
 	getScriptSnapshot(fileName: string): ts.IScriptSnapshot {
 		if (this._files.hasOwnProperty(fileName)) {
-			return ts.ScriptSnapshot.fromString(this._files[fileName]);
+			return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
 		} else if (this._libs.hasOwnProperty(fileName)) {
-			return ts.ScriptSnapshot.fromString(this._libs[fileName]);
+			return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
 		} else {
-			return ts.ScriptSnapshot.fromString('');
+			return this._ts.ScriptSnapshot.fromString('');
 		}
 	}
 	getScriptKind(_fileName: string): ts.ScriptKind {
-		return ts.ScriptKind.TS;
+		return this._ts.ScriptKind.TS;
 	}
 	getCurrentDirectory(): string {
 		return '';
@@ -320,7 +323,7 @@ function nodeOrChildIsBlack(node: ts.Node): boolean {
 	return false;
 }
 
-function markNodes(languageService: ts.LanguageService, options: ITreeShakingOptions) {
+function markNodes(ts: typeof import('typescript'), languageService: ts.LanguageService, options: ITreeShakingOptions) {
 	const program = languageService.getProgram();
 	if (!program) {
 		throw new Error('Could not get program from language service');
@@ -446,7 +449,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 						continue;
 					}
 
-					const referenceNode = getTokenAtPosition(referenceSourceFile, reference.textSpan.start, false, false);
+					const referenceNode = getTokenAtPosition(ts, referenceSourceFile, reference.textSpan.start, false, false);
 					if (
 						ts.isMethodDeclaration(referenceNode.parent)
 						|| ts.isPropertyDeclaration(referenceNode.parent)
@@ -522,7 +525,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		const nodeSourceFile = node.getSourceFile();
 
 		const loop = (node: ts.Node) => {
-			const [symbol, symbolImportNode] = getRealNodeSymbol(checker, node);
+			const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
 			if (symbolImportNode) {
 				setColor(symbolImportNode, NodeColor.Black);
 			}
@@ -536,7 +539,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 						continue;
 					}
 
-					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program, checker, declaration)) {
+					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
 						enqueue_black(declaration.name!);
 
 						for (let j = 0; j < declaration.members.length; j++) {
@@ -607,7 +610,7 @@ function nodeIsInItsOwnDeclaration(nodeSourceFile: ts.SourceFile, node: ts.Node,
 	return false;
 }
 
-function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLevel): ITreeShakingResult {
+function generateResult(ts: typeof import('typescript'), languageService: ts.LanguageService, shakeLevel: ShakeLevel): ITreeShakingResult {
 	const program = languageService.getProgram();
 	if (!program) {
 		throw new Error('Could not get program from language service');
@@ -752,11 +755,11 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 
 //#region Utils
 
-function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program: ts.Program, checker: ts.TypeChecker, declaration: ts.ClassDeclaration | ts.InterfaceDeclaration): boolean {
+function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts: typeof import('typescript'), program: ts.Program, checker: ts.TypeChecker, declaration: ts.ClassDeclaration | ts.InterfaceDeclaration): boolean {
 	if (!program.isSourceFileDefaultLibrary(declaration.getSourceFile()) && declaration.heritageClauses) {
 		for (const heritageClause of declaration.heritageClauses) {
 			for (const type of heritageClause.types) {
-				const symbol = findSymbolFromHeritageType(checker, type);
+				const symbol = findSymbolFromHeritageType(ts, checker, type);
 				if (symbol) {
 					const decl = symbol.valueDeclaration || (symbol.declarations && symbol.declarations[0]);
 					if (decl && program.isSourceFileDefaultLibrary(decl.getSourceFile())) {
@@ -769,15 +772,15 @@ function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program: ts.Progra
 	return false;
 }
 
-function findSymbolFromHeritageType(checker: ts.TypeChecker, type: ts.ExpressionWithTypeArguments | ts.Expression | ts.PrivateIdentifier): ts.Symbol | null {
+function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts.TypeChecker, type: ts.ExpressionWithTypeArguments | ts.Expression | ts.PrivateIdentifier): ts.Symbol | null {
 	if (ts.isExpressionWithTypeArguments(type)) {
-		return findSymbolFromHeritageType(checker, type.expression);
+		return findSymbolFromHeritageType(ts, checker, type.expression);
 	}
 	if (ts.isIdentifier(type)) {
-		return getRealNodeSymbol(checker, type)[0];
+		return getRealNodeSymbol(ts, checker, type)[0];
 	}
 	if (ts.isPropertyAccessExpression(type)) {
-		return findSymbolFromHeritageType(checker, type.name);
+		return findSymbolFromHeritageType(ts, checker, type.name);
 	}
 	return null;
 }
@@ -785,7 +788,7 @@ function findSymbolFromHeritageType(checker: ts.TypeChecker, type: ts.Expression
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
-function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol | null, ts.Declaration | null] {
+function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): [ts.Symbol | null, ts.Declaration | null] {
 
 	// Use some TypeScript internals to avoid code duplication
 	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
@@ -913,7 +916,7 @@ function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol |
 }
 
 /** Get the token whose text contains the position */
-function getTokenAtPosition(sourceFile: ts.SourceFile, position: number, allowPositionInLeadingTrivia: boolean, includeEndPosition: boolean): ts.Node {
+function getTokenAtPosition(ts: typeof import('typescript'), sourceFile: ts.SourceFile, position: number, allowPositionInLeadingTrivia: boolean, includeEndPosition: boolean): ts.Node {
 	let current: ts.Node = sourceFile;
 	outer: while (true) {
 		// find the child that contains 'position'

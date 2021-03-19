@@ -5,12 +5,12 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { deserializeSearchError, IFolderQuery, ISearchRange, ITextQuery, ITextSearchContext, ITextSearchMatch, QueryType, SearchErrorCode, ISerializedFileMatch } from 'vs/workbench/services/search/common/search';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
+import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
@@ -46,8 +46,7 @@ function doSearchTest(query: ITextQuery, expectedResultCount: number | Function)
 	});
 }
 
-suite('TextSearch-integration', function () {
-	this.timeout(1000 * 60); // increase timeout for this suite
+flakySuite('TextSearch-integration', function () {
 
 	test('Text: GameOfLife', () => {
 		const config: ITextQuery = {

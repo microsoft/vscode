@@ -20,8 +20,9 @@ export namespace SeverityIcon {
 				return Codicon.warning.classNames;
 			case Severity.Error:
 				return Codicon.error.classNames;
+			default:
+				return '';
 		}
-		return '';
 	}
 }
 

@@ -106,7 +106,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			acceptSuggestionOnEnter: 'smart',
 			minimap: {
 				enabled: false
-			}
+			},
+			quickSuggestions: false
 		};
 	}
 }

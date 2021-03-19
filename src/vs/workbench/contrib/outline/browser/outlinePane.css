@@ -31,6 +31,9 @@
 	display: none;
 	padding: 10px 22px 0 22px;
 	opacity: 0.5;
+	position: absolute;
+	pointer-events: none;
+	z-index: 1;
 }
 
 .monaco-workbench .outline-pane.message .outline-message {
@@ -38,9 +41,5 @@
 }
 
 .monaco-workbench .outline-pane.message .outline-progress {
-	display: none;
-}
-
-.monaco-workbench .outline-pane.message .outline-tree {
 	display: none;
 }

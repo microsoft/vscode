@@ -41,6 +41,11 @@ export interface ScrollableElementCreationOptions {
 	 */
 	scrollYToX?: boolean;
 	/**
+	 * Consume all mouse wheel events if a scrollbar is needed (i.e. scrollSize > size).
+	 * Defaults to false.
+	 */
+	consumeMouseWheelIfScrollbarIsNeeded?: boolean;
+	/**
 	 * Always consume mouse wheel events, even when scrolling is no longer possible.
 	 * Defaults to false.
 	 */
@@ -114,6 +119,11 @@ export interface ScrollableElementCreationOptions {
 	 * Defaults to false.
 	 */
 	verticalHasArrows?: boolean;
+	/**
+	 * Scroll gutter clicks move by page vs. jump to position.
+	 * Defaults to false.
+	 */
+	scrollByPage?: boolean;
 }
 
 export interface ScrollableElementChangeOptions {
@@ -131,6 +141,7 @@ export interface ScrollableElementResolvedOptions {
 	handleMouseWheel: boolean;
 	flipAxes: boolean;
 	scrollYToX: boolean;
+	consumeMouseWheelIfScrollbarIsNeeded: boolean;
 	alwaysConsumeMouseWheel: boolean;
 	mouseWheelScrollSensitivity: number;
 	fastScrollSensitivity: number;
@@ -146,4 +157,5 @@ export interface ScrollableElementResolvedOptions {
 	verticalScrollbarSize: number;
 	verticalSliderSize: number;
 	verticalHasArrows: boolean;
+	scrollByPage: boolean;
 }

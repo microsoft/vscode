@@ -24,8 +24,9 @@ export interface IBuiltInExtension {
 
 export type ConfigurationSyncStore = {
 	url: string,
-	insidersUrl?: string,
-	stableUrl?: string,
+	insidersUrl: string,
+	stableUrl: string,
+	canSwitch: boolean,
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>
 };
 
@@ -43,12 +44,13 @@ export interface IProductConfiguration {
 	readonly applicationName: string;
 
 	readonly urlProtocol: string;
-	readonly dataFolderName: string;
+	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
+	readonly webEndpointUrl?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
@@ -71,12 +73,13 @@ export interface IProductConfiguration {
 	};
 
 	readonly extensionTips?: { [id: string]: string; };
-	readonly extensionImportantTips?: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly extensionImportantTips?: IStringDictionary<ImportantExtensionTip>;
 	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip; };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
+	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
 
 	readonly crashReporter?: {
 		readonly companyName: string;
@@ -104,6 +107,7 @@ export interface IProductConfiguration {
 	readonly twitterUrl?: string;
 	readonly requestFeatureUrl?: string;
 	readonly reportIssueUrl?: string;
+	readonly reportMarketplaceIssueUrl?: string;
 	readonly licenseUrl?: string;
 	readonly privacyStatementUrl?: string;
 	readonly telemetryOptOutUrl?: string;
@@ -119,13 +123,18 @@ export interface IProductConfiguration {
 	readonly portable?: string;
 
 	readonly extensionKind?: { readonly [extensionId: string]: ExtensionKind[]; };
+	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+
+	readonly darwinUniversalAssetId?: string;
 }
+
+export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
 
 export interface IAppCenterConfiguration {
 	readonly 'win32-ia32': string;
@@ -143,6 +152,7 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
+	important?: boolean;
 	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 

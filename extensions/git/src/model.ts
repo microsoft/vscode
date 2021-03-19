@@ -6,16 +6,17 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable, eventToPromise } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler } from './api/git';
+import { APIState as State, RemoteSourceProvider, CredentialsProvider, PushErrorHandler, PublishEvent } from './api/git';
 import { Askpass } from './askpass';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
 import { IPushErrorHandlerRegistry } from './pushError';
+import { ApiRepository } from './api/api1';
 
 const localize = nls.loadMessageBundle();
 
@@ -68,6 +69,13 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState = this._onDidChangeState.event;
+
+	private _onDidPublish = new EventEmitter<PublishEvent>();
+	readonly onDidPublish = this._onDidPublish.event;
+
+	firePublishEvent(repository: Repository, branch?: string) {
+		this._onDidPublish.fire({ repository: new ApiRepository(repository), branch: branch });
+	}
 
 	private _state: State = 'uninitialized';
 	get state(): State { return this._state; }
@@ -260,7 +268,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 			// This can happen whenever `path` has the wrong case sensitivity in
 			// case insensitive file systems
-			// https://github.com/Microsoft/vscode/issues/33498
+			// https://github.com/microsoft/vscode/issues/33498
 			const repositoryRoot = Uri.file(rawRoot).fsPath;
 
 			if (this.getRepository(repositoryRoot)) {
@@ -276,8 +284,9 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 
 			this.open(repository);
 			await repository.status();
-		} catch (err) {
+		} catch (ex) {
 			// noop
+			this.outputChannel.appendLine(`Opening repository for path='${path}' failed; ex=${ex}`);
 		}
 	}
 
@@ -372,7 +381,7 @@ export class Model implements IRemoteSourceProviderRegistry, IPushErrorHandlerRe
 		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
 		const active = window.activeTextEditor;
 		const repository = active && this.getRepository(active.document.fileName);
-		const index = firstIndex(picks, pick => pick.repository === repository);
+		const index = picks.findIndex(pick => pick.repository === repository);
 
 		// Move repository pick containing the active text editor to appear first
 		if (index > -1) {

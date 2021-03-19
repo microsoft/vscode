@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
+import { Dimension, $, clearNode } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditorPane } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditorPane, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -19,7 +19,7 @@ import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined } from 'vs/base/common/types';
 
-export class SideBySideEditor extends BaseEditor {
+export class SideBySideEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.sidebysideEditor';
 
@@ -33,7 +33,7 @@ export class SideBySideEditor extends BaseEditor {
 	private get minimumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.minimumHeight : 0; }
 	private get maximumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.maximumHeight : Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
+	// these setters need to exist because this extends from EditorPane
 	set minimumWidth(value: number) { /* noop */ }
 	set maximumWidth(value: number) { /* noop */ }
 	set minimumHeight(value: number) { /* noop */ }
@@ -44,19 +44,19 @@ export class SideBySideEditor extends BaseEditor {
 	get minimumHeight() { return this.minimumPrimaryHeight + this.minimumSecondaryHeight; }
 	get maximumHeight() { return this.maximumPrimaryHeight + this.maximumSecondaryHeight; }
 
-	protected primaryEditorPane?: BaseEditor;
-	protected secondaryEditorPane?: BaseEditor;
+	protected primaryEditorPane?: EditorPane;
+	protected secondaryEditorPane?: EditorPane;
 
 	private primaryEditorContainer: HTMLElement | undefined;
 	private secondaryEditorContainer: HTMLElement | undefined;
 
 	private splitview: SplitView | undefined;
-	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
+	private dimension: Dimension = new Dimension(0, 0);
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 
-	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
+	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = Event.any(this.onDidCreateEditors.event, this._onDidChangeSizeConstraints.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -68,24 +68,24 @@ export class SideBySideEditor extends BaseEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		DOM.addClass(parent, 'side-by-side-editor');
+		parent.classList.add('side-by-side-editor');
 
 		const splitview = this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
 		this._register(this.splitview.onDidSashReset(() => splitview.distributeViewSizes()));
 
-		this.secondaryEditorContainer = DOM.$('.secondary-editor-container');
+		this.secondaryEditorContainer = $('.secondary-editor-container');
 		this.splitview.addView({
 			element: this.secondaryEditorContainer,
-			layout: size => this.secondaryEditorPane && this.secondaryEditorPane.layout(new DOM.Dimension(size, this.dimension.height)),
+			layout: size => this.secondaryEditorPane?.layout(new Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
 		}, Sizing.Distribute);
 
-		this.primaryEditorContainer = DOM.$('.primary-editor-container');
+		this.primaryEditorContainer = $('.primary-editor-container');
 		this.splitview.addView({
 			element: this.primaryEditorContainer,
-			layout: size => this.primaryEditorPane && this.primaryEditorPane.layout(new DOM.Dimension(size, this.dimension.height)),
+			layout: size => this.primaryEditorPane?.layout(new Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
@@ -94,11 +94,11 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	async setInput(newInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(newInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const oldInput = this.input as SideBySideEditorInput;
-		await super.setInput(newInput, options, token);
+		await super.setInput(newInput, options, context, token);
 
-		return this.updateInput(oldInput, (newInput as SideBySideEditorInput), options, token);
+		return this.updateInput(oldInput, (newInput as SideBySideEditorInput), options, context, token);
 	}
 
 	setOptions(options: EditorOptions | undefined): void {
@@ -139,7 +139,7 @@ export class SideBySideEditor extends BaseEditor {
 		}
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
 		const splitview = assertIsDefined(this.splitview);
@@ -162,13 +162,13 @@ export class SideBySideEditor extends BaseEditor {
 		return this.secondaryEditorPane;
 	}
 
-	private async updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	private async updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
 			}
 
-			return this.setNewInput(newInput, options, token);
+			return this.setNewInput(newInput, options, context, token);
 		}
 
 		if (!this.secondaryEditorPane || !this.primaryEditorPane) {
@@ -176,19 +176,19 @@ export class SideBySideEditor extends BaseEditor {
 		}
 
 		await Promise.all([
-			this.secondaryEditorPane.setInput(newInput.secondary, undefined, token),
-			this.primaryEditorPane.setInput(newInput.primary, options, token)
+			this.secondaryEditorPane.setInput(newInput.secondary, undefined, context, token),
+			this.primaryEditorPane.setInput(newInput.primary, options, context, token)
 		]);
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const secondaryEditor = this.doCreateEditor(newInput.secondary, assertIsDefined(this.secondaryEditorContainer));
 		const primaryEditor = this.doCreateEditor(newInput.primary, assertIsDefined(this.primaryEditorContainer));
 
-		return this.onEditorsCreated(secondaryEditor, primaryEditor, newInput.secondary, newInput.primary, options, token);
+		return this.onEditorsCreated(secondaryEditor, primaryEditor, newInput.secondary, newInput.primary, options, context, token);
 	}
 
-	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
+	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): EditorPane {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
 			throw new Error('No descriptor for editor found');
@@ -201,20 +201,20 @@ export class SideBySideEditor extends BaseEditor {
 		return editor;
 	}
 
-	private async onEditorsCreated(secondary: BaseEditor, primary: BaseEditor, secondaryInput: EditorInput, primaryInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	private async onEditorsCreated(secondary: EditorPane, primary: EditorPane, secondaryInput: EditorInput, primaryInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.secondaryEditorPane = secondary;
 		this.primaryEditorPane = primary;
 
-		this._onDidSizeConstraintsChange.input = Event.any(
-			Event.map(secondary.onDidSizeConstraintsChange, () => undefined),
-			Event.map(primary.onDidSizeConstraintsChange, () => undefined)
+		this._onDidChangeSizeConstraints.input = Event.any(
+			Event.map(secondary.onDidChangeSizeConstraints, () => undefined),
+			Event.map(primary.onDidChangeSizeConstraints, () => undefined)
 		);
 
 		this.onDidCreateEditors.fire(undefined);
 
 		await Promise.all([
-			this.secondaryEditorPane.setInput(secondaryInput, undefined, token),
-			this.primaryEditorPane.setInput(primaryInput, options, token)]
+			this.secondaryEditorPane.setInput(secondaryInput, undefined, context, token),
+			this.primaryEditorPane.setInput(primaryInput, options, context, token)]
 		);
 	}
 
@@ -238,11 +238,11 @@ export class SideBySideEditor extends BaseEditor {
 		}
 
 		if (this.secondaryEditorContainer) {
-			DOM.clearNode(this.secondaryEditorContainer);
+			clearNode(this.secondaryEditorContainer);
 		}
 
 		if (this.primaryEditorContainer) {
-			DOM.clearNode(this.primaryEditorContainer);
+			clearNode(this.primaryEditorContainer);
 		}
 	}
 

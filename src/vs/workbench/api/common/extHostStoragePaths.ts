@@ -48,7 +48,7 @@ export class ExtensionStoragePaths implements IExtensionStoragePaths {
 		const storageUri = URI.joinPath(this._environment.workspaceStorageHome, storageName);
 
 		try {
-			await this._extHostFileSystem.stat(storageUri);
+			await this._extHostFileSystem.value.stat(storageUri);
 			this._logService.trace('[ExtHostStorage] storage dir already exists', storageUri);
 			return storageUri;
 		} catch {
@@ -57,8 +57,8 @@ export class ExtensionStoragePaths implements IExtensionStoragePaths {
 
 		try {
 			this._logService.trace('[ExtHostStorage] creating dir and metadata-file', storageUri);
-			await this._extHostFileSystem.createDirectory(storageUri);
-			await this._extHostFileSystem.writeFile(
+			await this._extHostFileSystem.value.createDirectory(storageUri);
+			await this._extHostFileSystem.value.writeFile(
 				URI.joinPath(storageUri, 'meta.json'),
 				new TextEncoder().encode(JSON.stringify({
 					id: this._workspace.id,

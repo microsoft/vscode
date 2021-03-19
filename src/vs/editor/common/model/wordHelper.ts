@@ -68,7 +68,6 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 		// but use a sub-string in which a word must occur
 		let start = column - config.maxLen / 2;
 		if (start < 0) {
-			textOffset += column;
 			start = 0;
 		} else {
 			textOffset += start;
@@ -86,7 +85,7 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	for (let i = 1; ; i++) {
 		// check time budget
 		if (Date.now() - t1 >= config.timeBudget) {
-			// break;
+			break;
 		}
 
 		// reset the index at which the regexp should start matching, also know where it

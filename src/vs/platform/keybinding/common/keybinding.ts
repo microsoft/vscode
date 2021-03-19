@@ -103,6 +103,8 @@ export interface IKeybindingService {
 
 	registerSchemaContribution(contribution: KeybindingsSchemaContribution): void;
 
+	toggleLogging(): boolean;
+
 	_dumpDebugInfo(): string;
 	_dumpDebugInfoJSON(): string;
 }

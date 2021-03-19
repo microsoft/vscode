@@ -7,15 +7,16 @@ import 'mocha';
 import * as assert from 'assert';
 import { withRandomFileEditor } from './testUtils';
 import * as vscode from 'vscode';
-import { parsePartialStylesheet, getNode } from '../util';
+import { parsePartialStylesheet, getFlatNode } from '../util';
 import { isValidLocationForEmmetAbbreviation } from '../abbreviationActions';
 
 suite('Tests for partial parse of Stylesheets', () => {
 
 	function isValid(doc: vscode.TextDocument, range: vscode.Range, syntax: string): boolean {
 		const rootNode = parsePartialStylesheet(doc, range.end);
-		const currentNode = getNode(rootNode, range.end, true);
-		return isValidLocationForEmmetAbbreviation(doc, rootNode, currentNode, syntax, range.end, range);
+		const endOffset = doc.offsetAt(range.end);
+		const currentNode = getFlatNode(rootNode, endOffset, true);
+		return isValidLocationForEmmetAbbreviation(doc, rootNode, currentNode, syntax, endOffset, range);
 	}
 
 	test('Ignore block comment inside rule', function (): any {
@@ -59,7 +60,7 @@ p {
 /* .foo { op.3
 dn	{
 */
-	@
+	bgc
 } bg
 `;
 		return withRandomFileEditor(sassContents, '.scss', (_, doc) => {
@@ -68,7 +69,7 @@ dn	{
 				new vscode.Range(2, 3, 2, 7),		// Line commented selector
 				new vscode.Range(3, 3, 3, 7),		// Block commented selector
 				new vscode.Range(4, 0, 4, 2),		// dn inside block comment
-				new vscode.Range(6, 1, 6, 2),		// @ inside a rule whose opening brace is commented
+				new vscode.Range(6, 1, 6, 2),		// bgc inside a rule whose opening brace is commented
 				new vscode.Range(7, 2, 7, 4)		// bg after ending of badly constructed block
 			];
 			rangesNotEmmet.forEach(range => {

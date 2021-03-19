@@ -76,7 +76,6 @@
 .extension-editor > .header > .details > .title > .identifier {
 	margin-left: 10px;
 	font-size: 14px;
-	opacity: 0.6;
 	background: rgba(173, 173, 173, 0.31);
 	padding: 0px 4px;
 	border-radius: 4px;
@@ -153,13 +152,23 @@
 	justify-content: flex-start;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action {
+	margin-top: 0px; /* overrides from extension actions */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	line-height: 22px;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
 	margin-right: 8px;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item .extension-action.label {
 	font-weight: 600;
-	padding: 1px 6px;
 	max-width: 300px;
 }
 
@@ -202,8 +211,7 @@
 .extension-editor > .header > .details > .subtext-container > .monaco-action-bar .action-label {
 	margin-top: 4px;
 	margin-left: 4px;
-	padding-top: 0;
-	padding-bottom: 2px;
+	padding-bottom: 1px;
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .actions-container {
@@ -360,10 +368,6 @@
 	line-height: 22px;
 }
 
-.extension-editor > .body > .content details > summary::-webkit-details-marker {
-	color: rgba(128, 128, 128, 0.5);
-}
-
 .extension-editor > .body > .content table tr:nth-child(odd) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
@@ -393,7 +397,7 @@
 	margin: 0px;
 }
 
-.extension-editor > .body > .content table code:not(:empty) {
+.extension-editor > .body > .content code:not(:empty) {
 	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
 	background-color: rgba(128, 128, 128, 0.17);
@@ -497,6 +501,7 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container {
+	height: 275px;
 	margin: 0 10px 20px 0;
 }
 

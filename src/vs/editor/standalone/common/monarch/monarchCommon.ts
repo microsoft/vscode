@@ -22,6 +22,7 @@ export const enum MonarchBracket {
 
 export interface ILexerMin {
 	languageId: string;
+	includeLF: boolean;
 	noThrow: boolean;
 	ignoreCase: boolean;
 	unicode: boolean;

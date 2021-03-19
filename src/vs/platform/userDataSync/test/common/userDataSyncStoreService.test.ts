@@ -39,6 +39,9 @@ suite('UserDataSyncStoreManagementService', () => {
 
 		const configuredStore: ConfigurationSyncStore = {
 			url: 'http://configureHost:3000',
+			stableUrl: 'http://configureHost:3000',
+			insidersUrl: 'http://configureHost:3000',
+			canSwitch: false,
 			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
 		};
 		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(JSON.stringify({
@@ -48,13 +51,15 @@ suite('UserDataSyncStoreManagementService', () => {
 
 		const expected: IUserDataSyncStore = {
 			url: URI.parse('http://configureHost:3000'),
+			type: 'stable',
 			defaultUrl: URI.parse('http://configureHost:3000'),
-			stableUrl: undefined,
-			insidersUrl: undefined,
+			stableUrl: URI.parse('http://configureHost:3000'),
+			insidersUrl: URI.parse('http://configureHost:3000'),
+			canSwitch: false,
 			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
 		};
 
-		const testObject: IUserDataSyncStoreManagementService = client.instantiationService.createInstance(UserDataSyncStoreManagementService);
+		const testObject: IUserDataSyncStoreManagementService = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreManagementService));
 
 		assert.equal(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
 		assert.equal(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
@@ -415,7 +420,7 @@ suite('UserDataSyncStoreService', () => {
 			await testObject.manifest();
 		} catch (e) { }
 
-		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
 		assert.equal(target.donotMakeRequestsUntil?.getTime(), testObject.donotMakeRequestsUntil?.getTime());
 	});
 
@@ -430,7 +435,7 @@ suite('UserDataSyncStoreService', () => {
 		} catch (e) { }
 
 		await timeout(300);
-		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
+		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
 		assert.ok(!target.donotMakeRequestsUntil);
 	});
 
@@ -460,10 +465,10 @@ suite('UserDataSyncRequestsSession', () => {
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 
 		try {
-			await testObject.request({}, CancellationToken.None);
+			await testObject.request('url', {}, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
 			assert.equal((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
@@ -474,19 +479,19 @@ suite('UserDataSyncRequestsSession', () => {
 
 	test('requests are handled after session is expired', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 		await timeout(600);
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 	});
 
 	test('too many requests are thrown after session is expired', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 		await timeout(600);
-		await testObject.request({}, CancellationToken.None);
+		await testObject.request('url', {}, CancellationToken.None);
 
 		try {
-			await testObject.request({}, CancellationToken.None);
+			await testObject.request('url', {}, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
 			assert.equal((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);

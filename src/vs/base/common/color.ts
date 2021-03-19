@@ -240,7 +240,7 @@ export class HSVA {
 		} else if (h < 300) {
 			r = x;
 			b = c;
-		} else if (h < 360) {
+		} else if (h <= 360) {
 			r = c;
 			b = x;
 		}

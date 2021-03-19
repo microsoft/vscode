@@ -18,7 +18,7 @@ import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedH
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import type { IThemable } from 'vs/base/common/styler';
 import { Codicon } from 'vs/base/common/codicons';
-
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 export interface IOptions {
 	placeholder?: string;
 	width?: number;
@@ -50,7 +50,8 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService protected themeService: IThemeService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.width = options.width || 100;
@@ -138,7 +139,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 	private render(options: IOptions): void {
 		this.domNode = document.createElement('div');
 		this.domNode.style.width = this.width + 'px';
-		dom.addClass(this.domNode, 'monaco-findInput');
+		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
@@ -178,6 +179,56 @@ export class PatternInputWidget extends Widget implements IThemable {
 	}
 }
 
+export class IncludePatternInputWidget extends PatternInputWidget {
+
+	private _onChangeSearchInEditorsBoxEmitter = this._register(new Emitter<void>());
+	onChangeSearchInEditorsBox = this._onChangeSearchInEditorsBoxEmitter.event;
+
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
+	}
+
+	private useSearchInEditorsBox!: Checkbox;
+
+	dispose(): void {
+		super.dispose();
+		this.useSearchInEditorsBox.dispose();
+	}
+
+	onlySearchInOpenEditors(): boolean {
+		return this.useSearchInEditorsBox.checked;
+	}
+
+	setOnlySearchInOpenEditors(value: boolean) {
+		this.useSearchInEditorsBox.checked = value;
+	}
+
+	protected getSubcontrolsWidth(): number {
+		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
+	}
+
+	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+		this.useSearchInEditorsBox = this._register(new Checkbox({
+			icon: Codicon.book,
+			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
+			isChecked: false,
+		}));
+		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
+			this._onChangeSearchInEditorsBoxEmitter.fire();
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+		}));
+		this._register(attachCheckboxStyler(this.useSearchInEditorsBox, this.themeService));
+		controlsDiv.appendChild(this.useSearchInEditorsBox.domNode);
+		super.renderSubcontrols(controlsDiv);
+	}
+}
+
 export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	private _onChangeIgnoreBoxEmitter = this._register(new Emitter<void>());
@@ -185,9 +236,10 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService);
 	}
 
 	private useExcludesAndIgnoreFilesBox!: Checkbox;
@@ -203,6 +255,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	setUseExcludesAndIgnoreFiles(value: boolean) {
 		this.useExcludesAndIgnoreFilesBox.checked = value;
+		this._onChangeIgnoreBoxEmitter.fire();
 	}
 
 	protected getSubcontrolsWidth(): number {

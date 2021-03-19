@@ -7,16 +7,17 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+import { IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -65,7 +66,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param options optional save options
 	 * @return Path of the saved resource or undefined if canceled.
 	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
+	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveAsOptions): Promise<URI | undefined>;
 
 	/**
 	 * Reverts the provided resource.
@@ -91,13 +92,18 @@ export interface ITextFileService extends IDisposable {
 	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
 
 	/**
-	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * Create files. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
+	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+
+	/**
+	 * Returns the readable that uses the appropriate encoding.
+	 */
+	getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
 }
 
-export interface IReadTextFileOptions extends IReadFileOptions {
+export interface IReadTextFileOptions extends IReadFileStreamOptions {
 
 	/**
 	 * The optional acceptTextOnly parameter allows to fail this request early if the file
@@ -123,16 +129,6 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 	 * The encoding to use when updating a file.
 	 */
 	encoding?: string;
-
-	/**
-	 * If set to true, will enforce the selected encoding and not perform any detection using BOMs.
-	 */
-	overwriteEncoding?: boolean;
-
-	/**
-	 * Whether to overwrite a file even if it is readonly.
-	 */
-	overwriteReadonly?: boolean;
 
 	/**
 	 * Whether to write to the file as elevated (admin) user. When setting this option a prompt will
@@ -266,6 +262,13 @@ export interface ITextFileEditorModelLoadOrCreateOptions {
 	encoding?: string;
 
 	/**
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
+	 */
+	contents?: ITextBufferFactory;
+
+	/**
 	 * If the model was already loaded before, allows to trigger
 	 * a reload of it to fetch the latest contents:
 	 * - async: resolve() will return immediately and trigger
@@ -359,14 +362,9 @@ export interface ITextFileEditorModelManager {
 export interface ITextFileSaveOptions extends ISaveOptions {
 
 	/**
-	 * Makes the file writable if it is readonly.
+	 * Save the file with an attempt to unlock it.
 	 */
-	overwriteReadonly?: boolean;
-
-	/**
-	 * Overwrite the encoding of the file on disk as configured.
-	 */
-	overwriteEncoding?: boolean;
+	writeUnlock?: boolean;
 
 	/**
 	 * Save the file with elevated privileges.
@@ -386,12 +384,27 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 	ignoreErrorHandler?: boolean;
 }
 
+export interface ITextFileSaveAsOptions extends ITextFileSaveOptions {
+
+	/**
+	 * Optional URI to use as suggested file path to save as.
+	 */
+	suggestedTarget?: URI;
+}
+
 export interface ITextFileLoadOptions {
 
 	/**
-	 * Go to disk bypassing any cache of the model if any.
+	 * The contents to use for the model if known. If not
+	 * provided, the contents will be retrieved from the
+	 * underlying resource or backup if present.
 	 */
-	forceReadFromDisk?: boolean;
+	contents?: ITextBufferFactory;
+
+	/**
+	 * Go to file bypassing any cache of the model if any.
+	 */
+	forceReadFromFile?: boolean;
 
 	/**
 	 * Allow to load a model even if we think it is a binary file.
@@ -412,6 +425,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	readonly onDidChangeEncoding: Event<void>;
 
 	hasState(state: TextFileEditorModelState): boolean;
+	joinState(state: TextFileEditorModelState.PENDING_SAVE): Promise<void>;
 
 	updatePreferredEncoding(encoding: string | undefined): void;
 
@@ -425,7 +439,12 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getMode(): string | undefined;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
-	isDisposed(): boolean;
+}
+
+export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
+	const candidate = model as ITextFileEditorModel;
+
+	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getMode);
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
