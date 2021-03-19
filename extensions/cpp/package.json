@@ -73,6 +73,28 @@
         "path": "./syntaxes/platform.tmLanguage.json"
       }
     ],
+    "problemPatterns": [
+      {
+        "name": "nvcc-location",
+        "regexp": "^(.*)\\((\\d+)\\):\\s+(warning|error):\\s+(.*)",
+        "kind": "location",
+        "file": 1,
+        "location": 2,
+        "severity": 3,
+        "message": 4
+      }
+    ],
+    "problemMatchers": [
+        {
+            "name": "nvcc",
+            "owner": "cuda-cpp",
+            "fileLocation": [
+                "relative",
+                "${workspaceFolder}"
+            ],
+            "pattern": "$nvcc-location"
+        }
+    ],
     "snippets": [
       {
         "language": "c",
