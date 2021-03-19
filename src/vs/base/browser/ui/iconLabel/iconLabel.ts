@@ -232,9 +232,12 @@ export class IconLabel extends Disposable {
 			}
 			tokenSource = new CancellationTokenSource();
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
-				if ((e.type === dom.EventType.MOUSE_DOWN) || (<any>e).fromElement === htmlElement) {
+				const isMouseDown = e.type === dom.EventType.MOUSE_DOWN;
+				if (isMouseDown) {
 					hoverDisposable?.dispose();
 					hoverDisposable = undefined;
+				}
+				if (isMouseDown || (<any>e).fromElement === htmlElement) {
 					isHovering = false;
 					hoverOptions = undefined;
 					tokenSource.dispose(true);

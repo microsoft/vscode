@@ -111,9 +111,9 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .category-title {
-	margin-bottom: 4px;
+	margin: 2px 0 8px;
+	font-size: 13px;
 	font-weight: 500;
-	margin-top: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .category-description-container {
@@ -134,7 +134,7 @@
 	list-style: none;
 	margin: 0;
 	line-height: 24px;
-	padding-left: 10px;
+	padding-left: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view li {
@@ -154,12 +154,16 @@
 	top: 3px;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .start-container .codicon {
+	left: 1px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .keybinding-label {
 	padding-left: 1em;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-outer {
-	height: 8px;
+	height: 4px;
 	border-radius: 4px;
 	margin-top: 4px;
 }
@@ -188,8 +192,9 @@
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
-	margin-bottom: 6px;
-	padding: 6px;
+	margin-bottom: 8px;
+	padding: 8px 12px 12px;
+	left: 1px;
 	text-align: left;
 	display: flex;
 }
@@ -200,15 +205,14 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon {
-	margin-right: 10px;
-	margin-left: 10px;
 	font-size: 20px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
 	position: absolute;
-	right: -6px;
-	font-size: 12px;
+	top: 8px;
+	right: 8px;
+	font-size: 16px;
 	padding-right: 0;
 }
 
@@ -250,8 +254,8 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category .codicon {
-	margin-left:0;
-	font-size: 22pt;
+	margin-right: 8px;
+	font-size: 28px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-columns {
@@ -464,4 +468,16 @@
 	position: relative;
 	top: -2px;
 	left: 5px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon {
+	top: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon-close {
+	visibility: hidden;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category:hover .codicon-close {
+	visibility: visible;
 }

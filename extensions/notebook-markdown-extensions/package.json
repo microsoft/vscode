@@ -31,8 +31,7 @@
   "scripts": {
     "compile": "npm run build-notebook",
     "watch": "npm run build-notebook",
-    "build-notebook": "npx webpack-cli --config webpack.notebook.js --mode production",
-    "postinstall": "npm run build-notebook"
+    "build-notebook": "npx webpack-cli --config webpack.notebook.js --mode production"
   },
   "devDependencies": {
     "@iktakahiro/markdown-it-katex": "^4.0.1",

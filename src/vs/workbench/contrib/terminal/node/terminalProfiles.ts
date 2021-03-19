@@ -28,10 +28,10 @@ interface IPotentialTerminalProfile {
 }
 
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.detectWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux);
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.quickLaunchWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux);
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, detectWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, quickLaunchWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -69,7 +69,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 			],
 			args: ['-l']
 		},
-		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, detectWslProfiles, logService),
+		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, quickLaunchWslProfiles, logService),
 		... await getPowershellProfiles()
 	];
 
@@ -150,6 +150,10 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	if (validProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
 		validProfiles = validProfiles.filter(p => p.profileName !== 'Windows PowerShell');
 	}
+
+	if (quickLaunchWslProfiles) {
+		validProfiles.push(...detectedProfiles.filter(p => p.path.endsWith('wsl.exe')));
+	}
 	return validProfiles;
 }
 
@@ -162,33 +166,33 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
+async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
 	let profiles: IPotentialTerminalProfile[] = [];
-	if (detectWslProfiles) {
-		const distroOutput = await new Promise<string>(r => cp.exec('wsl.exe -l', (err, stdout) => err ? logService?.trace('problem occurred when getting wsl distros', err) : r(stdout)));
+	if (quickLaunchWslProfiles) {
+		const distroOutput = await new Promise<string>((resolve, reject) => {
+			cp.exec('wsl.exe -l', (err, stdout) => {
+				if (err) {
+					return reject('Problem occurred when getting wsl distros');
+				}
+				resolve(stdout);
+			});
+		});
 		if (distroOutput) {
 			let regex = new RegExp(/[\r?\n]/);
-			let distroNames = Buffer.from(distroOutput).toString('utf8').split(regex).filter(t => t.trim().length > 0 && t !== '');
+			let distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
-			for (const distroName of distroNames) {
-				let s = '';
-				let counter = 0;
-				for (const c of Array.from(distroName)) {
-					if (counter % 2 === 1) {
-						// every other character is junk / a rectangle
-						s += c;
-					}
-					counter++;
-				}
-				if (s.endsWith('(Default)')) {
-					// Ubuntu (Default) -> Ubuntu bc (Default) won't work
-					s = s.substring(0, s.length - 10);
-				}
+			for (let distroName of distroNames) {
+				// HACK: For some reason wsl.exe -l returns the string in an encoding where each
+				// character takes up 2 bytes, it's unclear how to decode this properly so instead
+				// we expect ascii and just remove all NUL chars
+				distroName = distroName
+					.replace(/\u0000/g, '')
+					.replace(/ \(Default\)$/, '');
 
 				// docker-desktop-data is used by docker-desktop to store container images and isn't a valid profile type
-				if (s !== '' && s !== 'docker-desktop-data') {
-					let profile = { profileName: `${s} (WSL)`, paths: [wslPath], args: [`-d`, `${s}`] };
+				if (distroName !== '' && distroName !== 'docker-desktop-data') {
+					const profile = { profileName: `${distroName} (WSL)`, paths: [wslPath], args: [`-d`, `${distroName}`] };
 					profiles.push(profile);
 				}
 			}
@@ -201,23 +205,29 @@ async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logS
 async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProfiles?: any): Promise<ITerminalProfile[]> {
 	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const profiles = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
-	const detectedProfiles = profiles.map(e => {
-		return {
-			profileName: basename(e),
-			path: e
-		};
-	});
+
+	let detectedProfiles: ITerminalProfile[] = [];
+	let quickLaunchProfiles: ITerminalProfile[] = [];
+	for (const profile of profiles) {
+		detectedProfiles.push({ profileName: basename(profile), path: profile });
+		// choose only the first
+		if (!quickLaunchProfiles.find(p => p.profileName === basename(profile))) {
+			quickLaunchProfiles.push({ profileName: basename(profile), path: profile });
+		}
+	}
+
 	if (!quickLaunchOnly) {
 		return detectedProfiles;
 	}
+
 	const validProfiles: ITerminalProfile[] = [];
 
 	for (const [profileName, value] of Object.entries(configProfiles)) {
 		if ((value as ITerminalExecutable).pathOrPaths) {
 			const configProfile = (value as ITerminalExecutable);
-			const path = configProfile.pathOrPaths;
-			if (Array.isArray(path)) {
-				for (const possiblePath of path) {
+			const pathOrPaths = configProfile.pathOrPaths;
+			if (Array.isArray(pathOrPaths)) {
+				for (const possiblePath of pathOrPaths) {
 					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));
 					if (profile) {
 						validProfiles.push({ profileName, path: profile.path });
@@ -225,7 +235,7 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 					}
 				}
 			} else {
-				const profile = detectedProfiles.find(p => p.path.endsWith(path));
+				const profile = detectedProfiles.find(p => p.path.endsWith(pathOrPaths));
 				if (profile) {
 					validProfiles.push({ profileName, path: profile.path });
 				}

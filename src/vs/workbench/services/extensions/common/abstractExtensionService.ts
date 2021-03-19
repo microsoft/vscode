@@ -32,6 +32,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
+import { URI } from 'vs/base/common/uri';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -428,24 +429,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return;
 		}
 
-		// TODO: Use `this._registry` and `this._runningLocation` to better determine which extension host should launch the test runner
-		let extensionHostManager: ExtensionHostManager | null = null;
-		if (this._environmentService.extensionTestsLocationURI.scheme === Schemas.vscodeRemote) {
-			extensionHostManager = this._getExtensionHostManager(ExtensionHostKind.Remote);
-		}
-		if (!extensionHostManager) {
-			// When a debugger attaches to the extension host, it will surface all console.log messages from the extension host,
-			// but not necessarily from the window. So it would be best if any errors get printed to the console of the extension host.
-			// That is why here we use the local process extension host even for non-file URIs
-			extensionHostManager = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
-		}
-
+		const extensionHostManager = this.findTestExtensionHost(this._environmentService.extensionTestsLocationURI);
 		if (!extensionHostManager) {
 			const msg = nls.localize('extensionTestError', "No extension host found that can launch the test runner at {0}.", this._environmentService.extensionTestsLocationURI.toString());
 			console.error(msg);
 			this._notificationService.error(msg);
 			return;
 		}
+
 
 		let exitCode: number;
 		try {
@@ -457,6 +448,40 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		await extensionHostManager.extensionTestsSendExit(exitCode);
 		this._onExtensionHostExit(exitCode);
+	}
+
+	private findTestExtensionHost(testLocation: URI): ExtensionHostManager | undefined | null {
+		let extensionHostKind: ExtensionHostKind | undefined;
+
+		for (const extension of this._registry.getAllExtensionDescriptions()) {
+			if (isEqualOrParent(testLocation, extension.extensionLocation)) {
+				const runningLocation = this._runningLocation.get(ExtensionIdentifier.toKey(extension.identifier));
+				if (runningLocation === ExtensionRunningLocation.LocalProcess) {
+					extensionHostKind = ExtensionHostKind.LocalProcess;
+				} else if (runningLocation === ExtensionRunningLocation.LocalWebWorker) {
+					extensionHostKind = ExtensionHostKind.LocalWebWorker;
+				} else if (runningLocation === ExtensionRunningLocation.Remote) {
+					extensionHostKind = ExtensionHostKind.Remote;
+				}
+				break;
+			}
+		}
+		if (extensionHostKind === undefined) {
+			// not sure if we should support that, but it was possible to have an test outside an extension
+
+			if (testLocation.scheme === Schemas.vscodeRemote) {
+				extensionHostKind = ExtensionHostKind.Remote;
+			} else {
+				// When a debugger attaches to the extension host, it will surface all console.log messages from the extension host,
+				// but not necessarily from the window. So it would be best if any errors get printed to the console of the extension host.
+				// That is why here we use the local process extension host even for non-file URIs
+				extensionHostKind = ExtensionHostKind.LocalProcess;
+			}
+		}
+		if (extensionHostKind !== undefined) {
+			return this._getExtensionHostManager(extensionHostKind);
+		}
+		return undefined;
 	}
 
 	private _releaseBarrier(): void {

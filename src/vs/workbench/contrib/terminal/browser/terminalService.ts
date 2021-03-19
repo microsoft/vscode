@@ -151,7 +151,7 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
-				e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
+				e.affectsConfiguration('terminal.integrated.quickLaunchWslProfiles')) {
 				this._onProfilesConfigChanged.fire();
 			}
 		});
@@ -559,16 +559,10 @@ export class TerminalService implements ITerminalService {
 	public async initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitPromise) {
 			await this._remoteTerminalsInitPromise;
-
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
 		} else if (this._localTerminalsInitPromise) {
 			await this._localTerminalsInitPromise;
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
-		} else if (!this.terminalTabs.length) {
+		}
+		if (this.terminalTabs.length === 0 && this.isProcessSupportRegistered) {
 			this.createTerminal();
 		}
 	}
