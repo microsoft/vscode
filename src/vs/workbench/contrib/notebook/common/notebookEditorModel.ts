@@ -526,8 +526,7 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 	}
 
 	getAlternativeVersionId(): number {
-		//todo@jrieken,@rebornix -> add alternative version id
-		return this._notebookModel.versionId;
+		return this._notebookModel.alternativeVersionId;
 	}
 
 	pushStackElement(): void {

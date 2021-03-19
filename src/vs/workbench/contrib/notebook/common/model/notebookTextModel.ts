@@ -61,10 +61,22 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 	private _operations: IUndoRedoElement[] = [];
 	private _beginSelectionState: ISelectionState | undefined = undefined;
 	private _resultSelectionState: ISelectionState | undefined = undefined;
+	private _beginAlternativeVersionId: number;
+	private _resultAlternativeVersionId: number;
 
-	constructor(readonly resource: URI, readonly label: string, readonly undoRedoGroup: UndoRedoGroup | undefined, private _delayedEmitter: DelayedEmitter, selectionState: ISelectionState | undefined) {
+	constructor(
+		readonly resource: URI,
+		readonly label: string,
+		readonly undoRedoGroup: UndoRedoGroup | undefined,
+		private _delayedEmitter: DelayedEmitter,
+		private _postUndoRedo: (alternativeVersionId: number) => void,
+		selectionState: ISelectionState | undefined,
+		beginAlternativeVersionId: number
+	) {
 		this.type = UndoRedoElementType.Workspace;
 		this._beginSelectionState = selectionState;
+		this._beginAlternativeVersionId = beginAlternativeVersionId;
+		this._resultAlternativeVersionId = beginAlternativeVersionId;
 	}
 	get resources(): readonly URI[] {
 		return [this.resource];
@@ -74,7 +86,8 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 		return this._operations.length === 0;
 	}
 
-	pushEndSelectionState(selectionState: ISelectionState | undefined) {
+	pushEndState(alternativeVersionId: number, selectionState: ISelectionState | undefined) {
+		this._resultAlternativeVersionId = alternativeVersionId;
 		this._resultSelectionState = selectionState;
 	}
 
@@ -91,6 +104,7 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 		for (let i = this._operations.length - 1; i >= 0; i--) {
 			await this._operations[i].undo();
 		}
+		this._postUndoRedo(this._beginAlternativeVersionId);
 		this._delayedEmitter.endDeferredEmit(this._beginSelectionState);
 	}
 
@@ -99,19 +113,24 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 		for (let i = 0; i < this._operations.length; i++) {
 			await this._operations[i].redo();
 		}
+		this._postUndoRedo(this._resultAlternativeVersionId);
 		this._delayedEmitter.endDeferredEmit(this._resultSelectionState);
 	}
 }
 
 export class NotebookOperationManager {
 	private _pendingStackOperation: StackOperation | null = null;
-	constructor(private _undoService: IUndoRedoService, private _resource: URI, private _delayedEmitter: DelayedEmitter) {
-
+	constructor(
+		private _undoService: IUndoRedoService,
+		private _resource: URI,
+		private _delayedEmitter: DelayedEmitter,
+		private _postUndoRedo: (alternativeVersionId: number) => void
+	) {
 	}
 
-	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
+	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, alternativeVersionId: number) {
 		if (this._pendingStackOperation) {
-			this._pendingStackOperation.pushEndSelectionState(selectionState);
+			this._pendingStackOperation.pushEndState(alternativeVersionId, selectionState);
 			if (!this._pendingStackOperation.isEmpty) {
 				this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
 			}
@@ -119,7 +138,7 @@ export class NotebookOperationManager {
 			return;
 		}
 
-		this._pendingStackOperation = new StackOperation(this._resource, label, undoRedoGroup, this._delayedEmitter, selectionState);
+		this._pendingStackOperation = new StackOperation(this._resource, label, undoRedoGroup, this._delayedEmitter, this._postUndoRedo, selectionState, alternativeVersionId);
 	}
 
 	pushEditOperation(element: IUndoRedoElement, beginSelectionState: ISelectionState | undefined, resultSelectionState: ISelectionState | undefined) {
@@ -137,7 +156,6 @@ class DelayedEmitter {
 	private _notebookTextModelChangedEvent: NotebookTextModelChangedEvent | null = null;
 	constructor(
 		private readonly _onDidChangeContent: Emitter<NotebookTextModelChangedEvent>,
-		private readonly _computeEndState: () => void,
 		private readonly _textModel: NotebookTextModel
 
 	) {
@@ -151,8 +169,6 @@ class DelayedEmitter {
 	endDeferredEmit(endSelections: ISelectionState | undefined): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
-			this._computeEndState();
-
 			if (this._notebookTextModelChangedEvent) {
 				this._onDidChangeContent.fire(
 					{
@@ -170,9 +186,7 @@ class DelayedEmitter {
 
 
 	emit(data: NotebookRawContentEvent, synchronous: boolean, endSelections?: ISelectionState) {
-
 		if (this._deferredCnt === 0) {
-			this._computeEndState();
 			this._onDidChangeContent.fire(
 				{
 					rawEvents: [data],
@@ -216,6 +230,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
 	transientOptions: TransientOptions = { transientMetadata: {}, transientOutputs: false };
 	private _versionId = 0;
+
+	/**
+	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
+	 */
+	private _alternativeVersionId: number = 0;
 	private _operationManager: NotebookOperationManager;
 	private _eventEmitter: DelayedEmitter;
 
@@ -229,6 +248,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	get versionId() {
 		return this._versionId;
+	}
+
+	get alternativeVersionId(): number {
+		return this._alternativeVersionId;
 	}
 
 	constructor(
@@ -247,11 +270,18 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._eventEmitter = new DelayedEmitter(
 			this._onDidChangeContent,
-			() => { this._increaseVersionId(); },
 			this
 		);
 
-		this._operationManager = new NotebookOperationManager(this._undoService, uri, this._eventEmitter);
+		this._operationManager = new NotebookOperationManager(
+			this._undoService,
+			uri,
+			this._eventEmitter,
+			(alternativeVersionId: number) => {
+				this._increaseVersionId();
+				this._overwriteAlternativeVersionId(alternativeVersionId);
+			}
+		);
 	}
 
 	private _initialize(cells: ICellDto2[]) {
@@ -284,7 +314,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	pushStackElement(label: string, selectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
-		this._operationManager.pushStackElement(label, selectionState, undoRedoGroup);
+		this._operationManager.pushStackElement(label, selectionState, undoRedoGroup, this.alternativeVersionId);
 	}
 
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
@@ -357,8 +387,16 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}
 		}
 
+		/**
+		 * Update selection and versionId after applying edits.
+		 */
 		const endSelections = endSelectionsComputer();
+		this._increaseVersionId();
+
+		// Finalize undo element
 		this.pushStackElement('edit', endSelections, undefined);
+
+		// Broadcast changes
 		this._eventEmitter.endDeferredEmit(endSelections);
 		return true;
 	}
@@ -432,6 +470,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _increaseVersionId(): void {
 		this._versionId = this._versionId + 1;
+		this._alternativeVersionId = this.versionId;
+	}
+
+	private _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
+		this._alternativeVersionId = newAlternativeVersionId;
 	}
 
 	private _isDocumentMetadataChangeTransient(a: NotebookDocumentMetadata, b: NotebookDocumentMetadata) {
