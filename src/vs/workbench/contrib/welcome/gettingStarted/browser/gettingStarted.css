@@ -194,6 +194,7 @@
 	line-height: normal;
 	margin-bottom: 8px;
 	padding: 8px 12px 12px;
+	left: 1px;
 	text-align: left;
 	display: flex;
 }
