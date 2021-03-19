@@ -19,8 +19,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import type { IThemable } from 'vs/base/common/styler';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
 export interface IOptions {
 	placeholder?: string;
+	tooltip?: string;
 	width?: number;
 	validation?: IInputValidator;
 	ariaLabel?: string;
@@ -37,6 +39,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 	private width: number;
 	private placeholder: string;
+	private tooltip: string;
 	private ariaLabel: string;
 
 	private domNode!: HTMLElement;
@@ -56,6 +59,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 		super();
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
+		this.tooltip = options.tooltip || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
 		this.render(options);
@@ -143,6 +147,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
+			tooltip: this.tooltip || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
 				validation: undefined
