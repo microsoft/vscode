@@ -31,7 +31,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, SubmenuItemA
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -72,6 +72,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
 const $ = DOM.$;
 
@@ -335,6 +336,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IModeService private readonly modeService: IModeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@optional(ITASExperimentService) private readonly experimentService: ITASExperimentService
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -693,13 +695,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _topToolbar!: ToolBar;
 	private _useGlobalToolbar: boolean = false;
 	private _editorToolbarDisposable: IDisposable | null = null;
-
 	private _reigsterNotebookActionsToolbar() {
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.scopedContextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
-		this._useGlobalToolbar = this.configurationService.getValue<boolean>('notebook.experimental.globalToolbar');
+		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>('notebook.experimental.globalToolbar') ?? false;
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('notebook.experimental.globalToolbar')) {
 				this._useGlobalToolbar = this.configurationService.getValue<boolean>('notebook.experimental.globalToolbar');
@@ -720,6 +721,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
 			this._showNotebookActionsinEditorToolbar();
 		}));
+
+		if (this.experimentService) {
+			this.experimentService.getTreatment<boolean>('nbtoolbarineditor').then(treatment => {
+				if (treatment === undefined) {
+					return;
+				}
+				if (this._useGlobalToolbar !== treatment) {
+					this._useGlobalToolbar = treatment;
+					this._showNotebookActionsinEditorToolbar();
+				}
+			});
+		}
 	}
 
 	private _showNotebookActionsinEditorToolbar() {
