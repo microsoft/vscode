@@ -189,7 +189,7 @@
 	box-sizing: border-box;
 	line-height: normal;
 	margin-bottom: 8px;
-	padding: 8px 12px;
+	padding: 8px 12px 12px;
 	text-align: left;
 	display: flex;
 }
