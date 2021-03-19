@@ -185,6 +185,8 @@ export class ExperimentService implements ITASExperimentService {
 	private telemetry: ExperimentServiceTelemetry | undefined;
 	private static MEMENTO_ID = 'experiment.service.memento';
 
+	private overrideInitDelay: Promise<void>;
+
 	private get experimentsEnabled(): boolean {
 		return this.configurationService.getValue('workbench.enableExperiments') === true;
 	}
@@ -199,9 +201,18 @@ export class ExperimentService implements ITASExperimentService {
 		if (productService.tasConfig && this.experimentsEnabled && this.telemetryService.isOptedIn) {
 			this.tasClient = this.setupTASClient();
 		}
+
+		const overrideDelay = this.configurationService.getValue<number>('tasTreatmentOverrideDelay') ?? 2000;
+		this.overrideInitDelay = new Promise(resolve => setTimeout(resolve, overrideDelay));
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		const override = this.configurationService.getValue('tasTreatmentOverrides.' + name);
+		if (override !== undefined) {
+			await this.overrideInitDelay;
+			return override as T;
+		}
+
 		const startSetup = Date.now();
 
 		if (!this.tasClient) {

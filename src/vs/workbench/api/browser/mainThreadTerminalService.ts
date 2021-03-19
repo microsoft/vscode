@@ -16,6 +16,7 @@ import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceServ
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { IAvailableProfilesRequest as IAvailableProfilesRequest, IDefaultShellAndArgsRequest, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -32,6 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
+	private _extHostKind: ExtensionHostKind;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
 	 * provider, this is registered with the terminal on the renderer side and all links are
@@ -57,6 +59,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
+
+		this._extHostKind = extHostContext.extensionHostKind;
 
 		this._toDispose.add(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.add(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
@@ -350,7 +354,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
-		if (this._isPrimaryExtHost()) {
+		if (this._isPrimaryExtHost() && this._extHostKind !== ExtensionHostKind.LocalWebWorker) {
 			req.callback(await this._proxy.$getAvailableProfiles(req.quickLaunchOnly));
 		}
 	}

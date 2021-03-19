@@ -28,10 +28,10 @@ interface IPotentialTerminalProfile {
 }
 
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.detectWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux);
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.quickLaunchWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux);
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, detectWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, quickLaunchWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -69,7 +69,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 			],
 			args: ['-l']
 		},
-		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, detectWslProfiles, logService),
+		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, quickLaunchWslProfiles, logService),
 		... await getPowershellProfiles()
 	];
 
@@ -150,6 +150,10 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	if (validProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
 		validProfiles = validProfiles.filter(p => p.profileName !== 'Windows PowerShell');
 	}
+
+	if (quickLaunchWslProfiles) {
+		validProfiles.push(...detectedProfiles.filter(p => p.path.endsWith('wsl.exe')));
+	}
 	return validProfiles;
 }
 
@@ -162,9 +166,9 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
+async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
 	let profiles: IPotentialTerminalProfile[] = [];
-	if (detectWslProfiles) {
+	if (quickLaunchWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
 			cp.exec('wsl.exe -l', (err, stdout) => {
 				if (err) {
@@ -201,15 +205,21 @@ async function getWslProfiles(wslPath: string, detectWslProfiles?: boolean, logS
 async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProfiles?: any): Promise<ITerminalProfile[]> {
 	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const profiles = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
-	const detectedProfiles = profiles.map(e => {
-		return {
-			profileName: basename(e),
-			path: e
-		};
-	});
+
+	let detectedProfiles: ITerminalProfile[] = [];
+	let quickLaunchProfiles: ITerminalProfile[] = [];
+	for (const profile of profiles) {
+		detectedProfiles.push({ profileName: basename(profile), path: profile });
+		// choose only the first
+		if (!quickLaunchProfiles.find(p => p.profileName === basename(profile))) {
+			quickLaunchProfiles.push({ profileName: basename(profile), path: profile });
+		}
+	}
+
 	if (!quickLaunchOnly) {
 		return detectedProfiles;
 	}
+
 	const validProfiles: ITerminalProfile[] = [];
 
 	for (const [profileName, value] of Object.entries(configProfiles)) {

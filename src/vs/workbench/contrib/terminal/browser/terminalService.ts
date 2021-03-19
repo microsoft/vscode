@@ -151,7 +151,7 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
-				e.affectsConfiguration('terminal.integrated.detectWslProfiles')) {
+				e.affectsConfiguration('terminal.integrated.quickLaunchWslProfiles')) {
 				this._onProfilesConfigChanged.fire();
 			}
 		});
