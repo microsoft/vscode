@@ -191,13 +191,6 @@ export interface ICustomEditorInputFactory {
 	canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean;
 }
 
-export interface IEditorInputFactory {
-	/**
-	 * Creates a custom editor input capable of displaying a certain viewtypes
-	 */
-	createEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput> | undefined;
-}
-
 export interface IEditorInputFactoryRegistry {
 
 	/**

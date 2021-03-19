@@ -555,7 +555,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		];
 	}
 
-	private onGroupWillOpenEditor(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorPane | undefined> | undefined {
+	private handleOpenEditorOverrides(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorPane | undefined> | undefined {
 		for (const handler of this.openEditorHandlers) {
 			const result = handler.open(editor, options, group);
 			const override = result?.override;
@@ -584,9 +584,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				// About to open an editor so lets fire an ovverride event to give other editors the opportunity to handle this resource
-				// Editor opening event allows for prevention
-				const overriden = this.onGroupWillOpenEditor(resolvedEditor, resolvedOptions, resolvedGroup);
+				// About to open an editor so lets check for an override to see if someone else wants to ahndle the opening
+				const overriden = this.handleOpenEditorOverrides(resolvedEditor, resolvedOptions, resolvedGroup);
 				if (overriden) {
 					return overriden;
 				}
@@ -1023,10 +1022,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
 
-	// private async openingCreateEditorInput(resource: URI): Promise<IEditorInput> {
-	// 	return this.fileEditorInputFactory.createFileEditorInput(resource, undefined, undefined, undefined, undefined, undefined, this.instantiationService);
-	// }
-
 	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditorInputType): EditorInput {
 
 		// Typed Editor Input Support (EditorInput)
@@ -1108,6 +1103,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const canonicalResource = this.asCanonicalEditorResource(preferredResource);
 
 			return this.createOrGetCached(canonicalResource, () => {
+
 				// File
 				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
 					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
