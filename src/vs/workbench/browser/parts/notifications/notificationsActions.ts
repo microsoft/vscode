@@ -166,9 +166,12 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected async runAction(action: IAction, context: INotificationViewItem): Promise<void> {
+	protected async runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
-		this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()), actionLabel: action.label, source: context.sourceId });
+		if (context) {
+			// If the context is not present it is a "global" notification action. Will be captured by other events
+			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()), actionLabel: action.label, source: context.sourceId });
+		}
 
 		// Run and make sure to notify on any error again
 		try {
