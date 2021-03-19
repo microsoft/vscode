@@ -83,9 +83,9 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.profiles.windows': {
 			markdownDescription: localize({
 				key: 'terminal.integrated.profiles.windows',
-				comment: ['{0}, {1}, {2}, and {3} are the `source`, `path`, `profileName`, and optional `args` settings keys']
+				comment: ['{0}, {1}, {2}, and {3} are the `source`, `pathOrPaths`, `profileName`, and optional `args` settings keys']
 			},
-				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1}, {2}, and optional {3}", '`source`', '`path`', '`profileName`', '`args`.'),
+				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1}, {2}, and optional {3}", '`source`', '`pathOrPaths`', '`profileName`', '`args`.'),
 			type: 'object',
 			default: {
 				'PowerShell': {
@@ -124,16 +124,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					pathOrPaths: 'bash'
 				},
 				'zsh': {
-					path: 'zsh'
+					pathOrPaths: 'zsh'
 				},
 				'fish': {
-					path: 'fish'
+					pathOrPaths: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					pathOrPaths: 'tmux'
 				}
 			},
 		},
@@ -146,16 +146,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'bash': {
-					path: 'bash'
+					pathOrPaths: 'bash'
 				},
 				'zsh': {
-					path: 'zsh'
+					pathOrPaths: 'zsh'
 				},
 				'fish': {
-					path: 'fish'
+					pathOrPaths: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					pathOrPaths: 'tmux'
 				}
 			}
 		},

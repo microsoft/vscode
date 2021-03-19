@@ -215,9 +215,9 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	for (const [profileName, value] of Object.entries(configProfiles)) {
 		if ((value as ITerminalExecutable).pathOrPaths) {
 			const configProfile = (value as ITerminalExecutable);
-			const path = configProfile.pathOrPaths;
-			if (Array.isArray(path)) {
-				for (const possiblePath of path) {
+			const pathOrPaths = configProfile.pathOrPaths;
+			if (Array.isArray(pathOrPaths)) {
+				for (const possiblePath of pathOrPaths) {
 					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));
 					if (profile) {
 						validProfiles.push({ profileName, path: profile.path });
@@ -225,7 +225,7 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 					}
 				}
 			} else {
-				const profile = detectedProfiles.find(p => p.path.endsWith(path));
+				const profile = detectedProfiles.find(p => p.path.endsWith(pathOrPaths));
 				if (profile) {
 					validProfiles.push({ profileName, path: profile.path });
 				}
