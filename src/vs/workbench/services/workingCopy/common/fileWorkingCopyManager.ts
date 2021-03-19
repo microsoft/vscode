@@ -22,7 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
  * operations that are working copy related, such as save/revert, backup
  * and resolving.
  */
-export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> {
+export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extends IDisposable {
 
 	/**
 	 * An event for when a file working copy was created.
@@ -61,12 +61,13 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> {
 
 	/**
 	 * Returns the file working copy for the provided resource
-	 * or undefined if none.
+	 * or `undefined` if none.
 	 */
 	get(resource: URI): IFileWorkingCopy<T> | undefined;
 
 	/**
-	 * Allows to resolve a file working copy.
+	 * Allows to resolve a file working copy. Callers must dispose the working
+	 * copy when no longer needed.
 	 */
 	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
 
@@ -74,6 +75,9 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> {
 	 * Waits for the file working copy to be ready to be disposed. There may be
 	 * conditions under which the file working copy cannot be disposed, e.g. when
 	 * it is dirty. Once the promise is settled, it is safe to dispose.
+	 *
+	 * TODO@bpasero this is a bit fishy, should this not be inside the working copy
+	 * itself?
 	 */
 	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true>;
 }
@@ -330,7 +334,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this.mapResourceToWorkingCopyListeners.set(workingCopy.resource, workingCopyListeners);
 	}
 
-	protected add(resource: URI, workingCopy: IFileWorkingCopy<T>): void {
+	private add(resource: URI, workingCopy: IFileWorkingCopy<T>): void {
 		const knownWorkingCopy = this.mapResourceToWorkingCopy.get(resource);
 		if (knownWorkingCopy === workingCopy) {
 			return; // already cached
@@ -347,7 +351,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
 	}
 
-	protected remove(resource: URI): void {
+	private remove(resource: URI): void {
 		this.mapResourceToWorkingCopy.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
@@ -363,7 +367,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		}
 	}
 
-	clear(): void {
+	private clear(): void {
 
 		// working copy caches
 		this.mapResourceToWorkingCopy.clear();

@@ -560,7 +560,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: (details && typeof details !== 'string') ? details.reason : undefined });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: typeof details !== 'string' ? details?.reason : undefined });
 
 		// Unresponsive
 		if (type === WindowError.UNRESPONSIVE) {

@@ -67,7 +67,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
 				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 			],
-			args: ['-l']
+			args: ['--login']
 		},
 		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, quickLaunchWslProfiles, logService),
 		... await getPowershellProfiles()
@@ -190,11 +190,23 @@ async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean,
 					.replace(/\u0000/g, '')
 					.replace(/ \(Default\)$/, '');
 
-				// docker-desktop-data is used by docker-desktop to store container images and isn't a valid profile type
-				if (distroName !== '' && distroName !== 'docker-desktop-data') {
-					const profile = { profileName: `${distroName} (WSL)`, paths: [wslPath], args: [`-d`, `${distroName}`] };
-					profiles.push(profile);
+				// Skip empty lines
+				if (distroName === '') {
+					continue;
 				}
+
+				// docker-desktop and docker-desktop-data are treated as implementation details of
+				// Docker Desktop for Windows and therefore not exposed
+				if (distroName.startsWith('docker-desktop')) {
+					continue;
+				}
+
+				// Add the profile
+				profiles.push({
+					profileName: `${distroName} (WSL)`,
+					paths: [wslPath],
+					args: [`-d`, `${distroName}`]
+				});
 			}
 			return profiles;
 		}

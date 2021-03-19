@@ -74,6 +74,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
 	private _dataFilter: SeamlessRelaunchDataFilter;
+	private _isFeatureTerminal: boolean = false;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
@@ -177,6 +178,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		isScreenReaderModeEnabled: boolean,
 		reset: boolean = true
 	): Promise<ITerminalLaunchError | undefined> {
+		this._isFeatureTerminal = !!shellLaunchConfig.isFeatureTerminal;
 		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
@@ -404,6 +406,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 			this._ptyResponsiveListener?.dispose();
 			this._ptyResponsiveListener = undefined;
+			// Indicate the process is exited (and gone forever) only for feature terminals so they
+			// can react to the exit, this is particularly important for tasks so that it knows that
+			// the process is not still active. Note that this is not done for regular terminals
+			// because otherwise the terminal instance would be disposed
+			if (this._isFeatureTerminal) {
+				this._onExit(undefined);
+			}
 		}));
 	}
 
@@ -636,6 +645,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		this._firstRecorder = this._secondRecorder;
 		this._firstDisposable?.dispose();
 		this._firstDisposable = this._secondDisposable;
+		this._secondRecorder = undefined;
 		if (this._recordingTimeout) {
 			window.clearTimeout(this._recordingTimeout);
 		}

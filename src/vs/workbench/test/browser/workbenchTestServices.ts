@@ -26,7 +26,7 @@ import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileCh
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -256,7 +256,9 @@ export class TestServiceAccessor {
 		@IConfigurationService public testConfigurationService: TestConfigurationService,
 		@IBackupFileService public backupFileService: TestBackupFileService,
 		@IHostService public hostService: TestHostService,
-		@IQuickInputService public quickInputService: IQuickInputService
+		@IQuickInputService public quickInputService: IQuickInputService,
+		@ILabelService public labelService: ILabelService,
+		@ILogService public logService: ILogService
 	) { }
 }
 
@@ -1441,6 +1443,16 @@ export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 	remove(resource: URI): void {
 		return super.remove(resource);
 	}
+}
+
+interface ITestTextFileEditorModel extends ITextFileEditorModel {
+	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
+}
+
+export function getLastResolvedFileStat(model: unknown): IFileStatWithMetadata | undefined {
+	const candidate = model as ITestTextFileEditorModel | undefined;
+
+	return candidate?.lastResolvedFileStat;
 }
 
 export class TestWorkspacesService implements IWorkspacesService {

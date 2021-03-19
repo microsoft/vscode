@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -43,7 +43,7 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
  * typically only available after the working copy has been
  * resolved via it's `resolve()` method.
  */
-export interface IFileWorkingCopyModel {
+export interface IFileWorkingCopyModel extends IDisposable {
 
 	/**
 	 * An even that fires whenever the content of the file working
@@ -274,7 +274,7 @@ export interface IFileWorkingCopyResolveOptions {
 	/**
 	 * Go to disk bypassing any cache of the file working copy if any.
 	 */
-	forceReadFromDisk?: boolean;
+	forceReadFromFile?: boolean;
 }
 
 /**
@@ -595,11 +595,11 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private async resolveFromFile(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
 		this.logService.trace('[file working copy] resolveFromFile()', this.resource.toString(true));
 
-		const forceReadFromDisk = options?.forceReadFromDisk;
+		const forceReadFromFile = options?.forceReadFromFile;
 
 		// Decide on etag
 		let etag: string | undefined;
-		if (forceReadFromDisk) {
+		if (forceReadFromFile) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
 		} else if (this.lastResolvedFileStat) {
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
@@ -699,8 +699,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {
 		this.logService.trace('[file working copy] doCreateModel()', this.resource.toString(true));
 
-		// Create model
-		this._model = await this.modelFactory.createModel(this.resource, contents, CancellationToken.None);
+		// Create model and dispose it when we get disposed
+		this._model = this._register(await this.modelFactory.createModel(this.resource, contents, CancellationToken.None));
 
 		// Model listeners
 		this.installModelListeners(this._model);
@@ -1102,7 +1102,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.resolve({ forceReadFromDisk: true });
+				await this.resolve({ forceReadFromFile: true });
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -1163,10 +1163,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 	isReadonly(): boolean {
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
-	}
-
-	getStat(): IFileStatWithMetadata | undefined {
-		return this.lastResolvedFileStat;
 	}
 
 	//#endregion

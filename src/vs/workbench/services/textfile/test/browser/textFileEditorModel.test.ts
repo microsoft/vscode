@@ -8,7 +8,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { TextFileEditorModelState, snapshotToString, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
@@ -20,7 +20,7 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 suite('Files - TextFileEditorModel', () => {
 
 	function getLastModifiedTime(model: TextFileEditorModel): number {
-		const stat = model.getStat();
+		const stat = getLastResolvedFileStat(model);
 
 		return stat ? stat.mtime : -1;
 	}
@@ -541,8 +541,8 @@ suite('Files - TextFileEditorModel', () => {
 
 		model1.updateTextEditorModel(createTextBufferFactory('foo'));
 
-		const m1Mtime = assertIsDefined(model1.getStat()).mtime;
-		const m2Mtime = assertIsDefined(model2.getStat()).mtime;
+		const m1Mtime = assertIsDefined(getLastResolvedFileStat(model1)).mtime;
+		const m2Mtime = assertIsDefined(getLastResolvedFileStat(model2)).mtime;
 		assert.ok(m1Mtime > 0);
 		assert.ok(m2Mtime > 0);
 
@@ -557,8 +557,8 @@ suite('Files - TextFileEditorModel', () => {
 		await accessor.textFileService.save(toResource.call(this, '/path/index_async2.txt'));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async.txt')));
 		assert.ok(!accessor.textFileService.isDirty(toResource.call(this, '/path/index_async2.txt')));
-		assert.ok(assertIsDefined(model1.getStat()).mtime > m1Mtime);
-		assert.ok(assertIsDefined(model2.getStat()).mtime > m2Mtime);
+		assert.ok(assertIsDefined(getLastResolvedFileStat(model1)).mtime > m1Mtime);
+		assert.ok(assertIsDefined(getLastResolvedFileStat(model2)).mtime > m2Mtime);
 
 		model1.dispose();
 		model2.dispose();
