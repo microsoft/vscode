@@ -18,103 +18,103 @@ import { ITASExperimentService } from 'vs/workbench/services/experiment/common/e
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
 
-const SESSION_COUNT_KEY = 'nps/sessionCount';
+const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hours
+const MAX_INSTALL_AGE = 1000 * 60 * 60 * 8; // 8 hours
+const REMIND_LATER_DELAY = 1000 * 60 * 60 * 8; // 8 hours
+const SKIP_VERSION_KEY = 'ces/skipVersion';
+const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
+const IS_CANDIDATE_KEY = 'ces/isCandidate';
 
 class CESContribution implements IWorkbenchContribution {
 
-	private tasExperimentService?: ITASExperimentService;
-
 	constructor(
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IOpenerService openerService: IOpenerService,
-		@IProductService productService: IProductService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
+		@IStorageService private readonly storageService: IStorageService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IProductService private readonly productService: IProductService,
+		@optional(ITASExperimentService) private readonly tasExperimentService: ITASExperimentService,
 	) {
-		if (!productService.surveys || !productService.cesSurveyUrl) {
+		console.log(this);
+		if (!productService.cesSurveyUrl) {
 			return;
 		}
-		this.tasExperimentService = tasExperimentService;
 
-		// const [cesSurveyEligibility, cesSurveyHeuristic] = await Promise.all([
-		// 	this.tasExperimentService?.getTreatment<boolean>('CESSurvey'),
-		// 	this.tasExperimentService?.getTreatment<'shortDelay' | 'longDelay'>('CESSurveyHeuristic')
-		// ]);
+		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
+		if (skipVersion) {
+			return;
+		}
+		this.scheduleSurvey();
+	}
 
-		// if (!cesSurveyEligibility) {
-		// 	return;
-		// }
+	private async scheduleSurvey(): Promise<void> {
+		const isExperimentCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
+		const isCandidate = this.storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, isExperimentCandidate);
 
-		productService.surveys
-			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl);
+		this.storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL, StorageTarget.USER);
 
-		// if (!productService.cesSurveyUrl) {
-		// 	return;
-		// }
-
-		// const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
-		// if (skipVersion) {
-		// 	return;
-		// }
-
-		// const date = new Date().toDateString();
-		// const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
-
-		// if (date === lastSessionDate) {
-		// 	return;
-		// }
-
-		const sessionCount = (storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) || 0);
-		console.log(sessionCount);
-		// storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
-		// storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL, StorageTarget.USER);
-
-		// if (sessionCount < 9) {
-		// 	return;
-		// }
-
-		// const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, false)
-		// 	|| Math.random() < PROBABILITY;
-
-		// storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL, StorageTarget.USER);
-
-		// if (!isCandidate) {
-		// 	storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
-		// 	return;
-		// }
-
-		// this.tasExperimentService?.getTreatment<boolean>('newuntitledmode'),
-
-		function rate(value: string): () => void {
-			return function (): void {
-				telemetryService.getTelemetryInfo().then(info => {
-					openerService.open(URI.parse(`${productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}&v=${encodeURIComponent(value)}`));
-					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
-				});
-			};
+		if (!isCandidate) {
+			this.skipVersion();
+			return;
 		}
 
-		notificationService.prompt(
-			Severity.Info,
-			nls.localize('surveyQuestion', "How easy was it to get started with VS Code?"),
-			[{
-				label: nls.localize('takeSurvey', "Take Survey (1min)"),
-				run: rate('0')
-			}, {
-				label: nls.localize('remindLater', "Remind Me later"),
-				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL, StorageTarget.USER)
-			}, {
-				label: nls.localize('neverAgain', "Don't Show Again"),
-				run: () => {
-					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
-				}
-			}],
-			{ sticky: true }
-		);
+		let waitTimeToShowSurvey = 0;
+		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.GLOBAL, '');
+		if (remindLaterDate) {
+			const timeToRemind = new Date(remindLaterDate).getTime() + REMIND_LATER_DELAY - Date.now();
+			if (timeToRemind > 0) {
+				waitTimeToShowSurvey = timeToRemind;
+			}
+		} else {
+			const info = await this.telemetryService.getTelemetryInfo();
+			const timeFromInstall = Date.now() - new Date(info.firstSessionDate).getTime();
+			const isNewInstall = !isNaN(timeFromInstall) && timeFromInstall < MAX_INSTALL_AGE;
+
+			if (!isNewInstall) {
+				return;
+			}
+			waitTimeToShowSurvey = Math.max(WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall, WAIT_TIME_TO_SHOW_SURVEY);
+		}
+
+		setTimeout(() => {
+			// TODO: Telemetry
+			this.notificationService.prompt(
+				Severity.Info,
+				nls.localize('surveyQuestion', "Please help us to improve VS Code."),
+				// Take a short break from code and help us improve VS Code.
+				// Got a moment? Tell us about your experience with VS Code so far.
+				// Your feedback can help us make VS Code better for everybody.
+				// Got feedback for us? Signed, the VS Code team ❤️
+				// How is VS Code working for you so far? ❤️, the VS Code team!
+				[{
+					label: nls.localize('takeSurvey', "Take Short Survey"),
+					run: () => {
+						// TODO: Telemetry for yes
+						this.telemetryService.getTelemetryInfo().then(info => {
+							this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
+							this.skipVersion();
+						});
+					}
+				}, {
+					label: nls.localize('remindLater', "Remind Me later"),
+					// TODO: Telemetry for later
+					run: () => this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER)
+				}, {
+					label: nls.localize('neverAgain', "Don't Show Again"),
+					// TODO: Telemetry for no
+					run: () => this.skipVersion()
+				}],
+				{ sticky: true }
+			);
+		}, waitTimeToShowSurvey);
 	}
+
+	skipVersion(): void {
+		this.storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
+		this.storageService.store(SKIP_VERSION_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+	}
+
+
 }
 
 if (language === 'en') {
