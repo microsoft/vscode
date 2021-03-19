@@ -14,7 +14,7 @@
  * - Copy this file to your project.
  */
 
- declare module 'vscode' {
+declare module 'vscode' {
 
 	//#region auth provider: https://github.com/microsoft/vscode/issues/88309
 
@@ -2116,14 +2116,6 @@
 	 */
 	export interface TestProvider<T extends TestItem = TestItem> {
 		/**
-		 * Gets the parent of the test item. This should only return "undefined"
-		 * if called with the root node.
-		 * @param item TestItem to retrieve the parent for
-		 * @returns the parent TestItem, or undefined if the test is the root
-		 */
-		getParent(item: T): T | undefined;
-
-		/**
 		 * Requests that tests be provided for the given workspace. This will
 		 * be called when tests need to be enumerated for the workspace, such as
 		 * when the user opens the test explorer.
@@ -2233,6 +2225,11 @@
 		 * @param child Child ID or instance to remove.
 		 */
 		delete(child: T | string): void;
+
+		/**
+		 * Removes all children from the collection.
+		 */
+		clear(): void;
 	}
 
 	/**

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -12,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { TestResult } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestIdWithProvider, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -21,11 +20,16 @@ import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testi
  * using a single IncrementalTestChangeCollector, but this became hairy
  * with status projections.
  */
-export interface ITestTreeProjection extends IDisposable, IAsyncDataSource<null, ITestTreeElement> {
+export interface ITestTreeProjection extends IDisposable {
 	/**
 	 * Event that fires when the projection changes.
 	 */
 	onUpdate: Event<void>;
+
+	/**
+	 * Fired when an element in the tree is expanded.
+	 */
+	expandElement(element: ITestTreeElement, depth: number): void;
 
 	/**
 	 * Gets an element by its extension-assigned ID.
@@ -46,7 +50,7 @@ export interface ITestTreeProjection extends IDisposable, IAsyncDataSource<null,
 	/**
 	 * Applies pending update to the tree.
 	 */
-	applyTo(tree: AsyncDataTree<null, ITestTreeElement, FuzzyScore>): Promise<void>;
+	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;
 }
 
 
@@ -88,7 +92,10 @@ export interface ITestTreeElement {
 	 */
 	readonly debuggable: Iterable<TestIdWithProvider>;
 
-	readonly expandable: boolean;
+	/**
+	 * Expand state of the test.
+	 */
+	readonly expandable: TestItemExpandState;
 
 	/**
 	 * Element state to display.

@@ -3293,9 +3293,9 @@ export const TestItemHookProperty = Symbol('TestItemHookProperty');
 
 export interface ITestItemHook {
 	created(item: vscode.TestItem): void;
-	setProp<K extends keyof vscode.TestItem>(id: string, key: K, value: vscode.TestItem[K]): void;
+	setProp<K extends keyof vscode.TestItem>(key: K, value: vscode.TestItem[K]): void;
 	invalidate(id: string): void;
-	dispose(id: string): void;
+	delete(id: string): void;
 }
 
 const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, key: K, defaultValue: vscode.TestItem[K]) => {
@@ -3307,7 +3307,7 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, k
 			return value;
 		},
 		set(newValue: vscode.TestItem[K]) {
-			item[TestItemHookProperty]?.setProp(item.id, key, newValue);
+			item[TestItemHookProperty]?.setProp(key, newValue);
 			value = newValue;
 		},
 	};
@@ -3329,8 +3329,13 @@ export class TestChildrenCollection implements vscode.TestChildrenCollection<vsc
 		const map = this.#map;
 		const hook = this.#hookRef();
 
-		if (map.has(child.id)) {
-			hook?.dispose(child.id);
+		const existing = map.get(child.id);
+		if (existing === child) {
+			return;
+		}
+
+		if (existing) {
+			hook?.delete(child.id);
 		}
 
 		map.set(child.id, child);
@@ -3341,12 +3346,22 @@ export class TestChildrenCollection implements vscode.TestChildrenCollection<vsc
 		return this.#map.get(id);
 	}
 
+	public clear() {
+		for (const key of this.#map.keys()) {
+			this.delete(key);
+		}
+	}
+
 	public delete(childOrId: vscode.TestItem | string) {
 		const id = typeof childOrId === 'string' ? childOrId : childOrId.id;
 		if (this.#map.has(id)) {
 			this.#map.delete(id);
-			this.#hookRef()?.dispose(id);
+			this.#hookRef()?.delete(id);
 		}
+	}
+
+	public toJSON() {
+		return [...this.#map.values()];
 	}
 
 	public [Symbol.iterator]() {

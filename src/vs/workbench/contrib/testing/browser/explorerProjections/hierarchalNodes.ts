@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate, TestIdWithProvider, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Test tree element element that groups be hierarchy.
@@ -42,7 +42,7 @@ export class HierarchicalElement implements ITestTreeElement {
 	}
 
 	public get expandable() {
-		return this.test.item.expandable;
+		return this.test.expand;
 	}
 
 	public get folder(): IWorkspaceFolder {
@@ -57,8 +57,8 @@ export class HierarchicalElement implements ITestTreeElement {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
 	}
 
-	public update(actual: InternalTestItem) {
-		Object.assign(this.test, actual);
+	public update(patch: ITestItemUpdate) {
+		applyTestItemUpdate(this.test, patch);
 	}
 }
 
@@ -84,7 +84,7 @@ export class HierarchicalFolder implements ITestTreeElement {
 	}
 
 	public get expandable() {
-		return true;
+		return TestItemExpandState.Expanded;
 	}
 
 	public retired = false;

@@ -3,22 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IProgress } from 'vs/platform/progress/common/progress';
 import { TestItem, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
 export class StubTestItem extends TestItem {
-	children: StubTestItem[] = [];
 	parent: StubTestItem | undefined;
+
+	constructor(id: string, label: string, private readonly pendingChildren: StubTestItem[]) {
+		super(id, label, pendingChildren.length > 0);
+	}
+
+	public discoverChildren(progress: IProgress<{ busy: boolean }>) {
+		for (const child of this.pendingChildren) {
+			this.children.add(child);
+		}
+
+		progress.report({ busy: false });
+	}
 }
 
-export const stubTestHierarchyProvider = {
-	getChildren: (s: StubTestItem) => s.children,
-	getParent: (s: StubTestItem) => s.parent,
-};
-
 export const stubTest = (label: string, idPrefix = 'id-', children: StubTestItem[] = []): StubTestItem => {
-	const t = new StubTestItem(idPrefix + label, label, children.length > 0);
-	t.children = children;
-	return t;
+	return new StubTestItem(idPrefix + label, label, children);
 };
 
 export const testStubs = {

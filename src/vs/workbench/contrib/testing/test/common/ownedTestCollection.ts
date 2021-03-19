@@ -7,7 +7,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { OwnedTestCollection, SingleUseTestCollection, TestTree } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
 import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { stubTestHierarchyProvider, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 
 export class TestSingleUseCollection extends SingleUseTestCollection {
 	public get itemToInternal() {
@@ -40,7 +40,7 @@ export class TestOwnedTestCollection extends OwnedTestCollection {
 export const getInitializedMainTestCollection = (root = testStubs.nested()) => {
 	const c = new MainThreadTestCollection(0, async (t, l) => singleUse.expand(t, l));
 	const singleUse = new TestSingleUseCollection({ object: new TestTree(), dispose: () => undefined }, () => undefined);
-	singleUse.addRoot(root, stubTestHierarchyProvider, 'provider');
+	singleUse.addRoot(root, 'provider');
 	c.apply(singleUse.collectDiff());
 	return c;
 };

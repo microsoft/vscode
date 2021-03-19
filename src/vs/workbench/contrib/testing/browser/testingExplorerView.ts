@@ -9,7 +9,8 @@ import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionb
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IAsyncDataSource, ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
+import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -34,7 +35,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -55,6 +56,7 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -217,20 +219,8 @@ class EmptyTestsWidget extends Disposable {
 	}
 }
 
-class TestTreeDataSource implements IAsyncDataSource<null, ITestTreeElement> {
-	constructor(private readonly projectionRef: () => ITestTreeProjection | undefined) { }
-
-	hasChildren(element: null | ITestTreeElement): boolean {
-		return !!this.projectionRef()?.hasChildren(element);
-	}
-
-	getChildren(element: null | ITestTreeElement) {
-		return this.projectionRef()?.getChildren(element) ?? Iterable.empty();
-	}
-}
-
 export class TestingExplorerViewModel extends Disposable {
-	public tree: WorkbenchAsyncDataTree<null, ITestTreeElement, FuzzyScore>;
+	public tree: ObjectTree<ITestTreeElement, FuzzyScore>;
 	private filter: TestsFilter;
 	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
@@ -276,7 +266,7 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 
 		this._viewSorting.set(newSorting);
-		this.tree.resort(undefined);
+		this.tree.resort(null);
 		this.storageService.store('testing.viewSorting', newSorting, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
@@ -306,25 +296,28 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.filter = this.instantiationService.createInstance(TestsFilter);
 		this.tree = instantiationService.createInstance(
-			WorkbenchAsyncDataTree,
+			WorkbenchObjectTree,
 			'Test Explorer List',
 			listContainer,
 			new ListDelegate(),
 			[
 				instantiationService.createInstance(TestsRenderer, labels)
 			],
-			new TestTreeDataSource(() => this.projection.value),
 			{
 				simpleKeyboardNavigation: true,
 				identityProvider: instantiationService.createInstance(IdentityProvider),
+				hideTwistiesOfChildlessElements: false,
 				sorter: instantiationService.createInstance(TreeSorter, this),
 				keyboardNavigationLabelProvider: instantiationService.createInstance(TreeKeyboardNavigationLabelProvider),
 				accessibilityProvider: instantiationService.createInstance(ListAccessibilityProvider),
 				filter: this.filter,
-				collapseByDefault: (e: ITestTreeElement | null) => !e || e.depth > 1,
-			} as IWorkbenchAsyncDataTreeOptions<any, any>) as WorkbenchAsyncDataTree<null, ITestTreeElement, FuzzyScore>;
+			}) as WorkbenchObjectTree<ITestTreeElement, FuzzyScore>;
 
-		this.tree.setInput(null);
+		this._register(this.tree.onDidChangeCollapseState(evt => {
+			if (evt.node.element) {
+				this.projection.value?.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+			}
+		}));
 
 		this._register(filterState.currentDocumentOnly.onDidChange(() => {
 			if (!filterState.currentDocumentOnly.value) {
@@ -393,7 +386,7 @@ export class TestingExplorerViewModel extends Disposable {
 		}));
 
 		this._register(testResults.onResultsChanged(() => {
-			this.tree.resort(undefined);
+			this.tree.resort(null);
 		}));
 	}
 
@@ -416,7 +409,7 @@ export class TestingExplorerViewModel extends Disposable {
 	 * Reveals and moves focus to the item.
 	 */
 	public async revealItem(item: ITestTreeElement, reveal = true): Promise<void> {
-		if (!this.tree.hasNode(item)) {
+		if (!this.tree.hasElement(item)) {
 			return;
 		}
 
@@ -427,7 +420,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 		for (const parent of chain.reverse()) {
 			try {
-				await this.tree.expand(parent);
+				this.tree.expand(parent);
 			} catch {
 				// ignore if not present
 			}
@@ -557,16 +550,15 @@ export class TestingExplorerViewModel extends Disposable {
 	}
 
 	private shouldShowEmptyPlaceholder() {
-		// todo@connor4312
-		return false;
-		// return !!this.listener
-		// 	&& this.listener.subscription.busyProviders === 0
-		// 	&& this.listener.subscription.isEmpty;
+		return !!this.listener
+			&& this.listener.subscription.busyProviders === 0
+			&& this.listener.subscription.isEmpty;
 	}
 
 	private updatePreferredProjection() {
 		this.projection.clear();
 		if (!this.listener) {
+			this.tree.setChildren(null, []);
 			return;
 		}
 
@@ -905,7 +897,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const testHidden = !!element.test && this.testService.excludeTests.value.has(element.test.item.extId);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
-		const icon = testingStatesToIcons.get(element.state);
+		const icon = testingStatesToIcons.get(element.expandable === TestItemExpandState.BusyExpanding ? TestResult.Running : element.state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
 		if (element.retired) {
 			data.icon.className += ' retired';

@@ -32,7 +32,7 @@ import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem, TestItemExpandable } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -1648,7 +1648,7 @@ export namespace TestItem {
 		};
 	}
 
-	export function toPlain(item: ITestItem): types.TestItem {
+	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
 			id: item.extId,
 			label: item.label,
@@ -1700,7 +1700,7 @@ export namespace TestResults {
 					item: TestItem.fromResultSnapshot(item),
 					state: TestState.from(item.result),
 					retired: undefined,
-					expand: TestItemExpandable.Expanded,
+					expand: TestItemExpandState.Expanded,
 					parent: parent?.item.extId ?? null,
 					providerId: '',
 					direct: !parent,

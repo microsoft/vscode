@@ -72,9 +72,10 @@ export interface ITestItem {
 	expandable: boolean;
 }
 
-export const enum TestItemExpandable {
+export const enum TestItemExpandState {
 	NotExpandable,
 	Expandable,
+	BusyExpanding,
 	Expanded,
 }
 
@@ -83,10 +84,28 @@ export const enum TestItemExpandable {
  */
 export interface InternalTestItem {
 	providerId: string;
-	expand: TestItemExpandable;
+	expand: TestItemExpandState;
 	parent: string | null;
 	item: ITestItem;
 }
+
+/**
+ * A partial update made to an existing InternalTestItem.
+ */
+export interface ITestItemUpdate {
+	extId: string;
+	expand?: TestItemExpandState;
+	item?: Partial<ITestItem>;
+}
+
+export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate, patch: ITestItemUpdate) => {
+	if (patch.expand !== undefined) {
+		internal.expand = patch.expand;
+	}
+	if (patch.item !== undefined) {
+		Object.assign(internal.item, patch.item);
+	}
+};
 
 /**
  * Test result item used in the main thread.
@@ -128,12 +147,15 @@ export const enum TestDiffOpType {
 	DeltaDiscoverComplete,
 	/** Changes the number of providers who are yet to publish their collection roots. */
 	DeltaRootsComplete,
+	/** Retires a test/result */
+	Retire,
 }
 
 export type TestsDiffOp =
 	| [op: TestDiffOpType.Add, item: InternalTestItem]
-	| [op: TestDiffOpType.Update, item: InternalTestItem]
+	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
+	| [op: TestDiffOpType.Retire, itemId: string]
 	| [op: TestDiffOpType.DeltaDiscoverComplete | TestDiffOpType.DeltaRootsComplete, amount: number];
 
 /**
@@ -234,10 +256,10 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 				}
 
 				case TestDiffOpType.Update: {
-					const internalTest = op[1];
-					const existing = this.items.get(internalTest.item.extId);
+					const patch = op[1];
+					const existing = this.items.get(patch.extId);
 					if (existing) {
-						Object.assign(existing.item, internalTest.item);
+						applyTestItemUpdate(existing, patch);
 						changes.update(existing);
 					}
 					break;

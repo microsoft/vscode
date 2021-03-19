@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { stubTestHierarchyProvider, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { makeTestWorkspaceFolder, TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
@@ -31,62 +31,61 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	});
 
 	test('renders initial tree', async () => {
-		harness.c.addRoot(testStubs.nested(), stubTestHierarchyProvider, 'a');
-		await harness.flush(folder1);
+		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.flush(folder1);
 		assert.deepStrictEqual(harness.tree.getRendered(), [
 			{ e: 'a' }, { e: 'b' }
 		]);
 	});
 
 	test('expands children', async () => {
-		harness.c.addRoot(testStubs.nested(), stubTestHierarchyProvider, 'a');
-		await harness.flush(folder1);
-		await harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
-		assert.deepStrictEqual(harness.tree.getRendered(), [
+		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.flush(folder1);
+		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
+		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }
 		]);
 	});
 
 	test('updates render if a second folder is added', async () => {
-		harness.c.addRoot(testStubs.nested('id1-'), stubTestHierarchyProvider, 'a');
-		await harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested('id2-'), stubTestHierarchyProvider, 'a');
-		await harness.flush(folder2);
-		assert.deepStrictEqual(harness.tree.getRendered(), [
-			{ e: 'f1' },
-			{ e: 'f2' },
-		]);
-
-		await harness.tree.expand(harness.projection.folderNodes[0]);
-		await harness.tree.expand(harness.projection.folderNodes[1]);
+		harness.c.addRoot(testStubs.nested('id1-'), 'a');
+		harness.flush(folder1);
+		harness.c.addRoot(testStubs.nested('id2-'), 'a');
+		harness.flush(folder2);
 		assert.deepStrictEqual(harness.tree.getRendered(), [
 			{ e: 'f1', children: [{ e: 'a' }, { e: 'b' }] },
+			{ e: 'f2', children: [{ e: 'a' }, { e: 'b' }] },
+		]);
+
+		harness.tree.expand(harness.projection.getElementByTestId('id1-a')!);
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'f1', children: [{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] }, { e: 'b' }] },
 			{ e: 'f2', children: [{ e: 'a' }, { e: 'b' }] },
 		]);
 	});
 
 	test('updates render if second folder is removed', async () => {
-		harness.c.addRoot(testStubs.nested('id1-'), stubTestHierarchyProvider, 'a');
-		await harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested('id2-'), stubTestHierarchyProvider, 'a');
-		await harness.flush(folder2);
+		harness.c.addRoot(testStubs.nested('id1-'), 'a');
+		harness.flush(folder1);
+		harness.c.addRoot(testStubs.nested('id2-'), 'a');
+		harness.flush(folder2);
 		harness.onFolderChange.fire({ added: [], changed: [], removed: [folder1] });
-		assert.deepStrictEqual(await harness.flush(folder1), [
+		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a' }, { e: 'b' },
 		]);
 	});
 
 	test('updates render if second test provider appears', async () => {
-		harness.c.addRoot(testStubs.nested(), stubTestHierarchyProvider, 'a');
-		await harness.flush(folder1);
-		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), stubTestHierarchyProvider, 'b');
-		assert.deepStrictEqual(await harness.flush(folder1), [
+		harness.c.addRoot(testStubs.nested(), 'a');
+		harness.flush(folder1);
+		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), 'b');
+		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'root' },
 			{ e: 'root2' },
 		]);
 
-		await harness.tree.expand(harness.projection.getElementByTestId('id-root')!);
-		await harness.tree.expand(harness.projection.getElementByTestId('id-root2')!);
+		harness.tree.expand(harness.projection.getElementByTestId('id-root')!);
+		harness.tree.expand(harness.projection.getElementByTestId('id-root2')!);
 		assert.deepStrictEqual(harness.tree.getRendered(), [
 			{ e: 'root', children: [{ e: 'a' }, { e: 'b' }] },
 			{ e: 'root2', children: [{ e: 'c' }] },
@@ -95,19 +94,18 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('updates nodes if they add children', async () => {
 		const tests = testStubs.nested();
-		harness.c.addRoot(tests, stubTestHierarchyProvider, 'a');
-		await harness.flush(folder1);
-		await harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
+		harness.c.addRoot(tests, 'a');
+		harness.flush(folder1);
+		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
 
-		assert.deepStrictEqual(await harness.flush(folder1), [
+		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }] },
 			{ e: 'b' }
 		]);
 
-		tests.children[0].children?.push(testStubs.test('ac'));
-		harness.c.onItemChange(tests.children[0], stubTestHierarchyProvider, 'a');
+		tests.children.get('id-a')!.children.add(testStubs.test('ac'));
 
-		assert.deepStrictEqual(await harness.flush(folder1), [
+		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'ac' }] },
 			{ e: 'b' }
 		]);
@@ -115,14 +113,13 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('updates nodes if they remove children', async () => {
 		const tests = testStubs.nested();
-		harness.c.addRoot(tests, stubTestHierarchyProvider, 'a');
-		await harness.flush(folder1);
-		await harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
+		harness.c.addRoot(tests, 'a');
+		harness.flush(folder1);
+		harness.tree.expand(harness.projection.getElementByTestId('id-a')!);
 
-		tests.children[0].children?.pop();
-		harness.c.onItemChange(tests.children[0], stubTestHierarchyProvider, 'a');
+		tests.children.get('id-a')!.children.delete('id-ab');
 
-		assert.deepStrictEqual(await harness.flush(folder1), [
+		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a', children: [{ e: 'aa' }] },
 			{ e: 'b' }
 		]);

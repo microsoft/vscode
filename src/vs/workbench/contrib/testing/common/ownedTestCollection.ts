@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { isThenable, RunOnceScheduler } from 'vs/base/common/async';
+import { DeferredPromise, isThenable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { throttle } from 'vs/base/common/decorators';
-import { IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isAsyncIterable, isIterable } from 'vs/base/common/types';
+import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
-import { ITestItemHook } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestDiffOpType, TestItemExpandable, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestItem as TestItemImpl, TestItemHookProperty } from 'vs/workbench/api/common/extHostTypes';
+import { applyTestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface IHierarchyProvider {
 	getChildren(node: TestItem.Raw, token: CancellationToken): Iterable<TestItem.Raw> | AsyncIterable<TestItem.Raw> | undefined | null;
@@ -51,16 +49,13 @@ export class OwnedTestCollection {
 /**
  * @private
  */
-export interface OwnedCollectionTestItem<T extends TestItem.Raw = TestItem.Raw> extends InternalTestItem {
-	actual: T;
+export interface OwnedCollectionTestItem extends InternalTestItem {
+	actual: TestItemImpl;
 	/**
 	 * Number of levels of items below this one that are expanded. May be infinite.
 	 */
 	expandLevels?: number;
-	hierarchy: IHierarchyProvider;
-	childrenCancellation: MutableDisposable<CancellationTokenSource>;
-	previousChildren: Set<string>;
-	previousEquals: (v: TestItem.Raw) => boolean;
+	discoverCts?: CancellationTokenSource;
 }
 
 /**
@@ -183,17 +178,7 @@ export class TestTree<T extends InternalTestItem> {
 export class SingleUseTestCollection implements IDisposable {
 	protected readonly testItemToInternal = new Map<TestItem.Raw, OwnedCollectionTestItem>();
 	protected diff: TestsDiff = [];
-
-	/**
-	 * Debouncer for sending diffs. We use both a throttle and a debounce here,
-	 * so that tests that all change state simultenously are effected together,
-	 * but so we don't send hundreds of test updates per second to the main thread.
-	 */
-	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
-
-	private readonly hook: ITestItemHook = {
-		created: item => this.addItem(item, )
-	};
+	private readonly debounceSendDiff = new RunOnceScheduler(() => this.flushDiff(), 200);
 
 	constructor(
 		private readonly testIdToInternal: IReference<TestTree<OwnedCollectionTestItem>>,
@@ -205,7 +190,6 @@ export class SingleUseTestCollection implements IDisposable {
 	 */
 	public addRoot(item: TestItem.Raw, providerId: string) {
 		this.addItem(item, providerId, null);
-		this.debounceSendDiff.schedule();
 	}
 
 	/**
@@ -214,28 +198,6 @@ export class SingleUseTestCollection implements IDisposable {
 	 */
 	public getTestByReference(item: TestItem.Raw) {
 		return this.testItemToInternal.get(item);
-	}
-
-	/**
-	 * Should be called when an item change is fired on the test provider.
-	 */
-	public onItemChange(item: TestItem.Raw, hierarchy: IHierarchyProvider, providerId: string) {
-		const existing = this.testItemToInternal.get(item);
-		if (!existing) {
-			return;
-		}
-
-		let parent: OwnedCollectionTestItem | null = null;
-		if (existing.parent) {
-			parent = this.testIdToInternal.object.get(existing.parent)!;
-			if (!parent) {
-				// can be a change for something we haven't expanded yet
-				return;
-			}
-		}
-
-		this.addItem(item, providerId, hierarchy, parent);
-		this.debounceSendDiff.schedule();
 	}
 
 	/**
@@ -251,8 +213,25 @@ export class SingleUseTestCollection implements IDisposable {
 	 * Pushes a new diff entry onto the collected diff list.
 	 */
 	public pushDiff(diff: TestsDiffOp) {
+		// Try to merge updates, since they're invoked per-property
+		const last = this.diff[this.diff.length - 1];
+		if (last && diff[0] === TestDiffOpType.Update) {
+			if (last[0] === TestDiffOpType.Update && last[1].extId === diff[1].extId) {
+				applyTestItemUpdate(last[1], diff[1]);
+				return;
+			}
+
+			if (last[0] === TestDiffOpType.Add && last[1].item.extId === diff[1].extId) {
+				applyTestItemUpdate(last[1], diff[1]);
+				return;
+			}
+		}
+
 		this.diff.push(diff);
-		this.debounceSendDiff.schedule();
+
+		if (!this.debounceSendDiff.isScheduled()) {
+			this.debounceSendDiff.schedule();
+		}
 	}
 
 	/**
@@ -272,12 +251,12 @@ export class SingleUseTestCollection implements IDisposable {
 
 		// try to avoid awaiting things if the provider returns synchronously in
 		// order to keep everything in a single diff and DOM update.
-		if (internal.expand === TestItemExpandable.Expandable) {
-			const r = this.updateChildren(internal);
-			return isThenable(r)
-				? r.then(() => this.expandChildren(internal, levels - 1))
+		if (internal.expand === TestItemExpandState.Expandable) {
+			const r = this.refreshChildren(internal);
+			return !r.isSettled
+				? r.p.then(() => this.expandChildren(internal, levels - 1))
 				: this.expandChildren(internal, levels - 1);
-		} else if (internal.expand === TestItemExpandable.Expanded) {
+		} else if (internal.expand === TestItemExpandState.Expanded) {
 			return this.expandChildren(internal, levels - 1);
 		}
 	}
@@ -286,67 +265,70 @@ export class SingleUseTestCollection implements IDisposable {
 	 * @inheritdoc
 	 */
 	public dispose() {
-		this.testIdToInternal.dispose();
+		for (const item of this.testItemToInternal.values()) {
+			item.discoverCts?.dispose(true);
+			(item.actual as TestItemImpl)[TestItemHookProperty] = undefined;
+		}
+
 		this.diff = [];
+		this.testIdToInternal.dispose();
+		this.debounceSendDiff.dispose();
 	}
 
-	private addItem(actual: TestItem.Raw, providerId: string, hierarchy: IHierarchyProvider, parent: OwnedCollectionTestItem | null) {
-		let internal = this.testItemToInternal.get(actual);
+	private addItem(actual: TestItem.Raw, providerId: string, parent: OwnedCollectionTestItem | null) {
+		if (!(actual instanceof TestItemImpl)) {
+			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
+		}
+
+		if (this.testItemToInternal.has(actual)) {
+			throw new Error(`Attempted to add a single TestItem ${actual.id} multiple times to the tree`);
+		}
+
+		if (this.testIdToInternal.object.has(actual.id)) {
+			throw new Error(`Attempted to insert a duplicate test item ID ${actual.id}`);
+		}
+
 		const parentId = parent ? parent.item.extId : null;
-		if (!internal) {
-			if (this.testIdToInternal.object.has(actual.id)) {
-				throw new Error(`Attempted to insert a duplicate test item ID ${actual.id}`);
-			}
+		const expand = actual.expandable ? TestItemExpandState.Expandable : TestItemExpandState.NotExpandable;
+		const pExpandLvls = parent?.expandLevels;
+		const internal: OwnedCollectionTestItem = {
+			actual,
+			parent: parentId,
+			item: TestItem.from(actual),
+			expandLevels: pExpandLvls && expand === TestItemExpandState.Expandable ? pExpandLvls - 1 : undefined,
+			expand,
+			providerId,
+		};
 
-			const expand = actual.expandable ? TestItemExpandable.Expandable : TestItemExpandable.NotExpandable;
-			const pExpandLvls = parent?.expandLevels;
-			internal = {
-				actual,
-				hierarchy,
-				parent: parentId,
-				item: TestItem.from(actual),
-				childrenCancellation: new MutableDisposable(),
-				expandLevels: pExpandLvls && expand === TestItemExpandable.Expandable ? pExpandLvls - 1 : undefined,
-				expand,
-				providerId,
-				previousChildren: new Set(),
-				previousEquals: itemEqualityComparator(actual),
-			};
+		this.testIdToInternal.object.add(internal);
+		this.testItemToInternal.set(actual, internal);
+		this.pushDiff([TestDiffOpType.Add, { parent: parentId, providerId, expand, item: internal.item }]);
 
-			this.testIdToInternal.object.add(internal);
-			this.testItemToInternal.set(actual, internal);
-			this.diff.push([TestDiffOpType.Add, { parent: parentId, providerId, expand, item: internal.item }]);
+		actual[TestItemHookProperty] = {
+			created: item => this.addItem(item, providerId, internal!),
+			delete: id => this.removeItembyId(id),
+			invalidate: item => this.pushDiff([TestDiffOpType.Retire, item]),
+			setProp: (key, value) => this.pushDiff([TestDiffOpType.Update, { extId: actual.id, item: { [key]: value } }])
+		};
 
-			if (internal.expandLevels !== undefined) {
-				this.expand(actual.id, internal.expandLevels);
-			}
-
-			return internal;
+		// Discover any existing children that might have already been added
+		for (const child of actual.children) {
+			this.addItem(child, providerId, internal);
 		}
-
-		if (!internal.previousEquals(actual)) {
-			internal.item = TestItem.from(actual);
-			internal.previousEquals = itemEqualityComparator(actual);
-			this.diff.push([TestDiffOpType.Update, { parent: parentId, providerId, expand: internal.expand, item: internal.item }]);
-			// todo@connor4312: need to handle changes in expandable state
-		}
-
-		// If there are children, track which ones are deleted
-		// and recursively and/update them.
-		if (internal.expand === TestItemExpandable.Expanded) {
-			this.updateChildren(internal);
-		}
-
-		return internal;
 	}
 
+	/**
+	 * Expands all children of the item, "levels" deep. If levels is 0, only
+	 * the children will be expanded. If it's 1, the children and their children
+	 * will be expanded. If it's <0, it's a no-op.
+	 */
 	private expandChildren(internal: OwnedCollectionTestItem, levels: number): Promise<void> | void {
 		if (levels < 0) {
 			return;
 		}
 
-		const asyncChildren = [...internal.previousChildren]
-			.map(c => this.expand(c, levels - 1))
+		const asyncChildren = [...internal.actual.children]
+			.map(c => this.expand(c.id, levels - 1))
 			.filter(isThenable);
 
 		if (asyncChildren.length) {
@@ -354,73 +336,42 @@ export class SingleUseTestCollection implements IDisposable {
 		}
 	}
 
-	private updateChildren(internal: OwnedCollectionTestItem): Promise<void> | void {
-		internal.childrenCancellation.value?.cancel();
-		internal.expand = TestItemExpandable.Expanded;
-		const cts = internal.childrenCancellation.value = new CancellationTokenSource();
-
-		// todo@connor4312: error handling
-		const children = internal.hierarchy.getChildren(internal.actual, cts.token);
-		if (isAsyncIterable<TestItem.Raw>(children)) {
-			return this.updateChildrenAsync(internal, children, cts);
+	/**
+	 * Calls `discoverChildren` on the item, refreshing all its tests.
+	 */
+	private refreshChildren(internal: OwnedCollectionTestItem) {
+		if (internal.discoverCts) {
+			internal.discoverCts.dispose(true);
 		}
 
-		if (isIterable<TestItem.Raw>(children)) {
-			this.updateChildrenSync(internal, children);
-		}
+		internal.expand = TestItemExpandState.BusyExpanding;
+		internal.discoverCts = new CancellationTokenSource();
+		this.pushExpandStateUpdate(internal);
 
-		cts.cancel();
+		const updateComplete = new DeferredPromise<void>();
+
+		internal.actual.discoverChildren({
+			report: event => {
+				if (!event.busy) {
+					internal.expand = TestItemExpandState.Expanded;
+					if (!updateComplete.isSettled) { updateComplete.complete(); }
+					this.pushExpandStateUpdate(internal);
+				} else {
+					internal.expand = TestItemExpandState.BusyExpanding;
+					this.pushExpandStateUpdate(internal);
+				}
+			}
+		}, internal.discoverCts.token);
+
+		return updateComplete;
 	}
 
-	private async updateChildrenAsync(
-		internal: OwnedCollectionTestItem,
-		children: AsyncIterable<TestItem.Raw>,
-		cts: CancellationTokenSource,
-	) {
-		this.diff.push([TestDiffOpType.DeltaDiscoverComplete, 1]);
-		for await (const child of children) {
-			if (cts.token.isCancellationRequested) {
-				break;
-			}
-
-			const previous = this.testIdToInternal.object.get(child.id);
-			if (previous && previous.actual !== child) {
-				this.removeItembyId(child.id);
-			}
-
-			this.addItem(child, internal.providerId, internal.hierarchy, internal);
-			this.debounceSendDiff.schedule();
-		}
-
-		this.diff.push([TestDiffOpType.DeltaDiscoverComplete, -1]);
-		cts.cancel();
-	}
-
-	private updateChildrenSync(internal: OwnedCollectionTestItem, children: Iterable<TestItem.Raw>) {
-		const deletedChildren = internal.previousChildren;
-		const currentChildren = new Set<string>();
-		for (const child of children) {
-			// If a child was recreated, delete the old object before calling
-			// addItem() anew.
-			const previous = this.testIdToInternal.object.get(child.id);
-			if (previous && previous.actual !== child) {
-				this.removeItembyId(child.id);
-			}
-
-			const c = this.addItem(child, internal.providerId, internal.hierarchy, internal);
-			deletedChildren.delete(c.item.extId);
-			currentChildren.add(c.item.extId);
-		}
-
-		for (const child of deletedChildren) {
-			this.removeItembyId(child);
-		}
-
-		internal.previousChildren = currentChildren;
+	private pushExpandStateUpdate(internal: OwnedCollectionTestItem) {
+		this.pushDiff([TestDiffOpType.Update, { extId: internal.actual.id, expand: internal.expand }]);
 	}
 
 	private removeItembyId(id: string) {
-		this.diff.push([TestDiffOpType.Remove, id]);
+		this.pushDiff([TestDiffOpType.Remove, id]);
 
 		const queue = [this.testIdToInternal.object.get(id)];
 		while (queue.length) {
@@ -429,19 +380,14 @@ export class SingleUseTestCollection implements IDisposable {
 				continue;
 			}
 
+			item.discoverCts?.dispose(true);
 			this.testIdToInternal.object.delete(item.item.extId);
 			this.testItemToInternal.delete(item.actual);
-			for (const child of item.previousChildren) {
-				queue.push(this.testIdToInternal.object.get(child));
+			for (const child of item.actual.children) {
+				queue.push(this.testIdToInternal.object.get(child.id));
 			}
 		}
 	}
-
-	@throttle(200)
-	protected throttleSendDiff() {
-		this.flushDiff();
-	}
-
 	public flushDiff() {
 		const diff = this.collectDiff();
 		if (diff.length) {
@@ -449,32 +395,3 @@ export class SingleUseTestCollection implements IDisposable {
 		}
 	}
 }
-
-const keyMap: { [K in keyof Omit<TestItem.Raw, 'children' | 'invalidate' | 'discoverChildren'>]: null } = {
-	id: null,
-	label: null,
-	location: null,
-	debuggable: null,
-	description: null,
-	runnable: null,
-	expandable: null
-};
-
-const simpleProps = Object.keys(keyMap) as ReadonlyArray<keyof typeof keyMap>;
-
-const itemEqualityComparator = (a: TestItem.Raw) => {
-	const values: unknown[] = [];
-	for (const prop of simpleProps) {
-		values.push(a[prop]);
-	}
-
-	return (b: TestItem.Raw) => {
-		for (let i = 0; i < simpleProps.length; i++) {
-			if (values[i] !== b[simpleProps[i]]) {
-				return false;
-			}
-		}
-
-		return true;
-	};
-};
