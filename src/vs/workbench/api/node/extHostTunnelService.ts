@@ -39,7 +39,7 @@ class ExtensionTunnel implements vscode.Tunnel {
 	}
 }
 
-export function getSockets(stdout: string): { pid: number, socket: number }[] {
+export function getSockets(stdout: string): Record<string, { pid: number; socket: number; }> {
 	const lines = stdout.trim().split('\n');
 	const mapped: { pid: number, socket: number }[] = [];
 	lines.forEach(line => {
@@ -51,7 +51,11 @@ export function getSockets(stdout: string): { pid: number, socket: number }[] {
 			});
 		}
 	});
-	return mapped;
+	const socketMap = mapped.reduce((m, socket) => {
+		m[socket.socket] = socket;
+		return m;
+	}, {} as Record<string, typeof mapped[0]>);
+	return socketMap;
 }
 
 export function loadListeningPorts(...stdouts: string[]): { socket: number, ip: string, port: number }[] {
@@ -108,26 +112,53 @@ function knownExcludeCmdline(command: string): boolean {
 		|| (command.indexOf('_productName=VSCode') !== -1);
 }
 
-export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
-	const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
-	const sockets = getSockets(procSockets);
+function getRootProcesses(stdout: string) {
+	const lines = stdout.trim().split('\n');
+	const mapped: { pid: number, cmd: string }[] = [];
+	lines.forEach(line => {
+		const match = /^\d+\s\D+\sroot\s(\d+).+\d+\:\d+\:\d+\s(.+)$/.exec(line)!;
+		if (match && match.length >= 3) {
+			mapped.push({
+				pid: parseInt(match[1], 10),
+				cmd: match[2]
+			});
+		}
+	});
+	return mapped;
+}
 
-	const socketMap = sockets.reduce((m, socket) => {
-		m[socket.socket] = socket;
-		return m;
-	}, {} as Record<string, typeof sockets[0]>);
+export async function findPorts(connections: { socket: number, ip: string, port: number }[], socketMap: Record<string, { pid: number, socket: number }>, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
 	const processMap = processes.reduce((m, process) => {
 		m[process.pid] = process;
 		return m;
 	}, {} as Record<string, typeof processes[0]>);
 
 	const ports: CandidatePort[] = [];
-	connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
+	connections.forEach(({ socket, ip, port }) => {
 		const command: string | undefined = processMap[socketMap[socket].pid]?.cmd;
 		if (command && !knownExcludeCmdline(command)) {
 			ports.push({ host: ip, port, detail: command, pid: socketMap[socket].pid });
 		}
 	});
+	return ports;
+}
+
+export async function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort>): Promise<Map<number, CandidatePort>> {
+	const ports: Map<number, CandidatePort> = new Map();
+	const rootProcesses = getRootProcesses(rootProcessesStdout);
+
+	for (const connection of connections) {
+		const previousPort = previousPorts.get(connection.port);
+		if (previousPort) {
+			ports.set(connection.port, previousPort);
+			continue;
+		}
+		const rootProcess = rootProcesses.find((value) => value.cmd.includes(`${connection.port}`));
+		if (rootProcess) {
+			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: rootProcess.pid, detail: rootProcess.cmd });
+		}
+	}
+
 	return ports;
 }
 
@@ -140,6 +171,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
+	private _foundRootPorts: Map<number, CandidatePort> = new Map();
 
 	private _providerHandleCounter: number = 0;
 	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider, selector: PortAttributesProviderSelector }> = new Map();
@@ -320,11 +352,14 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
+		const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
+
 		const procSockets: string = await (new Promise(resolve => {
 			exec('ls -l /proc/[0-9]*/fd/[0-9]* | grep socket:', (error, stdout, stderr) => {
 				resolve(stdout);
 			});
 		}));
+		const socketMap = getSockets(procSockets);
 
 		const procChildren = await pfs.readdir('/proc');
 		const processes: {
@@ -344,6 +379,33 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				//
 			}
 		}
-		return findPorts(tcp, tcp6, procSockets, processes);
+
+		const unFoundConnections: { socket: number, ip: string, port: number }[] = [];
+		const filteredConnections = connections.filter((connection => {
+			const foundConnection = socketMap[connection.socket];
+			if (!foundConnection) {
+				unFoundConnections.push(connection);
+			}
+			return connection;
+		}));
+
+		const foundPorts = findPorts(filteredConnections, socketMap, processes);
+		let heuristicPorts: CandidatePort[] | undefined;
+		if (unFoundConnections.length > 0) {
+			const rootProcesses: string = await (new Promise(resolve => {
+				exec('ps -F -A -l | grep root', (error, stdout, stderr) => {
+					resolve(stdout);
+				});
+			}));
+			this._foundRootPorts = await tryFindRootPorts(unFoundConnections, rootProcesses, this._foundRootPorts);
+			heuristicPorts = Array.from(this._foundRootPorts.values());
+		}
+		return heuristicPorts ? foundPorts.then(foundCandidates => {
+			if (heuristicPorts) {
+				return foundCandidates.concat(heuristicPorts);
+			} else {
+				return foundCandidates;
+			}
+		}) : foundPorts;
 	}
 }
