@@ -174,7 +174,8 @@ async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean,
 				if (err) {
 					return reject('Problem occurred when getting wsl distros');
 				}
-				resolve(stdout);
+				// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
+				resolve(Buffer.from(stdout).toString('utf16le'));
 			});
 		});
 		if (distroOutput) {
@@ -183,12 +184,8 @@ async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean,
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
 			for (let distroName of distroNames) {
-				// HACK: For some reason wsl.exe -l returns the string in an encoding where each
-				// character takes up 2 bytes, it's unclear how to decode this properly so instead
-				// we expect ascii and just remove all NUL chars
-				distroName = distroName
-					.replace(/\u0000/g, '')
-					.replace(/ \(Default\)$/, '');
+				// Remove default from distro name
+				distroName = distroName.replace(/ \(Default\)$/, '');
 
 				// Skip empty lines
 				if (distroName === '') {
