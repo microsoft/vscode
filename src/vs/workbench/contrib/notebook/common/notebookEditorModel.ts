@@ -106,10 +106,6 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		return this.resource.scheme === Schemas.untitled;
 	}
 
-	get lastResolvedFileStat(): IFileStatWithMetadata | undefined {
-		return this._lastResolvedFileStat;
-	}
-
 	get notebook(): NotebookTextModel | undefined {
 		const candidate = this._notebookService.getNotebookTextModel(this.resource);
 		return candidate && candidate.viewType === this.viewType ? candidate : undefined;

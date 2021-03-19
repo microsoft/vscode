@@ -30,7 +30,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { mock } from 'vs/base/test/common/mock';
@@ -88,7 +87,6 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
-	lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	isDirty() {
 		return this._dirty;

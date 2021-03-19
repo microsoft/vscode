@@ -20,7 +20,6 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export enum CellKind {
@@ -616,7 +615,6 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel | undefined;
-	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isUntitled(): boolean;
