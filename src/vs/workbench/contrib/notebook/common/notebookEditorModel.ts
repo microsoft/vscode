@@ -461,8 +461,8 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 	readonly onWillDispose: Event<void>;
 
 	constructor(
-		private _notebookModel: NotebookTextModel,
-		private _notebookSerializer: INotebookSerializer
+		private readonly _notebookModel: NotebookTextModel,
+		private readonly _notebookSerializer: INotebookSerializer
 	) {
 		this.onWillDispose = _notebookModel.onWillDispose.bind(_notebookModel);
 
@@ -485,8 +485,9 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 	}
 
 	dispose(): void {
-		this._onDidChangeContent.dispose();
 		this._changeListener.dispose();
+		this._onDidChangeContent.dispose();
+		this._notebookModel.dispose();
 	}
 
 	get notebookModel() {

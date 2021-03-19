@@ -544,10 +544,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return [...this._models].map(e => e[1].model);
 	}
 
-	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
-		this._onWillDisposeDocument(notebook);
-	}
-
 	private _onWillDisposeDocument(model: INotebookTextModel): void {
 
 		const modelData = this._models.get(model.uri);

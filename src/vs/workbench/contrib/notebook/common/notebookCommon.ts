@@ -20,7 +20,6 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
@@ -179,7 +178,7 @@ export interface INotebookTextModel {
 	readonly versionId: number;
 
 	readonly cells: readonly ICell[];
-	onWillDispose(listener: () => void): IDisposable;
+	onWillDispose: Event<void>;
 }
 
 export type NotebookCellTextModelSplice<T> = [

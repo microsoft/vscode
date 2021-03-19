@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, INotebookKernelProvider, INotebookKernel, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, INotebookKernelProvider, INotebookKernel, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -90,7 +90,6 @@ export interface INotebookService {
 	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
-	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
 
 	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: unknown): void;
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
