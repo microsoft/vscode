@@ -397,7 +397,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	readonly notebook: NotebookTextModel;
 
 	constructor(
-		private readonly _workingCopy: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>
+		private _workingCopy: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>
 	) {
 		super();
 		this.resource = _workingCopy.resource;
@@ -428,7 +428,9 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this.resource.scheme === Schemas.untitled;
 	}
 
-	async load(): Promise<IResolvedNotebookEditorModel> {
+	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
+		// todo@bpasero,jrieken is this right?
+		this._workingCopy = <IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>await this._workingCopy.resolve(options);
 		return this;
 	}
 
