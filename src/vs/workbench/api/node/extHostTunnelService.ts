@@ -410,19 +410,17 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					resolve(stdout);
 				});
 			}));
-			// TODO: remove
-			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) root processes ${rootProcesses}`);
 			this._foundRootPorts = tryFindRootPorts(unFoundConnections, rootProcesses, this._foundRootPorts);
 			heuristicPorts = Array.from(this._foundRootPorts.values());
 			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) heuristic ports ${heuristicPorts.join(', ')}`);
 
 		}
-		return heuristicPorts ? foundPorts.then(foundCandidates => {
+		return foundPorts.then(foundCandidates => {
 			if (heuristicPorts) {
 				return foundCandidates.concat(heuristicPorts);
 			} else {
 				return foundCandidates;
 			}
-		}) : foundPorts;
+		});
 	}
 }
