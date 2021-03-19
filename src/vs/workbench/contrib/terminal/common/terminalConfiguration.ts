@@ -95,7 +95,7 @@ export const terminalConfiguration: IConfigurationNode = {
 					source: 'Git Bash'
 				},
 				'Command Prompt': {
-					path:
+					pathOrPaths:
 						[
 							'${env:windir}\\Sysnative\\cmd.exe',
 							'${env:windir}\\System32\\cmd.exe'
@@ -104,7 +104,7 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'Windows PowerShell': {
 					comment: 'note that this will not be included in the quickSelect drop down if another version of powershell is installed',
-					path:
+					pathOrPaths:
 						[
 							'${env:windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 							'${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
@@ -159,8 +159,8 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			}
 		},
-		'terminal.integrated.quickLaunchWslProfiles': {
-			description: localize('terminal.integrated.quickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
+		'terminal.integrated.showQuickLaunchWslProfiles': {
+			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
 			type: 'boolean',
 			default: true
 		},

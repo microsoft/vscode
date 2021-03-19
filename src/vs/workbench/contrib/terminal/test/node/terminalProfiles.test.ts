@@ -11,7 +11,7 @@ import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/ter
 
 export interface ITestTerminalConfig {
 	profiles: ITerminalProfiles;
-	quickLaunchWslProfiles: boolean
+	showQuickLaunchWslProfiles: boolean
 }
 
 suite('Workbench - TerminalProfiles', () => {
@@ -28,7 +28,7 @@ suite('Workbench - TerminalProfiles', () => {
 							linux: {},
 							osx: {}
 						},
-						quickLaunchWslProfiles: false
+						showQuickLaunchWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
@@ -44,7 +44,7 @@ suite('Workbench - TerminalProfiles', () => {
 				// 				linux: {},
 				// 				osx: {},
 				// 			},
-				// 			quickLaunchWslProfiles: false
+				// 			showQuickLaunchWslProfiles: false
 				// 		};
 				// 		const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
 				// 		const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
