@@ -22,7 +22,7 @@ import { ILogService } from 'vs/platform/log/common/log';
  * operations that are working copy related, such as save/revert, backup
  * and resolving.
  */
-export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> {
+export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extends IDisposable {
 
 	/**
 	 * An event for when a file working copy was created.
@@ -334,7 +334,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this.mapResourceToWorkingCopyListeners.set(workingCopy.resource, workingCopyListeners);
 	}
 
-	protected add(resource: URI, workingCopy: IFileWorkingCopy<T>): void {
+	private add(resource: URI, workingCopy: IFileWorkingCopy<T>): void {
 		const knownWorkingCopy = this.mapResourceToWorkingCopy.get(resource);
 		if (knownWorkingCopy === workingCopy) {
 			return; // already cached
@@ -351,7 +351,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
 	}
 
-	protected remove(resource: URI): void {
+	private remove(resource: URI): void {
 		this.mapResourceToWorkingCopy.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
@@ -367,7 +367,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		}
 	}
 
-	clear(): void {
+	private clear(): void {
 
 		// working copy caches
 		this.mapResourceToWorkingCopy.clear();
