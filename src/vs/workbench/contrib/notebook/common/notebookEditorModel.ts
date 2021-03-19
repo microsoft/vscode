@@ -485,7 +485,6 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 	}
 
 	dispose(): void {
-		// todo@jrieken who is disposing this?
 		this._onDidChangeContent.dispose();
 		this._changeListener.dispose();
 	}
