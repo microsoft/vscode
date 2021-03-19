@@ -335,11 +335,13 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			if (!this.isResolved()) {
 				return;
 			}
-			await this._contentProvider.save(this.notebook.uri, CancellationToken.None);
-			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true));
+			const success = await this._contentProvider.save(this.notebook.uri, CancellationToken.None);
+			this._logService.debug(`[notebook editor model] save(${versionId}) - document saved saved, start updating file stats`, this.resource.toString(true), success);
 			this._lastResolvedFileStat = await this._resolveStats(this.resource);
-			this.setDirty(false);
-			this._onDidSave.fire();
+			if (success) {
+				this.setDirty(false);
+				this._onDidSave.fire();
+			}
 		})()).then(() => {
 			return true;
 		});
@@ -363,11 +365,13 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return true;
 		}
 
-		await this._contentProvider.saveAs(this.notebook.uri, targetResource, CancellationToken.None);
-		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true));
+		const success = await this._contentProvider.saveAs(this.notebook.uri, targetResource, CancellationToken.None);
+		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true), success);
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
-		this.setDirty(false);
-		this._onDidSave.fire();
+		if (success) {
+			this.setDirty(false);
+			this._onDidSave.fire();
+		}
 		return true;
 	}
 
