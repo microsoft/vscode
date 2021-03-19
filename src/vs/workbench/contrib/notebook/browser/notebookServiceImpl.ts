@@ -545,12 +545,9 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	}
 
 	private _onWillDisposeDocument(model: INotebookTextModel): void {
-
 		const modelData = this._models.get(model.uri);
-		this._models.delete(model.uri);
-
 		if (modelData) {
-			modelData.model.dispose();
+			this._models.delete(model.uri);
 			modelData.dispose();
 			this._onDidRemoveNotebookDocument.fire(modelData.model.uri);
 		}
