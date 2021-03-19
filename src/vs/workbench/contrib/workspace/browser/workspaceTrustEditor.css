@@ -116,6 +116,7 @@
 }
 
 .workspace-trust-editor .extensions-grid-view > .extension-container {
+	width: 470px;
 	margin: 0 10px 20px 0;
 }
 
@@ -137,10 +138,6 @@
 	flex-grow: 0;
 }
 
-.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .footer > .monaco-action-bar {
-	display: none;
-}
-
 .workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .version,
 .workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .ratings,
 .workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .header-container > .header > .install-count {
@@ -157,7 +154,11 @@
 }
 
 .workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .workspace-trust-description {
-	display: flex;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	flex-grow: 1;
+	white-space: break-spaces;
 }
 
 
