@@ -274,7 +274,7 @@ export interface IFileWorkingCopyResolveOptions {
 	/**
 	 * Go to disk bypassing any cache of the file working copy if any.
 	 */
-	forceReadFromDisk?: boolean;
+	forceReadFromFile?: boolean;
 }
 
 /**
@@ -595,11 +595,11 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private async resolveFromFile(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
 		this.logService.trace('[file working copy] resolveFromFile()', this.resource.toString(true));
 
-		const forceReadFromDisk = options?.forceReadFromDisk;
+		const forceReadFromFile = options?.forceReadFromFile;
 
 		// Decide on etag
 		let etag: string | undefined;
-		if (forceReadFromDisk) {
+		if (forceReadFromFile) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
 		} else if (this.lastResolvedFileStat) {
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
@@ -1102,7 +1102,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.resolve({ forceReadFromDisk: true });
+				await this.resolve({ forceReadFromFile: true });
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
