@@ -13,6 +13,7 @@ import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/noteb
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -54,7 +55,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			}));
 			listeners.push(group.onWillMoveEditor(e => {
 				if (e.editor instanceof NotebookEditorInput) {
-					this._freeWidget(e.editor, editorGroupService.activeGroup, group);
+					this._freeWidget(e.editor, e.source, e.target);
 				}
 			}));
 			groupListener.set(id, listeners);
@@ -95,24 +96,24 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		domNode.remove();
 	}
 
-	private _freeWidget(input: NotebookEditorInput, source: IEditorGroup, target: IEditorGroup): void {
-		const targetWidget = this._borrowableEditors.get(target.id)?.get(input.resource);
+	private _freeWidget(input: NotebookEditorInput, sourceID: GroupIdentifier, targetID: GroupIdentifier): void {
+		const targetWidget = this._borrowableEditors.get(targetID)?.get(input.resource);
 		if (targetWidget) {
 			// not needed
 			return;
 		}
 
-		const widget = this._borrowableEditors.get(source.id)?.get(input.resource);
+		const widget = this._borrowableEditors.get(sourceID)?.get(input.resource);
 		if (!widget) {
 			throw new Error('no widget at source group');
 		}
-		this._borrowableEditors.get(source.id)?.delete(input.resource);
+		this._borrowableEditors.get(sourceID)?.delete(input.resource);
 		widget.token = undefined;
 
-		let targetMap = this._borrowableEditors.get(target.id);
+		let targetMap = this._borrowableEditors.get(targetID);
 		if (!targetMap) {
 			targetMap = new ResourceMap();
-			this._borrowableEditors.set(target.id, targetMap);
+			this._borrowableEditors.set(targetID, targetMap);
 		}
 		targetMap.set(input.resource, widget);
 	}
