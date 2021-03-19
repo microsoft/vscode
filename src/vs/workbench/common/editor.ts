@@ -1254,6 +1254,11 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 	sticky: boolean;
 }
 
+export interface IEditorMoveEvent extends IEditorIdentifier {
+	source: GroupIdentifier,
+	target: GroupIdentifier
+}
+
 export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {

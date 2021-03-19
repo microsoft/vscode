@@ -9,7 +9,6 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
@@ -34,7 +33,6 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService,
 	) {
 
 		const groupListener = new Map<number, IDisposable[]>();
@@ -54,9 +52,9 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 				this._disposeWidget(value.widget);
 				widgets.delete(e.editor.resource);
 			}));
-			listeners.push(group.onWillMoveEditor(input => {
-				if (input instanceof NotebookEditorInput) {
-					this._freeWidget(input, editorGroupService.activeGroup, group);
+			listeners.push(group.onWillMoveEditor(e => {
+				if (e.editor instanceof NotebookEditorInput) {
+					this._freeWidget(e.editor, editorGroupService.activeGroup, group);
 				}
 			}));
 			groupListener.set(id, listeners);

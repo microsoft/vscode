@@ -12,7 +12,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { GroupDirection, IEditorGroupsService, MergeGroupMode, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -288,15 +288,15 @@ class DropOverlay extends Themable {
 						override: EditorOverride.DISABLED 					// preserve editor type
 					}));
 					const copyEditor = this.isCopyOperation(event, draggedEditor);
-					targetGroup.openEditor(draggedEditor.editor, options, copyEditor ? OpenEditorContext.COPY_EDITOR : OpenEditorContext.MOVE_EDITOR);
+
+					if (!copyEditor) {
+						sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
+					} else {
+						sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+					}
 
 					// Ensure target has focus
 					targetGroup.focus();
-
-					// Close in source group unless we copy
-					if (!copyEditor) {
-						sourceGroup.closeEditor(draggedEditor.editor);
-					}
 				}
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
