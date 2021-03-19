@@ -296,7 +296,7 @@ suite('EditorGroupsService', () => {
 		await rootGroup.openEditor(input, EditorOptions.create({ pinned: true }));
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT, { activate: true });
 		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
-		assert.strictEqual(groupAddedCounter, 2);
+		assert.strictEqual(groupAddedCounter, 3);
 		assert.strictEqual(downGroup.count, 1);
 		assert.ok(downGroup.activeEditor instanceof TestFileEditorInput);
 		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
@@ -1211,46 +1211,61 @@ suite('EditorGroupsService', () => {
 		editorGroupChangeListener.dispose();
 	});
 
-	test('moveEditor with context (across groups)', async () => {
-		// const [part] = createPart();
-		// const group = part.activeGroup;
-		// assert.strictEqual(group.isEmpty, true);
+	test('ensure proper event firing with moveEditor', async () => {
+		const [part] = createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
 
-		// const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
 
-		// const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
-		// const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
-		// let firstOpenEditorContext: OpenEditorContext | undefined;
-		// Event.once(group.onWillOpenEditor)(e => {
-		// 	firstOpenEditorContext = e.context;
-		// });
-		// await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
-		// assert.strictEqual(firstOpenEditorContext, undefined);
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
-		// const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(resolve => {
-		// 	Event.once(rightGroup.onWillOpenEditor)(e => resolve(e.context));
-		// });
+		let leftFiredCount = 0;
+		const leftGroupListneer = group.onWillMoveEditor(() => {
+			leftFiredCount++;
+		});
 
-		// group.moveEditor(inputInactive, rightGroup, { index: 0 });
-		// const context = await waitForEditorWillOpen;
-		// assert.strictEqual(context, OpenEditorContext.MOVE_EDITOR);
+		let rightFiredCount = 0;
+		const rightGroupListener = rightGroup.onWillMoveEditor(() => {
+			rightFiredCount++;
+		});
+
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+		assert.strictEqual(leftFiredCount, 0);
+		assert.strictEqual(rightFiredCount, 0);
+
+		group.moveEditor(inputInactive, rightGroup);
+		assert.strictEqual(leftFiredCount, 1);
+		assert.strictEqual(rightFiredCount, 0);
+
+		group.moveEditor(input, rightGroup);
+		assert.strictEqual(leftFiredCount, 2);
+		assert.strictEqual(rightFiredCount, 0);
+
+		rightGroup.moveEditor(inputInactive, group);
+		assert.strictEqual(leftFiredCount, 2);
+		assert.strictEqual(rightFiredCount, 1);
+		leftGroupListneer.dispose();
+		rightGroupListener.dispose();
 	});
 
-	test('copyEditor with context (across groups)', async () => {
-		// const [part] = createPart();
-		// const group = part.activeGroup;
-		// assert.strictEqual(group.isEmpty, true);
+	test('ensure copy doesn\'t fire a move event', async () => {
+		const [part] = createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+		let firedCount = 0;
+		const moveListener = group.onWillMoveEditor(() => firedCount++);
 
-		// const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
-		// const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
-		// const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
-		// await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
-		// const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(resolve => {
-		// 	Event.once(rightGroup.onWillOpenEditor)(e => resolve(e.context));
-		// });
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+		assert.strictEqual(firedCount, 0);
 
-		// group.copyEditor(inputInactive, rightGroup, { index: 0 });
-		// const context = await waitForEditorWillOpen;
-		// assert.strictEqual(context, OpenEditorContext.COPY_EDITOR);
+		group.copyEditor(inputInactive, rightGroup, { index: 0 });
+
+		assert.strictEqual(firedCount, 0);
+		moveListener.dispose();
 	});
 });
