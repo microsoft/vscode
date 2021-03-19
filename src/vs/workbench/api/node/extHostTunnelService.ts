@@ -112,11 +112,11 @@ function knownExcludeCmdline(command: string): boolean {
 		|| (command.indexOf('_productName=VSCode') !== -1);
 }
 
-function getRootProcesses(stdout: string) {
+export function getRootProcesses(stdout: string) {
 	const lines = stdout.trim().split('\n');
 	const mapped: { pid: number, cmd: string }[] = [];
 	lines.forEach(line => {
-		const match = /^\d+\s\D+\sroot\s(\d+).+\d+\:\d+\:\d+\s(.+)$/.exec(line)!;
+		const match = /^\d+\s+\D+\s+root\s+(\d+).+\d+\:\d+\:\d+\s+(.+)$/.exec(line)!;
 		if (match && match.length >= 3) {
 			mapped.push({
 				pid: parseInt(match[1], 10),

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { findPorts, getSockets, loadConnectionTable, loadListeningPorts } from 'vs/workbench/api/node/extHostTunnelService';
+import { findPorts, getRootProcesses, getSockets, loadConnectionTable, loadListeningPorts } from 'vs/workbench/api/node/extHostTunnelService';
 
 const tcp =
 	`  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
@@ -214,6 +214,16 @@ const processes: { pid: number, cwd: string, cmd: string }[] = [
 	}
 ];
 
+const psStdOut =
+	`4 S root         1     0  0  80   0 -   596 -       1440   2 14:41 ?        00:00:00 /bin/sh -c echo Container started ; trap "exit 0" 15; while sleep 1 & wait $!; do :; done
+4 S root        14     0  0  80   0 -   596 -        764   4 14:41 ?        00:00:00 /bin/sh
+4 S root        40     0  0  80   0 -   596 -        700   4 14:41 ?        00:00:00 /bin/sh
+4 S root       513   380  0  80   0 -  2476 -       3404   1 14:41 pts/1    00:00:00 sudo npx http-server -p 5000
+4 S root       514   513  0  80   0 - 165439 -     41380   5 14:41 pts/1    00:00:00 http-server
+0 S root      1052     1  0  80   0 -   573 -        752   5 14:43 ?        00:00:00 sleep 1
+0 S node      1056   329  0  80   0 -   596 do_wai   764  10 14:43 ?        00:00:00 /bin/sh -c ps -F -A -l | grep root
+0 S node      1058  1056  0  80   0 -   770 pipe_w   888   9 14:43 ?        00:00:00 grep root`;
+
 suite('ExtHostTunnelService', () => {
 	test('getSockets', function () {
 		const result = getSockets(procSockets);
@@ -251,6 +261,11 @@ suite('ExtHostTunnelService', () => {
 		// There should be 7 based on the input data. One of them should be 3002.
 		assert.strictEqual(result.length, 7);
 		assert.notStrictEqual(result.find(value => value.port === 3002), undefined);
+	});
+
+	test('getRootProcesses', function () {
+		const result = getRootProcesses(psStdOut);
+		assert.strictEqual(result.length, 6);
 	});
 
 	test('findPorts', async function () {
