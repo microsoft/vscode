@@ -604,7 +604,7 @@ export interface INotebookLoadOptions {
 	/**
 	 * Go to disk bypassing any cache of the model if any.
 	 */
-	forceReadFromDisk?: boolean;
+	forceReadFromFile?: boolean;
 }
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {

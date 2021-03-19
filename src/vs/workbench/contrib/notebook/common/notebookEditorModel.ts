@@ -89,7 +89,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			const stats = await this._resolveStats(this.resource);
 			if (stats && this._lastResolvedFileStat && stats.etag !== this._lastResolvedFileStat.etag) {
 				this._logService.debug('[notebook editor model] trigger load after file event');
-				this.load({ forceReadFromDisk: true });
+				this.load({ forceReadFromFile: true });
 			}
 		}));
 	}
@@ -149,7 +149,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return;
 		}
 
-		await this.load({ forceReadFromDisk: true });
+		await this.load({ forceReadFromFile: true });
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 
@@ -158,7 +158,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	}
 
 	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
-		if (options?.forceReadFromDisk) {
+		if (options?.forceReadFromFile) {
 			this._logService.debug('[notebook editor model] load from provider (forceRead)', this.resource.toString());
 			this._loadFromProvider(undefined);
 			assertType(this.isResolved());
