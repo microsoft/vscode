@@ -963,12 +963,6 @@ declare module 'vscode' {
 		Code = 2
 	}
 
-	export interface NotebookCellPreviousExecutionResult {
-		executionOrder?: number;
-		success?: boolean;
-		duration?: number;
-	}
-
 	export class NotebookCellMetadata {
 		/**
 		 * Controls whether a cell's editor is editable/readonly.
@@ -1001,6 +995,12 @@ declare module 'vscode' {
 		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
 		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+	}
+
+	export interface NotebookCellPreviousExecutionResult {
+		executionOrder?: number;
+		success?: boolean;
+		duration?: number;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1511,6 +1511,11 @@ declare module 'vscode' {
 		startTime?: number;
 	}
 
+	export interface NotebookCellExecuteEndContext {
+		success?: boolean;
+		duration?: number;
+	}
+
 	/**
 	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
 	 * [`createNotebookCellExecutionTask`](#notebook.createNotebookCellExecutionTask) is called, the cell
@@ -1524,7 +1529,7 @@ declare module 'vscode' {
 
 		start(context?: NotebookCellExecuteStartContext): void;
 		executionOrder: number | undefined;
-		end(result: NotebookCellPreviousExecutionResult): void;
+		end(result?: NotebookCellExecuteEndContext): void;
 		readonly token: CancellationToken;
 
 		clearOutput(cellIndex?: number): Thenable<void>;

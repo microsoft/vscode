@@ -1144,7 +1144,7 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			end(result: vscode.NotebookCellPreviousExecutionResult): void {
+			end(result?: vscode.NotebookCellExecuteEndContext): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
@@ -1154,8 +1154,8 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: NotebookCellExecutionState.Idle,
-					lastRunSuccess: result.success ?? null,
-					lastRunDuration: result.duration ?? null,
+					lastRunSuccess: result?.success ?? null,
+					lastRunDuration: result?.duration ?? null,
 				});
 			},
 
