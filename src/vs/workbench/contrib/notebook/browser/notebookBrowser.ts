@@ -166,7 +166,8 @@ export interface ICommonNotebookEditor {
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
 	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
 	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDragEnd(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragEnd(cellId: string): void;
 }
 
 //#endregion
@@ -411,11 +412,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
 
 	/**
-	 * Joins the given cell either with the cell above or the one below depending on the given direction.
-	 */
-	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null>;
-
-	/**
 	 * Delete a cell from the notebook
 	 */
 	deleteNotebookCell(cell: ICellViewModel): Promise<boolean>;
@@ -631,6 +627,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 export interface INotebookCellList {
 	isDisposed: boolean;
+	viewModel: NotebookViewModel | null;
 	readonly contextKeyService: IContextKeyService;
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
@@ -903,6 +900,10 @@ export function getEditorTopPadding() {
 	return EDITOR_TOP_PADDING;
 }
 
+/**
+ * ranges: model selections
+ * this will convert model selections to view indexes first, and then include the hidden ranges in the list view
+ */
 export function expandCellRangesWithHiddenCells(editor: INotebookEditor, viewModel: NotebookViewModel, ranges: ICellRange[]) {
 	// assuming ranges are sorted and no overlap
 	const indexes = cellRangesToIndexes(ranges);

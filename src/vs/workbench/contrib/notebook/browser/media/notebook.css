@@ -177,6 +177,10 @@
 	word-wrap: break-word;
 }
 
+.monaco-workbench .notebookOverlay .output > div.foreground.error .output-stream {
+	color: red; /*TODO@rebornix theme color*/
+}
+
 .monaco-workbench .notebookOverlay .cell-drag-image .output .multi-mimetype-output {
 	display: none;
 }
@@ -196,7 +200,7 @@
 }
 
 .monaco-workbench .notebookOverlay .output .error_message {
-	color: red;
+	color: red; /*TODO@rebornix theme color*/
 }
 
 .monaco-workbench .notebookOverlay .output .error > div {

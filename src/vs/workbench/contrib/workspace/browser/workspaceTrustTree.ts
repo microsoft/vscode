@@ -280,6 +280,7 @@ export class WorkspaceTrustTree extends WorkbenchObjectTree<WorkspaceTrustSettin
 			renderers,
 			{
 				horizontalScrolling: false,
+				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
 				identityProvider: {
 					getId(e) {

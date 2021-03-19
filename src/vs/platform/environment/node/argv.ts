@@ -262,7 +262,7 @@ export function formatOptions(options: OptionDescriptions<any>, columns: number)
 }
 
 function indent(count: number): string {
-	return (<any>' ').repeat(count);
+	return ' '.repeat(count);
 }
 
 function wrapText(text: string, columns: number): string[] {
@@ -319,4 +319,3 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
-

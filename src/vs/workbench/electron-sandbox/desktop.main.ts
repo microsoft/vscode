@@ -3,25 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { simpleFileSystemProvider, SimpleNativeWorkbenchEnvironmentService, SimpleLogService, simpleWorkspace } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
-import { SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
+import { simpleHomeDir, simpleFileSystemProvider, simpleWorkspaceDir, simpleTmpDir, simpleUserDataDir } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { productService, SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 
 class DesktopMain extends SharedDesktopMain {
 
 	constructor(configuration: INativeWorkbenchConfiguration) {
-		super({ ...configuration, workspace: simpleWorkspace }, new SimpleNativeWorkbenchEnvironmentService(configuration));
-	}
-
-	protected createLogService(loggerService: LoggerChannelClient, mainProcessService: IMainProcessService): ILogService {
-		return new SimpleLogService(); // we can only use the real logger, once `IEnvironmentService#logFile` has a proper file:// based value (https://github.com/microsoft/vscode/issues/116829)
+		super({ ...configuration, workspace: { id: configuration.workspace?.id ?? '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: simpleWorkspaceDir } }, new NativeWorkbenchEnvironmentService(configuration, { homeDir: simpleHomeDir.fsPath, tmpDir: simpleTmpDir.fsPath, userDataDir: simpleUserDataDir.fsPath }, productService));
 	}
 
 	protected registerFileSystemProviders(fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {

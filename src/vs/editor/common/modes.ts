@@ -699,8 +699,8 @@ export interface CodeAction {
  * @internal
  */
 export const enum CodeActionTriggerType {
-	Auto = 1,
-	Manual = 2,
+	Invoke = 1,
+	Auto = 2,
 }
 
 /**

@@ -71,8 +71,8 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
 		this._register(this._fileService.onDidFilesChange(async e => {
-			if (this.isDirty() || !this.isResolved()) {
-				// skip when dirty or unresolved...
+			if (this.isDirty() || !this.isResolved() || this._saveSequentializer.hasPending()) {
+				// skip when dirty, unresolved, or when saving
 				return;
 			}
 			if (!e.affects(this.resource, FileChangeType.UPDATED)) {
@@ -81,6 +81,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			}
 			const stats = await this._resolveStats(this.resource);
 			if (stats && this._lastResolvedFileStat && stats.etag !== this._lastResolvedFileStat.etag) {
+				this._logService.debug('[notebook editor model] trigger load after file event');
 				this.load({ forceReadFromDisk: true });
 			}
 		}));
@@ -151,6 +152,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel & IResolvedNotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
+			this._logService.debug('[notebook editor model] load from provider (forceRead)', this.resource.toString());
 			this._loadFromProvider(undefined);
 			assertType(this.isResolved());
 			return this;
@@ -166,6 +168,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
+		this._logService.debug('[notebook editor model] load from provider', this.resource.toString());
 		await this._loadFromProvider(backup?.meta?.backupId);
 		assertType(this.isResolved());
 		return this;
@@ -193,6 +196,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		}
 
 		if (!this.notebook) {
+			this._logService.debug('[notebook editor model] loading NEW notebook', this.resource.toString());
 			// FRESH there is no notebook yet and we are now creating it
 
 			// UGLY
@@ -235,6 +239,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		} else {
 			// UPDATE exitsing notebook with data that we have just fetched
+			this._logService.debug('[notebook editor model] loading onto EXISTING notebook', this.resource.toString());
 			this.notebook.metadata = data.data.metadata;
 			this.notebook.transientOptions = data.transientOptions;
 			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this.notebook.cells.length, cells: data.data.cells }];

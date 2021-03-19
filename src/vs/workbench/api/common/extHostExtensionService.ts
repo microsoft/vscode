@@ -547,12 +547,14 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		);
 	}
 
-	public $extensionTestsExecute(): Promise<number> {
-		return this._doHandleExtensionTests().then(undefined, error => {
+	public async $extensionTestsExecute(): Promise<number> {
+		await this._readyToRunExtensions.wait();
+		try {
+			return this._doHandleExtensionTests();
+		} catch (error) {
 			console.error(error); // ensure any error message makes it onto the console
-
-			return Promise.reject(error);
-		});
+			throw error;
+		}
 	}
 
 	private async _doHandleExtensionTests(): Promise<number> {
@@ -564,7 +566,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
-		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, URI.file(extensionTestsPath), new ExtensionActivationTimesBuilder(false));
+		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath));

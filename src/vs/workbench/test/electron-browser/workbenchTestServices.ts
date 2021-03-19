@@ -6,7 +6,6 @@
 import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
@@ -14,7 +13,7 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -40,9 +39,11 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { homedir, release } from 'os';
+import { homedir, release, tmpdir } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
+import { INativeEnvironmentPaths } from 'vs/platform/environment/common/environmentService';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
@@ -60,7 +61,9 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	...parseArgs(process.argv, OPTIONS)
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService);
+export const TestEnvironmentPaths: INativeEnvironmentPaths = { homeDir: homedir(), tmpDir: tmpdir(), userDataDir: getUserDataPath(TestWorkbenchConfiguration) };
+
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestEnvironmentPaths, TestProductService);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;

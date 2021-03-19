@@ -30,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { deepClone } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -250,7 +250,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_INTO_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
-	primary: KeyCode.F11,
+	primary: (isWeb && isWindows) ? (KeyMod.Alt | KeyCode.F11) : KeyCode.F11, // Windows browsers use F11 for full screen, thus use alt+F11 as the default shortcut
 	// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
 	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {

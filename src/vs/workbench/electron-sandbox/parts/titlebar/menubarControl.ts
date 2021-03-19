@@ -106,6 +106,7 @@ export class NativeMenubarControl extends MenubarControl {
 
 	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
 		let groups = menu.getActions();
+
 		for (let group of groups) {
 			const [, actions] = group;
 
@@ -127,13 +128,16 @@ export class NativeMenubarControl extends MenubarControl {
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
 					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
-					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
-						id: menuItem.id,
-						label: title,
-						submenu: submenu
-					};
+					if (submenu.items.length > 0) {
+						let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+							id: menuItem.id,
+							label: title,
+							submenu: submenu
+						};
 
-					menuToPopulate.items.push(menubarSubmenuItem);
+						menuToPopulate.items.push(menubarSubmenuItem);
+					}
+
 					menuToDispose.dispose();
 				} else {
 					if (menuItem.id === 'workbench.action.openRecent') {

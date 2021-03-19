@@ -53,6 +53,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
 	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
 	private _viewModel: NotebookViewModel | null = null;
+	get viewModel(): NotebookViewModel | null {
+		return this._viewModel;
+	}
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 
@@ -193,6 +196,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			const top = this.getViewScrollTop();
 			const bottom = this.getViewScrollBottom();
+			if (top >= bottom) {
+				return;
+			}
+
 			const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
 			const topElement = this.view.element(topViewIndex);
 			const topModelIndex = this._viewModel!.getCellIndex(topElement);

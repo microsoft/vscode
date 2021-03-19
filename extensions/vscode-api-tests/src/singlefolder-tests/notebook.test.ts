@@ -894,7 +894,7 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(secondResource);
 	});
 
-	test('multiple tabs: different editors with same document', async function () {
+	test.skip('multiple tabs: different editors with same document', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const firstNotebookEditor = vscode.window.activeNotebookEditor;
@@ -1132,12 +1132,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
 		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
 	});
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
-		const openedEditor = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		await vscode.notebook.openNotebookDocument(resource);
-		assert.ok(await openedEditor);
-	});
+
+
 
 	// });
 
