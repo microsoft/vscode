@@ -199,7 +199,38 @@ exports.watchExtensionsTask = watchExtensionsTask;
 const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
 gulp.task(compileExtensionsBuildLegacyTask);
 
-// Azure Pipelines
+//#region Extension media
+
+// Additional projects to webpack. These typically build code for webviews
+const mediaCompilations = [
+	'markdown-language-features/webpack.config.js',
+	'markdown-language-features/webpack.notebook.js',
+	'notebook-markdown-extensions/webpack.notebook.js',
+];
+
+const compileExtensionMediaTask = task.define('compile-extension-media', () => buildExtensionMedia(false));
+gulp.task(compileExtensionMediaTask);
+exports.compileExtensionMediaTask = compileExtensionMediaTask;
+
+const watchExtensionMedia = task.define('watch-extension-media', () => buildExtensionMedia(true));
+gulp.task(watchExtensionMedia);
+exports.watchExtensionMedia = watchExtensionMedia;
+
+function buildExtensionMedia(isWatch, outputRoot) {
+	const webpackConfigLocations = mediaCompilations.map(p => {
+		return {
+			configPath: path.join(extensionsPath, p),
+			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+		};
+	});
+	return webpackExtensions('packaging extension media', isWatch, webpackConfigLocations);
+}
+const compileExtensionMediaBuildTask = task.define('compile-extension-media-build', () => buildExtensionMedia(false, '.build/extensions'));
+gulp.task(compileExtensionMediaBuildTask);
+
+//#endregion
+
+//#region Azure Pipelines
 
 const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimraf('.build/extensions'));
 const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
@@ -209,9 +240,11 @@ const compileExtensionsBuildTask = task.define('compile-extensions-build', task.
 ));
 
 gulp.task(compileExtensionsBuildTask);
-gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask)));
+gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
 
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
+
+//#endregion
 
 const compileWebExtensionsTask = task.define('compile-web', () => buildWebExtensions(false));
 gulp.task(compileWebExtensionsTask);
@@ -222,23 +255,39 @@ gulp.task(watchWebExtensionsTask);
 exports.watchWebExtensionsTask = watchWebExtensionsTask;
 
 async function buildWebExtensions(isWatch) {
-	const webpack = require('webpack');
-
 	const webpackConfigLocations = await nodeUtil.promisify(glob)(
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
 		{ ignore: ['**/node_modules'] }
 	);
+	return webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
+}
+
+/**
+ * @param {string} taskName
+ * @param {boolean} isWatch
+ * @param {{ configPath: string, outputRoot?: boolean}} webpackConfigLocations
+ */
+async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
+	const webpack = require('webpack');
 
 	const webpackConfigs = [];
 
-	for (const webpackConfigPath of webpackConfigLocations) {
-		const configOrFnOrArray = require(webpackConfigPath);
+	for (const { configPath, outputRoot } of webpackConfigLocations) {
+		const configOrFnOrArray = require(configPath);
 		function addConfig(configOrFn) {
+			let config;
 			if (typeof configOrFn === 'function') {
-				webpackConfigs.push(configOrFn({}, {}));
+				config = configOrFn({}, {});
+				webpackConfigs.push(config);
 			} else {
-				webpackConfigs.push(configOrFn);
+				config = configOrFn;
 			}
+
+			if (outputRoot) {
+				config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+			}
+
+			webpackConfigs.push(configOrFn);
 		}
 		addConfig(configOrFnOrArray);
 	}
@@ -249,7 +298,7 @@ async function buildWebExtensions(isWatch) {
 				if (outputPath) {
 					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
 					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
-					fancyLog(`Finished ${ansiColors.green('packaging web extension')} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
+					fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match[0])} with ${stats.errors.length} errors.`);
 				}
 				if (Array.isArray(stats.errors)) {
 					stats.errors.forEach(error => {

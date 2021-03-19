@@ -80,6 +80,90 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: []
 		},
+		'terminal.integrated.profiles.windows': {
+			markdownDescription: localize({
+				key: 'terminal.integrated.profiles.windows',
+				comment: ['{0}, {1}, {2}, and {3} are the `source`, `pathOrPaths`, `profileName`, and optional `args` settings keys']
+			},
+				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1}, {2}, and optional {3}", '`source`', '`pathOrPaths`', '`profileName`', '`args`.'),
+			type: 'object',
+			default: {
+				'PowerShell': {
+					source: 'PowerShell'
+				},
+				'Git Bash': {
+					source: 'Git Bash'
+				},
+				'Command Prompt': {
+					path:
+						[
+							'${env:windir}\\Sysnative\\cmd.exe',
+							'${env:windir}\\System32\\cmd.exe'
+						],
+					args: []
+				},
+				'Windows PowerShell': {
+					comment: 'note that this will not be included in the quickSelect drop down if another version of powershell is installed',
+					path:
+						[
+							'${env:windir}\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+							'${env:windir}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+						],
+					args: []
+				},
+				'WSL': null,
+				'Cygwin': null
+			},
+		},
+		'terminal.integrated.profiles.osx': {
+			markdownDescription: localize({
+				key: 'terminal.integrated.profile.osx',
+				comment: ['{0}, {1}, and {2} are the `pathOrPaths`, `profileName`, and optional `args` settings keys']
+			},
+				"The osx shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`pathOrPaths`', '`profileName`', '`args`.'),
+			type: 'object',
+			default: {
+				'bash': {
+					pathOrPaths: 'bash'
+				},
+				'zsh': {
+					pathOrPaths: 'zsh'
+				},
+				'fish': {
+					pathOrPaths: 'fish'
+				},
+				'tmux': {
+					pathOrPaths: 'tmux'
+				}
+			},
+		},
+		'terminal.integrated.profiles.linux': {
+			markdownDescription: localize({
+				key: 'terminal.integrated.profile.linux',
+				comment: ['{0}, {1}, and {2} are the `pathOrPaths`, `profileName`, and optional `args` settings keys']
+			},
+				"The linux shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0}, {1}, and optional {2}", '`pathOrPaths`', '`profileName`', '`args`.'),
+			type: 'object',
+			default: {
+				'bash': {
+					pathOrPaths: 'bash'
+				},
+				'zsh': {
+					pathOrPaths: 'zsh'
+				},
+				'fish': {
+					pathOrPaths: 'fish'
+				},
+				'tmux': {
+					pathOrPaths: 'tmux'
+				}
+			}
+		},
+		'terminal.integrated.quickLaunchWslProfiles': {
+			description: localize('terminal.integrated.quickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',

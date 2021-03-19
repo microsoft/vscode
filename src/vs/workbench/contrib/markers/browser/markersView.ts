@@ -405,7 +405,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				},
-				openOnFocus: true
+				selectionNavigation: true
 			},
 		));
 

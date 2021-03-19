@@ -1330,10 +1330,8 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 	}
 
-	public reset(processManager: ITerminalProcessManager) {
+	public reset() {
 		this.lastRow = undefined;
-		this.processManager = processManager;
-		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 	}
 
 	private deferClearingPredictions() {

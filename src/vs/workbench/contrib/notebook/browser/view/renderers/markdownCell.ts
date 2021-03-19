@@ -75,7 +75,9 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 		} else {
 			this.localDisposables.clear();
 			this.localDisposables.add(markdownRenderer.onDidRenderAsync(() => {
-				this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
+				if (this.viewCell.editState === CellEditState.Preview) {
+					this.viewCell.renderedMarkdownHeight = this.container.clientHeight;
+				}
 				this.relayoutCell();
 			}));
 
@@ -191,8 +193,13 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		}));
 
-		// Update for selection
 		if (this.useRenderer) {
+			// the markdown preview's height might already be updated after the renderer calls `element.getHeight()`
+			if (this.viewCell.layoutInfo.totalHeight > 0) {
+				this.relayoutCell();
+			}
+
+			// Update for selection
 			this._register(this.notebookEditor.onDidChangeSelection(() => {
 				const selectedCells = this.notebookEditor.getSelectionViewModels();
 				const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === viewCell);
@@ -306,7 +313,13 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.show(this.editorPart);
 		DOM.hide(this.markdownContainer);
 		DOM.hide(this.templateData.collapsedPart);
+
+		if (this.useRenderer) {
+			this.notebookEditor.hideMarkdownPreview(this.viewCell);
+		}
+
 		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('markdown-cell-edit-mode', true);
 
 		if (this.editor) {
 			editorHeight = this.editor.getContentHeight();
@@ -333,15 +346,16 @@ export class StatefulMarkdownCell extends Disposable {
 			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+			this._register(editorContextKeyService);
 
-			this.editor = editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
+			this.editor = this._register(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 				...this.editorOptions,
 				dimension: {
 					width: width,
 					height: editorHeight
 				},
 				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
-			}, {});
+			}, {}));
 			this.templateData.currentEditor = this.editor;
 
 			const cts = new CancellationTokenSource();
@@ -388,6 +402,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 		DOM.show(this.markdownContainer);
 		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
 
 		this.renderedEditors.delete(this.viewCell);
 

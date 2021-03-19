@@ -74,8 +74,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		const cellLengths: number[] = [];
 		const cellLineCounts: number[] = [];
 		for (const cell of this._notebook.cells) {
-			if (cell.cellKind === types.NotebookCellKind.Code && (!this._selector || score(this._selector, cell.uri, cell.language, true))) {
-				this._cellUris.set(cell.uri, this._cells.length);
+			if (cell.kind === types.NotebookCellKind.Code && (!this._selector || score(this._selector, cell.document.uri, cell.document.languageId, true))) {
+				this._cellUris.set(cell.document.uri, this._cells.length);
 				this._cells.push(cell);
 				cellLengths.push(cell.document.getText().length + 1);
 				cellLineCounts.push(cell.document.lineCount);
@@ -161,7 +161,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		const range = new types.Range(startPos, endPos);
 
 		const startCell = this._cells[startIdx.index];
-		return new types.Location(startCell.uri, <types.Range>startCell.document.validateRange(range));
+		return new types.Location(startCell.document.uri, <types.Range>startCell.document.validateRange(range));
 	}
 
 	contains(uri: vscode.Uri): boolean {

@@ -764,6 +764,18 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return targetView;
 	}
 
+	mergeAllGroups(target = this.activeGroup): IEditorGroupView {
+		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (group === target) {
+				continue; // keep target
+			}
+
+			this.mergeGroup(group, target);
+		}
+
+		return target;
+	}
+
 	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {

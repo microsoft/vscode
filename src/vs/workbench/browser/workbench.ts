@@ -26,6 +26,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
+import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
@@ -378,6 +379,7 @@ export class Workbench extends Layout {
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.container, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
+		this._register(instantiationService.createInstance(NotificationsTelemetry));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {
@@ -390,7 +392,7 @@ export class Workbench extends Layout {
 		}));
 
 		// Register Commands
-		registerNotificationCommands(notificationsCenter, notificationsToasts);
+		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
 
 		// Register with Layout
 		this.registerNotifications({

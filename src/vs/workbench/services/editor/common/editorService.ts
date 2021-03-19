@@ -201,6 +201,7 @@ export interface IEditorService {
 	 * Replaces editors in an editor group with the provided replacement.
 	 *
 	 * @param editors the editors to replace
+	 * @param group the editor group
 	 *
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.

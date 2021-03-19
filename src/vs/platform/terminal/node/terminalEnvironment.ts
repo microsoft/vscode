@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
+import * as process from 'vs/base/common/process';
 import { exists } from 'vs/base/node/pfs';
 import { isString } from 'vs/base/common/types';
 import { getCaseInsensitive } from 'vs/base/common/objects';

@@ -368,10 +368,6 @@
 	line-height: 22px;
 }
 
-.extension-editor > .body > .content details > summary::-webkit-details-marker {
-	color: rgba(128, 128, 128, 0.5);
-}
-
 .extension-editor > .body > .content table tr:nth-child(odd) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
@@ -499,6 +495,7 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container {
+	height: 275px;
 	margin: 0 10px 20px 0;
 }
 

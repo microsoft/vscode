@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -43,7 +43,6 @@ export const NOTEBOOK_EDITOR_OPEN = new RawContextKey<boolean>('notebookEditorOp
 export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCellListFocused', false);
 export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
-export const NOTEBOOK_EDITOR_RUNNABLE = new RawContextKey<boolean>('notebookRunnable', true);
 export const NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK = new RawContextKey<boolean>('notebookExecuting', false);
 
 // Diff Editor Keys
@@ -55,9 +54,8 @@ export const NOTEBOOK_CELL_TYPE = new RawContextKey<string>('notebookCellType', 
 export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEditable', false); // bool
 export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false); // bool
 export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false); // bool
-export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRunnable', false); // bool
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
-export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
+export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // Idle, Running
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
@@ -168,7 +166,8 @@ export interface ICommonNotebookEditor {
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
 	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
 	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDragEnd(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragEnd(cellId: string): void;
 }
 
 //#endregion
@@ -233,6 +232,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
+	readonly layoutInfo: { totalHeight: number; };
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -243,6 +243,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	outputIsHovered: boolean;
 	getText(): string;
 	getTextLength(): number;
+	getHeight(lineHeight: number): number;
 	metadata: NotebookCellMetadata | undefined;
 	textModel: ITextModel | undefined;
 	hasModel(): this is IEditableCellViewModel;
@@ -297,6 +298,7 @@ export class NotebookEditorOptions extends EditorOptions {
 		super();
 		this.overwrite(options);
 		this.cellOptions = options.cellOptions;
+		this.cellSelections = options.cellSelections;
 	}
 
 	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
@@ -318,8 +320,7 @@ export interface INotebookEditorCreationOptions {
 
 export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
-	// selection is never undefined when the editor is attached to a document.
-	getSelection(): ICellRange;
+	getFocus(): ICellRange;
 }
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
@@ -331,7 +332,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	// from the old IEditor
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
-	getSelection(): ICellRange | undefined;
 	getSelections(): ICellRange[];
 	visibleRanges: ICellRange[];
 	textModel?: NotebookTextModel;
@@ -356,6 +356,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidFocusEditorWidget: Event<void>;
 	activeKernel: INotebookKernel | undefined;
 	multipleKernelsAvailable: boolean;
+	readonly onDidScroll: Event<void>;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
@@ -388,6 +389,8 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	getLayoutInfo(): NotebookLayoutInfo;
 
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
+
 	/**
 	 * Fetch the output renderers for notebook outputs.
 	 */
@@ -407,11 +410,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * Split a given cell into multiple cells of the same type using the selection start positions.
 	 */
 	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
-
-	/**
-	 * Joins the given cell either with the cell above or the one below depending on the given direction.
-	 */
-	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null>;
 
 	/**
 	 * Delete a cell from the notebook
@@ -569,6 +567,23 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void>;
 
 	/**
+	 * Get the view index of a cell
+	 */
+	getViewIndex(cell: ICellViewModel): number;
+
+	/**
+	 * @param startIndex Inclusive
+	 * @param endIndex Exclusive
+	 */
+	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined;
+
+	/**
+	 * @param startIndex Inclusive
+	 * @param endIndex Exclusive
+	 */
+	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[];
+
+	/**
 	 * Set hidden areas on cell text models.
 	 */
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
@@ -612,6 +627,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 export interface INotebookCellList {
 	isDisposed: boolean;
+	viewModel: NotebookViewModel | null;
 	readonly contextKeyService: IContextKeyService;
 	element(index: number): ICellViewModel | undefined;
 	elementAt(position: number): ICellViewModel | undefined;
@@ -637,6 +653,10 @@ export interface INotebookCellList {
 	attachViewModel(viewModel: NotebookViewModel): void;
 	clear(): void;
 	getViewIndex(cell: ICellViewModel): number | undefined;
+	getViewIndex2(modelIndex: number): number | undefined;
+	getModelIndex(cell: CellViewModel): number | undefined;
+	getModelIndex2(viewIndex: number): number | undefined;
+	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];
@@ -878,4 +898,35 @@ export function updateEditorTopPadding(top: number) {
 
 export function getEditorTopPadding() {
 	return EDITOR_TOP_PADDING;
+}
+
+/**
+ * ranges: model selections
+ * this will convert model selections to view indexes first, and then include the hidden ranges in the list view
+ */
+export function expandCellRangesWithHiddenCells(editor: INotebookEditor, viewModel: NotebookViewModel, ranges: ICellRange[]) {
+	// assuming ranges are sorted and no overlap
+	const indexes = cellRangesToIndexes(ranges);
+	let modelRanges: ICellRange[] = [];
+	indexes.forEach(index => {
+		const viewCell = viewModel.viewCells[index];
+
+		if (!viewCell) {
+			return;
+		}
+
+		const viewIndex = editor.getViewIndex(viewCell);
+		if (viewIndex < 0) {
+			return;
+		}
+
+		const nextViewIndex = viewIndex + 1;
+		const range = editor.getCellRangeFromViewRange(viewIndex, nextViewIndex);
+
+		if (range) {
+			modelRanges.push(range);
+		}
+	});
+
+	return reduceRanges(modelRanges);
 }

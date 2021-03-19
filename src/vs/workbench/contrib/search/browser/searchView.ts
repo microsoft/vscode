@@ -313,6 +313,7 @@ export class SearchView extends ViewPane {
 
 		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
 			ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
+			tooltip: nls.localize('placeholder.includes', "(e.g. *.ts, src/**/include)"),
 			history: patternIncludesHistory,
 		}));
 
@@ -330,6 +331,7 @@ export class SearchView extends ViewPane {
 		dom.append(excludesList, $('h4', undefined, excludesTitle));
 		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
 			ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns'),
+			tooltip: nls.localize('placeholder.excludes', "(e.g. *.ts, src/**/exclude)"),
 			history: patternExclusionsHistory,
 		}));
 
@@ -715,7 +717,7 @@ export class SearchView extends ViewPane {
 				accessibilityProvider: this.treeAccessibilityProvider,
 				dnd: this.instantiationService.createInstance(SearchDND),
 				multipleSelectionSupport: false,
-				openOnFocus: true,
+				selectionNavigation: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				}
