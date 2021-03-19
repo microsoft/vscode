@@ -35,7 +35,8 @@ const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 
-export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean }>;
+export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; }>;
+type IStoredMetadata = IMetadata & { installedTimestamp: number | undefined };
 export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
 type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
 
@@ -115,6 +116,12 @@ export class ExtensionsScanner extends Disposable {
 		}
 
 		await this.extractAtLocation(identifierWithVersion, zipPath, tempPath, token);
+		let local = await this.scanExtension(URI.file(tempPath), ExtensionType.User);
+		if (!local) {
+			throw new Error(localize('cannot read', "Cannot read the extension from {0}", tempPath));
+		}
+		await this.storeMetadata(local, { installedTimestamp: Date.now() });
+
 		try {
 			await this.rename(identifierWithVersion, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
 			this.logService.info('Renamed to', extensionPath);
@@ -130,9 +137,8 @@ export class ExtensionsScanner extends Disposable {
 			}
 		}
 
-		let local: ILocalExtension | null = null;
 		try {
-			local = await this.scanExtension(URI.file(path.join(this.extensionsPath, folderName)), ExtensionType.User);
+			local = await this.scanExtension(URI.file(extensionPath), ExtensionType.User);
 		} catch (e) { /*ignore */ }
 
 		if (local) {
@@ -143,14 +149,19 @@ export class ExtensionsScanner extends Disposable {
 
 	async saveMetadataForLocalExtension(local: ILocalExtension, metadata: IMetadata): Promise<ILocalExtension> {
 		this.setMetadata(local, metadata);
+		await this.storeMetadata(local, { ...metadata, installedTimestamp: local.installedTimestamp });
+		return local;
+	}
 
+	private async storeMetadata(local: ILocalExtension, storedMetadata: IStoredMetadata): Promise<ILocalExtension> {
 		// unset if false
-		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
-		metadata.isBuiltin = metadata.isBuiltin || undefined;
+		storedMetadata.isMachineScoped = storedMetadata.isMachineScoped || undefined;
+		storedMetadata.isBuiltin = storedMetadata.isBuiltin || undefined;
+		storedMetadata.installedTimestamp = storedMetadata.installedTimestamp || undefined;
 		const manifestPath = path.join(local.location.fsPath, 'package.json');
 		const raw = await fs.promises.readFile(manifestPath, 'utf8');
 		const { manifest } = await this.parseManifest(raw);
-		(manifest as ILocalExtensionManifest).__metadata = metadata;
+		(manifest as ILocalExtensionManifest).__metadata = storedMetadata;
 		await pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
 		return local;
 	}
@@ -249,16 +260,18 @@ export class ExtensionsScanner extends Disposable {
 		const stat = await this.fileService.resolve(URI.file(dir));
 		if (stat.children) {
 			const extensions = await Promise.all<ILocalExtension>(stat.children.filter(c => c.isDirectory)
-				.map(c => limiter.queue(() => this.scanExtension(c.resource, type))));
+				.map(c => limiter.queue(async () => {
+					if (type === ExtensionType.User && basename(c.resource).indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
+						return null;
+					}
+					return this.scanExtension(c.resource, type);
+				})));
 			return extensions.filter(e => e && e.identifier);
 		}
 		return [];
 	}
 
 	private async scanExtension(extensionLocation: URI, type: ExtensionType): Promise<ILocalExtension | null> {
-		if (type === ExtensionType.User && basename(extensionLocation).indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
-			return null;
-		}
 		try {
 			const stat = await this.fileService.resolve(extensionLocation);
 			if (stat.children) {
@@ -269,6 +282,7 @@ export class ExtensionsScanner extends Disposable {
 				const local = <ILocalExtension>{ type, identifier, manifest, location: extensionLocation, readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isMachineScoped: false, isBuiltin: type === ExtensionType.System };
 				if (metadata) {
 					this.setMetadata(local, metadata);
+					local.installedTimestamp = metadata.installedTimestamp;
 				}
 				return local;
 			}
@@ -358,7 +372,7 @@ export class ExtensionsScanner extends Disposable {
 		return this._devSystemExtensionsPath;
 	}
 
-	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: IMetadata | null; }> {
+	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: IStoredMetadata | null; }> {
 		const promises = [
 			fs.promises.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 				.then(raw => this.parseManifest(raw)),
