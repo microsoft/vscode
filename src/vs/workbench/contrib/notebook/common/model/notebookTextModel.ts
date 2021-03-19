@@ -219,6 +219,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _operationManager: NotebookOperationManager;
 	private _eventEmitter: DelayedEmitter;
 
+	get length() {
+		return this._cells.length;
+	}
+
 	get cells(): readonly NotebookCellTextModel[] {
 		return this._cells;
 	}

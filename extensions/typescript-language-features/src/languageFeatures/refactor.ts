@@ -335,7 +335,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
-		if (context.triggerKind === vscode.CodeActionTriggerKind.Manual) {
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
 			return 'invoked';
 		}
 		return undefined;
@@ -389,7 +389,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return false;
 		}
 
-		return context.triggerKind === vscode.CodeActionTriggerKind.Manual;
+		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {

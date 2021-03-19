@@ -221,7 +221,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.load({ forceReadFromDisk: true });
+				await this.load({ forceReadFromFile: true });
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -390,12 +390,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private async loadFromFile(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
 		this.logService.trace('[text file model] loadFromFile()', this.resource.toString(true));
 
-		const forceReadFromDisk = options?.forceReadFromDisk;
+		const forceReadFromFile = options?.forceReadFromFile;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
 		// Decide on etag
 		let etag: string | undefined;
-		if (forceReadFromDisk) {
+		if (forceReadFromFile) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
 		} else if (this.lastResolvedFileStat) {
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
@@ -960,7 +960,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Load
 			this.load({
-				forceReadFromDisk: true	// because encoding has changed
+				forceReadFromFile: true	// because encoding has changed
 			});
 		}
 	}
@@ -996,10 +996,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	isReadonly(): boolean {
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
-	}
-
-	getStat(): IFileStatWithMetadata | undefined {
-		return this.lastResolvedFileStat;
 	}
 
 	dispose(): void {

@@ -402,9 +402,9 @@ export interface ITextFileLoadOptions {
 	contents?: ITextBufferFactory;
 
 	/**
-	 * Go to disk bypassing any cache of the model if any.
+	 * Go to file bypassing any cache of the model if any.
 	 */
-	forceReadFromDisk?: boolean;
+	forceReadFromFile?: boolean;
 
 	/**
 	 * Allow to load a model even if we think it is a binary file.

@@ -16,14 +16,15 @@ suite('NotebookTextModel', () => {
 
 	test('insert', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
+				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
@@ -39,14 +40,15 @@ suite('NotebookTextModel', () => {
 
 	test('multiple inserts at same position', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
+				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
@@ -62,14 +64,14 @@ suite('NotebookTextModel', () => {
 
 	test('delete', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
@@ -83,14 +85,15 @@ suite('NotebookTextModel', () => {
 
 	test('delete + insert', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
+				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
@@ -106,14 +109,15 @@ suite('NotebookTextModel', () => {
 
 	test('delete + insert at same position', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
+				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
@@ -129,14 +133,15 @@ suite('NotebookTextModel', () => {
 
 	test('(replace) delete + insert at same position', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
+				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined, undefined);
@@ -151,11 +156,11 @@ suite('NotebookTextModel', () => {
 
 	test('output', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const textModel = editor.viewModel.notebookDocument;
 
 				// invalid index 1
 				assert.throws(() => {
@@ -224,11 +229,11 @@ suite('NotebookTextModel', () => {
 
 	test('metadata', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const textModel = editor.viewModel.notebookDocument;
 
 				// invalid index 1
 				assert.throws(() => {
@@ -262,14 +267,15 @@ suite('NotebookTextModel', () => {
 
 	test('multiple inserts in one edit', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
+				const textModel = editor.viewModel.notebookDocument;
 				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
 				const eventListener = textModel.onDidChangeContent(e => {
 					changeEvent = e;
@@ -297,14 +303,14 @@ suite('NotebookTextModel', () => {
 
 	test('insert and metadata change in one edit', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var c = 3;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel, textModel) => {
+			(editor) => {
+				const textModel = editor.viewModel.notebookDocument;
 				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
 				const eventListener = textModel.onDidChangeContent(e => {
 					changeEvent = e;
@@ -331,9 +337,10 @@ suite('NotebookTextModel', () => {
 
 
 	test('Updating appending/updating output in Notebooks does not work as expected #117273', function () {
-		withTestNotebook(instantiationService, [
+		withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }]
-		], (_editor, _view, model) => {
+		], (editor) => {
+			const model = editor.viewModel.notebookDocument;
 
 			assert.strictEqual(model.cells.length, 1);
 			assert.strictEqual(model.cells[0].outputs.length, 0);

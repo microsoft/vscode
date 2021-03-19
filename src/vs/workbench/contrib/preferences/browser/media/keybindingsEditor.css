@@ -189,3 +189,13 @@
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected.focused .monaco-table-td .highlight {
 	color: inherit;
 }
+
+.keybindings-editor .monaco-table-th,
+.keybindings-editor .monaco-table-td {
+	padding-left: 10px;
+}
+
+.keybindings-editor .monaco-table-th[data-col-index="0"],
+.keybindings-editor .monaco-table-td[data-col-index="0"] {
+	padding-left: 20px;
+}

@@ -14,7 +14,7 @@ import { WorkspacesManagementMainService, IStoredWorkspace, getSingleFolderWorks
 import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { URI } from 'vs/base/common/uri';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
@@ -25,7 +25,7 @@ import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-suite('WorkspacesManagementMainService', () => {
+flakySuite('WorkspacesManagementMainService', () => {
 
 	class TestDialogMainService implements IDialogMainService {
 

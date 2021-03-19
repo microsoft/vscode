@@ -160,7 +160,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// TODO@sandbox remove me once testing is done on `vscode-file` protocol
 		// (all traces of `enable-browser-code-loading` and `ENABLE_VSCODE_BROWSER_CODE_LOADING`)
-		'enable-browser-code-loading'
+		'enable-browser-code-loading',
+
+		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		'log-level',
 	];
 
 	// Read argv config
@@ -203,6 +206,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'enable-browser-code-loading':
 					if (typeof argvValue === 'string') {
 						process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = argvValue;
+					}
+					break;
+
+				case 'log-level':
+					if (typeof argvValue === 'string') {
+						process.argv.push('--log', argvValue);
 					}
 					break;
 			}
@@ -487,7 +496,7 @@ function getNodeCachedDir() {
 	return new class {
 
 		constructor() {
-			this.value = this._compute();
+			this.value = this.compute();
 		}
 
 		async ensureExists() {
@@ -502,7 +511,7 @@ function getNodeCachedDir() {
 			}
 		}
 
-		_compute() {
+		compute() {
 			if (process.argv.indexOf('--no-cached-data') > 0) {
 				return undefined;
 			}

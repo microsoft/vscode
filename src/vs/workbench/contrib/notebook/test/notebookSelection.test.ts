@@ -26,12 +26,12 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell list setFocus', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 
@@ -47,12 +47,12 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell list setSelections', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 
@@ -69,12 +69,12 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell list setFocus', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 
@@ -93,7 +93,6 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell list focus/selection from UI', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
@@ -101,7 +100,8 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markdown, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const cellList = createNotebookCellList(instantiationService);
 				cellList.attachViewModel(viewModel);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
@@ -129,7 +129,6 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell list focus/selection with folding regions', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
@@ -137,7 +136,8 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markdown, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -174,7 +174,6 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell list focus/selection with folding regions and applyEdits', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
@@ -184,7 +183,8 @@ suite('NotebookCellList focus/selection', () => {
 				['# header d', 'markdown', CellKind.Markdown, [], {}],
 				['var e = 4;', 'javascript', CellKind.Code, [], {}],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -228,7 +228,6 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell list getModelIndex', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
@@ -236,7 +235,8 @@ suite('NotebookCellList focus/selection', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['# header c', 'markdown', CellKind.Markdown, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 
@@ -258,12 +258,12 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook validate range', async () => {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				assert.deepStrictEqual(viewModel.validateRange(null), null);
 				assert.deepStrictEqual(viewModel.validateRange(undefined), null);
 				assert.deepStrictEqual(viewModel.validateRange({ start: 0, end: 0 }), null);
@@ -278,12 +278,12 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook updateSelectionState', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }, { start: -1, end: 0 }] });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 			});
@@ -291,12 +291,12 @@ suite('NotebookCellList focus/selection', () => {
 
 	test('notebook cell selection w/ cell deletion', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['# header a', 'markdown', CellKind.Markdown, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				viewModel.deleteCell(1, true, false);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });

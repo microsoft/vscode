@@ -154,7 +154,7 @@ interface PortAttributes extends Attributes {
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
-	private static DEFAULTS = 'remote.portsAttributes.defaults';
+	private static DEFAULTS = 'remote.unconfiguredPortsAttributes';
 	private static RANGE = /^(\d+)\-(\d+)$/;
 	private portsAttributes: PortAttributes[] = [];
 	private defaultPortAttributes: Attributes | undefined;
@@ -164,7 +164,7 @@ export class PortsAttributes extends Disposable {
 	constructor(private readonly configurationService: IConfigurationService) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(PortsAttributes.SETTING)) {
+			if (e.affectsConfiguration(PortsAttributes.SETTING) || e.affectsConfiguration(PortsAttributes.DEFAULTS)) {
 				this.updateAttributes();
 			}
 		}));
@@ -645,7 +645,7 @@ export class TunnelModel extends Disposable {
 		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
 			return Array.from(pidToPortsMapping.entries()).map(entry => {
 				const portGroup = entry[1];
-				const matchingCandidate = matchingCandidates.get(portGroup[1]);
+				const matchingCandidate = matchingCandidates.get(portGroup[0]);
 				return provider.providePortAttributes(portGroup,
 					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
 			});

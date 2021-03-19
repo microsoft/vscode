@@ -48,6 +48,8 @@ import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsScanner, ILocalExtensionManifest, IMetadata } from 'vs/platform/extensionManagement/node/extensionsScanner';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
+import { ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
 const INSTALL_ERROR_DOWNLOADING = 'downloading';
@@ -92,12 +94,19 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		@optional(IDownloadService) private downloadService: IDownloadService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileService fileService: IFileService,
 	) {
 		super();
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
+		const extensionsWatcher = this._register(new ExtensionsWatcher(this, fileService, environmentService, logService));
+
+		this._register(extensionsWatcher.onDidChangeExtensionsByAnotherSource(({ added, removed }) => {
+			added.forEach(extension => this._onDidInstallExtension.fire({ identifier: extension.identifier, operation: InstallOperation.None, local: extension }));
+			removed.forEach(extension => this._onDidUninstallExtension.fire({ identifier: extension }));
+		}));
 
 		this._register(toDisposable(() => {
 			this.installingExtensions.forEach(promise => promise.cancel());

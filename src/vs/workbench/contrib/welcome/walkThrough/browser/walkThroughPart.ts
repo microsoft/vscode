@@ -17,7 +17,7 @@ import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/brows
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -39,7 +39,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -67,7 +66,6 @@ export class WalkThroughPart extends EditorPane {
 	private lastFocus: HTMLElement | undefined;
 	private size: Dimension | undefined;
 	private editorMemento: IEditorMemento<IWalkThroughEditorViewState>;
-	private tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -82,12 +80,10 @@ export class WalkThroughPart extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 		this.editorMemento = this.getEditorMemento<IWalkThroughEditorViewState>(editorGroupService, WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
-		this.tasExperimentService = tasExperimentService;
 	}
 
 	createEditor(container: HTMLElement): void {
@@ -192,15 +188,6 @@ export class WalkThroughPart extends EditorPane {
 	private open(uri: URI) {
 		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
 			this.notificationService.info(localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
-			return;
-		}
-		if (uri.scheme === 'command' && uri.path === 'workbench.action.files.newUntitledFile') {
-			Promise.all([
-				this.tasExperimentService?.getTreatment<boolean>('newuntitledmode'),
-				this.openerService.open(this.addFrom(uri)),
-			]).then(([newUntitledMode]) => {
-				return newUntitledMode && this.openerService.open(this.addFrom(URI.parse('command:workbench.action.editor.changeLanguageMode')));
-			});
 			return;
 		}
 		this.openerService.open(this.addFrom(uri));

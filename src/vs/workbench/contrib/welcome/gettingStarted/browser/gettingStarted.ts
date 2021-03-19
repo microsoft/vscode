@@ -9,10 +9,10 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, reset } from 'vs/base/browser/dom';
+import { $, addDisposableListener, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
+import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -27,7 +27,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IGettingStartedCategory, IGettingStartedCategoryDescriptor } from 'vs/workbench/services/gettingStarted/common/gettingStartedRegistry';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -39,10 +38,11 @@ import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { coalesce } from 'vs/base/common/arrays';
 import { isMacintosh } from 'vs/base/common/platform';
+
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
-const hiddenEntriesConfigurationKey = 'gettingStarted.hiddenCategories';
+const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -114,6 +114,7 @@ export class GettingStartedPage extends EditorPane {
 	private tasExperimentService?: ITASExperimentService;
 	private previousSelection?: string;
 	private recentlyOpened: Promise<IRecentlyOpened>;
+	private selectedTaskElement?: HTMLDivElement;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -154,7 +155,33 @@ export class GettingStartedPage extends EditorPane {
 			this.buildCategoriesSlide();
 		}));
 
-		this._register(this.gettingStartedService.onDidAddCategory(category => console.log('added new category', category, 'that isnt being rendered yet')));
+		this._register(this.gettingStartedService.onDidChangeTask(task => {
+			const ourCategory = this.gettingStartedCategories.find(c => c.id === task.category);
+			if (!ourCategory || ourCategory.content.type === 'startEntry') {
+				console.error('Attempting to modify category that does not exist or is invlid type', task);
+				return;
+			}
+			const ourTask = ourCategory.content.items.find(item => item.id === task.id);
+			if (!ourTask) {
+				console.error('Attempting to modify task that cannot be found', task);
+				return;
+			}
+			ourTask.title = task.title;
+			ourTask.description = task.description;
+			ourTask.media.path = task.media.path;
+		}));
+
+		this._register(this.gettingStartedService.onDidChangeCategory(category => {
+			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
+			if (!ourCategory) {
+				console.error('Attempting to modify category that does not exist or is invlid type', category);
+				return;
+			}
+
+			ourCategory.title = category.title;
+			ourCategory.description = category.description;
+		}));
+
 		this._register(this.gettingStartedService.onDidProgressTask(task => {
 			const category = this.gettingStartedCategories.find(category => category.id === task.category);
 			if (!category) { throw Error('Could not find category with ID: ' + task.category); }
@@ -174,8 +201,8 @@ export class GettingStartedPage extends EditorPane {
 					}
 					else {
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
-						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
+						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 					}
 				});
 			}
@@ -218,7 +245,7 @@ export class GettingStartedPage extends EditorPane {
 							break;
 						}
 						case 'openFolder': {
-							this.commandService.executeCommand(isMacintosh ? 'workbench.action.openFileFolder' : 'workbench.action.openFolder');
+							this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 							break;
 						}
 						case 'selectCategory': {
@@ -243,8 +270,17 @@ export class GettingStartedPage extends EditorPane {
 							this.selectTask(argument);
 							break;
 						}
-						case 'completeTask': {
-							this.gettingStartedService.progressTask(argument);
+						case 'toggleTaskCompletion': {
+							if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
+								throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
+							}
+
+							const taskToggle = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
+							if (taskToggle.done) {
+								this.gettingStartedService.deprogressTask(argument);
+							} else {
+								this.gettingStartedService.progressTask(argument);
+							}
 							break;
 						}
 						case 'runTaskAction': {
@@ -287,6 +323,7 @@ export class GettingStartedPage extends EditorPane {
 			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
 				this.previousSelection = this.editorInput.selectedTask;
 				this.editorInput.selectedTask = undefined;
+				this.selectedTaskElement = undefined;
 				return;
 			}
 			taskElement.style.height = `${taskElement.scrollHeight}px`;
@@ -294,6 +331,7 @@ export class GettingStartedPage extends EditorPane {
 				throw Error('cannot expand task for category of non items type' + this.currentCategory?.id);
 			}
 			this.editorInput.selectedTask = id;
+			this.selectedTaskElement = taskElement;
 			const taskToExpand = assertIsDefined(this.currentCategory.content.items.find(task => task.id === id));
 
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
@@ -426,24 +464,22 @@ export class GettingStartedPage extends EditorPane {
 
 		const categoriesSlide = assertIsDefined(this.container.querySelector('.gettingStartedSlideCategory') as HTMLElement);
 		reset(categoriesSlide,
-			$('.gap'),
-			$('.header', {},
-				$('h1.product-name.caption', {}, localize('gettingStarted.vscode', "Visual Studio Code")),
-				$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved")),
-			),
-			$('.categories-split-view', {},
-				$('.gap'),
-				$('.categories-left', {},
-					this.buildStartList(),
-					this.buildRecentlyOpenedList(),
+			$('.categories-slide-container', {},
+				$('.header', {},
+					$('h1.product-name.caption', {}, localize('gettingStarted.vscode', "Visual Studio Code")),
+					$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved")),
 				),
-				$('.categories-right', {},
-					$('h2', {}, localize('gettingStarted', "Getting Started")),
-					this.categoriesScrollbar.getDomNode(),
-				),
-				$('.gap'),
+				$('.categories-split-view', {},
+					$('.categories-left', {},
+						this.buildStartList(),
+						this.buildRecentlyOpenedList(),
+					),
+					$('.categories-right', {},
+						$('h2', {}, localize('gettingStarted', "Getting Started")),
+						this.categoriesScrollbar.getDomNode(),
+					),
+				)
 			),
-			$('.gap'),
 			$('.footer', {},
 				$('p.showOnStartup', {},
 					showOnStartupCheckbox,
@@ -538,7 +574,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 			if (!workspaces.length) {
 				this.container.classList.add('emptyRecent');
-				ul.append($('.empty-recent', {}, 'You hve no recent folders,', $('button.button-link', {}, 'open a folder'), 'to start.'));
+				ul.append($('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'));
 				return;
 			}
 
@@ -556,7 +592,7 @@ export class GettingStartedPage extends EditorPane {
 				updateEntries();
 				this.registerDispatchListeners();
 			}));
-		}).then(undefined, onUnexpectedError);
+		}).then(() => this.registerDispatchListeners(), onUnexpectedError);
 
 		return container;
 	}
@@ -567,10 +603,8 @@ export class GettingStartedPage extends EditorPane {
 
 			if (entry.content.type === 'items') { return undefined; }
 
-			const li = $('li', {}, this.iconWidgetFor(entry));
-			const button = $<HTMLAnchorElement>('button.button-link', { 'x-dispatch': 'selectCategory:' + entry.id });
-
-			button.innerText = entry.title;
+			const li = $('li', {});
+			const button = $<HTMLAnchorElement>('button.button-link', { 'x-dispatch': 'selectCategory:' + entry.id }, this.iconWidgetFor(entry), $('span', {}, entry.title));
 			button.title = entry.description;
 
 			li.appendChild(button);
@@ -593,20 +627,17 @@ export class GettingStartedPage extends EditorPane {
 
 
 
-	layout() {
+	layout(size: Dimension) {
 		this.categoriesScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
+		this.container.classList[size.height <= 685 ? 'add' : 'remove']('height-constrained');
 
-		// Don't let our spacer elements move around based on internal content changes, only when the external size changes
-		this.container.querySelectorAll<HTMLDivElement>('.gap').forEach(element => {
-			element.style.width = '';
-			element.style.height = '';
-			setTimeout(() => {
-				element.style.width = `${element.clientWidth}px`;
-				element.style.height = `${element.clientHeight}px`;
-			}, 0);
-		});
+
+		if (this.selectedTaskElement) {
+			this.selectedTaskElement.style.height = ``; // unset or the scrollHeight will just be the old height
+			this.selectedTaskElement.style.height = `${this.selectedTaskElement.scrollHeight}px`;
+		}
 	}
 
 	private updateCategoryProgress() {
@@ -674,38 +705,50 @@ export class GettingStartedPage extends EditorPane {
 					$('.category-description.description', {}, category.description))));
 
 		const categoryElements = category.content.items.map(
-			(task, i, arr) => $('button.getting-started-task',
-				{
-					'x-dispatch': 'selectTask:' + task.id,
-					'data-task-id': task.id,
-					'aria-expanded': 'false',
-					'aria-checked': '' + task.done,
-					'role': 'listitem',
-				},
-				$('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
+			(task, i, arr) => {
+
+				const codicon = $('.codicon' + (task.done ? '.complete' + ThemeIcon.asCSSSelector(gettingStartedCheckedCodicon) : ThemeIcon.asCSSSelector(gettingStartedUncheckedCodicon)),
 					{
 						'data-done-task-id': task.id,
-						'x-dispatch': 'completeTask:' + task.id,
-					}),
-				$('.task-description-container', {},
+						'x-dispatch': 'toggleTaskCompletion:' + task.id,
+					});
+
+				const taskActions = $('.actions', {},
+					$('button.emphasis.getting-started-task-action',
+						{ 'x-dispatch': 'runTaskAction:' + task.id },
+						task.button.title),
+					...(
+						arr[i + 1]
+							? [$('button.task-next.button-link', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
+							: nextCategory
+								? [$('button.task-next.button-link', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
+								: []
+					));
+
+
+				const taskDescription = $('.task-description-container', {},
 					$('h3.task-title', {}, task.title),
 					$('.task-description.description', {}, task.description),
 					$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", task.media.altText) }),
-					$('.actions', {},
-						...(
-							task.button
-								? [$('button.emphasis.getting-started-task-action', { 'x-dispatch': 'runTaskAction:' + task.id },
-									task.button.title + (task.button.command ? this.getKeybindingLabel(task.button.command) : '')
-								)]
-								: []),
-						...(
-							arr[i + 1]
-								? [$('button.task-next.button-link', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
-								: nextCategory
-									? [$('button.task-next.button-link', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
-									: []
-						))
-				)));
+					taskActions,
+				);
+
+				const keybindingLabel = (task.button.command && this.getKeybindingLabel(task.button.command));
+				if (keybindingLabel) {
+					taskDescription.appendChild($('span.shortcut-message', {}, 'Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
+				}
+
+				return $('button.getting-started-task',
+					{
+						'x-dispatch': 'selectTask:' + task.id,
+						'data-task-id': task.id,
+						'aria-expanded': 'false',
+						'aria-checked': '' + task.done,
+						'role': 'listitem',
+					},
+					codicon,
+					taskDescription);
+			});
 
 		const detailContainer = $('.getting-started-detail-container', { 'role': 'list' });
 		if (this.detailsScrollbar) { this.detailsScrollbar.getDomNode().remove(); this.detailsScrollbar.dispose(); }
@@ -729,7 +772,7 @@ export class GettingStartedPage extends EditorPane {
 	private getKeybindingLabel(command: string) {
 		const binding = this.keybindingService.lookupKeybinding(command);
 		if (!binding) { return ''; }
-		else { return ` (${binding.getLabel()})`; }
+		else { return binding.getLabel() ?? ''; }
 	}
 
 	private async scrollPrev() {
@@ -835,7 +878,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const iconColor = theme.getColor(textLinkForeground);
 	if (iconColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon { color: ${iconColor} }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon:not(.codicon-close) { color: ${iconColor} }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .codicon.complete { color: ${iconColor} } `);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task.expanded .codicon { color: ${iconColor} } `);
 	}
@@ -875,18 +918,18 @@ registerThemingParticipant((theme, collector) => {
 
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close) { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link * { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .scroll-button { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:hover,
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):hover,
 			.monaco-workbench .part.editor > .content .gettingStartedContainer a:active { color: ${activeLink}; }`);
 	}
 	const focusColor = theme.getColor(focusBorder);
 	if (focusColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:focus { outline-color: ${focusColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):focus { outline-color: ${focusColor}; }`);
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {

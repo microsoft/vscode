@@ -5,6 +5,7 @@
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { domEvent } from 'vs/base/browser/event';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -375,11 +376,14 @@ abstract class AbstractCellRenderer {
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, MarkdownCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
+	private readonly useRenderer: boolean;
+
 	constructor(
 		notebookEditor: INotebookEditor,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		options: { useRenderer: boolean },
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -387,6 +391,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		@INotificationService notificationService: INotificationService,
 	) {
 		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'markdown', dndController);
+		this.useRenderer = options.useRenderer;
 	}
 
 	get templateId() {
@@ -428,10 +433,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
-		const useRenderer = !!(this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer'));
-
 		const templateData: MarkdownCellRenderTemplate = {
-			useRenderer,
+			useRenderer: this.useRenderer,
 			rootContainer,
 			collapsedPart,
 			expandButton,
@@ -456,7 +459,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			toJSON: () => { return {}; }
 		};
 
-		if (!useRenderer) {
+		if (!this.useRenderer) {
 			this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
 		}
 
@@ -562,6 +565,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellActionContext>{
+			ui: true,
 			cell: element,
 			notebookEditor: this.notebookEditor,
 			$mid: 12
@@ -879,7 +883,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateExecutionOrder(metadata, templateData);
 		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
-		templateData.cellRunState.renderState(element.metadata?.runState);
+		templateData.cellRunState.renderState(element.metadata?.runState, () => {
+			if (!this.notebookEditor.viewModel) {
+				return -1;
+			}
+
+			return this.notebookEditor.viewModel.getCellIndex(element);
+		});
 
 		if (metadata.runState === NotebookCellRunState.Running) {
 			if (metadata.runStartTime) {
@@ -1015,6 +1025,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellActionContext>{
+			ui: true,
 			cell: element,
 			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
@@ -1093,6 +1104,7 @@ export class RunStateRenderer {
 
 	private spinnerTimer: any | undefined;
 	private pendingNewState: NotebookCellRunState | undefined;
+	private lastRunState: NotebookCellRunState | undefined;
 
 	constructor(private readonly element: HTMLElement) {
 		DOM.hide(element);
@@ -1105,23 +1117,28 @@ export class RunStateRenderer {
 		}
 	}
 
-	renderState(runState: NotebookCellRunState = NotebookCellRunState.Idle) {
+	renderState(runState: NotebookCellRunState = NotebookCellRunState.Idle, getCellIndex: () => number) {
 		if (this.spinnerTimer) {
 			this.pendingNewState = runState;
 			return;
 		}
 
 		if (runState === NotebookCellRunState.Success) {
+			aria.alert(`Code cell at ${getCellIndex()} finishes running successfully`);
 			DOM.reset(this.element, renderIcon(successStateIcon));
 		} else if (runState === NotebookCellRunState.Error) {
+			aria.alert(`Code cell at ${getCellIndex()} finishes running with errors`);
 			DOM.reset(this.element, renderIcon(errorStateIcon));
 		} else if (runState === NotebookCellRunState.Running) {
+			if (this.lastRunState !== NotebookCellRunState.Running) {
+				aria.alert(`Code cell at ${getCellIndex()} starts running`);
+			}
 			DOM.reset(this.element, renderIcon(syncing));
 
 			this.spinnerTimer = setTimeout(() => {
 				this.spinnerTimer = undefined;
 				if (this.pendingNewState) {
-					this.renderState(this.pendingNewState);
+					this.renderState(this.pendingNewState, getCellIndex);
 					this.pendingNewState = undefined;
 				}
 			}, RunStateRenderer.MIN_SPINNER_TIME);
@@ -1134,6 +1151,8 @@ export class RunStateRenderer {
 		} else {
 			this.element.style.display = 'flex';
 		}
+
+		this.lastRunState = runState;
 	}
 }
 
