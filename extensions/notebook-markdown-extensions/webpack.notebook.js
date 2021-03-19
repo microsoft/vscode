@@ -6,6 +6,13 @@ const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
+	context: path.resolve(__dirname),
+	mode: 'production',
+	performance: {
+		hints: false,
+		maxEntrypointSize: 512000,
+		maxAssetSize: 512000
+	},
 	entry: {
 		katex: './notebook/katex.ts',
 		emoji: './notebook/emoji.ts',
