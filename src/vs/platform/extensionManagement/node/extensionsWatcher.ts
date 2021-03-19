@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionManagementService, ILocalExtension, InstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileChangeType, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
@@ -20,7 +20,8 @@ export class ExtensionsWatcher extends Disposable {
 	readonly onDidChangeExtensionsByAnotherSource = this._onDidChangeExtensionsByAnotherSource.event;
 
 	private startTimestamp = 0;
-	private extensions: IExtensionIdentifier[] | undefined;
+	private installingExtensions: IExtensionIdentifier[] = [];
+	private installedExtensions: IExtensionIdentifier[] | undefined;
 
 	constructor(
 		private readonly extensionsManagementService: IExtensionManagementService,
@@ -30,12 +31,12 @@ export class ExtensionsWatcher extends Disposable {
 	) {
 		super();
 		this.extensionsManagementService.getInstalled(ExtensionType.User).then(extensions => {
-			this.extensions = extensions.map(e => e.identifier);
+			this.installedExtensions = extensions.map(e => e.identifier);
 			this.startTimestamp = Date.now();
 		});
-		this._register(extensionsManagementService.onInstallExtension(e => this.add(e.identifier)));
-		this._register(Event.filter(extensionsManagementService.onDidInstallExtension, e => !!e.error)(e => this.remove(e.identifier)));
-		this._register(Event.filter(extensionsManagementService.onDidUninstallExtension, e => !e.error)(e => this.remove(e.identifier)));
+		this._register(extensionsManagementService.onInstallExtension(e => this.onInstallExtension(e)));
+		this._register(extensionsManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
+		this._register(extensionsManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
 
 		const extensionsResource = URI.file(environmentService.extensionsPath);
 		const extUri = new ExtUri(resource => !fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive));
@@ -49,41 +50,68 @@ export class ExtensionsWatcher extends Disposable {
 			(() => this.onDidChange()));
 	}
 
-	private add(extension: IExtensionIdentifier): void {
-		if (this.extensions) {
-			this.remove(extension);
-			this.extensions.push(extension);
+	private onInstallExtension(e: InstallExtensionEvent): void {
+		this.addInstallingExtension(e.identifier);
+	}
+
+	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
+		this.removeInstallingExtension(e.identifier);
+		if (!e.error) {
+			this.addInstalledExtension(e.identifier);
 		}
 	}
 
-	private remove(identifier: IExtensionIdentifier): void {
-		if (this.extensions) {
-			this.extensions = this.extensions.filter(e => !areSameExtensions(e, identifier));
+	private onDidUninstallExtension(e: DidUninstallExtensionEvent): void {
+		if (!e.error) {
+			this.removeInstalledExtension(e.identifier);
+		}
+	}
+
+	private addInstallingExtension(extension: IExtensionIdentifier) {
+		this.removeInstallingExtension(extension);
+		this.installingExtensions.push(extension);
+	}
+
+	private removeInstallingExtension(identifier: IExtensionIdentifier) {
+		this.installingExtensions = this.installingExtensions.filter(e => !areSameExtensions(e, identifier));
+	}
+
+	private addInstalledExtension(extension: IExtensionIdentifier): void {
+		if (this.installedExtensions) {
+			this.removeInstalledExtension(extension);
+			this.installedExtensions.push(extension);
+		}
+	}
+
+	private removeInstalledExtension(identifier: IExtensionIdentifier): void {
+		if (this.installedExtensions) {
+			this.installedExtensions = this.installedExtensions.filter(e => !areSameExtensions(e, identifier));
 		}
 	}
 
 	private async onDidChange(): Promise<void> {
-		if (this.extensions) {
+		if (this.installedExtensions) {
 			const extensions = await this.extensionsManagementService.getInstalled(ExtensionType.User);
 			const added = extensions.filter(e => {
-				if (this.extensions!.every(identifier => !areSameExtensions(e.identifier, identifier))) {
-					if (e.installedTimestamp && e.installedTimestamp > this.startTimestamp) {
-						this.logService.info('Detected extension installed from another source', e.identifier.id);
-						return true;
-					} else {
-						this.logService.info('Ignored extension installed by another source because of invalid timestamp', e.identifier.id);
-					}
+				if ([...this.installingExtensions, ...this.installedExtensions!].some(identifier => areSameExtensions(identifier, e.identifier))) {
+					return false;
 				}
-				return false;
+				if (e.installedTimestamp && e.installedTimestamp > this.startTimestamp) {
+					this.logService.info('Detected extension installed from another source', e.identifier.id);
+					return true;
+				} else {
+					this.logService.info('Ignored extension installed by another source because of invalid timestamp', e.identifier.id);
+					return false;
+				}
 			});
-			const removed = this.extensions.filter(identifier => {
+			const removed = this.installedExtensions.filter(identifier => {
 				if (extensions.every(e => !areSameExtensions(e.identifier, identifier))) {
 					this.logService.info('Detected extension removed from another source', identifier.id);
 					return true;
 				}
 				return false;
 			});
-			this.extensions = extensions.map(e => e.identifier);
+			this.installedExtensions = extensions.map(e => e.identifier);
 			if (added.length || removed.length) {
 				this._onDidChangeExtensionsByAnotherSource.fire({ added, removed });
 			}
