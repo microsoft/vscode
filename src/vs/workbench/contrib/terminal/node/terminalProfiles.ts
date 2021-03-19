@@ -59,7 +59,10 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			],
-			args: ['--login']
+			args: [
+				'-l',
+				'-i'
+			]
 		},
 		{
 			profileName: 'Cygwin',
