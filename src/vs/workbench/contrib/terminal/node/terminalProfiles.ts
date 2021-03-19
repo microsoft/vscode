@@ -170,12 +170,12 @@ async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean,
 	let profiles: IPotentialTerminalProfile[] = [];
 	if (quickLaunchWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
-			cp.exec('wsl.exe -l', (err, stdout) => {
+			cp.exec('wsl.exe -l', { encoding: 'utf16le' }, (err, stdout) => {
 				if (err) {
 					return reject('Problem occurred when getting wsl distros');
 				}
 				// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-				resolve(Buffer.from(stdout).toString('utf16le'));
+				resolve(stdout);
 			});
 		});
 		if (distroOutput) {
