@@ -202,15 +202,21 @@ export class ExperimentService implements ITASExperimentService {
 			this.tasClient = this.setupTASClient();
 		}
 
-		const overrideDelay = this.configurationService.getValue<number>('tasTreatmentOverrideDelay') ?? 2000;
+		// For development purposes, configure the delay until tas local tas treatment ovverrides are avilable
+		// 2000ms is the default and represents approximately the p90 delay of reading from the tas service.
+		const overrideDelay = this.configurationService.getValue<number>('experiments.overrideDelay') ?? 2000;
 		this.overrideInitDelay = new Promise(resolve => setTimeout(resolve, overrideDelay));
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
-		const override = this.configurationService.getValue('tasTreatmentOverrides.' + name);
+		// For development purposes, allow overriding tas assignments to test variants locally.
+		const override = this.configurationService.getValue<T>('experiments.override.' + name);
 		if (override !== undefined) {
 			await this.overrideInitDelay;
-			return override as T;
+			type TAASClientOverrideTreatmentData = { treatmentName: string; };
+			type TAASClientOverrideTreatmentClassification = { treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', }; };
+			this.telemetryService.publicLog2<TAASClientOverrideTreatmentData, TAASClientOverrideTreatmentClassification>('tasClientOverrideTreatment', { treatmentName: name, });
+			return override;
 		}
 
 		const startSetup = Date.now();
@@ -237,7 +243,7 @@ export class ExperimentService implements ITASExperimentService {
 			readTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<TAASClientReadTreatmentData, TAASClientReadTreatmentCalssification>('tasClientReadTreatmentComplete',
-			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(JSON.stringify(result)) });
+			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result) });
 
 		return result;
 	}
