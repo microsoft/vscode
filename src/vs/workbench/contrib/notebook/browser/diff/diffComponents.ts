@@ -383,7 +383,6 @@ abstract class AbstractElementRenderer extends Disposable {
 
 	private _applySanitizedMetadataChanges(currentMetadata: NotebookCellMetadata, newMetadata: any) {
 		let result: { [key: string]: any } = {};
-		let newLangauge: string | undefined = undefined;
 		try {
 			const newMetadataObj = JSON.parse(newMetadata);
 			const keys = new Set([...Object.keys(newMetadataObj)]);
@@ -428,23 +427,9 @@ abstract class AbstractElementRenderer extends Disposable {
 						}
 						break;
 					default:
-						if (key === 'language') {
-							newLangauge = newMetadataObj[key];
-						}
 						result[key] = newMetadataObj[key];
 						break;
 				}
-			}
-
-			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
-				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);
-				// this.notebookEditor.textModel!.applyEdits(
-				// 	[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
-				// 	true,
-				// 	undefined,
-				// 	() => undefined,
-				// 	undefined
-				// );
 			}
 
 			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!.textModel);

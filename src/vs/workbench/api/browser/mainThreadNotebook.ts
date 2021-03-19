@@ -24,7 +24,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ICellEditOperation, ICellRange, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NotebookDataDto, TransientMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellEditOperation, ICellRange, IImmediateCellEditOperation, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NotebookDataDto, TransientMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -165,13 +165,13 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		return textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
 
-	async $applyEdits(resource: UriComponents, cellEdits: ICellEditOperation[], computeUndoRedo?: boolean): Promise<void> {
+	async $applyEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[], computeUndoRedo = true): Promise<void> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		if (!textModel) {
 			throw new Error(`Can't apply edits to unknown notebook model: ${resource}`);
 		}
 
-		textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, false);
+		textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
 	}
 
 	private _registerListeners(): void {

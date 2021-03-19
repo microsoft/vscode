@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellStatusbarAlignment, CellUri, ICellEditOperation, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -1086,8 +1086,8 @@ class NotebookCellExecutionTask extends Disposable {
 		this._tokenSource.cancel();
 	}
 
-	private async applyEdits(edits: ICellEditOperation[]): Promise<void> {
-		return this._proxy.$applyEdits(this._uri, edits);
+	private async applyEdits(edits: IImmediateCellEditOperation[]): Promise<void> {
+		return this._proxy.$applyEdits(this._uri, edits, false);
 	}
 
 	private verifyStateForOutput() {
@@ -1101,7 +1101,7 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellMetadata) {
-		const edits: ICellEditOperation[] = [
+		const edits: IImmediateCellEditOperation[] = [
 			{ editType: CellEditType.PartialMetadata, handle: this._cell.handle, metadata: mixinMetadata }
 		];
 		this.applyEdits(edits);

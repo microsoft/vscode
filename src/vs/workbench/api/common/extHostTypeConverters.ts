@@ -594,7 +594,6 @@ export namespace WorkspaceEdit {
 						resource: entry.uri,
 						edit: {
 							editType: notebooks.CellEditType.OutputItems,
-							index: entry.index,
 							outputId: entry.outputId,
 							items: entry.newOutputItems?.map(NotebookCellOutputItem.from) || [],
 							append: entry.append
