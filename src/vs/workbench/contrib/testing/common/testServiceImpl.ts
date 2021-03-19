@@ -256,6 +256,15 @@ export class TestService extends Disposable implements ITestService {
 				listeners: 0,
 				onDiff: new Emitter(),
 			};
+
+			subscription.collection.onDidRetireTest(testId => {
+				for (const result of this.testResults.results) {
+					if (result instanceof LiveTestResult) {
+						result.retire(testId);
+					}
+				}
+			});
+
 			this.subscribeEmitter.fire({ resource, uri });
 			this.testSubscriptions.set(subscriptionKey, subscription);
 		} else if (subscription.disposeTimeout) {
@@ -338,6 +347,7 @@ export class TestService extends Disposable implements ITestService {
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private pendingRootChangeEmitter = new Emitter<number>();
 	private busyProvidersChangeEmitter = new Emitter<number>();
+	private retireTestEmitter = new Emitter<string>();
 
 	/**
 	 * @inheritdoc
@@ -369,6 +379,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 
 	public readonly onPendingRootProvidersChange = this.pendingRootChangeEmitter.event;
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
+	public readonly onDidRetireTest = this.retireTestEmitter.event;
 
 	constructor(pendingRootProviders: number, public readonly expand: (testId: string, levels: number) => Promise<void>) {
 		super();
@@ -386,10 +397,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 * @inheritdoc
 	 */
 	public getReviverDiff() {
-		const ops: TestsDiff = [
-			[TestDiffOpType.DeltaDiscoverComplete, this.busyProviderCount],
-			[TestDiffOpType.DeltaRootsComplete, this.pendingRootCount],
-		];
+		const ops: TestsDiff = [[TestDiffOpType.DeltaRootsComplete, this.pendingRootCount]];
 
 		const queue = [this.roots];
 		while (queue.length) {
@@ -446,6 +454,13 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 */
 	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
 		return { ...internal, children: new Set() };
+	}
+
+	/**
+	 * @override
+	 */
+	protected retireTest(testId: string) {
+		this.retireTestEmitter.fire(testId);
 	}
 
 	private *getIterator() {

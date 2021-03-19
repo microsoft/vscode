@@ -143,8 +143,6 @@ export const enum TestDiffOpType {
 	Update,
 	/** Removes a test (and all its children) */
 	Remove,
-	/** Changes the number of providers running initial test discovery. */
-	DeltaDiscoverComplete,
 	/** Changes the number of providers who are yet to publish their collection roots. */
 	DeltaRootsComplete,
 	/** Retires a test/result */
@@ -156,7 +154,7 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
 	| [op: TestDiffOpType.Retire, itemId: string]
-	| [op: TestDiffOpType.DeltaDiscoverComplete | TestDiffOpType.DeltaRootsComplete, amount: number];
+	| [op: TestDiffOpType.DeltaRootsComplete, amount: number];
 
 /**
  * Utility function to get a unique string for a subscription to a resource,
@@ -252,15 +250,24 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
 					}
+
+					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
+						this.updateBusyProviders(1);
+					}
 					break;
 				}
 
 				case TestDiffOpType.Update: {
 					const patch = op[1];
 					const existing = this.items.get(patch.extId);
-					if (existing) {
-						applyTestItemUpdate(existing, patch);
-						changes.update(existing);
+					if (!existing) {
+						break;
+					}
+
+					applyTestItemUpdate(existing, patch);
+					changes.update(existing);
+					if (patch.expand !== undefined && existing.expand === TestItemExpandState.BusyExpanding && patch.expand !== TestItemExpandState.BusyExpanding) {
+						this.updateBusyProviders(-1);
 					}
 					break;
 				}
@@ -286,18 +293,22 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 								queue.push(existing.children);
 								this.items.delete(itemId);
 								changes.remove(existing, existing !== toRemove);
+
+								if (existing.expand === TestItemExpandState.BusyExpanding) {
+									this.updateBusyProviders(-1);
+								}
 							}
 						}
 					}
 					break;
 				}
 
-				case TestDiffOpType.DeltaDiscoverComplete:
-					this.busyProviderCount += op[1];
+				case TestDiffOpType.Retire:
+					this.retireTest(op[1]);
 					break;
 
 				case TestDiffOpType.DeltaRootsComplete:
-					this.pendingRootCount += op[1];
+					this.updatePendingRoots(op[1]);
 					break;
 			}
 		}
@@ -306,10 +317,17 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	}
 
 	/**
+	 * Called when the extension signals a test result should be retired.
+	 */
+	protected retireTest(testId: string) {
+		// no-op
+	}
+
+	/**
 	 * Updates the number of providers who are still discovering items.
 	 */
 	protected updateBusyProviders(delta: number) {
-		// no-op
+		this.busyProviderCount += delta;
 	}
 
 	/**
@@ -318,7 +336,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * will exist in the collection.
 	 */
 	public updatePendingRoots(delta: number) {
-		// no-op
+		this.pendingRootCount += delta;
 	}
 
 	/**

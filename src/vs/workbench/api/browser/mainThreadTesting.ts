@@ -80,17 +80,6 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $retireTest(extId: string): void {
-		for (const result of this.resultService.results) {
-			if (result instanceof LiveTestResult) {
-				result.retire(extId);
-			}
-		}
-	}
-
-	/**
-	 * @inheritdoc
-	 */
 	public $updateTestStateInRun(runId: string, testId: string, state: ITestState): void {
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
