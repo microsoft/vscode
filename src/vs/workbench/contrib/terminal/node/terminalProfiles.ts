@@ -87,12 +87,9 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	expectedProfiles.forEach(profile => promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider, profile.args)));
 	const profiles = await Promise.all(promises);
 
-	let detectedProfiles = coalesce(profiles);
+	const detectedProfiles = coalesce(profiles);
 
-	if (!quickLaunchOnly) {
-		return detectedProfiles;
-	}
-	let validProfiles: ITerminalProfile[] = [];
+	let quickLaunchProfiles: ITerminalProfile[] = [];
 
 	if (detectedProfiles && configProfiles) {
 		for (const [profileKey, value] of Object.entries(configProfiles)) {
@@ -133,9 +130,9 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 					}
 					if (profile) {
 						if (customProfile.args) {
-							validProfiles?.push({ profileName: profileKey, path: profile.path, args: customProfile.args });
+							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path, args: customProfile.args });
 						} else {
-							validProfiles?.push({ profileName: profileKey, path: profile.path });
+							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path });
 						}
 					}
 				} else if ((value as ITerminalProfileSource).source) {
@@ -144,9 +141,9 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 					const profile = detectedProfiles?.find(profile => profile.profileName === sourceKey.toString());
 					if (profile) {
 						if (profile.args) {
-							validProfiles?.push({ profileName: profileKey, path: profile.path, args: profile.args });
+							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path, args: profile.args });
 						} else {
-							validProfiles?.push({ profileName: profileKey, path: profile.path });
+							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path });
 						}
 					} else {
 						logService?.trace(`No source with key ${sourceKey}`);
@@ -161,14 +158,17 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	}
 
 	// only show the windows powershell profile if no other powershell profile exists
-	if (validProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
-		validProfiles = validProfiles.filter(p => p.profileName !== 'Windows PowerShell');
+	if (quickLaunchProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
+		quickLaunchProfiles = quickLaunchProfiles.filter(p => p.profileName !== 'Windows PowerShell');
 	}
 
+	// include any custom profiles
+	detectedProfiles.push(...quickLaunchProfiles.filter(p => !detectedProfiles.find(profile => profile.profileName === p.profileName && profile.path === p.path && profile.args === p.args)));
+
 	if (showQuickLaunchWslProfiles) {
-		validProfiles.push(...detectedProfiles.filter(p => p.path.endsWith('wsl.exe')));
+		quickLaunchProfiles.push(...detectedProfiles.filter(p => p.path.endsWith('wsl.exe')));
 	}
-	return validProfiles;
+	return quickLaunchOnly ? quickLaunchProfiles : detectedProfiles;
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
