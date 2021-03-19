@@ -135,9 +135,10 @@ export async function findPorts(connections: { socket: number, ip: string, port:
 
 	const ports: CandidatePort[] = [];
 	connections.forEach(({ socket, ip, port }) => {
-		const command: string | undefined = processMap[socketMap[socket].pid]?.cmd;
-		if (command && !knownExcludeCmdline(command)) {
-			ports.push({ host: ip, port, detail: command, pid: socketMap[socket].pid });
+		const pid = socketMap[socket] ? socketMap[socket].pid : undefined;
+		const command: string | undefined = pid ? processMap[pid]?.cmd : undefined;
+		if (pid && command && !knownExcludeCmdline(command)) {
+			ports.push({ host: ip, port, detail: command, pid: pid });
 		}
 	});
 	return ports;
