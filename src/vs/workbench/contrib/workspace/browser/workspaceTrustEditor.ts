@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -32,7 +32,7 @@ import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList
 import { ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { trustEditorTileHoverBackground, trustedForegroundColor, trustEditorTileBackgroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
+import { trustedForegroundColor, trustEditorTileBackgroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -359,18 +359,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container  { background: ${tileBackgroundColor}; }`);
 	}
 
-	const tileHoverBackgroundColor = theme.getColor(trustEditorTileHoverBackground);
-	if (tileHoverBackgroundColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container:hover { background: ${tileHoverBackgroundColor}; }`);
-	}
-
 	const border = theme.getColor(contrastBorder);
 	if (border) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container { border: 1px solid ${border}; }`);
-	}
-
-	const activeBorder = theme.getColor(activeContrastBorder);
-	if (activeBorder) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container:hover { border: 1px dashed ${activeBorder}; }`);
 	}
 });
