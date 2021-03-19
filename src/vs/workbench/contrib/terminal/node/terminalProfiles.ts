@@ -9,29 +9,18 @@ import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileObject, ITerminalProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITestTerminalConfig } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export interface IStatProvider {
-	stat(path: string): boolean,
-	lstat(path: string): boolean
-}
-
-interface IPotentialTerminalProfile {
-	profileName: string,
-	paths: string[],
-	args?: string[]
-}
-
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux);
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: any, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -45,7 +34,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		useWSLexe = true;
 	}
 
-	let expectedProfiles: IPotentialTerminalProfile[] = [
+	const expectedProfiles: IPotentialTerminalProfile[] = [
 		{
 			profileName: 'Command Prompt',
 			paths: [`${system32Path}\\cmd.exe`]
@@ -98,7 +87,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 					let profile;
 					const customProfile = (value as ITerminalExecutable);
 					if (Array.isArray(customProfile.path)) {
-						let resolvedPaths: string[] = [];
+						const resolvedPaths: string[] = [];
 						for (const p of customProfile.path) {
 							const resolved = variableResolver?.resolve(workspaceFolder, p);
 							if (resolved) {
@@ -137,7 +126,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 					}
 				} else if ((value as ITerminalProfileSource).source) {
 					// source
-					let sourceKey = (value as ITerminalProfileSource).source;
+					const sourceKey = (value as ITerminalProfileSource).source;
 					const profile = detectedProfiles?.find(profile => profile.profileName === sourceKey.toString());
 					if (profile) {
 						if (profile.args) {
@@ -172,7 +161,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
-	let profiles: IPotentialTerminalProfile[] = [];
+	const profiles: IPotentialTerminalProfile[] = [];
 	// Add all of the different kinds of PowerShells
 	for await (const pwshExe of enumeratePowerShellInstallations()) {
 		profiles.push({ profileName: pwshExe.displayName, paths: [pwshExe.exePath] });
@@ -181,7 +170,7 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 }
 
 async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
-	let profiles: IPotentialTerminalProfile[] = [];
+	const profiles: IPotentialTerminalProfile[] = [];
 	if (showQuickLaunchWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
 			cp.exec('wsl.exe -l', (err, stdout) => {
@@ -192,8 +181,8 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 			});
 		});
 		if (distroOutput) {
-			let regex = new RegExp(/[\r?\n]/);
-			let distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
+			const regex = new RegExp(/[\r?\n]/);
+			const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
 			for (let distroName of distroNames) {
@@ -338,4 +327,15 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 		}
 	}
 	return validateProfilePaths(label, potentialPaths, statProvider, args);
+}
+
+export interface IStatProvider {
+	stat(path: string): boolean,
+	lstat(path: string): boolean
+}
+
+interface IPotentialTerminalProfile {
+	profileName: string,
+	paths: string[],
+	args?: string[]
 }

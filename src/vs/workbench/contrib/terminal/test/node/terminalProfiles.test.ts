@@ -20,7 +20,7 @@ suite('Workbench - TerminalProfiles', () => {
 			suite('detectAvailableWindowsProfiles', async () => {
 				test('should detect Git Bash and provide login args', async () => {
 					const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
-					let config: ITestTerminalConfig = {
+					const config: ITestTerminalConfig = {
 						profiles: {
 							windows: {
 								'Git Bash': { source: ProfileSource.GitBash }
@@ -36,10 +36,10 @@ suite('Workbench - TerminalProfiles', () => {
 				});
 				// 	test('should detect cmd prompt', async () => {
 				// 		const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
-				// 		let config: ITestTerminalConfig = {
+				// 		const config: ITestTerminalConfig = {
 				// 			profiles: {
 				// 				windows: {
-				// 					'Command Prompt': { pathOrPaths: _paths }
+				// 					'Command Prompt': { path: _paths }
 				// 				},
 				// 				linux: {},
 				// 				osx: {},
