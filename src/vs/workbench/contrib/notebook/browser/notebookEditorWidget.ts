@@ -2330,8 +2330,8 @@ export const focusedCellBackground = registerColor('notebook.focusedCellBackgrou
 }, nls.localize('focusedCellBackground', "The background color of a cell when the cell is focused."));
 
 export const selectedCellBackground = registerColor('notebook.selectedCellBackground', {
-	dark: Color.fromHex('#383B3D').transparent(0.5),
-	light: Color.fromHex('#c8ddf1').transparent(0.5),
+	dark: listInactiveSelectionBackground,
+	light: listInactiveSelectionBackground,
 	hc: null
 }, nls.localize('selectedCellBackground', "The background color of a cell when the cell is selected."));
 
