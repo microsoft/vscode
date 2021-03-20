@@ -959,7 +959,7 @@ export class CodeApplication extends Disposable {
 				type: WindowError;
 				reason: string | undefined;
 			};
-			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type, reason: typeof details !== 'string' ? details.reason : undefined });
+			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type, reason: typeof details !== 'string' ? details?.reason : undefined });
 		}));
 
 		// Windows: install mutex

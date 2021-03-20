@@ -392,7 +392,7 @@ export class Workbench extends Layout {
 		}));
 
 		// Register Commands
-		registerNotificationCommands(notificationsCenter, notificationsToasts);
+		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
 
 		// Register with Layout
 		this.registerNotifications({

@@ -5,8 +5,9 @@
 const path = require('path');
 
 module.exports = {
+	mode: 'production',
 	entry: {
-		index: './notebook/index.ts'
+		index: path.join(__dirname, 'notebook', 'index.ts')
 	},
 	module: {
 		rules: [

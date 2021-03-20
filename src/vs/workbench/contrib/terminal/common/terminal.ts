@@ -102,7 +102,7 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: ITerminalProfiles;
-	detectWslProfiles: boolean;
+	quickLaunchWslProfiles: boolean;
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -233,8 +233,8 @@ export interface ITerminalProfile {
 }
 
 export const enum ProfileSource {
-	'Git Bash',
-	'PowerShell'
+	GitBash = 'Git Bash',
+	Pwsh = 'PowerShell'
 }
 
 export interface ITerminalExecutable {
@@ -368,6 +368,8 @@ export enum TitleEventSource {
 	/** From the VT sequence */
 	Sequence
 }
+
+export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TERMINAL_COMMAND_ID {
 	FIND_NEXT = 'workbench.action.terminal.findNext',

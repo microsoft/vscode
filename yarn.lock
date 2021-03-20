@@ -10096,10 +10096,10 @@ vscode-oniguruma@1.3.1:
   resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.3.1.tgz#e2383879c3485b19f533ec34efea9d7a2b14be8f"
   integrity sha512-gz6ZBofA7UXafVA+m2Yt2zHKgXC2qedArprIsHAPKByTkwq9l5y/izAGckqxYml7mSbYxTRTfdRwsFq3cwF4LQ==
 
-vscode-proxy-agent@^0.7.0:
-  version "0.7.0"
-  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.7.0.tgz#adf19dfbc9beba508b1c72a83cd64b5d1cb9d84c"
-  integrity sha512-eXGwlzwQJJqutYHjhC0UfBw1Sp8p2UygXACQjMSMKkIufeF68c5Z12s7v7UVBkqW3KfgEh/zDaO/bPkWLI/RZw==
+vscode-proxy-agent@^0.8.1:
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.8.1.tgz#e9bff967b4cfa97abcd80c4c28174e82853c0574"
+  integrity sha512-Dzh0YPg4A1ujvnKFUQghKIvKzIBV8lkInnhyOlcUUJlwDYEJXoR6RSWzl415uvrMVFfYCtB25xJe8SkExTBF4A==
   dependencies:
     debug "^3.1.0"
     http-proxy-agent "^2.1.0"
@@ -10475,10 +10475,10 @@ xterm-addon-webgl@0.10.0:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.10.0.tgz#e99366fdc4cbd46b798a5e2fc114ecc19f9fd4b7"
   integrity sha512-MJzyWie5yw+PH6p//fXlXzmsULLtpBo992EWEKl2uv5M5Zj9etTwfuutCUK7o98mr6itDl+vS/CYIMP68jCf8w==
 
-xterm@4.11.0:
-  version "4.11.0"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.11.0.tgz#d7dabc7af5299579e4663fedf2b3a179af9aaff9"
-  integrity sha512-NeJH909WTO2vth/ZlC0gkP3AGzupbvVHVlmtrpBw56/sGFXaF9bNdKgqKa3tf8qbGvXMzL2JhCcHVklqFztIRw==
+xterm@4.12.0-beta.3:
+  version "4.12.0-beta.3"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.12.0-beta.3.tgz#a8bdf9210c1dba24cbf47a13a0301cd2707cb5d8"
+  integrity sha512-2yrVnXsYGFKATwanOfM9YRJYx2qhudzCmMrmXWdMnQp7Z/YLCHh6UsS3+u7SV6SizgKYcsnv7x0VaT+dqXtiFg==
 
 y18n@^3.2.1:
   version "3.2.2"
