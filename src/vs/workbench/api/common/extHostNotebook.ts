@@ -855,7 +855,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new Error(`Invalid cell uri/index: ${docUri}, ${index}`);
 		}
 
-		// TODO@roblou more to do here?
 		// TODO@roblou also validate kernelId, once kernel has moved from editor to document
 		if (this._activeExecutions.has(cell.uri)) {
 			return;

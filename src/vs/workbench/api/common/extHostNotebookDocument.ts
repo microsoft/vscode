@@ -320,21 +320,20 @@ export class ExtHostNotebookDocument extends Disposable {
 		}
 	}
 
-	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata | undefined): void {
+	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata): void {
 		const cell = this._cells[index];
 
 		const originalInternalMetadata = cell.internalMetadata;
 		const originalExtMetadata = cell.cell.metadata;
-		cell.setMetadata(newMetadata || {});
+		cell.setMetadata(newMetadata);
 		const newExtMetadata = cell.cell.metadata;
 
 		if (!equals(originalExtMetadata, newExtMetadata)) {
 			this._emitter.emitCellMetadataChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell }));
 		}
 
-		if (originalInternalMetadata.runState !== newMetadata?.runState) {
-			// TODO@roblou why is metadata optional?
-			const executionState = newMetadata?.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
+		if (originalInternalMetadata.runState !== newMetadata.runState) {
+			const executionState = newMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
 			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.notebookDocument, cell: cell.cell, executionState }));
 		}
 	}
