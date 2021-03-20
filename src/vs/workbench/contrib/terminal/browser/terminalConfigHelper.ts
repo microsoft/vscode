@@ -214,12 +214,20 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
 	}
 
-	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS): boolean {
+	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS, isWorkspaceProfile?: boolean): boolean {
 		// Check whether there is a workspace setting
 		const platformKey = osOverride === platform.OperatingSystem.Windows ? 'windows' : osOverride === platform.OperatingSystem.Macintosh ? 'osx' : 'linux';
 		const shellConfigValue = this._configurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
+
+		// isWorkspaceProfile checks for workspace profiles as compared with the default ones,
+		// ignoring those defined in user settings
+		const usesWorkspaceProfile = isWorkspaceProfile || (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined);
+
+		if (!usesWorkspaceProfile) {
+			return false;
+		}
 
 		// Check if workspace setting exists and whether it's allowed
 		let isWorkspaceShellAllowed: boolean | undefined = false;

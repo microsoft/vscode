@@ -1470,7 +1470,7 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const launchConfig = quickSelectProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
 				if (launchConfig) {
-					if (!launchConfig.isWorkspaceProfile || !terminalService.configHelper.checkWorkspaceShellPermissions()) {
+					if (!terminalService.configHelper.checkWorkspaceShellPermissions(undefined, launchConfig.isWorkspaceProfile)) {
 						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
 						terminalService.setActiveInstance(instance);
 					}
