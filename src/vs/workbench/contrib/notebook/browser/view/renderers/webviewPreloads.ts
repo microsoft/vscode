@@ -786,7 +786,6 @@ function webviewPreloads() {
 			}]);
 		}
 
-		console.log(previewContainerNode.clientHeight);
 		postNotebookMessage<IDimensionMessage>('dimension', {
 			id: `${cellId}_preview`,
 			data: {

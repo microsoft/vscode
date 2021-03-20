@@ -5,7 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -208,6 +208,7 @@ export class NotebookEditorDecorationType {
 		};
 	}
 }
+
 
 type NotebookContentProviderData = {
 	readonly provider: vscode.NotebookContentProvider;
@@ -496,9 +497,52 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
+	// --- serialize/deserialize
+
+	private _handlePool = 0;
+	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
+
+	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: TransientOptions): vscode.Disposable {
+		const handle = this._handlePool++;
+		this._notebookSerializer.set(handle, serializer);
+		this._proxy.$registerNotebookSerializer(
+			handle,
+			{ id: extension.identifier, location: extension.extensionLocation, description: extension.description },
+			viewType,
+			options ?? { transientOutputs: false, transientMetadata: {} }
+		);
+		return toDisposable(() => {
+			this._proxy.$unregisterNotebookSerializer(handle);
+		});
+	}
+
+	async $dataToNotebook(handle: number, bytes: VSBuffer): Promise<NotebookDataDto> {
+		const serializer = this._notebookSerializer.get(handle);
+		if (!serializer) {
+			throw new Error('NO serializer found');
+		}
+		const data = await serializer.dataToNotebook(bytes.buffer);
+		return {
+			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
+			cells: data.cells.map(typeConverters.NotebookCellData.from),
+		};
+	}
+
+	async $notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer> {
+		const serializer = this._notebookSerializer.get(handle);
+		if (!serializer) {
+			throw new Error('NO serializer found');
+		}
+		const bytes = await serializer.notebookToData({
+			metadata: typeConverters.NotebookDocumentMetadata.to(data.metadata),
+			cells: data.cells.map(typeConverters.NotebookCellData.to)
+		});
+		return VSBuffer.wrap(bytes);
+	}
+
 	// --- open, save, saveAs, backup
 
-	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<NotebookDataDto> {
+	async $openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<NotebookDataDto> {
 		const { provider } = this._getProviderData(viewType);
 		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
 		return {

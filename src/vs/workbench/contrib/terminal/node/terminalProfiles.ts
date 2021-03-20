@@ -164,7 +164,8 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	const profiles: IPotentialTerminalProfile[] = [];
 	if (showQuickLaunchWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
-			cp.exec('wsl.exe -l', (err, stdout) => {
+			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
+			cp.exec('wsl.exe -l', { encoding: 'utf16le' }, (err, stdout) => {
 				if (err) {
 					return reject('Problem occurred when getting wsl distros');
 				}
@@ -177,12 +178,8 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
 			for (let distroName of distroNames) {
-				// HACK: For some reason wsl.exe -l returns the string in an encoding where each
-				// character takes up 2 bytes, it's unclear how to decode this properly so instead
-				// we expect ascii and just remove all NUL chars
-				distroName = distroName
-					.replace(/\u0000/g, '')
-					.replace(/ \(Default\)$/, '');
+				// Remove default from distro name
+				distroName = distroName.replace(/ \(Default\)$/, '');
 
 				// Skip empty lines
 				if (distroName === '') {

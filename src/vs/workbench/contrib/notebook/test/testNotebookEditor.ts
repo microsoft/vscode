@@ -30,7 +30,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { mock } from 'vs/base/test/common/mock';
@@ -52,6 +51,9 @@ export class TestCell extends NotebookCellTextModel {
 
 export class NotebookEditorTestModel extends EditorModel implements INotebookEditorModel {
 	private _dirty = false;
+
+	protected readonly _onDidSave = this._register(new Emitter<void>());
+	readonly onDidSave = this._onDidSave.event;
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
@@ -85,7 +87,6 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
-	lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	isDirty() {
 		return this._dirty;
@@ -107,6 +108,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		if (this._notebook) {
 			this._dirty = false;
 			this._onDidChangeDirty.fire();
+			this._onDidSave.fire();
 			// todo, flush all states
 			return true;
 		}

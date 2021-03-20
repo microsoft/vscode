@@ -67,7 +67,9 @@ export class CellOutputElement extends Disposable {
 	}
 
 	detach() {
-		this.domNode.parentElement?.removeChild(this.domNode);
+		if (this.domNode) {
+			this.domNode.parentElement?.removeChild(this.domNode);
+		}
 	}
 
 	updateDOMTop(top: number) {

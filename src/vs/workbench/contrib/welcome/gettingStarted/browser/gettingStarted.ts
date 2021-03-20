@@ -497,11 +497,14 @@ export class GettingStartedPage extends EditorPane {
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			if (!this.currentCategory) {
-				throw Error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
+				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
+				this.editorInput.selectedCategory = undefined;
+				this.editorInput.selectedTask = undefined;
+			} else {
+				this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
+				this.setSlide('details');
+				return;
 			}
-			this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
-			this.setSlide('details');
-			return;
 		}
 
 		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
@@ -512,11 +515,14 @@ export class GettingStartedPage extends EditorPane {
 			]);
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
-				this.currentCategory = assertIsDefined(this.gettingStartedCategories.find(category => category.content.type === 'items'));
-				this.editorInput.selectedCategory = this.currentCategory?.id;
-				this.buildCategorySlide(this.editorInput.selectedCategory);
-				this.setSlide('details');
-				return;
+				const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
+				if (first) {
+					this.currentCategory = first;
+					this.editorInput.selectedCategory = this.currentCategory?.id;
+					this.buildCategorySlide(this.editorInput.selectedCategory);
+					this.setSlide('details');
+					return;
+				}
 			}
 		}
 

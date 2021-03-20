@@ -173,6 +173,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 12
 				}
 			});
 	}

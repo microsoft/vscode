@@ -1051,6 +1051,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeActiveNotebookKernel;
 			},
+			registerNotebookSerializer(viewType, serializer, options) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options);
+			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: {
 				transientOutputs: boolean;
 				transientMetadata: { [K in keyof vscode.NotebookCellMetadata]?: boolean }

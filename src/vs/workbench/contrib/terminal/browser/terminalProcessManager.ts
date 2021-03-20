@@ -27,8 +27,10 @@ import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } fr
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
+import { localize } from 'vs/nls';
+import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -74,7 +76,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
 	private _dataFilter: SeamlessRelaunchDataFilter;
-	private _isFeatureTerminal: boolean = false;
+
+	private _shellLaunchConfig?: IShellLaunchConfig;
+	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
+	private _isScreenReaderModeEnabled: boolean = false;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
@@ -178,7 +183,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		isScreenReaderModeEnabled: boolean,
 		reset: boolean = true
 	): Promise<ITerminalLaunchError | undefined> {
-		this._isFeatureTerminal = !!shellLaunchConfig.isFeatureTerminal;
+		this._shellLaunchConfig = shellLaunchConfig;
+		this._dimensions.cols = cols;
+		this._dimensions.rows = rows;
+		this._isScreenReaderModeEnabled = isScreenReaderModeEnabled;
+
 		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			this._processType = ProcessType.ExtensionTerminal;
 			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
@@ -300,6 +309,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
+
+		// Fire reconnect if needed to ensure the terminal is usable again
+		if (this.isDisconnected) {
+			this.isDisconnected = false;
+			this._onPtyReconnect.fire();
+		}
+
 		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
 	}
 
@@ -398,7 +414,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// When the pty host restarts, reconnect is no longer possible so dispose the responsive
 		// listener
-		this._register(offProcessTerminalService.onPtyHostRestart(() => {
+		this._register(offProcessTerminalService.onPtyHostRestart(async () => {
 			// When the pty host restarts, reconnect is no longer possible
 			if (!this.isDisconnected) {
 				this.isDisconnected = true;
@@ -406,12 +422,21 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 			this._ptyResponsiveListener?.dispose();
 			this._ptyResponsiveListener = undefined;
-			// Indicate the process is exited (and gone forever) only for feature terminals so they
-			// can react to the exit, this is particularly important for tasks so that it knows that
-			// the process is not still active. Note that this is not done for regular terminals
-			// because otherwise the terminal instance would be disposed
-			if (this._isFeatureTerminal) {
-				this._onExit(undefined);
+			if (this._shellLaunchConfig) {
+				if (this._shellLaunchConfig.isFeatureTerminal) {
+					// Indicate the process is exited (and gone forever) only for feature terminals
+					// so they can react to the exit, this is particularly important for tasks so
+					// that it knows that the process is not still active. Note that this is not
+					// done for regular terminals because otherwise the terminal instance would be
+					// disposed.
+					this._onExit(undefined);
+				} else {
+					// For normal terminals write a message indicating what happened and relaunch
+					// using the previous shellLaunchConfig
+					let message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
+					this._onProcessData.fire({ data: formatMessageForTerminal(message), sync: false });
+					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, this._isScreenReaderModeEnabled, false);
+				}
 			}
 		}));
 	}
@@ -442,6 +467,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				throw (error);
 			}
 		}
+		this._dimensions.cols = cols;
+		this._dimensions.rows = rows;
 	}
 
 	public async write(data: string): Promise<void> {
