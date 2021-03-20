@@ -76,9 +76,10 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 				if ((value as ITerminalExecutable).path) {
 					let profile;
 					const customProfile = (value as ITerminalExecutable);
-					if (Array.isArray(customProfile.path)) {
+					const pathOrPaths = customProfile.path;
+					if (Array.isArray(pathOrPaths)) {
 						const resolvedPaths: string[] = [];
-						for (const p of customProfile.path) {
+						for (const p of pathOrPaths) {
 							const resolved = variableResolver?.resolve(workspaceFolder, p);
 							if (resolved) {
 								resolvedPaths.push(resolved);
@@ -94,14 +95,14 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 							logService?.trace(`Could not detect path ${JSON.stringify(resolvedPaths)}`);
 						}
 					} else {
-						let resolved = variableResolver?.resolve(workspaceFolder, customProfile.path);
+						let resolved = variableResolver?.resolve(workspaceFolder, pathOrPaths);
 						if (resolved) {
 							profile = detectedProfiles?.find(profile => profile.path === resolved);
 						} else if (statProvider) {
 							// used by tests
-							resolved = customProfile.path;
+							resolved = pathOrPaths;
 						} else {
-							logService?.trace(`Could not resolve path ${customProfile.path} in workspace folder ${workspaceFolder}`);
+							logService?.trace(`Could not resolve path ${pathOrPaths} in workspace folder ${workspaceFolder}`);
 						}
 						if (!profile) {
 							logService?.trace(`Could not detect path ${resolved}`);
