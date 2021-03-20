@@ -1547,13 +1547,17 @@
           "command": "git.branchFrom",
           "group": "branch@4"
         },
+				{
+					"command": "git.renameBranch",
+					"group": "branch@5"
+				},
         {
-          "command": "git.renameBranch",
-          "group": "branch@5"
+          "command": "git.deleteBranch",
+          "group": "branch@6"
         },
         {
           "command": "git.publish",
-          "group": "branch@6"
+          "group": "branch@7"
         }
       ],
       "git.remotes": [
