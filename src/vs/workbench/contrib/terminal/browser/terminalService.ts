@@ -147,6 +147,12 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
+		this._viewsService.onDidChangeViewContainerVisibility(e => {
+			if (e.id === TERMINAL_VIEW_ID && e.visible) {
+				this.showPanel(true);
+			}
+		});
+
 		this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
