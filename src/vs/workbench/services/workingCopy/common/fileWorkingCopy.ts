@@ -168,7 +168,7 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	/**
 	 * Resolves a file working copy.
 	 */
-	resolve(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
+	resolve(options?: IFileWorkingCopyResolveOptions): Promise<void>;
 
 	/**
 	 * Whether we have a resolved model or not.
@@ -403,6 +403,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private setOrphaned(orphaned: boolean): void {
 		if (this.inOrphanMode !== orphaned) {
 			this.inOrphanMode = orphaned;
+
 			this._onDidChangeOrphaned.fire();
 		}
 	}
@@ -463,14 +464,14 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
-	async resolve(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
+	async resolve(options?: IFileWorkingCopyResolveOptions): Promise<void> {
 		this.logService.trace('[file working copy] resolve() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
 			this.logService.trace('[file working copy] resolve() - exit - without resolving because file working copy is disposed', this.resource.toString(true));
 
-			return this;
+			return;
 		}
 
 		// Unless there are explicit contents provided, it is important that we do not
@@ -479,13 +480,13 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
 			this.logService.trace('[file working copy] resolve() - exit - without resolving because file working copy is dirty or being saved', this.resource.toString(true));
 
-			return this;
+			return;
 		}
 
 		return this.doResolve(options);
 	}
 
-	private async doResolve(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
+	private async doResolve(options?: IFileWorkingCopyResolveOptions): Promise<void> {
 
 		// First check if we have contents to use for the working copy
 		if (options?.contents) {
@@ -497,7 +498,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		if (isNew) {
 			const resolvedFromBackup = await this.resolveFromBackup();
 			if (resolvedFromBackup) {
-				return resolvedFromBackup;
+				return;
 			}
 		}
 
@@ -505,7 +506,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.resolveFromFile(options);
 	}
 
-	private async resolveFromBuffer(buffer: VSBufferReadableStream): Promise<IFileWorkingCopy<T>> {
+	private async resolveFromBuffer(buffer: VSBufferReadableStream): Promise<void> {
 		this.logService.trace('[file working copy] resolveFromBuffer()', this.resource.toString(true));
 
 		// Try to resolve metdata from disk
@@ -535,7 +536,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 
 		// Resolve with buffer
-		await this.resolveFromContent({
+		return this.resolveFromContent({
 			resource: this.resource,
 			name: this.name,
 			mtime,
@@ -544,11 +545,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			etag,
 			value: buffer
 		}, true /* dirty (resolved from buffer) */);
-
-		return this;
 	}
 
-	private async resolveFromBackup(): Promise<IFileWorkingCopy<T> | undefined> {
+	private async resolveFromBackup(): Promise<boolean> {
 
 		// Resolve backup if any
 		const backup = await this.backupFileService.resolve<IFileWorkingCopyBackupMetaData>(this.resource);
@@ -558,19 +557,21 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		if (!isNew) {
 			this.logService.trace('[file working copy] resolveFromBackup() - exit - withoutresolving because previously new file working copy got created meanwhile', this.resource.toString(true));
 
-			return this; // imply that resolving has happened in another operation
+			return true; // imply that resolving has happened in another operation
 		}
 
 		// Try to resolve from backup if we have any
 		if (backup) {
-			return this.doResolveFromBackup(backup);
+			await this.doResolveFromBackup(backup);
+
+			return true;
 		}
 
 		// Otherwise signal back that resolving did not happen
-		return undefined;
+		return false;
 	}
 
-	private async doResolveFromBackup(backup: IResolvedBackup<IFileWorkingCopyBackupMetaData>): Promise<IFileWorkingCopy<T>> {
+	private async doResolveFromBackup(backup: IResolvedBackup<IFileWorkingCopyBackupMetaData>): Promise<void> {
 		this.logService.trace('[file working copy] doResolveFromBackup()', this.resource.toString(true));
 
 		// Resolve with backup
@@ -588,11 +589,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		if (backup.meta && backup.meta.orphaned) {
 			this.setOrphaned(true);
 		}
-
-		return this;
 	}
 
-	private async resolveFromFile(options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>> {
+	private async resolveFromFile(options?: IFileWorkingCopyResolveOptions): Promise<void> {
 		this.logService.trace('[file working copy] resolveFromFile()', this.resource.toString(true));
 
 		const forceReadFromFile = options?.forceReadFromFile;
@@ -622,10 +621,10 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			if (currentVersionId !== this.versionId) {
 				this.logService.trace('[file working copy] resolveFromFile() - exit - without resolving because file working copy content changed', this.resource.toString(true));
 
-				return this;
+				return;
 			}
 
-			return await this.resolveFromContent(content, false /* not dirty (resolved from file) */);
+			await this.resolveFromContent(content, false /* not dirty (resolved from file) */);
 		} catch (error) {
 			const result = error.fileOperationResult;
 
@@ -634,7 +633,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 			// NotModified status is expected and can be handled gracefully
 			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-				return this;
+				return;
 			}
 
 			// Ignore when a working copy has been resolved once and the file was deleted
@@ -642,7 +641,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			// this state and update the orphaned flag to indicate that this working copy
 			// has no version on disk anymore.
 			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
-				return this;
+				return;
 			}
 
 			// Otherwise bubble up the error
@@ -650,14 +649,14 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 	}
 
-	private async resolveFromContent(content: IFileStreamContent, dirty: boolean): Promise<IFileWorkingCopy<T>> {
+	private async resolveFromContent(content: IFileStreamContent, dirty: boolean): Promise<void> {
 		this.logService.trace('[file working copy] resolveFromContent() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
 			this.logService.trace('[file working copy] resolveFromContent() - exit - because working copy is disposed', this.resource.toString(true));
 
-			return this;
+			return;
 		}
 
 		// Update our resolved disk stat
@@ -692,8 +691,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		// Emit as event
 		this._onDidResolve.fire();
-
-		return this;
 	}
 
 	private async doCreateModel(contents: VSBufferReadableStream): Promise<void> {

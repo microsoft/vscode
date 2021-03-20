@@ -29,7 +29,7 @@ export class NotebookEditorInput extends EditorInput {
 
 	private readonly _name: string;
 
-	private _textModel: IReference<IResolvedNotebookEditorModel> | null = null;
+	private _editorModelReference: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(
@@ -56,14 +56,14 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	isDirty() {
-		if (!this._textModel) {
-			return !!this._defaultDirtyState;
+		if (!this._editorModelReference) {
+			return this._defaultDirtyState;
 		}
-		return this._textModel.object.isDirty();
+		return this._editorModelReference.object.isDirty();
 	}
 
 	isUntitled(): boolean {
-		return this._textModel?.object.isUntitled() || false;
+		return this._editorModelReference?.object.isUntitled() || false;
 	}
 
 	isReadonly() {
@@ -71,12 +71,12 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (this._textModel) {
+		if (this._editorModelReference) {
 
 			if (this.isUntitled()) {
 				return this.saveAs(group, options);
 			} else {
-				await this._textModel.object.save();
+				await this._editorModelReference.object.save(options);
 			}
 
 			return this;
@@ -86,7 +86,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._textModel) {
+		if (!this._editorModelReference) {
 			return undefined;
 		}
 
@@ -96,7 +96,7 @@ export class NotebookEditorInput extends EditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this.isUntitled() ? await this._suggestName(this._name) : this._textModel.object.resource;
+		const dialogPath = this.isUntitled() ? await this._suggestName(this._name) : this._editorModelReference.object.resource;
 
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
@@ -122,7 +122,7 @@ ${patterns}
 `);
 		}
 
-		if (!await this._textModel.object.saveAs(target)) {
+		if (!await this._editorModelReference.object.saveAs(target)) {
 			return undefined;
 		}
 
@@ -135,27 +135,25 @@ ${patterns}
 
 	// called when users rename a notebook document
 	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
-		if (this._textModel) {
+		if (this._editorModelReference) {
 			const contributedNotebookProviders = this._notebookService.getContributedNotebookProviders(target);
 
-			if (contributedNotebookProviders.find(provider => provider.id === this._textModel!.object.viewType)) {
+			if (contributedNotebookProviders.find(provider => provider.id === this._editorModelReference!.object.viewType)) {
 				return this._move(group, target);
 			}
 		}
 		return undefined;
 	}
 
-	private _move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+	private _move(_group: GroupIdentifier, newResource: URI): { editor: IEditorInput } {
 		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
 		return { editor: editorInput };
 	}
 
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._textModel && this._textModel.object.isDirty()) {
-			await this._textModel.object.revert(options);
+	async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		if (this._editorModelReference && this._editorModelReference.object.isDirty()) {
+			await this._editorModelReference.object.revert(options);
 		}
-
-		return;
 	}
 
 	async resolve(): Promise<IResolvedNotebookEditorModel | null> {
@@ -163,20 +161,20 @@ ${patterns}
 			return null;
 		}
 
-		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+		if (!this._editorModelReference) {
+			this._editorModelReference = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
 			if (this.isDisposed()) {
-				this._textModel.dispose();
-				this._textModel = null;
+				this._editorModelReference.dispose();
+				this._editorModelReference = null;
 				return null;
 			}
-			this._register(this._textModel.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-			if (this._textModel.object.isDirty()) {
+			this._register(this._editorModelReference.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+			if (this._editorModelReference.object.isDirty()) {
 				this._onDidChangeDirty.fire();
 			}
 		}
 
-		return this._textModel.object;
+		return this._editorModelReference.object;
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -190,8 +188,8 @@ ${patterns}
 	}
 
 	dispose() {
-		this._textModel?.dispose();
-		this._textModel = null;
+		this._editorModelReference?.dispose();
+		this._editorModelReference = null;
 		super.dispose();
 	}
 }

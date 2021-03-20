@@ -11,6 +11,25 @@
 	position: relative;
 }
 
+.monaco-workbench .notebookOverlay .notebook-top-toolbar {
+	width: 100%;
+	display: inline-flex;
+	padding-left: 8px;
+	margin-top: 4px;
+}
+
+.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item {
+	width: 24px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .notebookOverlay .notebook-top-toolbar .monaco-action-bar .action-item .action-label {
+	background-size: 16px;
+	margin: 4px 4px 0 4px;
+}
+
 .monaco-workbench .cell.markdown {
 	user-select: text;
 	-webkit-user-select: text;
@@ -855,7 +874,7 @@
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
 	height: 16px;
-	padding: 4px;
+	padding: 4px 4px 4px 6px;
 }
 
 /** Theming */
