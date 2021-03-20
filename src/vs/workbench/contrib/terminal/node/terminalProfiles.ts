@@ -212,7 +212,7 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 
 	let detectedProfiles: ITerminalProfile[] = [];
-	let quickLaunchProfiles: ITerminalProfile[] = [];
+	const quickLaunchProfiles: ITerminalProfile[] = [];
 	for (const profile of profiles) {
 		detectedProfiles.push({ profileName: basename(profile), path: profile });
 		// choose only the first
@@ -220,12 +220,6 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 			quickLaunchProfiles.push({ profileName: basename(profile), path: profile });
 		}
 	}
-
-	if (!quickLaunchOnly) {
-		return detectedProfiles;
-	}
-
-	const validProfiles: ITerminalProfile[] = [];
 
 	for (const [profileName, value] of Object.entries(configProfiles)) {
 		if ((value as ITerminalExecutable).path) {
@@ -235,19 +229,23 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 				for (const possiblePath of pathOrPaths) {
 					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));
 					if (profile) {
-						validProfiles.push({ profileName, path: profile.path });
+						quickLaunchProfiles.push({ profileName, path: profile.path });
 						break;
 					}
 				}
 			} else {
 				const profile = detectedProfiles.find(p => p.path.endsWith(pathOrPaths));
 				if (profile) {
-					validProfiles.push({ profileName, path: profile.path });
+					quickLaunchProfiles.push({ profileName, path: profile.path });
 				}
 			}
 		}
 	}
-	return validProfiles;
+
+	// include any custom profiles
+	detectedProfiles.push(...quickLaunchProfiles.filter(p => !detectedProfiles.find(profile => profile.profileName === p.profileName && profile.path === p.path && profile.args === p.args)));
+
+	return quickLaunchOnly ? quickLaunchProfiles : detectedProfiles;
 }
 
 async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[]): Promise<ITerminalProfile | undefined> {
