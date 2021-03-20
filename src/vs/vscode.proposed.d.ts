@@ -1493,8 +1493,10 @@ declare module 'vscode' {
 		// fired when properties like the supported languages etc change
 		// onDidChangeProperties?: Event<void>
 
-		// todo@API how can Jupyter ensure that the document-level cancel button shows whenever any cell is running?
-		// Maybe this behavior is automatic for any kernel that implements interrupt
+		/**
+		 * A kernel can optionally implement this which will be called when any "cancel" button is clicked in the document.
+		 * TODO@roblou remove ranges?
+		 */
 		interrupt?(document: NotebookDocument, ranges: NotebookCellRange[]): void;
 
 		/**
@@ -1507,12 +1509,24 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCellExecuteStartContext {
-		// Maybe needs to be not an absolute time due to clock issues
+		// TODO@roblou are we concerned about clock issues with this absolute time?
+		/**
+		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
+		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
+		 */
 		startTime?: number;
 	}
 
 	export interface NotebookCellExecuteEndContext {
+		/**
+		 * If true, a green check is shown on the cell status bar.
+		 * If false, a red X is shown.
+		 */
 		success?: boolean;
+
+		/**
+		 * The total execution time in milliseconds.
+		 */
 		duration?: number;
 	}
 
@@ -1520,8 +1534,13 @@ declare module 'vscode' {
 	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
 	 * [`createNotebookCellExecutionTask`](#notebook.createNotebookCellExecutionTask) is called, the cell
 	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
-	 * `resolve()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
+	 * `end()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
 	 * modified with the methods on the run task.
+	 *
+	 * All outputs methods operate on this NotebookCellExecutionTask's cell by default. They optionally take
+	 * a cellIndex parameter that allows them to modify the outputs of other cells. `appendOutputItems` and
+	 * `replaceOutputItems` operate on the output with the given ID, which can be an output on any cell. They
+	 * all resolve once the output edit has been applied.
 	 */
 	export interface NotebookCellExecutionTask {
 		readonly document: NotebookDocument;
