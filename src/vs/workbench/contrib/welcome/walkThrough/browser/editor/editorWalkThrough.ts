@@ -46,7 +46,7 @@ export class EditorWalkThroughAction extends Action {
 	}
 }
 
-export class EditorWalkThroughInputFactory implements IEditorInputSerializer {
+export class EditorWalkThroughInputSerializer implements IEditorInputSerializer {
 
 	static readonly ID = typeId;
 

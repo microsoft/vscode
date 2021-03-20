@@ -695,12 +695,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const factory = this.editorInputFactory.getEditorInputSerializer(editor.getTypeId());
-		if (!factory || !factory.canSerialize(editor)) {
-			return; // we need a factory from this point that can serialize this editor
+		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor.getTypeId());
+		if (!editorSerializer || !editorSerializer.canSerialize(editor)) {
+			return; // we need a serializer from this point that can serialize this editor
 		}
 
-		const serialized = factory.serialize(editor);
+		const serialized = editorSerializer.serialize(editor);
 		if (typeof serialized !== 'string') {
 			return; // we need something to deserialize from
 		}
@@ -1003,12 +1003,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return { resource: URI.revive(<UriComponents>serializedEditorHistoryEntry.resourceJSON) };
 		}
 
-		// Editor input: via factory
+		// Editor input: via serializer
 		const { editorInputJSON } = serializedEditorHistoryEntry;
 		if (editorInputJSON?.deserialized) {
-			const factory = this.editorInputFactory.getEditorInputSerializer(editorInputJSON.typeId);
-			if (factory) {
-				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+			const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editorInputJSON.typeId);
+			if (editorSerializer) {
+				const input = editorSerializer.deserialize(this.instantiationService, editorInputJSON.deserialized);
 				if (input) {
 					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
 				}
@@ -1027,11 +1027,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const entries: ISerializedEditorHistoryEntry[] = coalesce(this.history.map((input): ISerializedEditorHistoryEntry | undefined => {
 
-			// Editor input: try via factory
+			// Editor input: try via serializer
 			if (input instanceof EditorInput) {
-				const factory = this.editorInputFactory.getEditorInputSerializer(input.getTypeId());
-				if (factory) {
-					const deserialized = factory.serialize(input);
+				const editorSerializer = this.editorInputFactory.getEditorInputSerializer(input.getTypeId());
+				if (editorSerializer) {
+					const deserialized = editorSerializer.serialize(input);
 					if (deserialized) {
 						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } };
 					}

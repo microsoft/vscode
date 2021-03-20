@@ -29,7 +29,7 @@ interface ISerializedFileEditorInput {
 	modeId?: string;
 }
 
-export class FileEditorInputFactory implements IEditorInputSerializer {
+export class FileEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;

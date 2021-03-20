@@ -1200,7 +1200,7 @@ export class TestEditorInput extends EditorInput {
 	}
 }
 
-export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], factoryInputId?: string): IDisposable {
+export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable {
 	class TestEditor extends EditorPane {
 
 		private _scopedContextKeyService: IContextKeyService;
@@ -1229,13 +1229,13 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
 
-	if (factoryInputId) {
+	if (serializerInputId) {
 
 		interface ISerializedTestInput {
 			resource: string;
 		}
 
-		class EditorsObserverTestEditorInputFactory implements IEditorInputSerializer {
+		class EditorsObserverTestEditorInputSerializer implements IEditorInputSerializer {
 
 			canSerialize(editorInput: EditorInput): boolean {
 				return true;
@@ -1253,11 +1253,11 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
 				let testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
 
-				return new TestFileEditorInput(URI.parse(testInput.resource), factoryInputId!);
+				return new TestFileEditorInput(URI.parse(testInput.resource), serializerInputId!);
 			}
 		}
 
-		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(factoryInputId, EditorsObserverTestEditorInputFactory));
+		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(serializerInputId, EditorsObserverTestEditorInputSerializer));
 	}
 
 	return disposables;

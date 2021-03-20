@@ -105,10 +105,10 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);
 //#endregion
 
-//#region Input Factory
+//#region Input Serializer
 type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
 
-class SearchEditorInputFactory implements IEditorInputSerializer {
+class SearchEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(input: SearchEditorInput) {
 		return !!input.config;
@@ -158,7 +158,7 @@ class SearchEditorInputFactory implements IEditorInputSerializer {
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
 	SearchEditorInput.ID,
-	SearchEditorInputFactory);
+	SearchEditorInputSerializer);
 //#endregion
 
 //#region Commands

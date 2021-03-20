@@ -255,7 +255,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 /**
  * Trusted Workspace GUI Editor
  */
-class WorkspaceTrustEditorInputFactory implements IEditorInputSerializer {
+class WorkspaceTrustEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -271,7 +271,7 @@ class WorkspaceTrustEditorInputFactory implements IEditorInputSerializer {
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerEditorInputSerializer(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputFactory);
+	.registerEditorInputSerializer(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputSerializer);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(

@@ -18,7 +18,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
-import { WebviewEditorInputFactory } from './webviewEditorInputFactory';
+import { WebviewEditorInputSerializer } from './webviewEditorInputSerializer';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
@@ -75,8 +75,8 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, LifecyclePhase.Starting);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
-	WebviewEditorInputFactory.ID,
-	WebviewEditorInputFactory);
+	WebviewEditorInputSerializer.ID,
+	WebviewEditorInputSerializer);
 
 registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 

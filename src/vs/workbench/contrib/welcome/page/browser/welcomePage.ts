@@ -739,7 +739,7 @@ class WelcomePage extends Disposable {
 	}
 }
 
-export class WelcomeInputFactory implements IEditorInputSerializer {
+export class WelcomeInputSerializer implements IEditorInputSerializer {
 
 	static readonly ID = welcomeInputTypeId;
 

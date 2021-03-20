@@ -25,7 +25,7 @@ import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/bro
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
+import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputSerializer';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';

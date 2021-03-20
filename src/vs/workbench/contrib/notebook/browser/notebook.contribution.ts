@@ -100,7 +100,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-class NotebookDiffEditorFactory implements IEditorInputSerializer {
+class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -139,7 +139,7 @@ class NotebookDiffEditorFactory implements IEditorInputSerializer {
 	}
 
 }
-class NotebookEditorFactory implements IEditorInputSerializer {
+class NotebookEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -169,7 +169,7 @@ class NotebookEditorFactory implements IEditorInputSerializer {
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
 	NotebookEditorInput.ID,
-	NotebookEditorFactory
+	NotebookEditorSerializer
 );
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerCustomEditorInputFactory(
@@ -203,7 +203,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
 	NotebookDiffEditorInput.ID,
-	NotebookDiffEditorFactory
+	NotebookDiffEditorSerializer
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {

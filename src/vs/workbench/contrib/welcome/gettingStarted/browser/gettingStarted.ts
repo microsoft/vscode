@@ -840,7 +840,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 }
 
-export class GettingStartedInputFactory implements IEditorInputSerializer {
+export class GettingStartedInputSerializer implements IEditorInputSerializer {
 	public canSerialize(editorInput: GettingStartedInput): boolean {
 		return true;
 	}

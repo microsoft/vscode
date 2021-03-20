@@ -24,7 +24,7 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/p
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { AbstractSideBySideEditorInputFactory } from 'vs/workbench/browser/parts/editor/editor.contribution';
+import { AbstractSideBySideEditorInputSerializer } from 'vs/workbench/browser/parts/editor/editor.contribution';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
@@ -93,15 +93,15 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-// Register Preferences Editor Input Factory
-class PreferencesEditorInputFactory extends AbstractSideBySideEditorInputFactory {
+// Register Preferences Editor Input Serializer
+class PreferencesEditorInputSerializer extends AbstractSideBySideEditorInputSerializer {
 
 	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
 		return new PreferencesEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 
-class KeybindingsEditorInputFactory implements IEditorInputSerializer {
+class KeybindingsEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -120,7 +120,7 @@ class KeybindingsEditorInputFactory implements IEditorInputSerializer {
 	}
 }
 
-class SettingsEditor2InputFactory implements IEditorInputSerializer {
+class SettingsEditor2InputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -139,8 +139,8 @@ interface ISerializedDefaultPreferencesEditorInput {
 	resource: string;
 }
 
-// Register Default Preferences Editor Input Factory
-class DefaultPreferencesEditorInputFactory implements IEditorInputSerializer {
+// Register Default Preferences Editor Input Serializer
+class DefaultPreferencesEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -161,10 +161,10 @@ class DefaultPreferencesEditorInputFactory implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(PreferencesEditorInput.ID, PreferencesEditorInputFactory);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputFactory);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputFactory);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(SettingsEditor2Input.ID, SettingsEditor2InputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(PreferencesEditorInput.ID, PreferencesEditorInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
 const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
 

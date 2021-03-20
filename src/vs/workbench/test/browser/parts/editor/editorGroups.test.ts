@@ -187,7 +187,7 @@ suite('Workbench editor groups', () => {
 		id: string;
 	}
 
-	class TestEditorInputFactory implements IEditorInputSerializer {
+	class TestEditorInputSerializer implements IEditorInputSerializer {
 
 		static disableSerialize = false;
 		static disableDeserialize = false;
@@ -197,7 +197,7 @@ suite('Workbench editor groups', () => {
 		}
 
 		serialize(editorInput: EditorInput): string | undefined {
-			if (TestEditorInputFactory.disableSerialize) {
+			if (TestEditorInputSerializer.disableSerialize) {
 				return undefined;
 			}
 
@@ -210,7 +210,7 @@ suite('Workbench editor groups', () => {
 		}
 
 		deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-			if (TestEditorInputFactory.disableDeserialize) {
+			if (TestEditorInputSerializer.disableDeserialize) {
 				return undefined;
 			}
 
@@ -223,10 +223,10 @@ suite('Workbench editor groups', () => {
 	const disposables = new DisposableStore();
 
 	setup(() => {
-		TestEditorInputFactory.disableSerialize = false;
-		TestEditorInputFactory.disableDeserialize = false;
+		TestEditorInputSerializer.disableSerialize = false;
+		TestEditorInputSerializer.disableDeserialize = false;
 
-		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('testEditorInputForGroups', TestEditorInputFactory));
+		disposables.add(Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('testEditorInputForGroups', TestEditorInputSerializer));
 	});
 
 	teardown(() => {
@@ -390,7 +390,7 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(deserialized.isActive(input3), true);
 
 		// Case 2: inputs cannot be serialized
-		TestEditorInputFactory.disableSerialize = true;
+		TestEditorInputSerializer.disableSerialize = true;
 
 		deserialized = createGroup(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
@@ -399,8 +399,8 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 
 		// Case 3: inputs cannot be deserialized
-		TestEditorInputFactory.disableSerialize = false;
-		TestEditorInputFactory.disableDeserialize = true;
+		TestEditorInputSerializer.disableSerialize = false;
+		TestEditorInputSerializer.disableDeserialize = true;
 
 		deserialized = createGroup(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
@@ -443,7 +443,7 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(deserialized.isSticky(input3), false);
 
 		// Case 2: inputs cannot be serialized
-		TestEditorInputFactory.disableSerialize = true;
+		TestEditorInputSerializer.disableSerialize = true;
 
 		deserialized = createGroup(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
@@ -453,8 +453,8 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 
 		// Case 3: inputs cannot be deserialized
-		TestEditorInputFactory.disableSerialize = false;
-		TestEditorInputFactory.disableDeserialize = true;
+		TestEditorInputSerializer.disableSerialize = false;
+		TestEditorInputSerializer.disableDeserialize = true;
 
 		deserialized = createGroup(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);

@@ -43,7 +43,7 @@ export interface DeserializedWebview {
 	readonly group?: number;
 }
 
-export class WebviewEditorInputFactory implements IEditorInputSerializer {
+export class WebviewEditorInputSerializer implements IEditorInputSerializer {
 
 	public static readonly ID = WebviewInput.typeId;
 

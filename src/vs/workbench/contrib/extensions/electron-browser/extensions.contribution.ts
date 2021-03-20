@@ -40,7 +40,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	[new SyncDescriptor(RuntimeExtensionsInput)]
 );
 
-class RuntimeExtensionsInputFactory implements IEditorInputSerializer {
+class RuntimeExtensionsInputSerializer implements IEditorInputSerializer {
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
 	}
@@ -52,7 +52,7 @@ class RuntimeExtensionsInputFactory implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(RuntimeExtensionsInput.ID, RuntimeExtensionsInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(RuntimeExtensionsInput.ID, RuntimeExtensionsInputSerializer);
 
 
 // Global actions
