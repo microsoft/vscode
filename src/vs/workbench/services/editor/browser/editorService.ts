@@ -486,10 +486,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region editor overrides
 
-	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
+	private readonly openEditorOverrides: IOpenEditorOverrideHandler[] = [];
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
-		const remove = insert(this.openEditorHandlers, handler);
+		const remove = insert(this.openEditorOverrides, handler);
 
 		return toDisposable(() => remove());
 	}
@@ -498,10 +498,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const overrides: [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] = [];
 
 		// Collect contributed editor open overrides
-		for (const handler of this.openEditorHandlers) {
-			if (typeof handler.getEditorOverrides === 'function') {
+		for (const openEditorOverride of this.openEditorOverrides) {
+			if (typeof openEditorOverride.getEditorOverrides === 'function') {
 				try {
-					overrides.push(...handler.getEditorOverrides(resource, options, group).map(val => [handler, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]));
+					overrides.push(...openEditorOverride.getEditorOverrides(resource, options, group).map(val => [openEditorOverride, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]));
 				} catch (error) {
 					this.logService.error(`Unexpected error getting editor overrides: ${error}`);
 				}
@@ -555,14 +555,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		];
 	}
 
-	private handleOpenEditorOverrides(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorPane | undefined> | undefined {
-		for (const handler of this.openEditorHandlers) {
-			const result = handler.open(editor, options, group);
+	private doOverrideOpenEditor(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorPane | undefined> | undefined {
+		for (const openEditorOverride of this.openEditorOverrides) {
+			const result = openEditorOverride.open(editor, options, group);
 			const override = result?.override;
 			if (override) {
 				return override;
 			}
 		}
+
 		return;
 	}
 
@@ -578,20 +579,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
 
-			// If the override option is provided we want to open that specific editor or show a picker
+			// Override handling: pick editor or open specific
 			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
 				return this.openEditorWith(resolvedOptions.override, resolvedEditor, resolvedOptions, resolvedGroup);
 			}
 
+			// Override handling: ask providers to override
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				// About to open an editor so lets check for an override to see if someone else wants to ahndle the opening
-				const overriden = this.handleOpenEditorOverrides(resolvedEditor, resolvedOptions, resolvedGroup);
-				if (overriden) {
-					return overriden;
+				const override = this.doOverrideOpenEditor(resolvedEditor, resolvedOptions, resolvedGroup);
+				if (override) {
+					return override;
 				}
 			}
 
-			// Otherwise proceed to open normally
+			// Override handling: disabled
 			return resolvedGroup.openEditor(resolvedEditor, resolvedOptions);
 		}
 
