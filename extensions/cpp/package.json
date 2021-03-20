@@ -59,7 +59,8 @@
         ],
         "aliases": [
           "CUDA C++"
-        ]
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
