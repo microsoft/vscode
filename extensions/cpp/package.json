@@ -81,6 +81,11 @@
       {
         "scopeName": "source.c.platform",
         "path": "./syntaxes/platform.tmLanguage.json"
+      },
+      {
+        "language": "cuda-cpp",
+        "scopeName": "source.cuda-cpp",
+        "path": "./syntaxes/cuda-cpp.tmLanguage.json"
       }
     ],
     "snippets": [
