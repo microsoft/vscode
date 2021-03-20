@@ -20,7 +20,7 @@ import { platform } from 'vs/base/common/process';
 
 const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hours
 const MAX_INSTALL_AGE = 1000 * 60 * 60 * 8; // 8 hours
-const REMIND_LATER_DELAY = 1000 * 60 * 60 * 8; // 4 hours
+const REMIND_LATER_DELAY = 1000 * 60 * 60 * 4; // 4 hours
 const SKIP_SURVEY_KEY = 'ces/skipSurvey';
 const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
 
@@ -77,7 +77,7 @@ class CESContribution implements IWorkbenchContribution {
 		setTimeout(() => {
 			this.notificationService.prompt(
 				Severity.Info,
-				nls.localize('surveyQuestion', '👋 Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.'),
+				nls.localize('cesSurveyQuestion', '👋 Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.'),
 				// Please help us to improve VS Code.
 				// Take a short break from code and help us improve VS Code.
 				// Got a moment? Tell us about your experience with VS Code so far.
@@ -85,7 +85,7 @@ class CESContribution implements IWorkbenchContribution {
 				// Got feedback for us? Signed, the VS Code team ❤️
 				// How is VS Code working for you so far? ❤️, the VS Code team!
 				[{
-					label: nls.localize('takeSurvey', "Give Feedback"),
+					label: nls.localize('giveFeedback', "Give Feedback"),
 					// Take Short Survey
 					// Open Survey
 					run: () => {
