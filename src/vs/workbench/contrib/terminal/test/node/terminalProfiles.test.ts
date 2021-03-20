@@ -29,7 +29,7 @@ suite('Workbench - TerminalProfiles', () => {
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
 					assert.deepStrictEqual(profiles, expected);
 				});
-				test('should detect cmd prompt', async () => {
+				test.skip('should detect cmd prompt', async () => {
 					const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
 					const config: ITestTerminalConfig = {
 						profiles: {

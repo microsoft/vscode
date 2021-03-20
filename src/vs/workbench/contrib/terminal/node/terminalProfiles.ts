@@ -213,10 +213,6 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	const quickLaunchProfiles: ITerminalProfile[] = [];
 	for (const profile of profiles) {
 		detectedProfiles.push({ profileName: basename(profile), path: profile });
-		// choose only the first
-		if (!quickLaunchProfiles.find(p => p.profileName === basename(profile))) {
-			quickLaunchProfiles.push({ profileName: basename(profile), path: profile });
-		}
 	}
 
 	for (const [profileName, value] of Object.entries(configProfiles)) {
@@ -226,14 +222,16 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 			if (Array.isArray(pathOrPaths)) {
 				for (const possiblePath of pathOrPaths) {
 					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));
-					if (profile) {
+					// choose only the first
+					if (profile && !quickLaunchProfiles.find(p => p.profileName === basename(possiblePath))) {
 						quickLaunchProfiles.push({ profileName, path: profile.path });
 						break;
 					}
 				}
 			} else {
 				const profile = detectedProfiles.find(p => p.path.endsWith(pathOrPaths));
-				if (profile) {
+				// choose only the first
+				if (profile && !quickLaunchProfiles.find(p => p.profileName === basename(pathOrPaths))) {
 					quickLaunchProfiles.push({ profileName, path: profile.path });
 				}
 			}
