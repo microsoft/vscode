@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -105,10 +105,11 @@ export interface IEditorGroupTitleHeight {
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;
-	readonly onWillDispose: Event<void>;
 	readonly onDidOpenEditorFail: Event<IEditorInput>;
+	readonly onWillMoveEditor: Event<IEditorMoveEvent>;
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+	readonly onWillDispose: Event<void>;
 
 	readonly group: EditorGroup;
 	readonly whenRestored: Promise<void>;

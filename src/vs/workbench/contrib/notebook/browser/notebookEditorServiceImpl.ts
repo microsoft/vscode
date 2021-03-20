@@ -55,7 +55,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			}));
 			listeners.push(group.onWillMoveEditor(e => {
 				if (e.editor instanceof NotebookEditorInput) {
-					this._freeWidget(e.editor, e.source, e.target);
+					this._freeWidget(e.editor, e.groupId, e.target);
 				}
 			}));
 			groupListener.set(id, listeners);

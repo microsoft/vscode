@@ -287,8 +287,8 @@ class DropOverlay extends Themable {
 						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
 						override: EditorOverride.DISABLED 					// preserve editor type
 					}));
-					const copyEditor = this.isCopyOperation(event, draggedEditor);
 
+					const copyEditor = this.isCopyOperation(event, draggedEditor);
 					if (!copyEditor) {
 						sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
 					} else {

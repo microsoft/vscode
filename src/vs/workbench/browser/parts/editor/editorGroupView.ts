@@ -1179,12 +1179,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			sticky: !keepCopy && this._group.isSticky(editor)	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)
 		}));
 
+		// Indicate will move event
 		if (!keepCopy) {
 			this._onWillMoveEditor.fire({
-				source: this.id,
-				target: target.id,
 				groupId: this.id,
-				editor: editor
+				editor,
+				target: target.id,
 			});
 		}
 

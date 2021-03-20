@@ -1256,8 +1256,7 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 }
 
 export interface IEditorMoveEvent extends IEditorIdentifier {
-	source: GroupIdentifier,
-	target: GroupIdentifier
+	target: GroupIdentifier;
 }
 
 export type GroupIdentifier = number;
