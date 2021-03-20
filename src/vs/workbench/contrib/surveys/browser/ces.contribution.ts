@@ -20,10 +20,9 @@ import { platform } from 'vs/base/common/process';
 
 const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hours
 const MAX_INSTALL_AGE = 1000 * 60 * 60 * 8; // 8 hours
-const REMIND_LATER_DELAY = 1000 * 60 * 60 * 8; // 8 hours
-const SKIP_VERSION_KEY = 'ces/skipVersion';
+const REMIND_LATER_DELAY = 1000 * 60 * 60 * 8; // 4 hours
+const SKIP_SURVEY_KEY = 'ces/skipSurvey';
 const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
-const IS_CANDIDATE_KEY = 'ces/isCandidate';
 
 class CESContribution implements IWorkbenchContribution {
 
@@ -35,26 +34,23 @@ class CESContribution implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@optional(ITASExperimentService) private readonly tasExperimentService: ITASExperimentService,
 	) {
-		console.log(this);
 		if (!productService.cesSurveyUrl) {
 			return;
 		}
 
-		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
-		if (skipVersion) {
+		const skipSurvey = storageService.get(SKIP_SURVEY_KEY, StorageScope.GLOBAL, '');
+		if (skipSurvey) {
 			return;
 		}
 		this.scheduleSurvey();
 	}
 
 	private async scheduleSurvey(): Promise<void> {
-		const isExperimentCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
-		const isCandidate = this.storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, isExperimentCandidate);
-
-		this.storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL, StorageTarget.USER);
-
+		// Once the experiment service determined if a user is a survey candidate, this value will be stored and
+		// preferred to any changes in the experiment.
+		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
 		if (!isCandidate) {
-			this.skipVersion();
+			this.skipSurvey();
 			return;
 		}
 
@@ -70,48 +66,54 @@ class CESContribution implements IWorkbenchContribution {
 			const timeFromInstall = Date.now() - new Date(info.firstSessionDate).getTime();
 			const isNewInstall = !isNaN(timeFromInstall) && timeFromInstall < MAX_INSTALL_AGE;
 
+			// Installation is older than MAX_INSTALL_AGE
 			if (!isNewInstall) {
+				this.skipSurvey();
 				return;
 			}
 			waitTimeToShowSurvey = Math.max(WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall, WAIT_TIME_TO_SHOW_SURVEY);
 		}
 
 		setTimeout(() => {
-			// TODO: Telemetry
 			this.notificationService.prompt(
 				Severity.Info,
-				nls.localize('surveyQuestion', "Please help us to improve VS Code."),
+				nls.localize('surveyQuestion', '👋 Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.'),
+				// Please help us to improve VS Code.
 				// Take a short break from code and help us improve VS Code.
 				// Got a moment? Tell us about your experience with VS Code so far.
 				// Your feedback can help us make VS Code better for everybody.
 				// Got feedback for us? Signed, the VS Code team ❤️
 				// How is VS Code working for you so far? ❤️, the VS Code team!
 				[{
-					label: nls.localize('takeSurvey', "Take Short Survey"),
+					label: nls.localize('takeSurvey', "Give Feedback"),
+					// Take Short Survey
+					// Open Survey
 					run: () => {
 						// TODO: Telemetry for yes
 						this.telemetryService.getTelemetryInfo().then(info => {
 							this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
-							this.skipVersion();
+							this.skipSurvey();
 						});
 					}
 				}, {
 					label: nls.localize('remindLater', "Remind Me later"),
 					// TODO: Telemetry for later
-					run: () => this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER)
+					run: () => {
+						this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
+						this.scheduleSurvey();
+					}
 				}, {
 					label: nls.localize('neverAgain', "Don't Show Again"),
 					// TODO: Telemetry for no
-					run: () => this.skipVersion()
+					run: () => this.skipSurvey()
 				}],
 				{ sticky: true }
 			);
 		}, waitTimeToShowSurvey);
 	}
 
-	skipVersion(): void {
-		this.storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-		this.storageService.store(SKIP_VERSION_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+	skipSurvey(): void {
+		this.storageService.store(SKIP_SURVEY_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
 
