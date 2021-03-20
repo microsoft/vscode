@@ -120,15 +120,30 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "ms-vscode.remotehub",
+			"version": "0.1.0",
+			"repo": "https://github.com/microsoft/vscode-remotehub",
+			"metadata": {
+				"id": "ed0ffe1d-36f0-49a0-bafe-da68355eb33a",
+				"publisherId": {
+					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+					"publisherName": "ms-vscode",
+					"displayName": "Microsoft",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Microsoft"
+			}
 		}
 	],
 	"webBuiltInExtensions": [
 		{
-			"name": "ms-vscode.github-browser",
-			"version": "0.0.15",
-			"repo": "https://github.com/microsoft/vscode-github-browser",
+			"name": "ms-vscode.remotehub",
+			"version": "0.1.0",
+			"repo": "https://github.com/microsoft/vscode-remotehub",
 			"metadata": {
-				"id": "c1bcff4b-4ecb-466e-b8f6-b02788b5fb5a",
+				"id": "ed0ffe1d-36f0-49a0-bafe-da68355eb33a",
 				"publisherId": {
 					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
 					"publisherName": "ms-vscode",
