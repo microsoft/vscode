@@ -16,8 +16,8 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ITestTerminalConfig } from 'vs/workbench/contrib/terminal/test/node/terminalProfiles.test';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux);
+export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux, testPaths);
 }
 
 async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
@@ -207,9 +207,9 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	return [];
 }
 
-async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProfiles?: any): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[]): Promise<ITerminalProfile[]> {
 	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
-	const profiles = contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+	const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 
 	let detectedProfiles: ITerminalProfile[] = [];
 	let quickLaunchProfiles: ITerminalProfile[] = [];

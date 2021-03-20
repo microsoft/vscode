@@ -5,14 +5,9 @@
 
 // import * as assert from 'assert';
 import assert = require('assert');
-import { isWindows } from 'vs/base/common/platform';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ITerminalProfiles, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
-
-export interface ITestTerminalConfig {
-	profiles: ITerminalProfiles;
-	showQuickLaunchWslProfiles: boolean
-}
 
 suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
@@ -34,26 +29,87 @@ suite('Workbench - TerminalProfiles', () => {
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
 					assert.deepStrictEqual(profiles, expected);
 				});
-				// 	test('should detect cmd prompt', async () => {
-				// 		const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
-				// 		const config: ITestTerminalConfig = {
-				// 			profiles: {
-				// 				windows: {
-				// 					'Command Prompt': { path: _paths }
-				// 				},
-				// 				linux: {},
-				// 				osx: {},
-				// 			},
-				// 			showQuickLaunchWslProfiles: false
-				// 		};
-				// 		const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
-				// 		const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
-				// 		assert.deepStrictEqual(expected, profiles);
-				// 	});
+				test('should detect cmd prompt', async () => {
+					const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {
+								'Command Prompt': { path: _paths }
+							},
+							linux: {},
+							osx: {},
+						},
+						showQuickLaunchWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
+					assert.deepStrictEqual(expected, profiles);
+				});
+			}
+			);
+		} else if (isMacintosh) {
+			suite('detectAvailableOsxProfiles', async () => {
+				test('should detect bash, zsh, tmux, fish', async () => {
+					const _paths = ['bash', 'zsh', 'tmux', 'fish'];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {},
+							osx: {
+								'bash': {
+									path: 'bash'
+								},
+								'zsh': {
+									path: 'zsh'
+								},
+								'fish': {
+									path: 'fish'
+								},
+								'tmux': {
+									path: 'tmux'
+								}
+							},
+							linux: {}
+						},
+						showQuickLaunchWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
+					assert.deepStrictEqual(profiles, expected);
+				});
+			}
+			);
+		} else if (isLinux) {
+			suite('detectAvailableLinuxProfiles', async () => {
+				test('should detect bash, zsh, tmux, fish', async () => {
+					const _paths = ['bash', 'zsh', 'tmux', 'fish'];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {},
+							linux: {
+								'bash': {
+									path: 'bash'
+								},
+								'zsh': {
+									path: 'zsh'
+								},
+								'fish': {
+									path: 'fish'
+								},
+								'tmux': {
+									path: 'tmux'
+								}
+							},
+							osx: {}
+						},
+						showQuickLaunchWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
+					assert.deepStrictEqual(profiles, expected);
+				});
 			}
 			);
 		}
-
 	});
 
 	function createStatProvider(expectedPaths: string[]): IStatProvider {
@@ -68,3 +124,8 @@ suite('Workbench - TerminalProfiles', () => {
 		return provider;
 	}
 });
+
+export interface ITestTerminalConfig {
+	profiles: ITerminalProfiles;
+	showQuickLaunchWslProfiles: boolean
+}
