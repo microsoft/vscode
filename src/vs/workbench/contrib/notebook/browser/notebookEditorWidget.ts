@@ -716,6 +716,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			renderDropdownAsChildElement: true
 		});
 		this._register(this._topToolbar);
+		this._topToolbar.context = {
+			ui: true,
+			notebookEditor: this
+		};
 
 		this._showNotebookActionsinEditorToolbar();
 		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
