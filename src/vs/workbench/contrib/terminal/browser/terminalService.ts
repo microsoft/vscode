@@ -300,7 +300,7 @@ export class TerminalService implements ITerminalService {
 
 	public getAvailableProfiles(): ITerminalProfile[] {
 		this._updateAvailableProfiles();
-		return this._availableProfiles?.map(s => ({ profileName: s.profileName, path: s.path, args: s.args, isWorkspaceProfile: this._getWorkspaceProfilePermissions(s) } as ITerminalProfile)) || [];
+		return this._availableProfiles?.map(p => ({ profileName: p.profileName, path: p.path, args: p.args, isWorkspaceProfile: this._getWorkspaceProfilePermissions(p) } as ITerminalProfile)) || [];
 	}
 
 	private _getWorkspaceProfilePermissions(profile: ITerminalProfile): boolean {
