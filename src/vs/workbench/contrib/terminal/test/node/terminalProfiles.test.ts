@@ -48,7 +48,7 @@ suite('Workbench - TerminalProfiles', () => {
 			}
 			);
 		} else if (isMacintosh) {
-			suite('detectAvailableOsxProfiles', async () => {
+			suite.skip('detectAvailableOsxProfiles', async () => {
 				test('should detect bash, zsh, tmux, fish', async () => {
 					const _paths = ['bash', 'zsh', 'tmux', 'fish'];
 					const config: ITestTerminalConfig = {
@@ -79,7 +79,7 @@ suite('Workbench - TerminalProfiles', () => {
 			}
 			);
 		} else if (isLinux) {
-			suite('detectAvailableLinuxProfiles', async () => {
+			suite.skip('detectAvailableLinuxProfiles', async () => {
 				test('should detect bash, zsh, tmux, fish', async () => {
 					const _paths = ['bash', 'zsh', 'tmux', 'fish'];
 					const config: ITestTerminalConfig = {
