@@ -219,19 +219,20 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 		if ((value as ITerminalExecutable).path) {
 			const configProfile = (value as ITerminalExecutable);
 			const pathOrPaths = configProfile.path;
+			const args = configProfile.args;
 			if (Array.isArray(pathOrPaths)) {
 				for (const possiblePath of pathOrPaths) {
-					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));
+					const profile = detectedProfiles.find(p => basename(p.path) === possiblePath);
 					// choose only the first
-					if (profile && !quickLaunchProfiles.find(p => p.profileName === basename(possiblePath))) {
+					if (profile && !quickLaunchProfiles.find(p => basename(p.path) === possiblePath && p.profileName === profileName && p.args === args)) {
 						quickLaunchProfiles.push({ profileName, path: profile.path });
 						break;
 					}
 				}
 			} else {
-				const profile = detectedProfiles.find(p => p.path.endsWith(pathOrPaths));
+				const profile: ITerminalProfile | undefined = detectedProfiles.find(p => basename(p.path) === pathOrPaths);
 				// choose only the first
-				if (profile && !quickLaunchProfiles.find(p => p.profileName === basename(pathOrPaths))) {
+				if (profile && !quickLaunchProfiles.find(p => basename(p.path) === profile.path && p.profileName === profileName && p.args === args)) {
 					quickLaunchProfiles.push({ profileName, path: profile.path });
 				}
 			}
