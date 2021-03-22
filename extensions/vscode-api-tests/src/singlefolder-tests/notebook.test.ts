@@ -53,79 +53,106 @@ async function withEvent<T>(event: vscode.Event<T>, callback: (e: Promise<T>) =>
 	await callback(e);
 }
 
-const kernel1: vscode.NotebookKernel = {
-	id: 'mainKernel',
-	label: 'Notebook Test Kernel',
-	isPreferred: true,
-	supportedLanguages: ['typescript', 'javascript'],
-	executeAllCells: async (_document: vscode.NotebookDocument) => {
-		const edit = new vscode.WorkspaceEdit();
+const kernel1 = new class implements vscode.NotebookKernel {
+	readonly id = 'mainKernel';
+	readonly label = 'Notebook Test Kernel';
+	readonly isPreferred = true;
+	readonly supportedLanguages = ['typescript', 'javascript'];
 
-		edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
-			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
-		])]);
-		return vscode.workspace.applyEdit(edit);
-	},
-	cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
-	executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
-		if (!cell) {
-			cell = document.cells[0];
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+		if (ranges.length > 1 || ranges[0].start + 1 < ranges[0].end) {
+			// Keeping same behavior... if the full notebook is executed, just execute the first cell
+			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, 0, 'mainKernel');
+			if (!task) {
+				return;
+			}
+
+			task.start();
+			await task.replaceOutput([new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+			])]);
+			task.end({ success: true });
+			return;
 		}
 
+		for (let range of ranges) {
+			for (let i = range.start; i < range.end; i++) {
+				await this.runCell(document, i);
+			}
+		}
+	}
+
+	private async runCell(document: vscode.NotebookDocument, idx: number) {
+		const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'mainKernel');
+		if (!task) {
+			return;
+		}
+
+		task.start();
+		task.executionOrder = 1;
 		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+			await task.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
 			])]);
-
-			return vscode.workspace.applyEdit(edit);
+			return;
 		}
 
-		const edit = new vscode.WorkspaceEdit();
-		// const previousOutputs = cell.outputs;
-		edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+		await task.replaceOutput([new vscode.NotebookCellOutput([
 			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
 		])]);
-
-		return vscode.workspace.applyEdit(edit);
-	},
-	cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
+		task.end({ success: true });
+	}
 };
 
-const kernel2: vscode.NotebookKernel = {
-	id: 'secondaryKernel',
-	label: 'Notebook Secondary Test Kernel',
-	isPreferred: false,
-	supportedLanguages: ['typescript', 'javascript'],
-	executeAllCells: async (_document: vscode.NotebookDocument) => {
-		const edit = new vscode.WorkspaceEdit();
-		edit.replaceNotebookCellOutput(_document.uri, 0, [new vscode.NotebookCellOutput([
-			new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
-		])]);
+const kernel2 = new class implements vscode.NotebookKernel {
+	readonly id = 'secondaryKernel';
+	readonly label = 'Notebook Secondary Test Kernel';
+	readonly isPreferred = false;
+	readonly supportedLanguages = ['typescript', 'javascript'];
 
-		return vscode.workspace.applyEdit(edit);
-	},
-	cancelAllCellsExecution: async (_document: vscode.NotebookDocument) => { },
-	executeCell: async (document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) => {
-		if (!cell) {
-			cell = document.cells[0];
-		}
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+		if (ranges.length > 1 || ranges[0].start + 1 < ranges[0].end) {
+			// Keeping same behavior... if the full notebook is executed, just execute the first cell
+			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, 0, 'secondaryKernel');
+			if (!task) {
+				return;
+			}
 
-		const edit = new vscode.WorkspaceEdit();
-
-		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
-			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
-				new vscode.NotebookCellOutputItem('text/custom', ['test 2'], undefined)
-			])]);
-		} else {
-			edit.replaceNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([
+			task.start();
+			await task.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
 			])]);
+			task.end({ success: true });
+			return;
 		}
 
-		return vscode.workspace.applyEdit(edit);
-	},
-	cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
+		for (let range of ranges) {
+			for (let i = range.start; i < range.end; i++) {
+				await this.runCell(document, i);
+			}
+		}
+	}
+
+	private async runCell(document: vscode.NotebookDocument, idx: number) {
+		const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'mainKernel');
+		if (!task) {
+			return;
+		}
+
+		task.start();
+		if (document.uri.path.endsWith('customRenderer.vsctestnb')) {
+			task.replaceOutput([new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('text/custom', ['test 2'], undefined)
+			])]);
+			task.end({ success: true });
+			return;
+		}
+
+		await task.replaceOutput([new vscode.NotebookCellOutput([
+			new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+		])]);
+		task.end({ success: true });
+	}
 };
 
 class KernelProvider implements vscode.NotebookKernelProvider {
@@ -133,7 +160,12 @@ class KernelProvider implements vscode.NotebookKernelProvider {
 	onDidChangeKernels = this._onDidChangeKernels.event;
 
 	private _hasKernels = true;
-	private readonly _kernels = [kernel1, kernel2];
+	private readonly _kernels: vscode.NotebookKernel[] = [kernel1, kernel2];
+
+	addKernel(kernel: vscode.NotebookKernel): void {
+		this._kernels.push(kernel);
+		this._onDidChangeKernels.fire(undefined);
+	}
 
 	provideKernels(): vscode.ProviderResult<vscode.NotebookKernel[]> {
 		return this._hasKernels ? this._kernels : [];
@@ -144,11 +176,13 @@ class KernelProvider implements vscode.NotebookKernelProvider {
 		this._onDidChangeKernels.fire(undefined);
 	}
 }
-let currentKernerProvider: KernelProvider;
+
+let currentKernelProvider: KernelProvider;
 
 suite('Notebook API tests', function () {
 
-	const disposables: vscode.Disposable[] = [];
+	const testDisposables: vscode.Disposable[] = [];
+	const suiteDisposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
 
@@ -157,12 +191,12 @@ suite('Notebook API tests', function () {
 		await revertAllDirty();
 		await closeAllEditors();
 
-		disposeAll(disposables);
-		disposables.length = 0;
+		disposeAll(suiteDisposables);
+		suiteDisposables.length = 0;
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
+		suiteDisposables.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
 			openNotebook: async (_resource: vscode.Uri): Promise<vscode.NotebookData> => {
 				if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
 					return {
@@ -191,6 +225,7 @@ suite('Notebook API tests', function () {
 								],
 									{ testOutputMetadata: true })
 							],
+							previousResult: { executionOrder: 5, success: true },
 							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 456 } })
 						}
 					]
@@ -213,9 +248,16 @@ suite('Notebook API tests', function () {
 				};
 			}
 		}));
+	});
 
-		currentKernerProvider = new KernelProvider();
-		disposables.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, currentKernerProvider));
+	setup(() => {
+		currentKernelProvider = new KernelProvider();
+		testDisposables.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, currentKernelProvider));
+	});
+
+	teardown(() => {
+		disposeAll(testDisposables);
+		testDisposables.length = 0;
 	});
 
 	test('shared document in notebook editors', async function () {
@@ -391,12 +433,11 @@ suite('Notebook API tests', function () {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: true, executionOrder: 17 }));
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: true }));
 		});
 
 		const document = vscode.window.activeNotebookEditor?.document!;
 		assert.strictEqual(document.cells.length, 2);
-		assert.strictEqual(document.cells[0].metadata.executionOrder, 17);
 		assert.strictEqual(document.cells[0].metadata.inputCollapsed, true);
 
 		assert.strictEqual(document.isDirty, true);
@@ -410,12 +451,11 @@ suite('Notebook API tests', function () {
 		const event = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
 
 		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: true, executionOrder: 17 }));
+			editBuilder.replaceCellMetadata(0, new vscode.NotebookCellMetadata().with({ inputCollapsed: true }));
 		});
 
 		const data = await event;
 		assert.strictEqual(data.document, vscode.window.activeNotebookEditor?.document);
-		assert.strictEqual(data.cell.metadata.executionOrder, 17);
 		assert.strictEqual(data.cell.metadata.inputCollapsed, true);
 
 		assert.strictEqual(data.document.isDirty, true);
@@ -499,6 +539,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].mime, 'text/plain');
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].value, 'Hello World');
 		assert.deepStrictEqual(secondCell!.outputs[0].outputs[0].metadata, { testOutputItemMetadata: true });
+		assert.strictEqual(secondCell!.previousResult?.executionOrder, 5);
+		assert.strictEqual(secondCell!.previousResult?.success, true);
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
@@ -637,11 +679,11 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cells[0];
 		assert.strictEqual(cell.outputs.length, 0);
 
-		currentKernerProvider.setHasKernels(false);
+		currentKernelProvider.setHasKernels(false);
 		await vscode.commands.executeCommand('notebook.execute');
 		assert.strictEqual(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
 
-		currentKernerProvider.setHasKernels(true);
+		currentKernelProvider.setHasKernels(true);
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
 			await vscode.commands.executeCommand('notebook.execute');
@@ -737,26 +779,158 @@ suite('Notebook API tests', function () {
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cells[0];
 
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-		assert.strictEqual(cell.outputs[0].outputs.length, 1);
-		assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-		assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-			'my output'
-		]);
+		vscode.commands.executeCommand('notebook.cell.execute');
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await event;
+			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assert.strictEqual(cell.outputs[0].outputs.length, 1);
+			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'my output'
+			]);
+		});
 
 		await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: 'secondaryKernel' });
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-		assert.strictEqual(cell.outputs[0].outputs.length, 1);
-		assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-		assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-			'my second output'
-		]);
+		vscode.commands.executeCommand('notebook.cell.execute');
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await event;
+			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assert.strictEqual(cell.outputs[0].outputs.length, 1);
+			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'my second output'
+			]);
+		});
 
 		await saveAllFilesAndCloseAll(undefined);
 	});
-	// });
+
+	test('set outputs on cancel', async () => {
+		const cancelableKernel = new class implements vscode.NotebookKernel {
+			readonly id = 'cancelableKernel';
+			readonly label = 'Notebook Cancelable Test Kernel';
+			readonly isPreferred = false;
+			readonly supportedLanguages = ['typescript', 'javascript'];
+
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+				const idx = ranges[0].start;
+
+				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'cancelableKernel');
+				if (!task) {
+					return;
+				}
+
+				task.start();
+				task.token.onCancellationRequested(async () => {
+					await task.replaceOutput([new vscode.NotebookCellOutput([
+						new vscode.NotebookCellOutputItem('text/plain', ['Canceled'], undefined)
+					])]);
+					task.end({});
+				});
+			}
+		};
+
+		currentKernelProvider.addKernel(cancelableKernel);
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const editor = vscode.window.activeNotebookEditor!;
+		const cell = editor.document.cells[0];
+
+		await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: cancelableKernel.id });
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.cell.execute');
+			await vscode.commands.executeCommand('notebook.cell.cancelExecution');
+			await event;
+			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assert.strictEqual(cell.outputs[0].outputs.length, 1);
+			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'Canceled'
+			]);
+		});
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
+	test('set outputs on interrupt', async () => {
+		const interruptableKernel = new class implements vscode.NotebookKernel {
+			readonly id = 'interruptableKernel';
+			readonly label = 'Notebook Interruptable Test Kernel';
+			readonly isPreferred = false;
+			readonly supportedLanguages = ['typescript', 'javascript'];
+
+			private _task: vscode.NotebookCellExecutionTask | undefined;
+
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+				const idx = ranges[0].start;
+
+				this._task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'interruptableKernel');
+				if (!this._task) {
+					return;
+				}
+
+				this._task.start();
+			}
+
+			async interrupt(_document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]) {
+				await this._task!.replaceOutput([new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/plain', ['Interrupted'], undefined)
+				])]);
+				this._task!.end({});
+			}
+		};
+
+		currentKernelProvider.addKernel(interruptableKernel);
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const editor = vscode.window.activeNotebookEditor!;
+		const cell = editor.document.cells[0];
+
+		await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: interruptableKernel.id });
+		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
+			await vscode.commands.executeCommand('notebook.cell.execute');
+			await vscode.commands.executeCommand('notebook.cell.cancelExecution');
+			await event;
+			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+			assert.strictEqual(cell.outputs[0].outputs.length, 1);
+			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'Interrupted'
+			]);
+		});
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
+	test('onDidChangeCellExecutionState is fired', async () => {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const editor = vscode.window.activeNotebookEditor!;
+		const cell = editor.document.cells[0];
+
+		vscode.commands.executeCommand('notebook.cell.execute');
+		let eventCount = 0;
+		let resolve: () => void;
+		const p = new Promise<void>(r => resolve = r);
+		const listener = vscode.notebook.onDidChangeCellExecutionState(e => {
+			if (eventCount === 0) {
+				assert.strictEqual(e.executionState, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
+			} else if (eventCount === 1) {
+				assert.strictEqual(e.executionState, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
+				assert.strictEqual(cell.outputs.length, 0, 'no outputs yet: ' + JSON.stringify(cell.outputs[0]));
+			} else if (eventCount === 2) {
+				assert.strictEqual(e.executionState, vscode.NotebookCellExecutionState.Idle, 'should be set to Idle');
+				assert.strictEqual(cell.outputs.length, 1, 'should have an output');
+				resolve();
+			}
+
+			eventCount++;
+		});
+
+		await p;
+		listener.dispose();
+		await saveAllFilesAndCloseAll(undefined);
+	});
 
 	// suite('notebook dirty state', () => {
 	test('notebook open', async function () {
@@ -1094,7 +1268,6 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(resource);
 	});
 
-
 	test('#116808, active kernel should not be undefined', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -1108,32 +1281,110 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(resource);
 	});
 
-	test('Numeric metadata should get updated correctly', async function () {
+	test('Output changes are applied once the promise resolves', async function () {
+		const verifyOutputSyncKernel = new class implements vscode.NotebookKernel {
+			readonly id = 'verifyOutputSyncKernel';
+			readonly label = '';
+			readonly isPreferred = false;
+			readonly supportedLanguages = ['typescript', 'javascript'];
+
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+				const idx = ranges[0].start;
+
+				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, this.id);
+				if (!task) {
+					return;
+				}
+
+				task.start();
+				await task.replaceOutput([new vscode.NotebookCellOutput([
+					new vscode.NotebookCellOutputItem('text/plain', ['Some output'], undefined)
+				])]);
+				assert.strictEqual(document.cells[0].outputs.length, 1);
+				assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].value, ['Some output']);
+				task.end({});
+			}
+		};
+
+		currentKernelProvider.addKernel(verifyOutputSyncKernel);
+
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		const document = await vscode.notebook.openNotebookDocument(resource);
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: verifyOutputSyncKernel.id });
+		await vscode.commands.executeCommand('notebook.cell.execute');
 
-		const edit = new vscode.WorkspaceEdit();
-		const runStartTime = Date.now();
-		const lastRunDuration = Date.now() + 1000;
-		const runState = vscode.NotebookCellRunState.Success;
-		const executionOrder = 1234;
-		const metadata = document.cells[0].metadata.with({
-			...document.cells[0].metadata,
-			runStartTime,
-			runState,
-			lastRunDuration,
-			executionOrder
-		});
-		edit.replaceNotebookCellMetadata(document.uri, 0, metadata);
-		await vscode.workspace.applyEdit(edit);
-
-		assert.strictEqual(document.cells[0].metadata.runStartTime, runStartTime);
-		assert.strictEqual(document.cells[0].metadata.lastRunDuration, lastRunDuration);
-		assert.strictEqual(document.cells[0].metadata.executionOrder, executionOrder);
-		assert.strictEqual(document.cells[0].metadata.runState, vscode.NotebookCellRunState.Success);
+		await saveAllFilesAndCloseAll(undefined);
 	});
 
+	test('previousResult', async () => {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const editor = vscode.window.activeNotebookEditor!;
+		const cell = editor.document.cells[0];
 
+		assert.strictEqual(cell.previousResult?.success, undefined);
+		assert.strictEqual(cell.previousResult?.executionOrder, undefined);
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.strictEqual(cell.outputs.length, 1, 'should execute');
+		assert.ok(cell.previousResult);
+		assert.strictEqual(cell.previousResult!.success, true);
+		assert.strictEqual(typeof cell.previousResult!.executionOrder, 'number');
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
+	test('initialize previousResult', async () => {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const editor = vscode.window.activeNotebookEditor!;
+		const cell = editor.document.cells[0];
+
+		assert.strictEqual(cell.previousResult?.success, undefined);
+		assert.strictEqual(cell.previousResult?.executionOrder, undefined);
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.strictEqual(cell.outputs.length, 1, 'should execute');
+		assert.ok(cell.previousResult);
+		assert.strictEqual(cell.previousResult!.success, true);
+		assert.strictEqual(typeof cell.previousResult!.executionOrder, 'number');
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
+	test('Throws errors for invalid execution tasks', async function () {
+		let missedError: string | undefined;
+
+		const invalidKernel = new class implements vscode.NotebookKernel {
+			readonly id = 'invalidKernel';
+			readonly label = '';
+			readonly isPreferred = false;
+			readonly supportedLanguages = ['typescript', 'javascript'];
+
+			async executeCellsRequest(document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]) {
+				try {
+					vscode.notebook.createNotebookCellExecutionTask(document.uri, 1000, this.id);
+					missedError = 'Expected to throw for invalid index';
+					return;
+				} catch (e) { }
+
+				try {
+					vscode.notebook.createNotebookCellExecutionTask(vscode.Uri.file('slkdf'), 0, this.id);
+					missedError = 'Expected to throw for invalid uri';
+					return;
+				} catch (e) { }
+			}
+		};
+
+		currentKernelProvider.addKernel(invalidKernel);
+
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await vscode.commands.executeCommand('notebook.selectKernel', { extension: 'vscode.vscode-api-tests', id: invalidKernel.id });
+		await vscode.commands.executeCommand('notebook.cell.execute');
+
+		assert.strictEqual(missedError, undefined, missedError);
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
 
 	// });
 

@@ -256,11 +256,45 @@ suite('NotebookTextModel', () => {
 				textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Metadata,
+					metadata: { executionOrder: 15 },
+				}], true, undefined, () => undefined, undefined);
+
+				textModel.applyEdits([{
+					index: 0,
+					editType: CellEditType.Metadata,
 					metadata: { editable: false },
 				}], true, undefined, () => undefined, undefined);
 
 				assert.equal(textModel.cells.length, 1);
 				assert.equal(textModel.cells[0].metadata?.editable, false);
+				assert.equal(textModel.cells[0].metadata?.executionOrder, undefined);
+			}
+		);
+	});
+
+	test('partial metadata', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+			],
+			(editor) => {
+				const textModel = editor.viewModel.notebookDocument;
+
+				textModel.applyEdits([{
+					index: 0,
+					editType: CellEditType.PartialMetadata,
+					metadata: { executionOrder: 15 },
+				}], true, undefined, () => undefined, undefined);
+
+				textModel.applyEdits([{
+					index: 0,
+					editType: CellEditType.PartialMetadata,
+					metadata: { editable: false },
+				}], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].metadata?.editable, false);
+				assert.strictEqual(textModel.cells[0].metadata?.executionOrder, 15);
 			}
 		);
 	});
