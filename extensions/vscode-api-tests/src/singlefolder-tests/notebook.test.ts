@@ -225,7 +225,7 @@ suite('Notebook API tests', function () {
 								],
 									{ testOutputMetadata: true })
 							],
-							previousResult: { executionOrder: 5, success: true },
+							latestExecutionSummary: { executionOrder: 5, success: true },
 							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 456 } })
 						}
 					]
@@ -539,8 +539,8 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].mime, 'text/plain');
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].value, 'Hello World');
 		assert.deepStrictEqual(secondCell!.outputs[0].outputs[0].metadata, { testOutputItemMetadata: true });
-		assert.strictEqual(secondCell!.previousResult?.executionOrder, 5);
-		assert.strictEqual(secondCell!.previousResult?.success, true);
+		assert.strictEqual(secondCell!.latestExecutionSummary?.executionOrder, 5);
+		assert.strictEqual(secondCell!.latestExecutionSummary?.success, true);
 
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.strictEqual(vscode.window.activeNotebookEditor!.selection?.document.getText(), '');
@@ -872,7 +872,7 @@ suite('Notebook API tests', function () {
 				this._task.start();
 			}
 
-			async interrupt(_document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]) {
+			async interrupt(_document: vscode.NotebookDocument) {
 				await this._task!.replaceOutput([new vscode.NotebookCellOutput([
 					new vscode.NotebookCellOutputItem('text/plain', ['Interrupted'], undefined)
 				])]);
@@ -1316,36 +1316,36 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('previousResult', async () => {
+	test('latestExecutionSummary', async () => {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cells[0];
 
-		assert.strictEqual(cell.previousResult?.success, undefined);
-		assert.strictEqual(cell.previousResult?.executionOrder, undefined);
+		assert.strictEqual(cell.latestExecutionSummary?.success, undefined);
+		assert.strictEqual(cell.latestExecutionSummary?.executionOrder, undefined);
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.strictEqual(cell.outputs.length, 1, 'should execute');
-		assert.ok(cell.previousResult);
-		assert.strictEqual(cell.previousResult!.success, true);
-		assert.strictEqual(typeof cell.previousResult!.executionOrder, 'number');
+		assert.ok(cell.latestExecutionSummary);
+		assert.strictEqual(cell.latestExecutionSummary!.success, true);
+		assert.strictEqual(typeof cell.latestExecutionSummary!.executionOrder, 'number');
 
 		await saveAllFilesAndCloseAll(undefined);
 	});
 
-	test('initialize previousResult', async () => {
+	test('initialize latestExecutionSummary', async () => {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const editor = vscode.window.activeNotebookEditor!;
 		const cell = editor.document.cells[0];
 
-		assert.strictEqual(cell.previousResult?.success, undefined);
-		assert.strictEqual(cell.previousResult?.executionOrder, undefined);
+		assert.strictEqual(cell.latestExecutionSummary?.success, undefined);
+		assert.strictEqual(cell.latestExecutionSummary?.executionOrder, undefined);
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.strictEqual(cell.outputs.length, 1, 'should execute');
-		assert.ok(cell.previousResult);
-		assert.strictEqual(cell.previousResult!.success, true);
-		assert.strictEqual(typeof cell.previousResult!.executionOrder, 'number');
+		assert.ok(cell.latestExecutionSummary);
+		assert.strictEqual(cell.latestExecutionSummary!.success, true);
+		assert.strictEqual(typeof cell.latestExecutionSummary!.executionOrder, 'number');
 
 		await saveAllFilesAndCloseAll(undefined);
 	});
