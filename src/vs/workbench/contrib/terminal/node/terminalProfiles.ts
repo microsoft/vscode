@@ -8,17 +8,20 @@ import * as platform from 'vs/base/common/platform';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileObject, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProfile, ITerminalProfileObject, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 
+let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
+
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder, statProvider);
+	const provider = statProvider ? statProvider : fs.promises;
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, provider, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(provider, logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProvider: IStatProvider, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -32,32 +35,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		useWSLexe = true;
 	}
 
-	const profileSources: Map<string, IPotentialTerminalProfile> = new Map();
-	profileSources.set(
-		'Git Bash', {
-		profileName: 'Git Bash',
-		paths: [
-			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
-		],
-		args: ['--login']
-	}
-	);
-	profileSources.set('Cygwin', {
-		profileName: 'Cygwin',
-		paths: [
-			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-		],
-		args: ['--login']
-	});
-
-	for (const profile of await getPowershellProfiles()) {
-		profileSources.set(profile.profileName, { profileName: profile.profileName, paths: profile.paths, args: profile.args });
-	}
+	await initializeWindowsProfiles();
 
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
@@ -84,13 +62,23 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		detectedProfiles.set(profileName, value);
 	}
 
+	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
+
+	if (!quickLaunchOnly || (quickLaunchOnly && showQuickLaunchWslProfiles)) {
+		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles));
+	}
+
+	return resultProfiles;
+}
+
+async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, statProvider: IStatProvider, logService?: ILogService, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const resultProfiles: ITerminalProfile[] = [];
-	for (const [profileName, profile] of detectedProfiles.entries()) {
+	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
 		let paths: string[];
 		let args: string[] | string | undefined;
 		if ('source' in profile) {
-			const source = profileSources.get(profile.source);
+			const source = profileSources?.get(profile.source);
 			if (!source) {
 				continue;
 			}
@@ -110,12 +98,39 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 			logService?.trace('profile not validated', profileName, paths);
 		}
 	}
+	return resultProfiles;
+}
 
-	if (!quickLaunchOnly || (quickLaunchOnly && showQuickLaunchWslProfiles)) {
-		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles));
+async function initializeWindowsProfiles(): Promise<void> {
+	if (profileSources) {
+		return;
 	}
 
-	return resultProfiles;
+	profileSources = new Map();
+	profileSources.set(
+		'Git Bash', {
+		profileName: 'Git Bash',
+		paths: [
+			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
+		],
+		args: ['--login']
+	}
+	);
+	profileSources.set('Cygwin', {
+		profileName: 'Cygwin',
+		paths: [
+			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
+			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+		],
+		args: ['--login']
+	});
+	for (const profile of await getPowershellProfiles()) {
+		profileSources.set(profile.profileName, { profileName: profile.profileName, paths: profile.paths, args: profile.args });
+	}
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
@@ -172,7 +187,7 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	return [];
 }
 
-async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(statProvider: IStatProvider, logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, ITerminalProfile> = new Map();
 
 	// Add non-quick launch profiles
@@ -185,54 +200,10 @@ async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunch
 		}
 	}
 
-	// Detect quick launch profiles (default+custom)
-	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if (value === null) {
-			detectedProfiles.delete(profileName);
-			continue;
-		}
-		if ((value as ITerminalExecutable).path) {
-			const configProfile = (value as ITerminalExecutable);
-			const pathOrPaths = configProfile.path;
-			const args = configProfile.args;
-			let profile;
-			if (Array.isArray(pathOrPaths)) {
-				const resolvedPaths: string[] = [];
-				for (const p of pathOrPaths) {
-					const resolved = variableResolver?.resolve(workspaceFolder, p);
-					if (resolved) {
-						resolvedPaths.push(resolved);
-					} else if (statProvider) {
-						// used by tests
-						resolvedPaths.push(p);
-					} else {
-						logService?.trace(`Could not resolve path ${p} in workspace folder ${workspaceFolder}`);
-					}
-				}
-				profile = await validateProfilePaths(profileName, resolvedPaths, statProvider, args);
-			} else {
-				let resolved = variableResolver?.resolve(workspaceFolder, pathOrPaths);
-				if (!resolved && statProvider) {
-					// used by tests
-					resolved = pathOrPaths;
-				} else if (!resolved) {
-					logService?.trace(`Could not resolve path ${pathOrPaths} in workspace folder ${workspaceFolder}`);
-				}
-				if (resolved) {
-					profile = await validateProfilePaths(profileName, [resolved], statProvider, args);
-				}
-			}
-			if (profile) {
-				detectedProfiles.set(profileName, profile);
-			}
-		} else {
-			logService?.trace(`Entry in terminal.profiles.linux or osx is not of type ITerminalExecutable`, profileName, value);
-		}
-	}
-	return Array.from(detectedProfiles.values());
+	return await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
 }
 
-async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(label: string, potentialPaths: string[], statProvider: IStatProvider, args?: string[] | string, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -240,8 +211,10 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 	if (current === '') {
 		return validateProfilePaths(label, potentialPaths, statProvider, args);
 	}
-	if (statProvider) {
-		if (statProvider.stat(current)) {
+
+	try {
+		const result = await fs.promises.stat(normalize(current));
+		if (result.isFile() || result.isSymbolicLink()) {
 			if (args) {
 				return {
 					profileName: label,
@@ -255,9 +228,13 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 				};
 			}
 		}
-	} else {
+	} catch (e) {
+		logService?.info('error', e);
+		// Also try using lstat as some symbolic links on Windows
+		// throw 'permission denied' using 'stat' but don't throw
+		// using 'lstat'
 		try {
-			const result = await fs.promises.stat(normalize(current));
+			const result = await fs.promises.lstat(normalize(current));
 			if (result.isFile() || result.isSymbolicLink()) {
 				if (args) {
 					return {
@@ -272,38 +249,23 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 					};
 				}
 			}
-		} catch (e) {
-			// Also try using lstat as some symbolic links on Windows
-			// throw 'permission denied' using 'stat' but don't throw
-			// using 'lstat'
-			try {
-				const result = await fs.promises.lstat(normalize(current));
-				if (result.isFile() || result.isSymbolicLink()) {
-					if (args) {
-						return {
-							profileName: label,
-							path: current,
-							args: args
-						};
-					} else {
-						return {
-							profileName: label,
-							path: current
-						};
-					}
-				}
-			}
-			catch (e) {
-				// noop
-			}
+		}
+		catch (e) {
+			// noop
 		}
 	}
 	return validateProfilePaths(label, potentialPaths, statProvider, args);
 }
 
 export interface IStatProvider {
-	stat(path: string): boolean,
-	lstat(path: string): boolean
+	stat(path: string): Promise<{
+		isFile(): boolean;
+		isSymbolicLink(): boolean;
+	}>,
+	lstat(path: string): Promise<{
+		isFile(): boolean;
+		isSymbolicLink(): boolean;
+	}>
 }
 
 interface IPotentialTerminalProfile {
