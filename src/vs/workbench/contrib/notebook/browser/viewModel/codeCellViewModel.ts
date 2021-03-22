@@ -7,6 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_RUN_GUTTER, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
@@ -92,9 +93,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		@IConfigurationService configurationService: IConfigurationService,
-		@INotebookService private _notebookService: INotebookService
+		@INotebookService private _notebookService: INotebookService,
+		@IModeService modeService: IModeService,
 	) {
-		super(viewType, model, UUID.generateUuid(), configurationService);
+		super(viewType, model, UUID.generateUuid(), configurationService, modeService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splices) => {

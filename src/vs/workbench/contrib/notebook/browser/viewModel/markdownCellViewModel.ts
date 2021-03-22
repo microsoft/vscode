@@ -17,6 +17,7 @@ import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookCellStateChangedEvent, NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Markdown;
@@ -103,9 +104,10 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		private readonly _mdRenderer: MarkdownRenderer,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IModeService modeService: IModeService,
 	) {
-		super(viewType, model, UUID.generateUuid(), configurationService);
+		super(viewType, model, UUID.generateUuid(), configurationService, modeService);
 
 		this._layoutInfo = {
 			editorHeight: 0,
