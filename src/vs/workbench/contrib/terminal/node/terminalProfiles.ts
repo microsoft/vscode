@@ -187,8 +187,8 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	return [];
 }
 
-async function detectAvailableUnixProfiles(statProvider: IStatProvider, logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
-	const detectedProfiles: Map<string, ITerminalProfile> = new Map();
+async function detectAvailableUnixProfiles(statProvider: IStatProvider, logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add non-quick launch profiles
 	if (!quickLaunchOnly) {
@@ -196,8 +196,13 @@ async function detectAvailableUnixProfiles(statProvider: IStatProvider, logServi
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		for (const profile of profiles) {
 			const profileName = basename(profile);
-			detectedProfiles.set(profileName, { profileName, path: profile });
+			detectedProfiles.set(profileName, { path: profile });
 		}
+	}
+
+	for (const [profileName, value] of Object.entries(configProfiles || {})) {
+		if (value === null) { detectedProfiles.delete(profileName); }
+		detectedProfiles.set(profileName, value);
 	}
 
 	return await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
