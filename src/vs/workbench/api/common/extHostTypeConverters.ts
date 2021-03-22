@@ -1469,6 +1469,16 @@ export namespace NotebookCellData {
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
 	}
+
+	export function to(data: notebooks.ICellDto2): vscode.NotebookCellData {
+		return new types.NotebookCellData(
+			NotebookCellKind.to(data.cellKind),
+			data.source,
+			data.language,
+			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
+			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
+		);
+	}
 }
 
 export namespace NotebookCellOutputItem {

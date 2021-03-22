@@ -68,11 +68,12 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			const instance = ++this._instances;
 
 			const quickPickWidget = proxy.$show(instance, {
-				placeHolder: options && options.placeHolder,
-				matchOnDescription: options && options.matchOnDescription,
-				matchOnDetail: options && options.matchOnDetail,
-				ignoreFocusLost: options && options.ignoreFocusOut,
-				canPickMany: options && options.canPickMany
+				title: options?.title,
+				placeHolder: options?.placeHolder,
+				matchOnDescription: options?.matchOnDescription,
+				matchOnDetail: options?.matchOnDetail,
+				ignoreFocusLost: options?.ignoreFocusOut,
+				canPickMany: options?.canPickMany,
 			}, token);
 
 			const widgetClosedMarker = {};

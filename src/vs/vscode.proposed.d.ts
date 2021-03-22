@@ -924,6 +924,24 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region allow title property to QuickPickOptions/InputBoxOptions: https://github.com/microsoft/vscode/issues/77423
+
+	interface QuickPickOptions {
+		/**
+		 * An optional string that represents the tile of the quick pick.
+		 */
+		title?: string;
+	}
+
+	interface InputBoxOptions {
+		/**
+		 * An optional string that represents the tile of the input box.
+		 */
+		title?: string;
+	}
+
+	//#endregion
+
 	//#region Provide a way for custom editors to process untitled files without relying on textDocument https://github.com/microsoft/vscode/issues/115631
 	/**
 	 * Additional information about the opening custom document.
@@ -1384,7 +1402,24 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/106744, NotebookSerializer
+
+	export interface NotebookSerializer {
+		dataToNotebook(data: Uint8Array): NotebookData | Thenable<NotebookData>;
+		notebookToData(data: NotebookData): Uint8Array | Thenable<Uint8Array>;
+	}
+
+	export namespace notebook {
+
+		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
+		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
+		export function registerNotebookSerializer(notebookType: string, provider: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+	}
+
+	//#endregion
+
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookContentProvider
+
 
 	interface NotebookDocumentBackup {
 		/**

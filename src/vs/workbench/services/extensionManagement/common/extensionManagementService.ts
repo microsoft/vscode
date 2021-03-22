@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, UninstallOptions
+	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -26,6 +26,9 @@ import { canceled } from 'vs/base/common/errors';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
 import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { isWeb } from 'vs/base/common/platform';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -49,6 +52,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService private readonly userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
 	) {
 		super();
@@ -285,9 +289,15 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
-		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", gallery.displayName || gallery.name));
-		error.name = INSTALL_ERROR_NOT_SUPPORTED;
-		return Promise.reject(error);
+		const productName = isWeb ? localize({ key: 'vscode web', comment: ['VS Code Web is the name of the product'] }, "VS Code Web") : this.productService.nameLong;
+		const message = localize('cannot be installed', "The '{0}' extension is not available in {1}. Click 'More Information' to learn more.", gallery.displayName || gallery.name, productName);
+		const result = await this.dialogService.show(Severity.Info, message, [localize('more information', "More Information"), localize('ok', "OK")]);
+		if (result.choice === 0) {
+			this.instantiationService.invokeFunction(accessor => {
+				accessor.get(IOpenerService).open(isWeb ? URI.parse('https://aka.ms/vscode-remote-codespaces') : URI.parse('https://aka.ms/vscode-remote'));
+			});
+		}
+		throw canceled();
 	}
 
 	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null {

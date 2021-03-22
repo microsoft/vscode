@@ -319,6 +319,7 @@ export class StatefulMarkdownCell extends Disposable {
 		}
 
 		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('markdown-cell-edit-mode', true);
 
 		if (this.editor) {
 			editorHeight = this.editor.getContentHeight();
@@ -401,6 +402,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 		DOM.show(this.markdownContainer);
 		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
 
 		this.renderedEditors.delete(this.viewCell);
 

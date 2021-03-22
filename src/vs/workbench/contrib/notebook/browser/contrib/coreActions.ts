@@ -185,6 +185,8 @@ export abstract class NotebookAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: any): Promise<void> {
+		const isFromUI = !!context;
+		const from = isFromUI ? (this.isNotebookActionContext(context) ? 'notebookToolbar' : 'editorToolbar') : undefined;
 		if (!this.isNotebookActionContext(context)) {
 			context = this.getEditorContextFromArgsOrActive(accessor, context);
 			if (!context) {
@@ -192,8 +194,10 @@ export abstract class NotebookAction extends Action2 {
 			}
 		}
 
-		const telemetryService = accessor.get(ITelemetryService);
-		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'ui' });
+		if (from !== undefined) {
+			const telemetryService = accessor.get(ITelemetryService);
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		}
 
 		this.runWithContext(accessor, context);
 	}
@@ -220,6 +224,9 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 
 	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
+			const telemetryService = accessor.get(ITelemetryService);
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellToolbar' });
+
 			return this.runWithContext(accessor, context);
 		}
 
@@ -610,7 +617,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	command: {
 		id: EXECUTE_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.executeNotebook', "Execute Notebook (Run all cells)"),
@@ -618,10 +625,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.toNegated(), executeNotebookCondition)
+	when: ContextKeyExpr.and(NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.toNegated(), executeNotebookCondition)
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	command: {
 		id: CANCEL_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.cancelNotebook', "Stop Notebook Execution"),
@@ -629,7 +636,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK)
+	when: ContextKeyExpr.and(NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK)
 });
 
 registerAction2(class extends NotebookCellAction {
@@ -1494,8 +1501,8 @@ registerAction2(class extends NotebookAction {
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
 			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
 			menu: {
-				id: MenuId.EditorTitle,
-				when: NOTEBOOK_IS_ACTIVE_EDITOR,
+				id: MenuId.NotebookToolbar,
+				// when: NOTEBOOK_IS_ACTIVE_EDITOR,
 				group: 'navigation',
 				order: 0
 			},

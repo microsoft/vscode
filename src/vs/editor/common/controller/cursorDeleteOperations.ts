@@ -5,7 +5,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingEditStrategy, EditorAutoClosingStrategy } from 'vs/editor/common/config/editorOptions';
 import { CursorColumns, CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import { Range } from 'vs/editor/common/core/range';
@@ -50,13 +50,18 @@ export class DeleteOperations {
 	}
 
 	public static isAutoClosingPairDelete(
+		autoClosingDelete: EditorAutoClosingEditStrategy,
 		autoClosingBrackets: EditorAutoClosingStrategy,
 		autoClosingQuotes: EditorAutoClosingStrategy,
 		autoClosingPairsOpen: Map<string, StandardAutoClosingPairConditional[]>,
 		model: ICursorSimpleModel,
-		selections: Selection[]
+		selections: Selection[],
+		autoClosedCharacters: Range[]
 	): boolean {
 		if (autoClosingBrackets === 'never' && autoClosingQuotes === 'never') {
+			return false;
+		}
+		if (autoClosingDelete === 'never') {
 			return false;
 		}
 
@@ -100,6 +105,21 @@ export class DeleteOperations {
 			if (!foundAutoClosingPair) {
 				return false;
 			}
+
+			// Must delete the pair only if it was automatically inserted by the editor
+			if (autoClosingDelete === 'auto') {
+				let found = false;
+				for (let j = 0, lenJ = autoClosedCharacters.length; j < lenJ; j++) {
+					const autoClosedCharacter = autoClosedCharacters[j];
+					if (position.lineNumber === autoClosedCharacter.startLineNumber && position.column === autoClosedCharacter.startColumn) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					return false;
+				}
+			}
 		}
 
 		return true;
@@ -120,9 +140,9 @@ export class DeleteOperations {
 		return [true, commands];
 	}
 
-	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): [boolean, Array<ICommand | null>] {
+	public static deleteLeft(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], autoClosedCharacters: Range[]): [boolean, Array<ICommand | null>] {
 
-		if (this.isAutoClosingPairDelete(config.autoClosingBrackets, config.autoClosingQuotes, config.autoClosingPairs.autoClosingPairsOpenByEnd, model, selections)) {
+		if (this.isAutoClosingPairDelete(config.autoClosingDelete, config.autoClosingBrackets, config.autoClosingQuotes, config.autoClosingPairs.autoClosingPairsOpenByEnd, model, selections, autoClosedCharacters)) {
 			return this._runAutoClosingPairDelete(config, model, selections);
 		}
 

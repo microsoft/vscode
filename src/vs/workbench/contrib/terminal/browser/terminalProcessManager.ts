@@ -21,14 +21,16 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
+import { localize } from 'vs/nls';
+import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -74,6 +76,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
 	private _dataFilter: SeamlessRelaunchDataFilter;
+	private _processListeners?: IDisposable[];
+
+	private _shellLaunchConfig?: IShellLaunchConfig;
+	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
+	private _isScreenReaderModeEnabled: boolean = false;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	public get onPtyDisconnect(): Event<void> { return this._onPtyDisconnect.event; }
@@ -177,9 +184,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		isScreenReaderModeEnabled: boolean,
 		reset: boolean = true
 	): Promise<ITerminalLaunchError | undefined> {
+		this._shellLaunchConfig = shellLaunchConfig;
+		this._dimensions.cols = cols;
+		this._dimensions.rows = rows;
+		this._isScreenReaderModeEnabled = isScreenReaderModeEnabled;
+
+		let newProcess: ITerminalChildProcess;
+
 		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			this._processType = ProcessType.ExtensionTerminal;
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
+			newProcess = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
@@ -215,13 +229,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await this._remoteTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
-						this._process = result;
+						newProcess = result;
 					} else {
 						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
 						return undefined;
 					}
 				} else {
-					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
@@ -234,13 +248,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await this._localTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
-						this._process = result;
+						newProcess = result;
 					} else {
 						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
 						return undefined;
 					}
 				} else {
-					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+					newProcess = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._localTerminalService);
@@ -250,34 +264,40 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// If the process was disposed during its creation, shut it down and return failure
 		if (this._isDisposed) {
-			this._process.shutdown(false);
+			newProcess.shutdown(false);
 			return undefined;
 		}
+
+		this._process = newProcess;
 
 		this.processState = ProcessState.LAUNCHING;
 
 		this._dataFilter.newProcess(this._process, reset);
 
-		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
-			this.shellProcessId = e.pid;
-			this._initialCwd = e.cwd;
-			this._onProcessReady.fire();
-
-			if (this._preLaunchInputQueue.length > 0 && this._process) {
-				// Send any queued data that's waiting
-				this._process.input(this._preLaunchInputQueue.join(''));
-				this._preLaunchInputQueue.length = 0;
-			}
-		});
-
-		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
-		this._process.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type));
-		this._process.onProcessExit(exitCode => this._onExit(exitCode));
-		if (this._process.onProcessOverrideDimensions) {
-			this._process.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e));
+		if (this._processListeners) {
+			dispose(this._processListeners);
 		}
-		if (this._process.onProcessResolvedShellLaunchConfig) {
-			this._process.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e));
+		this._processListeners = [
+			newProcess.onProcessReady((e: { pid: number, cwd: string }) => {
+				this.shellProcessId = e.pid;
+				this._initialCwd = e.cwd;
+				this._onProcessReady.fire();
+
+				if (this._preLaunchInputQueue.length > 0 && this._process) {
+					// Send any queued data that's waiting
+					newProcess.input(this._preLaunchInputQueue.join(''));
+					this._preLaunchInputQueue.length = 0;
+				}
+			}),
+			newProcess.onProcessTitleChanged(title => this._onProcessTitle.fire(title)),
+			newProcess.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type)),
+			newProcess.onProcessExit(exitCode => this._onExit(exitCode))
+		];
+		if (newProcess.onProcessOverrideDimensions) {
+			this._processListeners.push(newProcess.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
+		}
+		if (newProcess.onProcessResolvedShellLaunchConfig) {
+			this._processListeners.push(newProcess.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e)));
 		}
 
 		setTimeout(() => {
@@ -286,7 +306,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, LAUNCHING_DURATION);
 
-		const result = await this._process.start();
+		const result = await newProcess.start();
 		if (result) {
 			// Error
 			return result;
@@ -298,6 +318,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
+
+		// Fire reconnect if needed to ensure the terminal is usable again
+		if (this.isDisconnected) {
+			this.isDisconnected = false;
+			this._onPtyReconnect.fire();
+		}
+
 		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
 	}
 
@@ -396,7 +423,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// When the pty host restarts, reconnect is no longer possible so dispose the responsive
 		// listener
-		this._register(offProcessTerminalService.onPtyHostRestart(() => {
+		this._register(offProcessTerminalService.onPtyHostRestart(async () => {
 			// When the pty host restarts, reconnect is no longer possible
 			if (!this.isDisconnected) {
 				this.isDisconnected = true;
@@ -404,6 +431,22 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 			this._ptyResponsiveListener?.dispose();
 			this._ptyResponsiveListener = undefined;
+			if (this._shellLaunchConfig) {
+				if (this._shellLaunchConfig.isFeatureTerminal) {
+					// Indicate the process is exited (and gone forever) only for feature terminals
+					// so they can react to the exit, this is particularly important for tasks so
+					// that it knows that the process is not still active. Note that this is not
+					// done for regular terminals because otherwise the terminal instance would be
+					// disposed.
+					this._onExit(undefined);
+				} else {
+					// For normal terminals write a message indicating what happened and relaunch
+					// using the previous shellLaunchConfig
+					let message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
+					this._onProcessData.fire({ data: formatMessageForTerminal(message), sync: false });
+					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, this._isScreenReaderModeEnabled, false);
+				}
+			}
 		}));
 	}
 
@@ -433,6 +476,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				throw (error);
 			}
 		}
+		this._dimensions.cols = cols;
+		this._dimensions.rows = rows;
 	}
 
 	public async write(data: string): Promise<void> {
@@ -561,8 +606,10 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	}
 
 	newProcess(process: ITerminalChildProcess, reset: boolean) {
-		// Stop listening to the old process
+		// Stop listening to the old process and trigger delayed shutdown (for hang issue #71966)
 		this._dataListener?.dispose();
+		this._activeProcess?.shutdown(false);
+
 		this._activeProcess = process;
 
 		// If the process is new, relaunch has timed out or the terminal should not reset, start
@@ -636,6 +683,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		this._firstRecorder = this._secondRecorder;
 		this._firstDisposable?.dispose();
 		this._firstDisposable = this._secondDisposable;
+		this._secondRecorder = undefined;
 		if (this._recordingTimeout) {
 			window.clearTimeout(this._recordingTimeout);
 		}

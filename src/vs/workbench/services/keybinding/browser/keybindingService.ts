@@ -802,7 +802,11 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 		}
 
 		const argsSchema = commandDescription.args[0].schema;
-		const argsRequired = Array.isArray(argsSchema.required) && argsSchema.required.length > 0;
+		const argsRequired = (
+			(typeof commandDescription.args[0].isOptional !== 'undefined')
+				? (!commandDescription.args[0].isOptional)
+				: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
+		);
 		const addition = {
 			'if': {
 				'properties': {

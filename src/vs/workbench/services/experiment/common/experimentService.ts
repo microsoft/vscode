@@ -185,6 +185,8 @@ export class ExperimentService implements ITASExperimentService {
 	private telemetry: ExperimentServiceTelemetry | undefined;
 	private static MEMENTO_ID = 'experiment.service.memento';
 
+	private overrideInitDelay: Promise<void>;
+
 	private get experimentsEnabled(): boolean {
 		return this.configurationService.getValue('workbench.enableExperiments') === true;
 	}
@@ -199,9 +201,23 @@ export class ExperimentService implements ITASExperimentService {
 		if (productService.tasConfig && this.experimentsEnabled && this.telemetryService.isOptedIn) {
 			this.tasClient = this.setupTASClient();
 		}
+
+		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
+		const overrideDelay = this.configurationService.getValue<number>('experiments.overrideDelay') ?? 0;
+		this.overrideInitDelay = new Promise(resolve => setTimeout(resolve, overrideDelay));
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		// For development purposes, allow overriding tas assignments to test variants locally.
+		const override = this.configurationService.getValue<T>('experiments.override.' + name);
+		if (override !== undefined) {
+			await this.overrideInitDelay;
+			type TAASClientOverrideTreatmentData = { treatmentName: string; };
+			type TAASClientOverrideTreatmentClassification = { treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', }; };
+			this.telemetryService.publicLog2<TAASClientOverrideTreatmentData, TAASClientOverrideTreatmentClassification>('tasClientOverrideTreatment', { treatmentName: name, });
+			return override;
+		}
+
 		const startSetup = Date.now();
 
 		if (!this.tasClient) {
@@ -226,7 +242,7 @@ export class ExperimentService implements ITASExperimentService {
 			readTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<TAASClientReadTreatmentData, TAASClientReadTreatmentCalssification>('tasClientReadTreatmentComplete',
-			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(JSON.stringify(result)) });
+			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result) });
 
 		return result;
 	}

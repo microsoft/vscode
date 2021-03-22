@@ -6,21 +6,31 @@
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
+import { IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
 
 export interface INotebookEditorModelResolverService {
 	readonly _serviceBrand: undefined;
+
+	onDidSaveNotebook: Event<URI>;
+
 	resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
 }
 
+class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
-export class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
+	private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>;
+	private readonly _modelListener = new Map<IResolvedNotebookEditorModel, IDisposable>();
+
+	private readonly _onDidSaveNotebook = new Emitter<URI>();
+	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;
 
 	constructor(
 		@IInstantiationService readonly _instantiationService: IInstantiationService,
@@ -28,18 +38,39 @@ export class NotebookModelReferenceCollection extends ReferenceCollection<Promis
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._workingCopyManager = <any>_instantiationService.createInstance(
+			FileWorkingCopyManager,
+			new NotebookFileWorkingCopyModelFactory(_notebookService)
+		);
 	}
 
-	protected createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
+	protected async createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
 		const uri = URI.parse(key);
-		const model = this._instantiationService.createInstance(NotebookEditorModel, uri, viewType);
-		const promise = model.load();
-		return promise;
+		const info = await this._notebookService.withNotebookDataProvider(uri);
+
+		let result: IResolvedNotebookEditorModel;
+
+		if (info instanceof ComplexNotebookProviderInfo) {
+			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType, info.controller);
+			result = await model.load();
+
+		} else if (info instanceof SimpleNotebookProviderInfo) {
+			const workingCopy = await this._workingCopyManager.resolve(uri);
+			result = new SimpleNotebookEditorModel(<IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy);
+
+		} else {
+			throw new Error(`CANNOT open ${key}, no provider found`);
+		}
+
+		this._modelListener.set(result, result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)));
+		return result;
 	}
 
 	protected destroyReferencedObject(_key: string, object: Promise<IResolvedNotebookEditorModel>): void {
 		object.then(model => {
-			this._notebookService.destoryNotebookDocument(model.viewType, model.notebook);
+			this._modelListener.get(model)?.dispose();
+			this._modelListener.delete(model);
 			model.dispose();
 		}).catch(err => {
 			this._logService.critical('FAILED to destory notebook', err);
@@ -53,11 +84,14 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 
 	private readonly _data: NotebookModelReferenceCollection;
 
+	readonly onDidSaveNotebook: Event<URI>;
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService
 	) {
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
+		this.onDidSaveNotebook = this._data.onDidSaveNotebook;
 	}
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {

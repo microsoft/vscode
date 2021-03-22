@@ -926,6 +926,7 @@ export class ExtensionEditor extends EditorPane {
 					this.renderLanguages(content, manifest, layout),
 					this.renderColorThemes(content, manifest, layout),
 					this.renderIconThemes(content, manifest, layout),
+					this.renderProductIconThemes(content, manifest, layout),
 					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
@@ -1243,6 +1244,21 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
+			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderProductIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.productIconThemes || [];
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('productThemes', "Product Icon Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
