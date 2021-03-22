@@ -50,6 +50,17 @@
           "cpp"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "cuda-cpp",
+        "extensions": [
+          ".cu",
+          ".cuh"
+        ],
+        "aliases": [
+          "CUDA C++"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -71,6 +82,11 @@
       {
         "scopeName": "source.c.platform",
         "path": "./syntaxes/platform.tmLanguage.json"
+      },
+      {
+        "language": "cuda-cpp",
+        "scopeName": "source.cuda-cpp",
+        "path": "./syntaxes/cuda-cpp.tmLanguage.json"
       }
     ],
     "snippets": [
