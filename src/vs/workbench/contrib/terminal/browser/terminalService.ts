@@ -158,12 +158,6 @@ export class TerminalService implements ITerminalService {
 			}
 		});
 
-		this._viewsService.onDidChangeViewContainerVisibility(e => {
-			if (e.id === TERMINAL_VIEW_ID && e.visible) {
-				this.showPanel(true);
-			}
-		});
-
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
 		// Connect to the extension host if it's there, set the connection state to connected when

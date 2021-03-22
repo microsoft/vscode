@@ -145,6 +145,7 @@ export class TerminalViewPane extends ViewPane {
 					// TODO@Tyriar - this call seems unnecessary
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
+				this._terminalService.showPanel(true);
 			} else {
 				this._terminalService.getActiveTab()?.setVisible(false);
 				this._terminalService.terminalInstances.forEach(instance => {
