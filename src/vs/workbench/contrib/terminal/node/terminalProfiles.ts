@@ -16,7 +16,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths);
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder, statProvider);
 }
 
 async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
@@ -67,17 +67,24 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	}
 	const profiles = await Promise.all(promises);
 
-	const detectedProfiles = coalesce(profiles);
+	const detectedProfiles: Map<string, ITerminalProfile> = new Map();
 
-	let quickLaunchProfiles: ITerminalProfile[] = [];
+	// Add non-quick launch profiles
+	if (!quickLaunchOnly) {
+		for (const profile of coalesce(profiles)) {
+			detectedProfiles.set(profile.profileName, { profileName: profile.profileName, path: profile.path, args: profile.args });
+		}
+	}
 
-	if (detectedProfiles && configProfiles) {
+	// add quick launch profiles
+	if (configProfiles) {
 		for (const [profileName, value] of Object.entries(configProfiles)) {
 			if (value !== null) {
 				if ((value as ITerminalExecutable).path) {
 					let profile;
 					const customProfile = (value as ITerminalExecutable);
 					const pathOrPaths = customProfile.path;
+					const args = customProfile.args;
 					if (Array.isArray(pathOrPaths)) {
 						const resolvedPaths: string[] = [];
 						for (const p of pathOrPaths) {
@@ -91,62 +98,28 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 								logService?.trace(`Could not resolve path ${p} in workspace folder ${workspaceFolder}`);
 							}
 						}
-						profile = detectedProfiles.find(profile => resolvedPaths.includes(profile.path));
-						if (!profile) {
-							logService?.trace(`Could not detect path ${JSON.stringify(resolvedPaths)}`);
-						}
+						profile = await validateProfilePaths(profileName, resolvedPaths, statProvider, args);
 					} else {
 						let resolved = variableResolver?.resolve(workspaceFolder, pathOrPaths);
-						if (resolved) {
-							profile = detectedProfiles.find(profile => profile.path === resolved);
-						} else if (statProvider) {
+						if (!resolved && statProvider) {
 							// used by tests
 							resolved = pathOrPaths;
-						} else {
+						} else if (!resolved) {
 							logService?.trace(`Could not resolve path ${pathOrPaths} in workspace folder ${workspaceFolder}`);
 						}
-						if (!profile) {
-							logService?.trace(`Could not detect path ${resolved}`);
+						if (resolved) {
+							profile = await validateProfilePaths(profileName, [resolved], statProvider, args);
 						}
 					}
 					if (profile) {
-						let profileFromConfig;
-						let isCustomProfile;
-						if (customProfile.args) {
-							isCustomProfile = profile.profileName !== profileName || profile.args !== customProfile.args;
-							profileFromConfig = { profileName: profileName, path: profile.path, args: customProfile.args };
-						} else {
-							isCustomProfile = profile.profileName !== profileName;
-							profileFromConfig = { profileName: profileName, path: profile.path };
-						}
-
-						if (profileFromConfig) {
-							quickLaunchProfiles.push(profileFromConfig);
-							// add custom profile to detected profiles
-							if (isCustomProfile) {
-								detectedProfiles.push(profileFromConfig);
-							}
-						}
+						detectedProfiles.set(profileName, profile);
 					}
 				} else if ((value as ITerminalProfileSource).source) {
 					// source
 					const sourceKey = (value as ITerminalProfileSource).source;
-					const profile = detectedProfiles.find(profile => profile.profileName === sourceKey.toString());
+					const profile = await validateProfilePaths(sourceKey, expectedProfiles.find(profile => profile.profileName === sourceKey.toString())?.paths || [], statProvider, undefined);
 					if (profile) {
-						let profileFromConfig;
-						if (profile.args) {
-							profileFromConfig = { profileName, path: profile.path, args: profile.args };
-						} else {
-							profileFromConfig = { profileName, path: profile.path };
-						}
-						const isCustomProfile = profile.profileName !== profileName;
-						if (profileFromConfig) {
-							quickLaunchProfiles.push(profileFromConfig);
-							// add custom profile to detected profiles
-							if (isCustomProfile) {
-								detectedProfiles.push(profileFromConfig);
-							}
-						}
+						detectedProfiles.set(profileName, profile);
 					} else {
 						logService?.trace(`No source with key ${sourceKey}`);
 					}
@@ -159,15 +132,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		logService?.trace(`No detected profiles ${JSON.stringify(detectedProfiles)} or ${JSON.stringify(configProfiles)}`);
 	}
 
-	// only show the windows powershell profile if no other powershell profile exists
-	if (quickLaunchProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
-		quickLaunchProfiles = quickLaunchProfiles.filter(p => p.profileName !== 'Windows PowerShell');
-	}
-
-	if (showQuickLaunchWslProfiles) {
-		quickLaunchProfiles.push(...detectedProfiles.filter(p => p.path.endsWith('wsl.exe')));
-	}
-	return quickLaunchOnly ? quickLaunchProfiles : detectedProfiles;
+	return Array.from(detectedProfiles.values());
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
@@ -224,8 +189,8 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	return [];
 }
 
-async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	const detectedProfiles2: Map<string, ITerminalProfile> = new Map();
+async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
+	const detectedProfiles: Map<string, ITerminalProfile> = new Map();
 
 	// Add non-quick launch profiles
 	if (!quickLaunchOnly) {
@@ -233,33 +198,59 @@ async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunch
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		for (const profile of profiles) {
 			const profileName = basename(profile);
-			detectedProfiles2.set(profileName, { profileName, path: profile });
+			detectedProfiles.set(profileName, { profileName, path: profile });
 		}
 	}
 
 	// Detect quick launch profiles (default+custom)
 	for (const [profileName, value] of Object.entries(configProfiles)) {
 		if (value === null) {
-			detectedProfiles2.delete(profileName);
+			detectedProfiles.delete(profileName);
 			continue;
 		}
 		if ((value as ITerminalExecutable).path) {
 			const configProfile = (value as ITerminalExecutable);
-			// TODO: Think about whether to support string[] for custom profiles
-			const pathOrPaths = Array.isArray(configProfile.path)
-				? (configProfile.path.length > 0 ? configProfile.path[0] : 'No path')
-				: configProfile.path;
+			const pathOrPaths = configProfile.path;
 			const args = configProfile.args;
-			detectedProfiles2.set(profileName, { profileName, path: pathOrPaths, args });
+			let profile;
+			if (Array.isArray(pathOrPaths)) {
+				const resolvedPaths: string[] = [];
+				for (const p of pathOrPaths) {
+					const resolved = variableResolver?.resolve(workspaceFolder, p);
+					if (resolved) {
+						resolvedPaths.push(resolved);
+					} else if (statProvider) {
+						// used by tests
+						resolvedPaths.push(p);
+					} else {
+						logService?.trace(`Could not resolve path ${p} in workspace folder ${workspaceFolder}`);
+					}
+				}
+				profile = await validateProfilePaths(profileName, resolvedPaths, statProvider, args);
+			} else {
+				let resolved = variableResolver?.resolve(workspaceFolder, pathOrPaths);
+				if (!resolved && statProvider) {
+					// used by tests
+					resolved = pathOrPaths;
+				} else if (!resolved) {
+					logService?.trace(`Could not resolve path ${pathOrPaths} in workspace folder ${workspaceFolder}`);
+				}
+				if (resolved) {
+					profile = await validateProfilePaths(profileName, [resolved], statProvider, args);
+				}
+			}
+			if (profile) {
+				detectedProfiles.set(profileName, profile);
+			}
 		} else {
 			logService?.trace(`Entry in terminal.profiles.linux or osx is not of type ITerminalExecutable`, profileName, value);
 		}
 	}
 
-	return Array.from(detectedProfiles2.values());
+	return Array.from(detectedProfiles.values());
 }
 
-async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[]): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
