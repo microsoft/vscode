@@ -202,7 +202,7 @@ export class StatefulMarkdownCell extends Disposable {
 			// Update for selection
 			this._register(this.notebookEditor.onDidChangeSelection(() => {
 				const selectedCells = this.notebookEditor.getSelectionViewModels();
-				const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === viewCell);
+				const isSelected = selectedCells.some(selectedCell => selectedCell === viewCell);
 				this.notebookEditor.updateMarkdownPreviewSelectionState(viewCell, isSelected);
 			}));
 		}
