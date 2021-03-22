@@ -416,9 +416,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
-						user-select: text;
-						-webkit-user-select: text;
-						-ms-user-select: text;
+						user-select: none;
+						-webkit-user-select: none;
+						-ms-user-select: none;
 						white-space: initial;
 						cursor: grab;
 					}
