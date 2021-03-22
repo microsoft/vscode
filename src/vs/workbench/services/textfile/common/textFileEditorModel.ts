@@ -428,14 +428,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+			// if we are resolved
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 				return this;
 			}
 
-			// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
-			// we already have the model loaded, we can return to this state and update the orphaned
-			// flag to indicate that this model has no version on disk anymore.
-			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+			// Unless we are forced to read from the file, Ignore when a model has been resolved once
+			// and the file was deleted meanwhile. Since we already have the model loaded, we can return
+			// to this state and update the orphaned flag to indicate that this model has no version on
+			// disk anymore.
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND && !forceReadFromFile) {
 				return this;
 			}
 

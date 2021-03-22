@@ -171,6 +171,11 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	resolve(options?: IFileWorkingCopyResolveOptions): Promise<void>;
 
 	/**
+	 * Explicitly sets the working copy to be dirty.
+	 */
+	markDirty(): void;
+
+	/**
 	 * Whether we have a resolved model or not.
 	 */
 	isResolved(): this is IResolvedFileWorkingCopy<T>;
@@ -419,7 +424,11 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.dirty;
 	}
 
-	setDirty(dirty: boolean): void {
+	markDirty(): void {
+		this.setDirty(true);
+	}
+
+	private setDirty(dirty: boolean): void {
 		if (!this.isResolved()) {
 			return; // only resolved working copies can be marked dirty
 		}
@@ -632,15 +641,16 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+			// if we are resolved
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 				return;
 			}
 
-			// Ignore when a working copy has been resolved once and the file was deleted
-			// meanwhile. Since we already have the working copy resolved, we can return to
-			// this state and update the orphaned flag to indicate that this working copy
-			// has no version on disk anymore.
-			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+			// Unless we are forced to read from the file, ignore when a working copy has
+			// been resolved once and the file was deleted meanwhile. Since we already have
+			// the working copy resolved, we can return to this state and update the orphaned
+			// flag to indicate that this working copy has no version on disk anymore.
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND && !forceReadFromFile) {
 				return;
 			}
 
@@ -1087,8 +1097,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	//#region Revert
 
 	async revert(options?: IRevertOptions): Promise<void> {
-		if (!this.isResolved()) {
-			return;
+		if (!this.isResolved() || (!this.dirty && !options?.force)) {
+			return; // ignore if not resolved or not dirty and not enforced
 		}
 
 		// Unset flags
