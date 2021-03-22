@@ -239,6 +239,10 @@ async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunch
 
 	// Detect quick launch profiles (default+custom)
 	for (const [profileName, value] of Object.entries(configProfiles)) {
+		if (value === null) {
+			detectedProfiles2.delete(profileName);
+			continue;
+		}
 		if ((value as ITerminalExecutable).path) {
 			const configProfile = (value as ITerminalExecutable);
 			// TODO: Think about whether to support string[] for custom profiles
