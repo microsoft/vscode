@@ -158,7 +158,7 @@ export class GettingStartedPage extends EditorPane {
 		this._register(this.gettingStartedService.onDidChangeTask(task => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === task.category);
 			if (!ourCategory || ourCategory.content.type === 'startEntry') {
-				console.error('Attempting to modify category that does not exist or is invlid type', task);
+				console.error('Attempting to modify category that does not exist or is invalid type', task);
 				return;
 			}
 			const ourTask = ourCategory.content.items.find(item => item.id === task.id);
@@ -174,7 +174,7 @@ export class GettingStartedPage extends EditorPane {
 		this._register(this.gettingStartedService.onDidChangeCategory(category => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
 			if (!ourCategory) {
-				console.error('Attempting to modify category that does not exist or is invlid type', category);
+				console.error('Attempting to modify category that does not exist or is invalid type', category);
 				return;
 			}
 
@@ -410,20 +410,6 @@ export class GettingStartedPage extends EditorPane {
 			.filter(entry => !hiddenCategories.has(entry.id))
 			.map(
 				category => {
-					const categoryDescriptionElement =
-						category.content.type === 'items' ?
-							$('.category-description-container', {},
-								$('h3.category-title', {}, category.title),
-								// $('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description),
-								$('.category-progress', { 'x-data-category-id': category.id, },
-									// $('.message'),
-									$('.progress-bar-outer', { 'role': 'progressbar' },
-										$('.progress-bar-inner'))))
-							:
-							$('.category-description-container', {},
-								$('h3.category-title', {}, category.title),
-								$('.category-description.description', { 'aria-label': category.description + ' ' + localize('pressEnterToSelect', "Press Enter to Select") }, category.description));
-
 					return $('button.getting-started-category',
 						{
 							'x-dispatch': 'selectCategory:' + category.id,
@@ -435,7 +421,10 @@ export class GettingStartedPage extends EditorPane {
 							'x-dispatch': 'hideCategory:' + category.id,
 							'title': localize('close', "Hide"),
 						}),
-						categoryDescriptionElement);
+						$('h3.category-title', {}, category.title),
+						$('.category-progress', { 'x-data-category-id': category.id, },
+							$('.progress-bar-outer', { 'role': 'progressbar' },
+								$('.progress-bar-inner'))));
 				});
 
 		const categoryScrollContainer = $('.getting-started-categories-scrolling-container');
@@ -497,11 +486,14 @@ export class GettingStartedPage extends EditorPane {
 		if (this.editorInput.selectedCategory) {
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 			if (!this.currentCategory) {
-				throw Error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
+				console.error('Could not restore to category ' + this.editorInput.selectedCategory + ' as it was not found');
+				this.editorInput.selectedCategory = undefined;
+				this.editorInput.selectedTask = undefined;
+			} else {
+				this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
+				this.setSlide('details');
+				return;
 			}
-			this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedTask);
-			this.setSlide('details');
-			return;
 		}
 
 		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
@@ -512,11 +504,14 @@ export class GettingStartedPage extends EditorPane {
 			]);
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
-				this.currentCategory = assertIsDefined(this.gettingStartedCategories.find(category => category.content.type === 'items'));
-				this.editorInput.selectedCategory = this.currentCategory?.id;
-				this.buildCategorySlide(this.editorInput.selectedCategory);
-				this.setSlide('details');
-				return;
+				const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
+				if (first) {
+					this.currentCategory = first;
+					this.editorInput.selectedCategory = this.currentCategory?.id;
+					this.buildCategorySlide(this.editorInput.selectedCategory);
+					this.setSlide('details');
+					return;
+				}
 			}
 		}
 

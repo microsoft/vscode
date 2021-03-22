@@ -87,12 +87,12 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	if (detectedProfiles && configProfiles) {
 		for (const [profileKey, value] of Object.entries(configProfiles)) {
 			if (value !== null) {
-				if ((value as ITerminalExecutable).pathOrPaths) {
+				if ((value as ITerminalExecutable).path) {
 					let profile;
 					const customProfile = (value as ITerminalExecutable);
-					if (Array.isArray(customProfile.pathOrPaths)) {
+					if (Array.isArray(customProfile.path)) {
 						let resolvedPaths: string[] = [];
-						for (const p of customProfile.pathOrPaths) {
+						for (const p of customProfile.path) {
 							const resolved = variableResolver?.resolve(workspaceFolder, p);
 							if (resolved) {
 								resolvedPaths.push(resolved);
@@ -108,14 +108,14 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 							logService?.trace(`Could not detect path ${JSON.stringify(resolvedPaths)}`);
 						}
 					} else {
-						let resolved = variableResolver?.resolve(workspaceFolder, customProfile.pathOrPaths);
+						let resolved = variableResolver?.resolve(workspaceFolder, customProfile.path);
 						if (resolved) {
 							profile = detectedProfiles?.find(profile => profile.path === resolved);
 						} else if (statProvider) {
 							// used by tests
-							resolved = customProfile.pathOrPaths;
+							resolved = customProfile.path;
 						} else {
-							logService?.trace(`Could not resolve path ${customProfile.pathOrPaths} in workspace folder ${workspaceFolder}`);
+							logService?.trace(`Could not resolve path ${customProfile.path} in workspace folder ${workspaceFolder}`);
 						}
 						if (!profile) {
 							logService?.trace(`Could not detect path ${resolved}`);
@@ -170,7 +170,8 @@ async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean,
 	let profiles: IPotentialTerminalProfile[] = [];
 	if (quickLaunchWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
-			cp.exec('wsl.exe -l', (err, stdout) => {
+			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
+			cp.exec('wsl.exe -l', { encoding: 'utf16le' }, (err, stdout) => {
 				if (err) {
 					return reject('Problem occurred when getting wsl distros');
 				}
@@ -183,12 +184,8 @@ async function getWslProfiles(wslPath: string, quickLaunchWslProfiles?: boolean,
 			// don't need the Windows Subsystem for Linux Distributions header
 			distroNames.shift();
 			for (let distroName of distroNames) {
-				// HACK: For some reason wsl.exe -l returns the string in an encoding where each
-				// character takes up 2 bytes, it's unclear how to decode this properly so instead
-				// we expect ascii and just remove all NUL chars
-				distroName = distroName
-					.replace(/\u0000/g, '')
-					.replace(/ \(Default\)$/, '');
+				// Remove default from distro name
+				distroName = distroName.replace(/ \(Default\)$/, '');
 
 				// Skip empty lines
 				if (distroName === '') {
@@ -235,11 +232,11 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 	const validProfiles: ITerminalProfile[] = [];
 
 	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if ((value as ITerminalExecutable).pathOrPaths) {
+		if ((value as ITerminalExecutable).path) {
 			const configProfile = (value as ITerminalExecutable);
-			const pathOrPaths = configProfile.pathOrPaths;
-			if (Array.isArray(pathOrPaths)) {
-				for (const possiblePath of pathOrPaths) {
+			const path = configProfile.path;
+			if (Array.isArray(path)) {
+				for (const possiblePath of path) {
 					const profile = detectedProfiles.find(p => p.path.endsWith(possiblePath));
 					if (profile) {
 						validProfiles.push({ profileName, path: profile.path });
@@ -247,7 +244,7 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 					}
 				}
 			} else {
-				const profile = detectedProfiles.find(p => p.path.endsWith(pathOrPaths));
+				const profile = detectedProfiles.find(p => p.path.endsWith(path));
 				if (profile) {
 					validProfiles.push({ profileName, path: profile.path });
 				}
