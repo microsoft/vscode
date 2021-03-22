@@ -154,7 +154,7 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
 				e.affectsConfiguration('terminal.integrated.showQuickLaunchWslProfiles')) {
-				this._onProfilesConfigChanged.fire();
+				this._updateAvailableProfilesNow();
 			}
 		});
 
@@ -335,6 +335,15 @@ export class TerminalService implements ITerminalService {
 			return oneSource.source === twoSource.source;
 		}
 		return false;
+	}
+
+	// when relevant config changes, update without debouncing
+	private async _updateAvailableProfilesNow(): Promise<void> {
+		const result = await this._detectProfiles(true);
+		if (result !== this._availableProfiles) {
+			this._availableProfiles = result;
+			this._onProfilesConfigChanged.fire();
+		}
 	}
 
 	// avoid checking this very often, every ten seconds shoulds suffice

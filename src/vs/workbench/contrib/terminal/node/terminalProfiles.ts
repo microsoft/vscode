@@ -5,11 +5,10 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
 import { normalize, basename } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
-import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileObject, ITerminalProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalExecutable, ITerminalProfile, ITerminalProfileObject, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -33,110 +32,90 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		useWSLexe = true;
 	}
 
-	const expectedProfiles: IPotentialTerminalProfile[] = [
-		{
-			profileName: 'Command Prompt',
-			paths: [`${system32Path}\\cmd.exe`]
-		},
-		{
-			profileName: 'Git Bash',
-			paths: [
-				`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
-				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
-				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
-				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
-			],
-			args: ['--login']
-		},
-		{
-			profileName: 'Cygwin',
-			paths: [
+	const profileSources: Map<string, IPotentialTerminalProfile> = new Map();
+	profileSources.set(
+		'Git Bash', {
+		profileName: 'Git Bash',
+		paths: [
+			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
+			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
+		],
+		args: ['--login']
+	}
+	);
+	profileSources.set('Cygwin', {
+		profileName: 'Cygwin',
+		paths: [
+			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
+			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
+		],
+		args: ['--login']
+	});
+
+	for (const profile of await getPowershellProfiles()) {
+		profileSources.set(profile.profileName, { profileName: profile.profileName, paths: profile.paths, args: profile.args });
+	}
+
+	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
+
+	// Add non-quick launch profiles
+	if (!quickLaunchOnly) {
+		detectedProfiles.set('PowerShell', { source: ProfileSource.Pwsh });
+		detectedProfiles.set('Git Bash', { source: ProfileSource.GitBash });
+		detectedProfiles.set('Cygwin', {
+			path: [
 				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
 				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 			],
 			args: ['--login']
-		},
-		... await getPowershellProfiles()
-	];
-
-	const promises: Promise<ITerminalProfile | undefined>[] = [];
-	for (const profile of expectedProfiles) {
-		promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider, profile.args));
-	}
-	const profiles = await Promise.all(promises);
-
-	const detectedProfiles: Map<string, ITerminalProfile> = new Map();
-
-	// Add non-quick launch profiles
-	if (!quickLaunchOnly) {
-		for (const profile of coalesce(profiles)) {
-			detectedProfiles.set(profile.profileName, { profileName: profile.profileName, path: profile.path, args: profile.args });
-		}
+		});
+		detectedProfiles.set('Command Prompt',
+			{
+				path: [`${system32Path}\\cmd.exe`]
+			},
+		);
 	}
 
-	// add quick launch profiles
-	if (configProfiles) {
-		for (const [profileName, value] of Object.entries(configProfiles)) {
-			if (value !== null) {
-				if ((value as ITerminalExecutable).path) {
-					let profile;
-					const customProfile = (value as ITerminalExecutable);
-					const pathOrPaths = customProfile.path;
-					const args = customProfile.args;
-					if (Array.isArray(pathOrPaths)) {
-						const resolvedPaths: string[] = [];
-						for (const p of pathOrPaths) {
-							const resolved = variableResolver?.resolve(workspaceFolder, p);
-							if (resolved) {
-								resolvedPaths.push(resolved);
-							} else if (statProvider) {
-								// used by tests
-								resolvedPaths.push(p);
-							} else {
-								logService?.trace(`Could not resolve path ${p} in workspace folder ${workspaceFolder}`);
-							}
-						}
-						profile = await validateProfilePaths(profileName, resolvedPaths, statProvider, args);
-					} else {
-						let resolved = variableResolver?.resolve(workspaceFolder, pathOrPaths);
-						if (!resolved && statProvider) {
-							// used by tests
-							resolved = pathOrPaths;
-						} else if (!resolved) {
-							logService?.trace(`Could not resolve path ${pathOrPaths} in workspace folder ${workspaceFolder}`);
-						}
-						if (resolved) {
-							profile = await validateProfilePaths(profileName, [resolved], statProvider, args);
-						}
-					}
-					if (profile) {
-						detectedProfiles.set(profileName, profile);
-					}
-				} else if ((value as ITerminalProfileSource).source) {
-					// source
-					const sourceKey = (value as ITerminalProfileSource).source;
-					const profile = await validateProfilePaths(sourceKey, expectedProfiles.find(profile => profile.profileName === sourceKey.toString())?.paths || [], statProvider, undefined);
-					if (profile) {
-						detectedProfiles.set(profileName, profile);
-					} else {
-						logService?.trace(`No source with key ${sourceKey}`);
-					}
-				} else {
-					logService?.trace(`Entry in terminal.profiles.windows is not of type ITerminalExecutable or Source`, profileName, value);
-				}
+	for (const [profileName, value] of Object.entries(configProfiles || {})) {
+		if (value === null) { detectedProfiles.delete(profileName); }
+		detectedProfiles.set(profileName, value);
+	}
+
+	const resultProfiles: ITerminalProfile[] = [];
+	for (const [profileName, profile] of detectedProfiles.entries()) {
+		if (profile === null) { continue; }
+		let paths: string[];
+		let args: string[] | string | undefined;
+		if ('source' in profile) {
+			const source = profileSources.get(profile.source);
+			if (!source) {
+				continue;
 			}
+			paths = source.paths.slice();
+			args = source.args;
+		} else {
+			paths = Array.isArray(profile.path) ? profile.path : [profile.path];
+			args = profile.args;
 		}
-	} else {
-		logService?.trace(`No detected profiles ${JSON.stringify(detectedProfiles)} or ${JSON.stringify(configProfiles)}`);
+		for (let i = 0; i < paths.length; i++) {
+			paths[i] = variableResolver?.resolve(workspaceFolder, paths[i]) || paths[i];
+		}
+		const validatedProfile = await validateProfilePaths(profileName, paths, statProvider, args, logService);
+		if (validatedProfile) {
+			resultProfiles.push(validatedProfile);
+		} else {
+			logService?.trace('profile not validated', profileName, paths);
+		}
 	}
 
-	let result = Array.from(detectedProfiles.values());
 	if (!quickLaunchOnly || (quickLaunchOnly && showQuickLaunchWslProfiles)) {
-		result.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles));
+		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles));
 	}
 
-	return result;
+	return resultProfiles;
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
@@ -250,16 +229,15 @@ async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunch
 			logService?.trace(`Entry in terminal.profiles.linux or osx is not of type ITerminalExecutable`, profileName, value);
 		}
 	}
-
 	return Array.from(detectedProfiles.values());
 }
 
-async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
 	const current = potentialPaths.shift()!;
-	if (current! === '') {
+	if (current === '') {
 		return validateProfilePaths(label, potentialPaths, statProvider, args);
 	}
 	if (statProvider) {
