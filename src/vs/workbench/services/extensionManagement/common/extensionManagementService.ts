@@ -291,7 +291,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 		const productName = isWeb ? localize({ key: 'vscode web', comment: ['VS Code Web is the name of the product'] }, "VS Code Web") : this.productService.nameLong;
 		const message = localize('cannot be installed', "The '{0}' extension is not available in {1}. Click 'More Information' to learn more.", gallery.displayName || gallery.name, productName);
-		const result = await this.dialogService.show(Severity.Info, message, [localize('more information', "More Information"), localize('ok', "Ok")]);
+		const result = await this.dialogService.show(Severity.Info, message, [localize('more information', "More Information"), localize('ok', "OK")]);
 		if (result.choice === 0) {
 			this.instantiationService.invokeFunction(accessor => {
 				accessor.get(IOpenerService).open(isWeb ? URI.parse('https://aka.ms/vscode-remote-codespaces') : URI.parse('https://aka.ms/vscode-remote'));
