@@ -46,10 +46,15 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 export interface IFileWorkingCopyModel extends IDisposable {
 
 	/**
-	 * An even that fires whenever the content of the file working
-	 * copy model changes. The file working copy will listen to these
-	 * changes and mark the working copy as dirty whenever this event
-	 * fires.
+	 * This event signals ANY changes to the contents of the file
+	 * working copy model, for example:
+	 * - through the user typing into the editor
+	 * - from API usage (e.g. bulk edits)
+	 * - when `IFileWorkingCopyModel#update` is invoked with contents
+	 *   that are different from the current contents
+	 *
+	 * The file working copy will listen to these changes and mark
+	 * the working copy as dirty whenever this event fires.
 	 *
 	 * Note: ONLY report changes to the model but not the underlying
 	 * file. The file working copy is tracking changes to the file
@@ -75,6 +80,9 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 * behave in a similar fashion as `IFileWorkingCopyModelFactory#createModel`
 	 * except that here the model already exists and just needs to update to
 	 * the provided contents.
+	 *
+	 * Note: it is expected that the model fires a `onDidChangeContent` event
+	 * as part of the update.
 	 *
 	 * @param the contents to use for the model
 	 * @param token support for cancellation
