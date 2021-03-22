@@ -61,7 +61,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellEditable: true,
 	cellHasExecutionOrder: true,
 	custom: {},
-	runState: NotebookRunState.Idle,
 	trusted: true
 };
 
@@ -70,15 +69,19 @@ export interface NotebookDocumentMetadata {
 	cellEditable: boolean;
 	cellHasExecutionOrder: boolean;
 	custom?: { [key: string]: unknown };
-	runState?: NotebookRunState;
 	trusted: boolean;
 }
 
-export enum NotebookCellRunState {
-	Running = 1,
-	Idle = 2,
-	Success = 3,
-	Error = 4
+export enum NotebookCellExecutionState {
+	Idle = 1,
+	Pending = 2,
+	Executing = 3,
+}
+
+export interface INotebookCellPreviousExecutionResult {
+	executionOrder?: number;
+	success?: boolean;
+	duration?: number;
 }
 
 export interface NotebookCellMetadata {
@@ -87,7 +90,8 @@ export interface NotebookCellMetadata {
 	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
-	runState?: NotebookCellRunState;
+	lastRunSuccess?: boolean;
+	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
 	lastRunDuration?: number;
 	inputCollapsed?: boolean;
@@ -269,12 +273,12 @@ export interface NotebookCellsChangeLanguageEvent {
 export interface NotebookCellsChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellMetadata;
 	readonly index: number;
-	readonly metadata: NotebookCellMetadata | undefined;
+	readonly metadata: NotebookCellMetadata;
 }
 
 export interface NotebookDocumentChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeDocumentMetadata;
-	readonly metadata: NotebookDocumentMetadata | undefined;
+	readonly metadata: NotebookDocumentMetadata;
 }
 
 export interface NotebookDocumentUnknownChangeEvent {
@@ -326,7 +330,8 @@ export const enum CellEditType {
 	Move = 7,
 	Unknown = 8,
 	CellContent = 9,
-	OutputItems = 10
+	OutputItems = 10,
+	PartialMetadata = 11
 }
 
 export interface ICellDto2 {
@@ -351,9 +356,15 @@ export interface ICellOutputEdit {
 	append?: boolean
 }
 
+export interface ICellOutputEditByHandle {
+	editType: CellEditType.Output;
+	handle: number;
+	outputs: IOutputDto[];
+	append?: boolean
+}
+
 export interface ICellOutputItemEdit {
 	editType: CellEditType.OutputItems;
-	index: number;
 	outputId: string;
 	items: IOutputItemDto[];
 	append?: boolean;
@@ -365,6 +376,21 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
+export type NullablePartialNotebookCellMetadata = {
+	[Key in keyof Partial<NotebookCellMetadata>]: NotebookCellMetadata[Key] | null
+};
+
+export interface ICellPartialMetadataEdit {
+	editType: CellEditType.PartialMetadata;
+	index: number;
+	metadata: Partial<NullablePartialNotebookCellMetadata>;
+}
+
+export interface ICellPartialMetadataEditByHandle {
+	editType: CellEditType.PartialMetadata;
+	handle: number;
+	metadata: Partial<NullablePartialNotebookCellMetadata>;
+}
 
 export interface ICellLanguageEdit {
 	editType: CellEditType.CellLanguage;
@@ -384,7 +410,8 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit;
+export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit;
+export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
@@ -731,10 +758,11 @@ export interface INotebookKernel {
 	isPreferred?: boolean;
 	preloads?: URI[];
 	supportedLanguages?: string[]
+	implementsInterrupt?: boolean;
 
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
-	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
-	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
+	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
 }
 
 export interface INotebookKernelProvider {

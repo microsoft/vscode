@@ -568,7 +568,7 @@ export namespace WorkspaceEdit {
 							metadata: entry.metadata,
 							resource: entry.uri,
 							edit: {
-								editType: notebooks.CellEditType.Metadata,
+								editType: notebooks.CellEditType.PartialMetadata,
 								index: entry.index,
 								metadata: entry.newMetadata
 							}
@@ -594,7 +594,6 @@ export namespace WorkspaceEdit {
 						resource: entry.uri,
 						edit: {
 							editType: notebooks.CellEditType.OutputItems,
-							index: entry.index,
 							outputId: entry.outputId,
 							items: entry.newOutputItems?.map(NotebookCellOutputItem.from) || [],
 							append: entry.append
@@ -1420,7 +1419,7 @@ export namespace NotebookCellRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.executionOrder, data.runState, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.statusMessage, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
 
@@ -1431,9 +1430,26 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.runState, data.trusted);
+		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.trusted);
+	}
+}
+
+export namespace NotebookCellPreviousExecutionResult {
+	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
+		return {
+			duration: data.lastRunDuration,
+			executionOrder: data.executionOrder,
+			success: data.lastRunSuccess
+		};
 	}
 
+	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
+		return {
+			lastRunSuccess: data.success,
+			lastRunDuration: data.duration,
+			executionOrder: data.executionOrder
+		};
+	}
 }
 
 export namespace NotebookCellKind {
@@ -1465,7 +1481,10 @@ export namespace NotebookCellData {
 			cellKind: NotebookCellKind.from(data.kind),
 			language: data.language,
 			source: data.source,
-			metadata: data.metadata,
+			metadata: {
+				...data.metadata,
+				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
+			},
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
 	}

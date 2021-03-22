@@ -72,6 +72,14 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		throw new Error('Use Cell.layoutInfo.editorMargin');
 	}
 
+	set metadataStatusHeight(height: number) {
+		this._layout({ metadataStatusHeight: height });
+	}
+
+	get metadataStatusHeight() {
+		throw new Error('Use Cell.layoutInfo.outputStatusHeight');
+	}
+
 	set metadataHeight(height: number) {
 		this._layout({ metadataHeight: height });
 	}
