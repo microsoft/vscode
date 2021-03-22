@@ -959,8 +959,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
 			if (this.whenRestoredResolve) {
 				this.whenRestoredResolve();
-				// // Notify any listeners of all the groups that were just created
-				this.groups.forEach(g => this._onDidAddGroup.fire(g));
 			}
 		});
 
