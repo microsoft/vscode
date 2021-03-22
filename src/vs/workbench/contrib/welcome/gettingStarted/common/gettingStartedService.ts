@@ -21,7 +21,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { BuiltinGettingStartedCategory, BuiltinGettingStartedItem, content } from 'vs/workbench/services/gettingStarted/common/gettingStartedContent';
+import { BuiltinGettingStartedCategory, BuiltinGettingStartedItem, content } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
 
@@ -462,7 +462,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
 	const convertPath = (path: string) => path.startsWith('https://')
 		? URI.parse(path, true)
-		: FileAccess.asBrowserUri('vs/workbench/services/gettingStarted/common/media/' + path, require);
+		: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 	if (typeof path === 'string') {
 		const converted = convertPath(path);
 		return { hc: converted, dark: converted, light: converted };

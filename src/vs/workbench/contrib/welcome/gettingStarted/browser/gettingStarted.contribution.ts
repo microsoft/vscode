@@ -18,7 +18,7 @@ import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
+import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedService';
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
