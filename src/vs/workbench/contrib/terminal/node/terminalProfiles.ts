@@ -57,7 +57,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 			],
 			args: ['--login']
 		},
-		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles, logService),
+		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles),
 		... await getPowershellProfiles()
 	];
 
@@ -177,7 +177,7 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: boolean, logService?: ILogService): Promise<IPotentialTerminalProfile[]> {
+async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
 	const profiles: IPotentialTerminalProfile[] = [];
 	if (showQuickLaunchWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
@@ -255,6 +255,8 @@ async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunch
 							detectedProfiles.push(profileFromConfig);
 						}
 						break;
+					} else if (!profile) {
+						logService?.trace(`Could not resolve path ${pathOrPaths} with name ${profileName} and args ${JSON.stringify(args)}`);
 					}
 				}
 			} else {
@@ -273,6 +275,8 @@ async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunch
 					if (isCustomProfile) {
 						detectedProfiles.push(profileFromConfig);
 					}
+				} else if (!profile) {
+					logService?.trace(`Could not resolve path ${pathOrPaths} with name ${profileName} and args ${JSON.stringify(args)}`);
 				}
 			}
 		} else {
