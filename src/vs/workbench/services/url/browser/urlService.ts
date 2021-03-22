@@ -55,7 +55,7 @@ export class BrowserURLService extends AbstractURLService {
 		this.registerListeners();
 
 		const that = this;
-		openerService.registerOpener({
+		this._register(openerService.registerOpener({
 			async open(resource: URI | string) {
 				if (!matchesScheme(resource, productService.urlProtocol)) {
 					return false;
@@ -67,7 +67,7 @@ export class BrowserURLService extends AbstractURLService {
 
 				return that.open(resource);
 			}
-		});
+		}));
 	}
 
 	private registerListeners(): void {
