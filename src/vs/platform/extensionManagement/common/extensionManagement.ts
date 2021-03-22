@@ -192,7 +192,6 @@ export interface DidUninstallExtensionEvent {
 	error?: string;
 }
 
-export const INSTALL_ERROR_NOT_SUPPORTED = 'notsupported';
 export const INSTALL_ERROR_MALICIOUS = 'malicious';
 export const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 
