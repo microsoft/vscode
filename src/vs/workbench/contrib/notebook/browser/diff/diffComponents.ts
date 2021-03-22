@@ -307,6 +307,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this._register(this._outputEditorDisposeStore);
 		this._register(cell.onDidLayoutChange(e => this.layout(e)));
 		this._register(cell.onDidLayoutChange(e => this.updateBorders()));
+		this.init();
 		this.buildBody();
 
 		this._register(cell.onDidStateChange(() => {
@@ -314,7 +315,73 @@ abstract class AbstractElementRenderer extends Disposable {
 		}));
 	}
 
-	abstract buildBody(): void;
+	abstract init(): void;
+	abstract styleContainer(container: HTMLElement): void;
+	abstract _buildOutput(): void;
+	abstract _disposeOutput(): void;
+	abstract _buildMetadata(): void;
+	abstract _disposeMetadata(): void;
+
+	buildBody(): void {
+		const body = this.templateData.body;
+		this._diffEditorContainer = this.templateData.diffEditorContainer;
+		body.classList.remove('left', 'right', 'full');
+		switch (this.style) {
+			case 'left':
+				body.classList.add('left');
+				break;
+			case 'right':
+				body.classList.add('right');
+				break;
+			default:
+				body.classList.add('full');
+				break;
+		}
+
+		this.styleContainer(this._diffEditorContainer);
+		this.updateSourceEditor();
+
+		if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+			this._disposeMetadata();
+		} else {
+			this._buildMetadata();
+		}
+
+		if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+			this._disposeOutput();
+		} else {
+			this._buildOutput();
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			let metadataLayoutChange = false;
+			let outputLayoutChange = false;
+			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
+				this._metadataLocalDisposable.clear();
+				if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+					this._disposeMetadata();
+				} else {
+					this.cell.metadataStatusHeight = 25;
+					this._buildMetadata();
+					this.updateMetadataRendering();
+					metadataLayoutChange = true;
+				}
+			}
+
+			if (e.affectsConfiguration('notebook.diff.ignoreOutputs')) {
+				this._outputLocalDisposable.clear();
+				if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+					this._disposeOutput();
+				} else {
+					this.cell.outputStatusHeight = 25;
+					this._buildOutput();
+					outputLayoutChange = true;
+				}
+			}
+
+			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+		}));
+	}
 
 	updateMetadataRendering() {
 		if (this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
@@ -678,7 +745,6 @@ abstract class AbstractElementRenderer extends Disposable {
 		super.dispose();
 	}
 
-	abstract styleContainer(container: HTMLElement): void;
 	abstract updateSourceEditor(): void;
 	abstract layout(state: IDiffElementLayoutState): void;
 }
@@ -721,9 +787,14 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		);
 	}
 
+	init() {
+		this._diagonalFill = this.templateData.diagonalFill;
+	}
+
 	buildBody() {
 		const body = this.templateData.body;
 		this._diffEditorContainer = this.templateData.diffEditorContainer;
+		body.classList.remove('left', 'right', 'full');
 		switch (this.style) {
 			case 'left':
 				body.classList.add('left');
@@ -736,7 +807,6 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				break;
 		}
 
-		this._diagonalFill = this.templateData.diagonalFill;
 		this.styleContainer(this._diffEditorContainer);
 		this.updateSourceEditor();
 
@@ -1195,69 +1265,9 @@ export class ModifiedElement extends AbstractElementRenderer {
 		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
+	init() { }
 	styleContainer(container: HTMLElement): void {
 		container.classList.remove('inserted', 'removed');
-	}
-
-	buildBody() {
-		const body = this.templateData.body;
-		this._diffEditorContainer = this.templateData.diffEditorContainer;
-		body.classList.remove('left', 'right', 'full');
-		switch (this.style) {
-			case 'left':
-				body.classList.add('left');
-				break;
-			case 'right':
-				body.classList.add('right');
-				break;
-			default:
-				body.classList.add('full');
-				break;
-		}
-
-		this.styleContainer(this._diffEditorContainer);
-		this.updateSourceEditor();
-
-		if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
-			this._disposeMetadata();
-		} else {
-			this._buildMetadata();
-		}
-
-		if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
-			this._disposeOutput();
-		} else {
-			this._buildOutput();
-		}
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			let metadataLayoutChange = false;
-			let outputLayoutChange = false;
-			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
-				this._metadataLocalDisposable.clear();
-				if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
-					this._disposeMetadata();
-				} else {
-					this.cell.metadataStatusHeight = 25;
-					this._buildMetadata();
-					this.updateMetadataRendering();
-					metadataLayoutChange = true;
-				}
-			}
-
-			if (e.affectsConfiguration('notebook.diff.ignoreOutputs')) {
-				this._outputLocalDisposable.clear();
-				if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
-					this._disposeOutput();
-				} else {
-					this.cell.outputStatusHeight = 25;
-					this._buildOutput();
-					outputLayoutChange = true;
-				}
-			}
-
-			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
-		}));
 	}
 
 	_disposeMetadata() {
