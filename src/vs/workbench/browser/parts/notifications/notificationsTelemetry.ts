@@ -10,7 +10,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { hash } from 'vs/base/common/hash';
 
 export interface NotificationMetrics {
-	id: number;
+	id: string;
 	silent: boolean;
 	source?: string;
 }
@@ -23,7 +23,7 @@ export type NotificationMetricsClassification = {
 
 export function notificationToMetrics(message: NotificationMessage, source: string | undefined, silent: boolean): NotificationMetrics {
 	return {
-		id: hash(message.toString()),
+		id: hash(message.toString()).toString(),
 		silent,
 		source: source || 'core'
 	};

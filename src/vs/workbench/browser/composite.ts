@@ -83,26 +83,26 @@ export abstract class Composite extends Component implements IComposite {
 
 	protected actionRunner: IActionRunner | undefined;
 
+	private _telemetryService: ITelemetryService;
+	protected get telemetryService(): ITelemetryService { return this._telemetryService; }
+
 	private visible: boolean;
 	private parent: HTMLElement | undefined;
 
 	constructor(
 		id: string,
-		private _telemetryService: ITelemetryService,
+		telemetryService: ITelemetryService,
 		themeService: IThemeService,
 		storageService: IStorageService
 	) {
 		super(id, themeService, storageService);
 
+		this._telemetryService = telemetryService;
 		this.visible = false;
 	}
 
 	getTitle(): string | undefined {
 		return undefined;
-	}
-
-	protected get telemetryService(): ITelemetryService {
-		return this._telemetryService;
 	}
 
 	/**
@@ -203,7 +203,7 @@ export abstract class Composite extends Component implements IComposite {
 	 */
 	getActionRunner(): IActionRunner {
 		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner();
+			this.actionRunner = this._register(new ActionRunner());
 		}
 
 		return this.actionRunner;

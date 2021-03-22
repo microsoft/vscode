@@ -186,7 +186,7 @@ export abstract class NotebookAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, context?: any): Promise<void> {
 		const isFromUI = !!context;
-		const from = isFromUI ? (this.isNotebookActionContext(context) ? 'notebookToolbar' : 'editorToolbar') : '';
+		const from = isFromUI ? (this.isNotebookActionContext(context) ? 'notebookToolbar' : 'editorToolbar') : undefined;
 		if (!this.isNotebookActionContext(context)) {
 			context = this.getEditorContextFromArgsOrActive(accessor, context);
 			if (!context) {
@@ -194,8 +194,10 @@ export abstract class NotebookAction extends Action2 {
 			}
 		}
 
-		const telemetryService = accessor.get(ITelemetryService);
-		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		if (from !== undefined) {
+			const telemetryService = accessor.get(ITelemetryService);
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		}
 
 		this.runWithContext(accessor, context);
 	}

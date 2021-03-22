@@ -258,7 +258,8 @@ export class TestServiceAccessor {
 		@IHostService public hostService: TestHostService,
 		@IQuickInputService public quickInputService: IQuickInputService,
 		@ILabelService public labelService: ILabelService,
-		@ILogService public logService: ILogService
+		@ILogService public logService: ILogService,
+		@IUriIdentityService public uriIdentityService: IUriIdentityService
 	) { }
 }
 
@@ -838,9 +839,17 @@ export class TestFileService implements IFileService {
 		return stats.map(stat => ({ stat, success: true }));
 	}
 
-	async exists(_resource: URI): Promise<boolean> { return true; }
+	readonly notExistsSet = new Set<URI>();
+
+	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
+
+	readShouldThrowError: Error | undefined = undefined;
 
 	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
 		this.lastReadFileUri = resource;
 
 		return Promise.resolve({
@@ -856,6 +865,10 @@ export class TestFileService implements IFileService {
 	}
 
 	readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
 		this.lastReadFileUri = resource;
 
 		return Promise.resolve({

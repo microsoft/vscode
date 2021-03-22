@@ -165,6 +165,7 @@ registerAction2(class extends Action2 {
 				description: NOTEBOOK_FOLD_COMMAND_LABEL,
 				args: [
 					{
+						isOptional: true,
 						name: 'index',
 						description: 'The cell index',
 						schema: {
@@ -249,6 +250,7 @@ registerAction2(class extends Action2 {
 				description: NOTEBOOK_UNFOLD_COMMAND_LABEL,
 				args: [
 					{
+						isOptional: true,
 						name: 'index',
 						description: 'The cell index',
 						schema: {
