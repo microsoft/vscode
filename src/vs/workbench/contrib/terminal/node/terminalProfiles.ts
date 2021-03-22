@@ -217,6 +217,14 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 		return validateProfilePaths(label, potentialPaths, statProvider, args);
 	}
 
+	if (basename(current) === current) {
+		return {
+			profileName: label,
+			path: current,
+			args
+		};
+	}
+
 	try {
 		const result = await fs.promises.stat(normalize(current));
 		if (result.isFile() || result.isSymbolicLink()) {
@@ -224,7 +232,7 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 				return {
 					profileName: label,
 					path: current,
-					args: args
+					args
 				};
 			} else {
 				return {
@@ -245,7 +253,7 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 					return {
 						profileName: label,
 						path: current,
-						args: args
+						args
 					};
 				} else {
 					return {
