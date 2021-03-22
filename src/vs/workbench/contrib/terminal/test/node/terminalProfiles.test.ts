@@ -39,7 +39,7 @@ suite('Workbench - TerminalProfiles', () => {
 				// 		let config: ITestTerminalConfig = {
 				// 			profiles: {
 				// 				windows: {
-				// 					'Command Prompt': { pathOrPaths: _paths }
+				// 					'Command Prompt': { path: _paths }
 				// 				},
 				// 				linux: {},
 				// 				osx: {},
