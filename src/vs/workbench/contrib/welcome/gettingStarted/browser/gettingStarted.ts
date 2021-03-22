@@ -38,6 +38,7 @@ import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { coalesce } from 'vs/base/common/arrays';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Throttler } from 'vs/base/common/async';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -107,6 +108,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesScrollbar: DomScrollableElement | undefined;
 	private detailsScrollbar: DomScrollableElement | undefined;
 	private detailImageScrollbar: DomScrollableElement | undefined;
+	private buildSlideThrottle: Throttler = new Throttler();
 
 	private container: HTMLElement;
 
@@ -150,22 +152,17 @@ export class GettingStartedPage extends EditorPane {
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
+		this.buildSlideThrottle = new Throttler();
 		this._register(this.gettingStartedService.onDidAddTask(task => {
 			this.gettingStartedCategories = this.gettingStartedService.getCategories();
-			this.buildCategoriesSlide();
+			this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
 		}));
 
 		this._register(this.gettingStartedService.onDidChangeTask(task => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === task.category);
-			if (!ourCategory || ourCategory.content.type === 'startEntry') {
-				console.error('Attempting to modify category that does not exist or is invalid type', task);
-				return;
-			}
+			if (!ourCategory || ourCategory.content.type === 'startEntry') { return; }
 			const ourTask = ourCategory.content.items.find(item => item.id === task.id);
-			if (!ourTask) {
-				console.error('Attempting to modify task that cannot be found', task);
-				return;
-			}
+			if (!ourTask) { return; }
 			ourTask.title = task.title;
 			ourTask.description = task.description;
 			ourTask.media.path = task.media.path;
@@ -173,10 +170,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this._register(this.gettingStartedService.onDidChangeCategory(category => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
-			if (!ourCategory) {
-				console.error('Attempting to modify category that does not exist or is invalid type', category);
-				return;
-			}
+			if (!ourCategory) { return; }
 
 			ourCategory.title = category.title;
 			ourCategory.description = category.description;

@@ -212,7 +212,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				const existing = assertIsDefined(this.gettingStartedContributions.get(category.id));
 				existing.title = title ?? existing.title;
 				existing.description = description ?? existing.description;
-				console.log('hello', title, description, existing);
 				this._onDidChangeCategory.fire(this.getCategoryProgress(existing));
 			} else {
 				resolve({
