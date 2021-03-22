@@ -425,7 +425,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (category.content.type !== 'items') { throw Error('Registering getting started task to category that is not of `items` type (' + task.category + ')'); }
 		if (this.tasks.has(task.id)) { throw Error('Attempting to register task with id ' + task.id + ' twice. Second is dropped.'); }
 		this.tasks.set(task.id, task);
-		const insertIndex = category.content.items.findIndex(item => item.order > task.order);
+		let insertIndex: number | undefined = category.content.items.findIndex(item => item.order > task.order);
+		if (insertIndex === -1) { insertIndex = undefined; }
+		insertIndex = insertIndex ?? category.content.items.length;
 		category.content.items.splice(insertIndex, 0, task);
 		this.registerDoneListeners(task);
 		this._onDidAddTask.fire(this.getTaskProgress(task));
