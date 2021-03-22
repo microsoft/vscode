@@ -1459,16 +1459,17 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const quickSelectProfiles = await terminalService.getAvailableProfiles();
-
-			// Remove 'New ' from the selected item to get the profile name
-			const profileSelection = item.substring(4);
 			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
 			if (customType) {
 				return commandService.executeCommand(customType.command);
 			}
+
+			const quickSelectProfiles = await terminalService.getAvailableProfiles();
+
+			// Remove 'New ' from the selected item to get the profile name
+			const profileSelection = item.substring(4);
 			if (quickSelectProfiles) {
-				const launchConfig = quickSelectProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
+				const launchConfig = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (launchConfig) {
 					if (!terminalService.configHelper.checkWorkspaceShellPermissions(undefined, launchConfig.isWorkspaceProfile)) {
 						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });

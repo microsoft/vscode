@@ -17,7 +17,7 @@ import { ITestTerminalConfig } from 'vs/workbench/contrib/terminal/test/node/ter
 import { ILogService } from 'vs/platform/log/common/log';
 
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration | ITestTerminalConfig, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles?.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(quickLaunchOnly, platform.isMacintosh ? config?.profiles?.osx : config?.profiles?.linux, testPaths);
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder, statProvider) : detectAvailableUnixProfiles(logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths);
 }
 
 async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider): Promise<ITerminalProfile[]> {
@@ -71,7 +71,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	let quickLaunchProfiles: ITerminalProfile[] = [];
 
 	if (detectedProfiles && configProfiles) {
-		for (const [profileKey, value] of Object.entries(configProfiles)) {
+		for (const [profileName, value] of Object.entries(configProfiles)) {
 			if (value !== null) {
 				if ((value as ITerminalExecutable).path) {
 					let profile;
@@ -90,14 +90,14 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 								logService?.trace(`Could not resolve path ${p} in workspace folder ${workspaceFolder}`);
 							}
 						}
-						profile = detectedProfiles?.find(profile => resolvedPaths.includes(profile.path));
+						profile = detectedProfiles.find(profile => resolvedPaths.includes(profile.path));
 						if (!profile) {
 							logService?.trace(`Could not detect path ${JSON.stringify(resolvedPaths)}`);
 						}
 					} else {
 						let resolved = variableResolver?.resolve(workspaceFolder, pathOrPaths);
 						if (resolved) {
-							profile = detectedProfiles?.find(profile => profile.path === resolved);
+							profile = detectedProfiles.find(profile => profile.path === resolved);
 						} else if (statProvider) {
 							// used by tests
 							resolved = pathOrPaths;
@@ -109,27 +109,48 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 						}
 					}
 					if (profile) {
+						let profileFromConfig;
+						let isCustomProfile;
 						if (customProfile.args) {
-							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path, args: customProfile.args });
+							isCustomProfile = profile.profileName !== profileName || profile.args !== customProfile.args;
+							profileFromConfig = { profileName: profileName, path: profile.path, args: customProfile.args };
 						} else {
-							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path });
+							isCustomProfile = profile.profileName !== profileName;
+							profileFromConfig = { profileName: profileName, path: profile.path };
+						}
+
+						if (profileFromConfig) {
+							quickLaunchProfiles.push(profileFromConfig);
+							// add custom profile to detected profiles
+							if (isCustomProfile) {
+								detectedProfiles.push(profileFromConfig);
+							}
 						}
 					}
 				} else if ((value as ITerminalProfileSource).source) {
 					// source
 					const sourceKey = (value as ITerminalProfileSource).source;
-					const profile = detectedProfiles?.find(profile => profile.profileName === sourceKey.toString());
+					const profile = detectedProfiles.find(profile => profile.profileName === sourceKey.toString());
 					if (profile) {
+						let profileFromConfig;
 						if (profile.args) {
-							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path, args: profile.args });
+							profileFromConfig = { profileName, path: profile.path, args: profile.args };
 						} else {
-							quickLaunchProfiles?.push({ profileName: profileKey, path: profile.path });
+							profileFromConfig = { profileName, path: profile.path };
+						}
+						const isCustomProfile = profile.profileName !== profileName;
+						if (profileFromConfig) {
+							quickLaunchProfiles.push(profileFromConfig);
+							// add custom profile to detected profiles
+							if (isCustomProfile) {
+								detectedProfiles.push(profileFromConfig);
+							}
 						}
 					} else {
 						logService?.trace(`No source with key ${sourceKey}`);
 					}
 				} else {
-					logService?.trace(`Entry in terminal.profiles.windows is not of type ITerminalExecutable or Source`, profileKey, value);
+					logService?.trace(`Entry in terminal.profiles.windows is not of type ITerminalExecutable or Source`, profileName, value);
 				}
 			}
 		}
@@ -141,9 +162,6 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	if (quickLaunchProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
 		quickLaunchProfiles = quickLaunchProfiles.filter(p => p.profileName !== 'Windows PowerShell');
 	}
-
-	// include any custom profiles
-	detectedProfiles.push(...quickLaunchProfiles.filter(p => !detectedProfiles.find(profile => profile.profileName === p.profileName && profile.path === p.path && profile.args === p.args)));
 
 	if (showQuickLaunchWslProfiles) {
 		quickLaunchProfiles.push(...detectedProfiles.filter(p => p.path.endsWith('wsl.exe')));
@@ -205,7 +223,7 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	return [];
 }
 
-async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[]): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[]): Promise<ITerminalProfile[]> {
 	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 	const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 
@@ -224,18 +242,42 @@ async function detectAvailableUnixProfiles(quickLaunchOnly?: boolean, configProf
 				for (const possiblePath of pathOrPaths) {
 					const profile = detectedProfiles.find(p => basename(p.path) === possiblePath);
 					// choose only the first
-					if (profile && !quickLaunchProfiles.find(p => basename(p.path) === possiblePath && p.profileName === profileName && p.args === args)) {
-						quickLaunchProfiles.push({ profileName, path: profile.path });
+					if (profile && !quickLaunchProfiles.find(p => basename(p.path) === possiblePath)) {
+						const isCustomProfile = !detectedProfiles.find(p => basename(p.path) === possiblePath && p.path && p.args === args);
+						let profileFromConfig;
+						if (args) {
+							profileFromConfig = { profileName, path: profile.path, args };
+						} else {
+							profileFromConfig = { profileName, path: profile.path };
+						}
+						quickLaunchProfiles.push(profileFromConfig);
+						// add custom profile to detected profiles
+						if (isCustomProfile) {
+							detectedProfiles.push(profileFromConfig);
+						}
 						break;
 					}
 				}
 			} else {
-				const profile: ITerminalProfile | undefined = detectedProfiles.find(p => basename(p.path) === pathOrPaths);
+				const profile = detectedProfiles.find(p => basename(p.path) === pathOrPaths);
 				// choose only the first
-				if (profile && !quickLaunchProfiles.find(p => basename(p.path) === profile.path && p.profileName === profileName && p.args === args)) {
-					quickLaunchProfiles.push({ profileName, path: profile.path });
+				if (profile && !quickLaunchProfiles.find(p => basename(p.path) === profile.path)) {
+					const isCustomProfile = !detectedProfiles.find(p => basename(p.path) === profile.path && p.args === args && p.profileName === profileName);
+					let profileFromConfig;
+					if (args) {
+						profileFromConfig = { profileName, path: profile.path, args };
+					} else {
+						profileFromConfig = { profileName, path: profile.path };
+					}
+					quickLaunchProfiles.push(profileFromConfig);
+					// add custom profile to detected profiles
+					if (isCustomProfile) {
+						detectedProfiles.push(profileFromConfig);
+					}
 				}
 			}
+		} else {
+			logService?.trace(`Entry in terminal.profiles.linux or osx is not of type ITerminalExecutable`, profileName, value);
 		}
 	}
 
