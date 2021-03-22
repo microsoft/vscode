@@ -21,17 +21,16 @@ import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, QUICK_LAUNCH_PROFILE_CHOICE, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TERMINAL_COMMAND_ID, TERMINAL_VIEW_ID, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -1439,9 +1438,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, item?: string) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalContributionService = accessor.get(ITerminalContributionService);
-			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
-			const storageService = accessor.get(IStorageService);
 			if (!item || !item.split) {
 				return Promise.resolve(null);
 			}
@@ -1462,44 +1459,25 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const detectedProfiles = await terminalService.getAvailableProfiles();
-
-			// Remove 'New ' from the selected item to get the profile name
-			const profileSelection = item.substring(4);
 			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
 			if (customType) {
 				return commandService.executeCommand(customType.command);
 			}
-			if (detectedProfiles) {
-				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
-				if (launchConfig && !launchConfig.isWorkspaceProfile) {
-					const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
-					terminalService.setActiveInstance(instance);
-				} else if (launchConfig && launchConfig.isWorkspaceProfile) {
-					if (!storageService.getBoolean(`${QUICK_LAUNCH_PROFILE_CHOICE}-${item}-${launchConfig.path}`, StorageScope.WORKSPACE, false)) {
-						notificationService.prompt(Severity.Info, `Do you allow this workspace to modify your terminal profile? ${item} with path ${launchConfig?.path}`,
-							[{
-								label: 'Allow',
-								run: () => {
-									const instance = terminalService.createTerminal({ executable: launchConfig?.path, args: launchConfig?.args });
-									terminalService.setActiveInstance(instance);
-									storageService.store(`${QUICK_LAUNCH_PROFILE_CHOICE}-${item}-${launchConfig?.path}`, true, StorageScope.WORKSPACE, StorageTarget.USER);
-								}
-							},
-							{
-								label: 'Disallow',
-								run: () => {
-									const activeInstance = terminalService.getActiveInstance();
-									if (activeInstance) {
-										terminalService.setActiveInstance(activeInstance);
-									}
-								}
-							}]
-						);
-					} else {
-						const instance = terminalService.createTerminal({ executable: launchConfig?.path, args: launchConfig?.args });
+
+			const quickSelectProfiles = await terminalService.getAvailableProfiles();
+
+			// Remove 'New ' from the selected item to get the profile name
+			const profileSelection = item.substring(4);
+			if (quickSelectProfiles) {
+				const launchConfig = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
+				if (launchConfig) {
+					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
+					if (workspaceShellAllowed) {
+						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
 						terminalService.setActiveInstance(instance);
 					}
+				} else {
+					console.warn(`No profile with name "${profileSelection}"`);
 				}
 			} else {
 				console.warn(`Unmatched terminal item: "${item}"`);
