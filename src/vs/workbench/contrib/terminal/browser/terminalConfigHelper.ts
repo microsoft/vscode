@@ -226,7 +226,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const usesWorkspaceProfile = isWorkspaceProfile || (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined);
 
 		if (!usesWorkspaceProfile) {
-			return false;
+			return true;
 		}
 
 		// Check if workspace setting exists and whether it's allowed
