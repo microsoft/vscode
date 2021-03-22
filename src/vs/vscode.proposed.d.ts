@@ -1517,9 +1517,8 @@ declare module 'vscode' {
 
 		/**
 		 * A kernel can optionally implement this which will be called when any "cancel" button is clicked in the document.
-		 * TODO@roblou remove ranges?
 		 */
-		interrupt?(document: NotebookDocument, ranges: NotebookCellRange[]): void;
+		interrupt?(document: NotebookDocument): void;
 
 		/**
 		 * Called when the user triggers execution of a cell by clicking the run button for a cell, multiple cells,

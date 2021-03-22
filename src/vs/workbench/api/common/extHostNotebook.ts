@@ -163,15 +163,14 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		return kernel.executeCellsRequest(document.notebookDocument, extCellRange);
 	}
 
-	async interruptNotebookExecution(kernelId: string, document: ExtHostNotebookDocument, cellRange: ICellRange[]): Promise<void> {
+	async interruptNotebookExecution(kernelId: string, document: ExtHostNotebookDocument): Promise<void> {
 		const kernel = this._friendlyIdToKernel.get(document.uri)?.get(kernelId);
 
 		if (!kernel || !kernel.interrupt) {
 			return;
 		}
 
-		const extCellRange = cellRange.map(c => typeConverters.NotebookCellRange.to(c));
-		return kernel.interrupt(document.notebookDocument, extCellRange);
+		return kernel.interrupt(document.notebookDocument);
 	}
 }
 
@@ -521,7 +520,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	async $cancelNotebookCellExecution(handle: number, uri: UriComponents, kernelId: string, cellRange: ICellRange[]): Promise<void> {
 		await this._withAdapter(handle, uri, async (adapter, document) => {
-			return adapter.interruptNotebookExecution(kernelId, document, cellRange);
+			return adapter.interruptNotebookExecution(kernelId, document);
 		});
 
 		const document = this._documents.get(URI.revive(uri));
