@@ -188,7 +188,7 @@ suite('Workbench EditorPane', () => {
 		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
 		const disposable = EditorInputRegistry.registerEditorInputSerializer('testInputId', TestInputSerializer);
 
-		let factory = EditorInputRegistry.getEditorInputSerializer('InputId');
+		let factory = EditorInputRegistry.getEditorInputSerializer('testInputId');
 		assert(factory);
 
 		disposable.dispose();

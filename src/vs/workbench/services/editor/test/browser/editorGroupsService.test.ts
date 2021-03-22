@@ -296,7 +296,7 @@ suite('EditorGroupsService', () => {
 		await rootGroup.openEditor(input, EditorOptions.create({ pinned: true }));
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT, { activate: true });
 		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
-		assert.strictEqual(groupAddedCounter, 3);
+		assert.strictEqual(groupAddedCounter, 2);
 		assert.strictEqual(downGroup.count, 1);
 		assert.ok(downGroup.activeEditor instanceof TestFileEditorInput);
 		part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.COPY_EDITORS });
