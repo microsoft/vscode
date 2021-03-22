@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - release/*
+      - chrmarti/108804
   pull_request:
     branches:
       - main
