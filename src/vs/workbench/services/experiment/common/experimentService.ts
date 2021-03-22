@@ -210,9 +210,9 @@ export class ExperimentService implements ITASExperimentService {
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		// For development purposes, allow overriding tas assignments to test variants locally.
+		await this.overrideInitDelay;
 		const override = this.configurationService.getValue<T>('experiments.override.' + name);
 		if (override !== undefined) {
-			await this.overrideInitDelay;
 			type TAASClientOverrideTreatmentData = { treatmentName: string; };
 			type TAASClientOverrideTreatmentClassification = { treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', }; };
 			this.telemetryService.publicLog2<TAASClientOverrideTreatmentData, TAASClientOverrideTreatmentClassification>('tasClientOverrideTreatment', { treatmentName: name, });
