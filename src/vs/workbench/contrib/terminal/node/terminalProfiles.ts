@@ -57,7 +57,6 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 			],
 			args: ['--login']
 		},
-		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles),
 		... await getPowershellProfiles()
 	];
 
@@ -132,7 +131,12 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		logService?.trace(`No detected profiles ${JSON.stringify(detectedProfiles)} or ${JSON.stringify(configProfiles)}`);
 	}
 
-	return Array.from(detectedProfiles.values());
+	let result = Array.from(detectedProfiles.values());
+	if (!quickLaunchOnly || (quickLaunchOnly && showQuickLaunchWslProfiles)) {
+		result.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles));
+	}
+
+	return result;
 }
 
 async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
@@ -144,8 +148,8 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: boolean): Promise<IPotentialTerminalProfile[]> {
-	const profiles: IPotentialTerminalProfile[] = [];
+async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: boolean): Promise<ITerminalProfile[]> {
+	const profiles: ITerminalProfile[] = [];
 	if (showQuickLaunchWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
 			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
@@ -179,7 +183,7 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 				// Add the profile
 				profiles.push({
 					profileName: `${distroName} (WSL)`,
-					paths: [wslPath],
+					path: wslPath,
 					args: [`-d`, `${distroName}`]
 				});
 			}
