@@ -561,6 +561,7 @@ function webviewPreloads() {
 
 					postNotebookMessage<IDimensionMessage>('dimension', {
 						id: outputId,
+						isOutput: true,
 						init: true,
 						data: {
 							height: outputNode.clientHeight
@@ -642,6 +643,7 @@ function webviewPreloads() {
 
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: outputId,
+							isOutput: true,
 							data: {
 								height: output.clientHeight
 							}

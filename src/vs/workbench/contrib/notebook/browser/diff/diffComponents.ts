@@ -1385,6 +1385,26 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
 			this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
+
+			if (this.cell.checkIfOutputsModified()) {
+				const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+					if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
+						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
+						originalOutputRenderListener.dispose();
+					}
+				});
+
+				const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
+					if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
+						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
+						modifiedOutputRenderListener.dispose();
+					}
+				});
+
+				this._register(originalOutputRenderListener);
+				this._register(modifiedOutputRenderListener);
+			}
+
 			// We should use the original text model here
 			this._outputLeftView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.original!, DiffSide.Original, this._outputLeftContainer!);
 			this._outputLeftView.render();
@@ -1392,24 +1412,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
 			this._outputRightView.render();
 			this._register(this._outputRightView);
-
-			const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-				if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
-					originalOutputRenderListener.dispose();
-				}
-			});
-
-			const modifiedOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
-				if (e.cell.uri.toString() === this.cell.modified.uri.toString()) {
-					this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
-					modifiedOutputRenderListener.dispose();
-				}
-			});
-
-			this._register(originalOutputRenderListener);
-			this._register(modifiedOutputRenderListener);
-
 			this._decorate();
 		}
 
@@ -1417,8 +1419,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	_decorate() {
-		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
-		this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
+		if (this.cell.checkIfOutputsModified()) {
+			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
+			this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Modified, this.cell.modified.id, ['nb-cellAdded'], []);
+		}
 	}
 
 	_showOutputsRenderer() {
