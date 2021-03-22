@@ -71,8 +71,21 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	get(resource: URI): IFileWorkingCopy<T> | undefined;
 
 	/**
-	 * Allows to resolve a file working copy. Callers must dispose the working
-	 * copy when no longer needed.
+	 * Allows to resolve a file working copy. If the manager already knows
+	 * about a file working copy with the same `URI`, it will return that
+	 * existing file working copy. There will never be more than one
+	 * file working copy per `URI` until the file working copy is disposed.
+	 *
+	 * Use the `IFileWorkingCopyResolveOptions.reload` option to control the
+	 * behaviour for when a file working copy was previously already resolved
+	 * with regards to resolving it again from the underlying file resource
+	 * or not.
+	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 *
+	 * @param resource used as unique identifier of the file working copy in
+	 * case one is already known for this `URI`.
+	 * @param options
 	 */
 	resolve(resource: URI, options?: IFileWorkingCopyResolveOptions): Promise<IFileWorkingCopy<T>>;
 
