@@ -46,6 +46,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	}
 
 	let expectedProfiles: IPotentialTerminalProfile[] = [
+		... await getPowershellProfiles(),
 		{
 			profileName: 'Command Prompt',
 			paths: [`${system32Path}\\cmd.exe`]
@@ -69,8 +70,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 			],
 			args: ['--login']
 		},
-		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, quickLaunchWslProfiles, logService),
-		... await getPowershellProfiles()
+		... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, quickLaunchWslProfiles, logService)
 	];
 
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
@@ -144,11 +144,6 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 		}
 	} else {
 		logService?.trace(`No detected profiles ${JSON.stringify(detectedProfiles)} or ${JSON.stringify(configProfiles)}`);
-	}
-
-	// only show the windows powershell profile if no other powershell profile exists
-	if (validProfiles.find(p => p.path.endsWith('pwsh.exe'))) {
-		validProfiles = validProfiles.filter(p => p.profileName !== 'Windows PowerShell');
 	}
 
 	if (quickLaunchWslProfiles) {
