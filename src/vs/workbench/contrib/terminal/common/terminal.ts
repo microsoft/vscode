@@ -164,7 +164,13 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: OperatingSystem, isWorkspaceProfile?: boolean): boolean;
+	/**
+	 * Checks and returns whether it's safe to launch the process. If the user has not yet been
+	 * asked, ask for future calls and return false.
+	 * @param osOverride Use a custom OS (eg. remote).
+	 * @param profile The profile if this is launching with a profile.
+	 */
+	checkIsProcessLaunchSafe(osOverride?: OperatingSystem, profile?: ITerminalProfile): boolean;
 	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 

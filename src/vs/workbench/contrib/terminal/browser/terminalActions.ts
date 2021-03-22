@@ -1471,7 +1471,7 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const launchConfig = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (launchConfig) {
-					const workspaceShellAllowed = terminalService.configHelper.checkWorkspaceShellPermissions(undefined, launchConfig.isWorkspaceProfile);
+					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
 					if (workspaceShellAllowed) {
 						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
 						terminalService.setActiveInstance(instance);
