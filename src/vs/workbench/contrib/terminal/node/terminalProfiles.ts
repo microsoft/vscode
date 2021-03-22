@@ -62,7 +62,9 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, logServi
 	];
 
 	const promises: Promise<ITerminalProfile | undefined>[] = [];
-	expectedProfiles.forEach(profile => promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider, profile.args)));
+	for (const profile of expectedProfiles) {
+		promises.push(validateProfilePaths(profile.profileName, profile.paths, statProvider, profile.args));
+	}
 	const profiles = await Promise.all(promises);
 
 	const detectedProfiles = coalesce(profiles);
@@ -223,71 +225,34 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 }
 
 async function detectAvailableUnixProfiles(logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: any, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	const contents = await fs.promises.readFile('/etc/shells', 'utf8');
-	const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+	const detectedProfiles2: Map<string, ITerminalProfile> = new Map();
 
-	let detectedProfiles: ITerminalProfile[] = [];
-	const quickLaunchProfiles: ITerminalProfile[] = [];
-	for (const profile of profiles) {
-		detectedProfiles.push({ profileName: basename(profile), path: profile });
+	// Add non-quick launch profiles
+	if (!quickLaunchOnly) {
+		const contents = await fs.promises.readFile('/etc/shells', 'utf8');
+		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+		for (const profile of profiles) {
+			const profileName = basename(profile);
+			detectedProfiles2.set(profileName, { profileName, path: profile });
+		}
 	}
 
+	// Detect quick launch profiles (default+custom)
 	for (const [profileName, value] of Object.entries(configProfiles)) {
 		if ((value as ITerminalExecutable).path) {
 			const configProfile = (value as ITerminalExecutable);
-			const pathOrPaths = configProfile.path;
+			// TODO: Think about whether to support string[] for custom profiles
+			const pathOrPaths = Array.isArray(configProfile.path)
+				? (configProfile.path.length > 0 ? configProfile.path[0] : 'No path')
+				: configProfile.path;
 			const args = configProfile.args;
-			if (Array.isArray(pathOrPaths)) {
-				for (const possiblePath of pathOrPaths) {
-					const profile = detectedProfiles.find(p => basename(p.path) === possiblePath);
-					// choose only the first
-					if (profile && !quickLaunchProfiles.find(p => basename(p.path) === possiblePath)) {
-						const isCustomProfile = !detectedProfiles.find(p => basename(p.path) === possiblePath && p.path && p.args === args);
-						let profileFromConfig;
-						if (args) {
-							profileFromConfig = { profileName, path: profile.path, args };
-						} else {
-							profileFromConfig = { profileName, path: profile.path };
-						}
-						quickLaunchProfiles.push(profileFromConfig);
-						// add custom profile to detected profiles
-						if (isCustomProfile) {
-							detectedProfiles.push(profileFromConfig);
-						}
-						break;
-					} else if (!profile) {
-						logService?.trace(`Could not resolve path ${pathOrPaths} with name ${profileName} and args ${JSON.stringify(args)}`);
-					}
-				}
-			} else {
-				const profile = detectedProfiles.find(p => basename(p.path) === pathOrPaths);
-				// choose only the first
-				if (profile && !quickLaunchProfiles.find(p => basename(p.path) === profile.path)) {
-					const isCustomProfile = !detectedProfiles.find(p => basename(p.path) === profile.path && p.args === args && p.profileName === profileName);
-					let profileFromConfig;
-					if (args) {
-						profileFromConfig = { profileName, path: profile.path, args };
-					} else {
-						profileFromConfig = { profileName, path: profile.path };
-					}
-					quickLaunchProfiles.push(profileFromConfig);
-					// add custom profile to detected profiles
-					if (isCustomProfile) {
-						detectedProfiles.push(profileFromConfig);
-					}
-				} else if (!profile) {
-					logService?.trace(`Could not resolve path ${pathOrPaths} with name ${profileName} and args ${JSON.stringify(args)}`);
-				}
-			}
+			detectedProfiles2.set(profileName, { profileName, path: pathOrPaths, args });
 		} else {
 			logService?.trace(`Entry in terminal.profiles.linux or osx is not of type ITerminalExecutable`, profileName, value);
 		}
 	}
 
-	// include any custom profiles
-	detectedProfiles.push(...quickLaunchProfiles.filter(p => !detectedProfiles.find(profile => profile.profileName === p.profileName && profile.path === p.path && profile.args === p.args)));
-
-	return quickLaunchOnly ? quickLaunchProfiles : detectedProfiles;
+	return Array.from(detectedProfiles2.values());
 }
 
 async function validateProfilePaths(label: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[]): Promise<ITerminalProfile | undefined> {
