@@ -283,8 +283,6 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
-		this._bufferer = new TerminalDataBufferer((id, data) => this._onProcessData.fire({ data: data, sync: true }));
-
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;
@@ -292,13 +290,15 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(this._terminalProcess.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-		// Buffer data events to reduce the amount of messages going to the renderer
-		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
 
+		// Data buffering to reduce the amount of messages going to the renderer
+		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire({ data: data, sync: true }));
+		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
+		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
+		// TODO: Buffered events should flush when a resize occurs
+
+		// Data recording for reconnect
 		this._register(this.onProcessData(e => this._recorder.recordData(e.data)));
-		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			this._bufferer.stopBuffering(this._persistentProcessId);
-		}));
 	}
 
 	attach(): void {
