@@ -340,6 +340,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		const autoClosingBrackets = editor.getOption(EditorOption.autoClosingBrackets);
 		const autoClosingQuotes = editor.getOption(EditorOption.autoClosingQuotes);
 		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(model.getLanguageIdentifier().id);
+		const viewModel = editor._getViewModel();
 
 		const commands = selections.map((sel) => {
 			const deleteRange = this._delete({
@@ -347,9 +348,11 @@ export abstract class DeleteWordCommand extends EditorCommand {
 				model,
 				selection: sel,
 				whitespaceHeuristics: this._whitespaceHeuristics,
+				autoClosingDelete: editor.getOption(EditorOption.autoClosingDelete),
 				autoClosingBrackets,
 				autoClosingQuotes,
 				autoClosingPairs,
+				autoClosedCharacters: viewModel.getCursorAutoClosedCharacters()
 			}, this._wordNavigationType);
 			return new ReplaceCommand(deleteRange, '');
 		});
