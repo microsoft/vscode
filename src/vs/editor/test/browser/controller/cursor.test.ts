@@ -1047,6 +1047,21 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
+	test('issue #118062: Column selection cannot select first position of a line', () => {
+		withTestCodeEditor([
+			'hello world',
+		].join('\n'), {}, (editor, viewModel) => {
+
+			moveTo(editor, viewModel, 1, 2, false);
+			assertCursor(viewModel, new Position(1, 2));
+
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel, {});
+			assertCursor(viewModel, [
+				new Selection(1, 2, 1, 1)
+			]);
+		});
+	});
+
 	test('column select with keyboard', () => {
 		withTestCodeEditor([
 			'var gulp = require("gulp");',
