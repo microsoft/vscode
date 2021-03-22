@@ -221,29 +221,38 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
 
-		// isWorkspaceProfile checks for workspace profiles as compared with the default ones,
-		// ignoring those defined in user settings
-		const usesWorkspaceProfile = isWorkspaceProfile || (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined);
+		// Check if workspace setting exists and whether it's allowed
+		let isTerminalLaunchSafe: boolean | undefined = false;
+
+		let usesWorkspaceProfile;
+
+		if (isWorkspaceProfile) {
+			// isWorkspaceProfile checks for workspace profiles as compared with the default ones,
+			// ignoring those defined in user settings
+			usesWorkspaceProfile = isWorkspaceProfile;
+		} else {
+			usesWorkspaceProfile = (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined);
+		}
+
+		usesWorkspaceProfile = usesWorkspaceProfile || envConfigValue.workspaceValue !== undefined;
 
 		if (!usesWorkspaceProfile) {
 			return true;
 		}
 
-		// Check if workspace setting exists and whether it's allowed
-		let isWorkspaceShellAllowed: boolean | undefined = false;
 		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
-			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
+			isTerminalLaunchSafe = undefined;
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
 		if (shellConfigValue.workspaceValue === undefined && envConfigValue.workspaceValue === undefined &&
 			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0) {
-			isWorkspaceShellAllowed = true;
+			isTerminalLaunchSafe = true;
 		}
 
 		// Check if the value is neither on the blocklist (false) or allowlist (true) and ask for
 		// permission
-		if (isWorkspaceShellAllowed === undefined) {
+		if (isTerminalLaunchSafe === undefined) {
 			let shellString: string | undefined;
 			if (shellConfigValue.workspaceValue) {
 				shellString = `shell: "${shellConfigValue.workspaceValue}"`;
@@ -279,7 +288,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 				}]
 			);
 		}
-		return !!isWorkspaceShellAllowed;
+		return !!isTerminalLaunchSafe;
 	}
 
 	private _clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {
