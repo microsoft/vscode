@@ -1435,7 +1435,7 @@ export namespace NotebookDocumentMetadata {
 }
 
 export namespace NotebookCellPreviousExecutionResult {
-	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellPreviousExecutionResult {
+	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
 		return {
 			duration: data.lastRunDuration,
 			executionOrder: data.executionOrder,
@@ -1443,7 +1443,7 @@ export namespace NotebookCellPreviousExecutionResult {
 		};
 	}
 
-	export function from(data: vscode.NotebookCellPreviousExecutionResult): Partial<notebooks.NotebookCellMetadata> {
+	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
 		return {
 			lastRunSuccess: data.success,
 			lastRunDuration: data.duration,
@@ -1483,7 +1483,7 @@ export namespace NotebookCellData {
 			source: data.source,
 			metadata: {
 				...data.metadata,
-				...NotebookCellPreviousExecutionResult.from(data.previousResult ?? {})
+				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
 			},
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
