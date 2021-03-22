@@ -39,6 +39,7 @@ import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/t
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -245,7 +246,17 @@ class PropertyHeader extends Disposable {
 	}
 }
 
+interface IDiffElementLayoutState {
+	outerWidth?: boolean;
+	editorHeight?: boolean;
+	metadataEditor?: boolean;
+	metadataHeight?: boolean;
+	outputTotalHeight?: boolean;
+}
+
 abstract class AbstractElementRenderer extends Disposable {
+	protected _metadataLocalDisposable = this._register(new DisposableStore());
+	protected _outputLocalDisposable = this._register(new DisposableStore());
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataHeader!: PropertyHeader;
 	protected _metadataInfoContainer!: HTMLElement;
@@ -284,9 +295,8 @@ abstract class AbstractElementRenderer extends Disposable {
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
 		protected readonly menuService: IMenuService,
-		protected readonly contextKeyService: IContextKeyService
-
-
+		protected readonly contextKeyService: IContextKeyService,
+		protected readonly configurationService: IConfigurationService,
 	) {
 		super();
 		// init
@@ -670,7 +680,7 @@ abstract class AbstractElementRenderer extends Disposable {
 
 	abstract styleContainer(container: HTMLElement): void;
 	abstract updateSourceEditor(): void;
-	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, metadataHeight?: boolean, outputEditor?: boolean, outputView?: boolean }): void;
+	abstract layout(state: IDiffElementLayoutState): void;
 }
 
 abstract class SingleSideDiffElement extends AbstractElementRenderer {
@@ -687,7 +697,9 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
 		protected readonly menuService: IMenuService,
-		protected readonly contextKeyService: IContextKeyService
+		protected readonly contextKeyService: IContextKeyService,
+		protected readonly configurationService: IConfigurationService,
+
 
 
 	) {
@@ -704,7 +716,8 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			keybindingService,
 			notificationService,
 			menuService,
-			contextKeyService
+			contextKeyService,
+			configurationService
 		);
 	}
 
@@ -727,8 +740,61 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		this.styleContainer(this._diffEditorContainer);
 		this.updateSourceEditor();
 
+		if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+			this._disposeMetadata();
+		} else {
+			this._buildMetadata();
+		}
+
+		if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+			this._disposeOutput();
+		} else {
+			this._buildOutput();
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			let metadataLayoutChange = false;
+			let outputLayoutChange = false;
+			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
+				this._metadataLocalDisposable.clear();
+				if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+					this._disposeMetadata();
+				} else {
+					this.cell.metadataStatusHeight = 25;
+					this._buildMetadata();
+					this.updateMetadataRendering();
+					metadataLayoutChange = true;
+				}
+			}
+
+			if (e.affectsConfiguration('notebook.diff.ignoreOutputs')) {
+				this._outputLocalDisposable.clear();
+				if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+					this._disposeOutput();
+				} else {
+					this.cell.outputStatusHeight = 25;
+					this._buildOutput();
+					outputLayoutChange = true;
+				}
+			}
+
+			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+		}));
+	}
+
+	_disposeMetadata() {
+		this.cell.metadataStatusHeight = 0;
+		this.cell.metadataHeight = 0;
+		this.templateData.metadataHeaderContainer.style.display = 'none';
+		this.templateData.metadataInfoContainer.style.display = 'none';
+		this._metadataEditor = undefined;
+	}
+
+	_buildMetadata() {
 		this._metadataHeaderContainer = this.templateData.metadataHeaderContainer;
 		this._metadataInfoContainer = this.templateData.metadataInfoContainer;
+		this._metadataHeaderContainer.style.display = 'flex';
+		this._metadataInfoContainer.style.display = 'block';
 		this._metadataHeaderContainer.innerText = '';
 		this._metadataInfoContainer.innerText = '';
 
@@ -754,20 +820,13 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				menuId: MenuId.NotebookDiffCellMetadataTitle
 			}
 		);
-		this._register(this._metadataHeader);
+		this._metadataLocalDisposable.add(this._metadataHeader);
 		this._metadataHeader.buildHeader();
+	}
 
-		if (this.notebookEditor.textModel?.transientOptions.transientOutputs) {
-			this.cell.rawOutputHeight = 0;
-			this.cell.outputStatusHeight = 0;
-			this.templateData.outputHeaderContainer.style.display = 'none';
-			this.templateData.outputInfoContainer.style.display = 'none';
-			return;
-		} else {
-			this.templateData.outputHeaderContainer.style.display = 'flex';
-			this.templateData.outputInfoContainer.style.display = 'block';
-
-		}
+	_buildOutput() {
+		this.templateData.outputHeaderContainer.style.display = 'flex';
+		this.templateData.outputInfoContainer.style.display = 'block';
 
 		this._outputHeaderContainer = this.templateData.outputHeaderContainer;
 		this._outputInfoContainer = this.templateData.outputInfoContainer;
@@ -797,8 +856,16 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				menuId: MenuId.NotebookDiffCellOutputsTitle
 			}
 		);
-		this._register(this._outputHeader);
+		this._outputLocalDisposable.add(this._outputHeader);
 		this._outputHeader.buildHeader();
+	}
+
+	_disposeOutput() {
+		this.cell.rawOutputHeight = 0;
+		this.cell.outputStatusHeight = 0;
+		this.templateData.outputHeaderContainer.style.display = 'none';
+		this.templateData.outputInfoContainer.style.display = 'none';
+		this._outputViewContainer = undefined;
 	}
 }
 export class DeletedElement extends SingleSideDiffElement {
@@ -816,10 +883,10 @@ export class DeletedElement extends SingleSideDiffElement {
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 
 	) {
-		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
 	styleContainer(container: HTMLElement) {
@@ -860,7 +927,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		});
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataHeight?: boolean, outputTotalHeight?: boolean }) {
+	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
@@ -968,8 +1035,9 @@ export class InsertElement extends SingleSideDiffElement {
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
 	styleContainer(container: HTMLElement): void {
@@ -1062,7 +1130,7 @@ export class InsertElement extends SingleSideDiffElement {
 		}
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataHeight?: boolean, outputTotalHeight?: boolean }) {
+	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight || state.outerWidth) {
 				this._editor.layout({
@@ -1121,9 +1189,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 		@IKeybindingService protected readonly keybindingService: IKeybindingService,
 		@INotificationService protected readonly notificationService: INotificationService,
 		@IMenuService protected readonly menuService: IMenuService,
-		@IContextKeyService protected readonly contextKeyService: IContextKeyService
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
-		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService, textModelService, contextMenuService, keybindingService, notificationService, menuService, contextKeyService, configurationService);
 	}
 
 	styleContainer(container: HTMLElement): void {
@@ -1149,8 +1218,61 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.styleContainer(this._diffEditorContainer);
 		this.updateSourceEditor();
 
+		if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+			this._disposeMetadata();
+		} else {
+			this._buildMetadata();
+		}
+
+		if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+			this._disposeOutput();
+		} else {
+			this._buildOutput();
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			let metadataLayoutChange = false;
+			let outputLayoutChange = false;
+			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
+				this._metadataLocalDisposable.clear();
+				if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+					this._disposeMetadata();
+				} else {
+					this.cell.metadataStatusHeight = 25;
+					this._buildMetadata();
+					this.updateMetadataRendering();
+					metadataLayoutChange = true;
+				}
+			}
+
+			if (e.affectsConfiguration('notebook.diff.ignoreOutputs')) {
+				this._outputLocalDisposable.clear();
+				if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+					this._disposeOutput();
+				} else {
+					this.cell.outputStatusHeight = 25;
+					this._buildOutput();
+					outputLayoutChange = true;
+				}
+			}
+
+			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+		}));
+	}
+
+	_disposeMetadata() {
+		this.cell.metadataStatusHeight = 0;
+		this.cell.metadataHeight = 0;
+		this.templateData.metadataHeaderContainer.style.display = 'none';
+		this.templateData.metadataInfoContainer.style.display = 'none';
+		this._metadataEditor = undefined;
+	}
+
+	_buildMetadata() {
 		this._metadataHeaderContainer = this.templateData.metadataHeaderContainer;
 		this._metadataInfoContainer = this.templateData.metadataInfoContainer;
+		this._metadataHeaderContainer.style.display = 'flex';
+		this._metadataInfoContainer.style.display = 'block';
 
 		this._metadataHeaderContainer.innerText = '';
 		this._metadataInfoContainer.innerText = '';
@@ -1177,19 +1299,21 @@ export class ModifiedElement extends AbstractElementRenderer {
 				menuId: MenuId.NotebookDiffCellMetadataTitle
 			}
 		);
-		this._register(this._metadataHeader);
+		this._metadataLocalDisposable.add(this._metadataHeader);
 		this._metadataHeader.buildHeader();
+	}
 
-		if (this.notebookEditor.textModel?.transientOptions.transientOutputs) {
-			this.cell.rawOutputHeight = 0;
-			this.cell.outputStatusHeight = 0;
-			this.templateData.outputHeaderContainer.style.display = 'none';
-			this.templateData.outputInfoContainer.style.display = 'none';
-			return;
-		} else {
-			this.templateData.outputHeaderContainer.style.display = 'flex';
-			this.templateData.outputInfoContainer.style.display = 'block';
-		}
+	_disposeOutput() {
+		this.cell.rawOutputHeight = 0;
+		this.cell.outputStatusHeight = 0;
+		this.templateData.outputHeaderContainer.style.display = 'none';
+		this.templateData.outputInfoContainer.style.display = 'none';
+		this._outputViewContainer = undefined;
+	}
+
+	_buildOutput() {
+		this.templateData.outputHeaderContainer.style.display = 'flex';
+		this.templateData.outputInfoContainer.style.display = 'block';
 
 		this._outputHeaderContainer = this.templateData.outputHeaderContainer;
 		this._outputInfoContainer = this.templateData.outputInfoContainer;
@@ -1222,7 +1346,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 				menuId: MenuId.NotebookDiffCellOutputsTitle
 			}
 		);
-		this._register(this._outputHeader);
+		this._outputLocalDisposable.add(this._outputHeader);
 		this._outputHeader.buildHeader();
 	}
 
@@ -1402,7 +1526,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell.editorHeight = contentHeight;
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataHeight?: boolean, outputTotalHeight?: boolean }) {
+	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
 			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
