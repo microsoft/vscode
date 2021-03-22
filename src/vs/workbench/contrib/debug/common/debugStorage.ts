@@ -25,7 +25,7 @@ export class DebugStorage {
 	) { }
 
 	loadDebugUxState(): 'simple' | 'default' {
-		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'simple') as 'simple' | 'default';
+		return this.storageService.get(DEBUG_UX_STATE_KEY, StorageScope.WORKSPACE, 'default') as 'simple' | 'default';
 	}
 
 	storeDebugUxState(value: 'simple' | 'default'): void {
@@ -69,7 +69,7 @@ export class DebugStorage {
 		let result: DataBreakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_DATA_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((dbp: any) => {
-				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes);
+				return new DataBreakpoint(dbp.description, dbp.dataId, true, dbp.enabled, dbp.hitCondition, dbp.condition, dbp.logMessage, dbp.accessTypes, dbp.accessType);
 			});
 		} catch (e) { }
 

@@ -67,7 +67,7 @@ export class EditorsObserver extends Disposable {
 	private registerListeners(): void {
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 		this._register(this.editorGroupsService.onDidAddGroup(group => this.onGroupAdded(group)));
-		this._register(this.editorGroupsService.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
+		this._register(this.editorGroupsService.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 
 		this.editorGroupsService.whenRestored.then(() => this.loadState());
 	}
@@ -142,7 +142,7 @@ export class EditorsObserver extends Disposable {
 		Event.once(group.onWillDispose)(() => dispose(groupDisposables));
 	}
 
-	private onDidEditorPartOptionsChange(event: IEditorPartOptionsChangeEvent): void {
+	private onDidChangeEditorPartOptions(event: IEditorPartOptionsChangeEvent): void {
 		if (!equals(event.newPartOptions.limit, event.oldPartOptions.limit)) {
 			const activeGroup = this.editorGroupsService.activeGroup;
 			let exclude: IEditorIdentifier | undefined = undefined;

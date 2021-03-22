@@ -80,6 +80,7 @@ import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -686,7 +687,10 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 
 export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
-	constructor(@ILabelService private readonly labelService: ILabelService) { }
+	constructor(
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('scm', "Source Control Management");
@@ -696,7 +700,17 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		if (ResourceTree.isResourceNode(element)) {
 			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
 		} else if (isSCMRepository(element)) {
-			return element.provider.label;
+			let folderName = '';
+			if (element.provider.rootUri) {
+				const folder = this.workspaceContextService.getWorkspaceFolder(element.provider.rootUri);
+
+				if (folder?.uri.toString() === element.provider.rootUri.toString()) {
+					folderName = folder.name;
+				} else {
+					folderName = basename(element.provider.rootUri);
+				}
+			}
+			return `${folderName} ${element.provider.label}`;
 		} else if (isSCMInput(element)) {
 			return localize('input', "Source Control Input");
 		} else if (isSCMResourceGroup(element)) {
@@ -1481,10 +1495,11 @@ class SCMInputWidget extends Disposable {
 			query
 		});
 
-		this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== false) {
+			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+		}
 
-		const mode = this.modeService.create('scminput');
-		const textModel = this.modelService.getModel(uri) || this.modelService.createModel('', mode, uri);
+		const textModel = this.modelService.getModel(uri) ?? this.modelService.createModel('', this.modeService.create('scminput'), uri);
 		this.inputEditor.setModel(textModel);
 
 		// Validation
@@ -1664,6 +1679,9 @@ class SCMInputWidget extends Disposable {
 		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
 		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
+		const onInputFontSizeChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontSize'));
+		this._register(onInputFontSizeChanged(() => this.inputEditor.updateOptions({ fontSize: this.getInputEditorFontSize() })));
+
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged));
 	}
 
@@ -1744,6 +1762,10 @@ class SCMInputWidget extends Disposable {
 		}
 
 		return this.defaultInputFontFamily;
+	}
+
+	private getInputEditorFontSize(): number {
+		return this.configurationService.getValue<number>('scm.inputFontSize');
 	}
 
 	clearValidation(): void {

@@ -25,7 +25,6 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -280,17 +279,6 @@ function registerEditorGroupsLayoutCommand(): void {
 	});
 }
 
-export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
-	const target = editorGroupService.activeGroup;
-	for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-		if (group === target) {
-			return; // keep target
-		}
-
-		editorGroupService.mergeGroup(group, target);
-	}
-}
-
 function registerDiffEditorCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: GOTO_NEXT_CHANGE,
@@ -499,10 +487,8 @@ function registerOpenEditorAPICommands(): void {
 			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
-		const textOptions: ITextEditorOptions = optionsArg ? { ...optionsArg, override: false } : { override: false };
-
 		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
-		return openEditorWith(accessor, input, id, textOptions, group);
+		return editorService.openEditor(input, { ...optionsArg, override: id }, group);
 	});
 }
 

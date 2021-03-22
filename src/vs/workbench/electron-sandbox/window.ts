@@ -21,6 +21,7 @@ import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { env } from 'vs/base/common/process';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -55,7 +56,6 @@ import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgen
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { env } from 'vs/base/common/process';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class NativeWindow extends Disposable {
@@ -73,7 +73,7 @@ export class NativeWindow extends Disposable {
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onAllEditorsClosed(), 50));
+	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
 
 	private isDocumentedEdited = false;
 
@@ -274,7 +274,7 @@ export class NativeWindow extends Disposable {
 		}));
 
 		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
+		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.configuration.filesToWait;
@@ -322,13 +322,13 @@ export class NativeWindow extends Disposable {
 		this._register(Event.any(
 			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
 			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
-		)(e => this.onDidChangeMaximized(e)));
+		)(e => this.onDidChangeWindowMaximized(e)));
 
-		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+		this.onDidChangeWindowMaximized(this.environmentService.configuration.maximized ?? false);
 
 		// Detect panel position to determine minimum width
-		this._register(this.layoutService.onPanelPositionChange(pos => this.onDidPanelPositionChange(positionFromString(pos))));
-		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
+		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
+		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
 	}
 
 	private onWindowResize(e: UIEvent, retry: boolean): void {
@@ -357,7 +357,7 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onDidChangeMaximized(maximized: boolean): void {
+	private onDidChangeWindowMaximized(maximized: boolean): void {
 		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
@@ -372,13 +372,13 @@ export class NativeWindow extends Disposable {
 		return WindowMinimumSize.WIDTH;
 	}
 
-	private onDidPanelPositionChange(pos: Position): void {
+	private onDidChangePanelPosition(pos: Position): void {
 		const minWidth = this.getWindowMinimumWidth(pos);
 
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidVisibleEditorsChange(): void {
+	private onDidChangeVisibleEditors(): void {
 
 		// Close when empty: check if we should close the window based on the setting
 		// Overruled by: window has a workspace opened or this window is for extension development
@@ -392,7 +392,7 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onAllEditorsClosed(): void {
+	private onDidAllEditorsClose(): void {
 		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
 		if (visibleEditorPanes === 0) {
 			this.nativeHostService.closeWindow();
@@ -534,8 +534,10 @@ export class NativeWindow extends Disposable {
 						} : undefined;
 						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						if (tunnel) {
+							const addressAsUri = URI.parse(tunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 							return {
-								resolved: uri.with({ authority: tunnel.localAddress }),
+								resolved,
 								dispose: () => tunnel.dispose(),
 							};
 						}

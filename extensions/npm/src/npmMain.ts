@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { getPackageManager, invalidateTasksCache, NpmTaskProvider } from './tasks';
+import { getPackageManager, invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 import { NpmScriptLensProvider } from './npmScriptLens';
 
@@ -53,6 +53,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerHoverProvider(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
+
+	if (await hasPackageJson()) {
+		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
+	}
+
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
 	context.subscriptions.push(vscode.commands.registerCommand('npm.refresh', () => {
 		invalidateScriptCaches();

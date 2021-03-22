@@ -14,7 +14,7 @@ const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb,
 const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
 
 
-type GettingStartedItem = {
+export type BuiltinGettingStartedItem = {
 	id: string
 	title: string,
 	description: string,
@@ -26,40 +26,83 @@ type GettingStartedItem = {
 	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
 };
 
-type GettingStartedCategory = {
+export type BuiltinGettingStartedCategory = {
 	id: string
 	title: string,
 	description: string,
 	icon: ThemeIcon,
 	when?: string,
 	content:
-	| { type: 'items', items: GettingStartedItem[] }
-	| { type: 'command', command: string }
+	| { type: 'items', items: BuiltinGettingStartedItem[] }
+	| { type: 'startEntry', command: string }
 };
 
-type GettingStartedContent = GettingStartedCategory[];
+type GettingStartedContent = BuiltinGettingStartedCategory[];
 
 export const content: GettingStartedContent = [
-	// {
-	// 	id: 'topLevelCommandPalette',
-	// 	title: localize('gettingStarted.commandPalette.title', "Command Palette"),
-	// 	description: localize('gettingStarted.commandPalette.description', "The one keybinding to show you everything VS Code can do."),
-	// 	icon: Codicon.symbolColor,
-	// 	content: {
-	// 		type: 'command',
-	// 		command: 'workbench.action.showCommands',
-	// 	}
-	// },
-	// {
-	// 	id: 'topLevelSeeExtensions',
-	// 	title: localize('gettingStarted.languageSupport.title', "Install Language Support"),
-	// 	description: localize('gettingStarted.languageSupport.description', "Want even more features? Install extensions to add support for languages like Python, C, or Java."),
-	// 	icon: Codicon.extensions,
-	// 	content: {
-	// 		type: 'command',
-	// 		command: 'workbench.extensions.action.showPopularExtensions',
-	// 	}
-	// },
+	{
+		id: 'topLevelNewFile',
+		title: localize('gettingStarted.newFile.title', "New File"),
+		description: localize('gettingStarted.newFile.description', "Start with a new empty file"),
+		icon: Codicon.newFile,
+		content: {
+			type: 'startEntry',
+			command: 'explorer.newFile',
+		}
+	},
+	{
+		id: 'topLevelOpenMac',
+		title: localize('gettingStarted.openMac.title', "Open..."),
+		description: localize('gettingStarted.openMac.description', "Open a file or folder to start working"),
+		icon: Codicon.folderOpened,
+		when: 'isMac',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.files.openFileFolder',
+		}
+	},
+	{
+		id: 'topLevelOpenFile',
+		title: localize('gettingStarted.openFile.title', "Open File..."),
+		description: localize('gettingStarted.openFile.description', "Open a file to start working"),
+		icon: Codicon.goToFile,
+		when: '!isMac',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.files.openFile',
+		}
+	},
+	{
+		id: 'topLevelOpenFolder',
+		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
+		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		icon: Codicon.folderOpened,
+		when: '!isMac',
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.files.openFolder',
+		}
+	},
+	{
+		id: 'topLevelCloneRepo',
+		title: localize('gettingStarted.cloneRepo.title', "Clone Git Repository..."),
+		description: localize('gettingStarted.cloneRepo.description', "Clone a git repository"),
+		icon: Codicon.repoClone,
+		content: {
+			type: 'startEntry',
+			command: 'git.clone',
+		}
+	},
+	{
+		id: 'topLevelCommandPalette',
+		title: localize('gettingStarted.topLevelCommandPalette.title', "Run a Command..."),
+		description: localize('gettingStarted.topLevelCommandPalette.description', "Use the command palette to view and run all of vscode's commands"),
+		icon: Codicon.symbolColor,
+		content: {
+			type: 'startEntry',
+			command: 'workbench.action.showCommands',
+		}
+	},
 	{
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),

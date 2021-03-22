@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, dispose, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -21,7 +22,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -104,7 +105,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				this.setDecorations(this.currentUri);
 			}
 		}));
-		this._register(this.results.onResultsChanged(() => {
+		this._register(Event.any(this.results.onResultsChanged, this.testService.excludeTests.onDidChange)(() => {
 			if (this.currentUri) {
 				this.setDecorations(this.currentUri);
 			}
@@ -236,7 +237,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		super();
 		this.line = location.range.startLineNumber;
 
-		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestRunState.Unset
+		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResult.Unset
 			? testingStatesToIcons.get(stateItem.computedState)!
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
 
@@ -246,12 +247,17 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 			hoverMessage.appendMarkdown(`[${localize('failedPeekAction', 'Peek Error')}](command:vscode.peekTestError?${args})`);
 		}
 
+		let glyphMarginClassName = ThemeIcon.asClassName(icon) + ' testing-run-glyph';
+		if (stateItem?.retired) {
+			glyphMarginClassName += ' retired';
+		}
+
 		this.editorDecoration = {
 			range: firstLineRange(this.location.range),
 			options: {
 				isWholeLine: true,
 				hoverMessage,
-				glyphMarginClassName: ThemeIcon.asClassName(icon) + ' testing-run-glyph',
+				glyphMarginClassName,
 				stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 				glyphMarginHoverMessage: new MarkdownString().appendText(localize('testing.clickToRun', 'Click to run tests, right click for more options')),
 			}

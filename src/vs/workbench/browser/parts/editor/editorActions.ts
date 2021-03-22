@@ -10,7 +10,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups, UNPIN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,8 +22,7 @@ import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/commo
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/services/editor/common/editorOpenWith';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 export class ExecuteCommandAction extends Action {
 
@@ -217,7 +216,7 @@ export class JoinAllGroupsAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		mergeAllGroups(this.editorGroupService);
+		this.editorGroupService.mergeAllGroups();
 	}
 }
 
@@ -1896,8 +1895,7 @@ export class ReopenResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -1915,7 +1913,7 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		await this.instantiationService.invokeFunction(openEditorWith, activeInput, undefined, options, group);
+		await this.editorService.openEditor(activeInput, { ...options, override: EditorOverride.PICK }, group);
 	}
 }
 
@@ -1946,7 +1944,7 @@ export class ToggleEditorTypeAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(activeEditorResource, undefined, options, group, this.editorService);
+		const overrides = this.editorService.getEditorOverrides(activeEditorResource, options, group);
 		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
 		if (!firstNonActiveOverride) {
 			return;

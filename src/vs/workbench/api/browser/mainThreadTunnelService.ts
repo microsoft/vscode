@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged } from 'vs/platform/remote/common/tunnel';
+import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged, ProvidedPortAttributes, PortAttributesProvider } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
-export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape {
+export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
 	private readonly _proxy: ExtHostTunnelServiceShape;
 	private elevateionRetry: boolean = false;
+	private portsAttributesProviders: Map<number, PortAttributesProviderSelector> = new Map();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -36,18 +38,55 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this._register(tunnelService.onTunnelClosed(() => this._proxy.$onDidTunnelsChange()));
 	}
 
+	private processFindingEnabled(): boolean {
+		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) && (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+	}
+
 	async $setRemoteTunnelService(processId: number): Promise<void> {
 		this.remoteExplorerService.namedProcesses.set(processId, 'Code Extension Host');
 		if (this.remoteExplorerService.portsFeaturesEnabled) {
-			this._proxy.$registerCandidateFinder(this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING));
+			this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 		} else {
 			this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder(this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING))));
 		}
 		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
-			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
-				return this._proxy.$registerCandidateFinder((this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)));
+			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {
+				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 			}
 		}));
+	}
+
+	private _alreadyRegistered: boolean = false;
+	async $registerPortsAttributesProvider(selector: PortAttributesProviderSelector, providerHandle: number): Promise<void> {
+		this.portsAttributesProviders.set(providerHandle, selector);
+		if (!this._alreadyRegistered) {
+			this.remoteExplorerService.tunnelModel.addAttributesProvider(this);
+			this._alreadyRegistered = true;
+		}
+	}
+
+	async $unregisterPortsAttributesProvider(providerHandle: number): Promise<void> {
+		this.portsAttributesProviders.delete(providerHandle);
+	}
+
+	async providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): Promise<ProvidedPortAttributes[]> {
+		if (this.portsAttributesProviders.size === 0) {
+			return [];
+		}
+
+		// Check all the selectors to make sure it's worth going to the extension host.
+		const appropriateHandles = Array.from(this.portsAttributesProviders.entries()).filter(entry => {
+			const selector = entry[1];
+			const portRange = selector.portRange;
+			const portInRange = portRange ? ports.some(port => portRange[0] <= port && port < portRange[1]) : true;
+			const pidMatches = !selector.pid || (selector.pid === pid);
+			return portInRange || pidMatches;
+		}).map(entry => entry[0]);
+
+		if (appropriateHandles.length === 0) {
+			return [];
+		}
+		return this._proxy.$providePortAttributes(appropriateHandles, ports, pid, commandLine, token);
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {
@@ -102,26 +141,23 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
-				if (forward) {
-					return forward.then(tunnel => {
-						this.logService.trace(`MainThreadTunnelService: New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
-						if (!tunnel) {
-							return undefined;
+				return forward.then(tunnel => {
+					this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
+					if (!tunnel) {
+						return undefined;
+					}
+					return {
+						tunnelRemotePort: tunnel.remoteAddress.port,
+						tunnelRemoteHost: tunnel.remoteAddress.host,
+						localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
+						tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
+						public: tunnel.public,
+						dispose: async (silent?: boolean) => {
+							this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
+							return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
 						}
-						return {
-							tunnelRemotePort: tunnel.remoteAddress.port,
-							tunnelRemoteHost: tunnel.remoteAddress.host,
-							localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
-							tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
-							public: tunnel.public,
-							dispose: async (silent?: boolean) => {
-								this.logService.trace(`MainThreadTunnelService: Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
-								return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
-							}
-						};
-					});
-				}
-				return undefined;
+					};
+				});
 			}
 		};
 		this.tunnelService.setTunnelProvider(tunnelProvider, features);

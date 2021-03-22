@@ -88,7 +88,7 @@ export interface IEditorGroupsAccessor {
 	readonly activeGroup: IEditorGroupView;
 
 	readonly partOptions: IEditorPartOptions;
-	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	readonly onDidVisibilityChange: Event<boolean>;
 

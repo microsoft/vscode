@@ -8,7 +8,7 @@ import { ipcRenderer, crashReporter, webFrame, process } from 'vs/base/parts/san
 
 suite('Sandbox', () => {
 	test('globals', () => {
-		assert.ok(typeof ipcRenderer.invoke === 'function');
+		assert.ok(typeof ipcRenderer.send === 'function');
 		assert.ok(typeof crashReporter.addExtraParameter === 'function');
 		assert.ok(typeof webFrame.setZoomLevel === 'function');
 		assert.ok(typeof process.platform === 'string');

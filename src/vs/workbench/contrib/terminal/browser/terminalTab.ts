@@ -12,6 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalInstance, Direction, ITerminalTab, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { localize } from 'vs/nls';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
@@ -265,7 +266,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public addInstance(shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance): void {
 		let instance: ITerminalInstance;
-		if ('id' in shellLaunchConfigOrInstance) {
+		if ('instanceId' in shellLaunchConfigOrInstance) {
 			instance = shellLaunchConfigOrInstance;
 		} else {
 			instance = this._terminalService.createInstance(undefined, shellLaunchConfigOrInstance);
@@ -299,15 +300,15 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
 		const isHorizontal = this.splitPaneContainer?.orientation === Orientation.HORIZONTAL;
-		const instances = this.terminalInstances.filter(instance => typeof instance.persistentTerminalId === 'number');
+		const instances = this.terminalInstances.filter(instance => typeof instance.persistentProcessId === 'number' && instance.shouldPersist);
 		const totalSize = instances.map(instance => isHorizontal ? instance.cols : instance.rows).reduce((totalValue, currentValue) => totalValue + currentValue, 0);
 		return {
 			isActive: isActive,
-			activePersistentTerminalId: this.activeInstance ? this.activeInstance.persistentTerminalId : undefined,
+			activePersistentProcessId: this.activeInstance ? this.activeInstance.persistentProcessId : undefined,
 			terminals: instances.map(t => {
 				return {
 					relativeSize: isHorizontal ? t.cols / totalSize : t.rows / totalSize,
-					terminal: t.persistentTerminalId ? t.persistentTerminalId : t.id
+					terminal: t.persistentProcessId || 0
 				};
 			})
 		};
@@ -350,13 +351,13 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	private _setActiveInstance(instance: ITerminalInstance): void {
-		this.setActiveInstanceByIndex(this._getIndexFromId(instance.id));
+		this.setActiveInstanceByIndex(this._getIndexFromId(instance.instanceId));
 	}
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				terminalIndex = i;
 			}
 		});
@@ -402,13 +403,18 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public get title(): string {
-		let title = this.terminalInstances[0].title;
+		let title = this._titleWithConnectionStatus(this.terminalInstances[0]);
 		for (let i = 1; i < this.terminalInstances.length; i++) {
-			if (this.terminalInstances[i].title) {
-				title += `, ${this.terminalInstances[i].title}`;
+			const instance = this.terminalInstances[i];
+			if (instance.title) {
+				title += `, ${this._titleWithConnectionStatus(instance)}`;
 			}
 		}
 		return title;
+	}
+
+	private _titleWithConnectionStatus(instance: ITerminalInstance): string {
+		return instance.isDisconnected ? localize('ptyDisconnected', "{0} (disconnected)", instance.title) : instance.title;
 	}
 
 	public setVisible(visible: boolean): void {

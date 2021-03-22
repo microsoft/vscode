@@ -10,7 +10,7 @@ import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Action } from 'vs/base/common/actions';
+import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, EditorResourceAccessor, SideBySideEditorInput, IEditorPane, IEditorInput, SideBySideEditor, IModeSupport } from 'vs/workbench/common/editor';
@@ -52,6 +52,7 @@ import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatus
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -696,7 +697,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			}
 
 			binaryEditors.forEach(editor => {
-				this.activeEditorListeners.add(editor.onMetadataChanged(metadata => {
+				this.activeEditorListeners.add(editor.onDidChangeMetadata(metadata => {
 					this.onMetadataChange(activeEditorPane);
 				}));
 
@@ -1063,18 +1064,12 @@ export class ChangeModeAction extends Action {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ICommandService private readonly commandService: ICommandService
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(actionId, actionLabel);
 	}
 
-	async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
-		if (activeEditorPane?.isNotebookEditor) { // TODO@rebornix TODO@jrieken debt: https://github.com/microsoft/vscode/issues/114554
-			// it's inside notebook editor
-			return this.commandService.executeCommand('notebook.cell.changeLanguage');
-		}
-
+	async run(event: any, data: ITelemetryData): Promise<void> {
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
 			await this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
@@ -1198,6 +1193,10 @@ export class ChangeModeAction extends Action {
 			}
 
 			activeTextEditorControl.focus();
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+				id: ChangeModeAction.ID,
+				from: data?.from || 'quick open'
+			});
 		}
 	}
 

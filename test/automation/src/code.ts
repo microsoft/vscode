@@ -145,6 +145,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--driver', handle
 	];
 
+	if (process.platform === 'linux') {
+		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
+	}
+
 	if (options.remote) {
 		// Replace workspace path with URI
 		args[0] = `--${options.workspacePath.endsWith('.code-workspace') ? 'file' : 'folder'}-uri=vscode-remote://test+test/${URI.file(options.workspacePath).path}`;
@@ -199,7 +203,7 @@ async function copyExtension(extensionsPath: string, extId: string): Promise<voi
 	const dest = path.join(extensionsPath, extId);
 	if (!fs.existsSync(dest)) {
 		const orig = path.join(repoPath, 'extensions', extId);
-		await new Promise((c, e) => ncp(orig, dest, err => err ? e(err) : c()));
+		await new Promise<void>((c, e) => ncp(orig, dest, err => err ? e(err) : c()));
 	}
 }
 

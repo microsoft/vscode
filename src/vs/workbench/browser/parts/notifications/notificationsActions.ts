@@ -15,6 +15,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { hash } from 'vs/base/common/hash';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
@@ -145,6 +146,17 @@ export class CopyNotificationMessageAction extends Action {
 	}
 }
 
+interface NotificationActionMetrics {
+	id: number;
+	actionLabel: string;
+	source: string | undefined;
+}
+type NotificationActionMetricsClassification = {
+	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	actionLabel: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
 export class NotificationActionRunner extends ActionRunner {
 
 	constructor(
@@ -154,8 +166,12 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected async runAction(action: IAction, context: INotificationViewItem): Promise<void> {
+	protected async runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
+		if (context) {
+			// If the context is not present it is a "global" notification action. Will be captured by other events
+			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()), actionLabel: action.label, source: context.sourceId });
+		}
 
 		// Run and make sure to notify on any error again
 		try {

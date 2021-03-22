@@ -26,21 +26,9 @@ import { Promises, raceCancellation } from 'vs/base/common/async';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
-	// Delay creation of backups when working copy changes to avoid too much
-	// load on the backup service when the user is typing into the editor
-	private static readonly BACKUP_SCHEDULE_DELAY = 1000;
-
-	// Disable backup for when a short auto-save delay is configured with
-	// the rationale that the auto save will trigger a save periodically
-	// anway and thus creating frequent backups is not useful
-	//
-	// This will only apply to working copies that are not untitled where
-	// auto save is actually saving.
-	private static readonly DISABLE_BACKUP_AUTO_SAVE_THRESHOLD = 1500;
-
 	constructor(
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
@@ -52,24 +40,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IProgressService private readonly progressService: IProgressService
 	) {
-		super(backupFileService, workingCopyService, logService, lifecycleService);
-	}
-
-	protected shouldScheduleBackup(workingCopy: IWorkingCopy): boolean {
-		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
-			return true; // always backup untitled
-		}
-
-		const autoSaveConfiguration = this.filesConfigurationService.getAutoSaveConfiguration();
-		if (typeof autoSaveConfiguration.autoSaveDelay === 'number' && autoSaveConfiguration.autoSaveDelay < NativeBackupTracker.DISABLE_BACKUP_AUTO_SAVE_THRESHOLD) {
-			return false; // skip backup when auto save is already enabled with a low delay
-		}
-
-		return true;
-	}
-
-	protected getBackupScheduleDelay(): number {
-		return NativeBackupTracker.BACKUP_SCHEDULE_DELAY;
+		super(backupFileService, workingCopyService, logService, lifecycleService, filesConfigurationService);
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {

@@ -19,6 +19,14 @@ export const WindowMinimumSize = {
 
 export interface IBaseOpenWindowsOptions {
 	readonly forceReuseWindow?: boolean;
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * Use 'null' for a local window.
+	 * If not set, defaults to the remote authority of the current window.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -48,7 +56,6 @@ export interface IOpenedWindow {
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-	readonly remoteAuthority?: string;
 }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
@@ -114,7 +121,6 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -254,8 +260,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;
-
-	enableExperimentalMainProcessWorkspaceStorage: boolean;
 }
 
 /**

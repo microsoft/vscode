@@ -18,6 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 const $ = dom.$;
 
 const untitledHintSetting = 'workbench.editor.untitled.hint';
@@ -28,13 +29,15 @@ export class UntitledHintContribution implements IEditorContribution {
 	private toDispose: IDisposable[];
 	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
 	private button: FloatingClickWidget | undefined;
+	private experimentTreatment: 'text' | 'button' | 'hidden' | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ITASExperimentService private readonly experimentService: ITASExperimentService
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
@@ -44,13 +47,17 @@ export class UntitledHintContribution implements IEditorContribution {
 				this.update();
 			}
 		}));
-		this.update();
+		this.experimentService.getTreatment<'text' | 'button'>('untitledhint').then(treatment => {
+			this.experimentTreatment = treatment;
+			this.update();
+		});
 	}
 
 	private update(): void {
 		this.untitledHintContentWidget?.dispose();
 		this.button?.dispose();
-		const untitledHintMode = this.configurationService.getValue(untitledHintSetting);
+		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden' | 'default'>(untitledHintSetting);
+		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'hidden') : configValue;
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {
@@ -60,7 +67,9 @@ export class UntitledHintContribution implements IEditorContribution {
 			if (untitledHintMode === 'button') {
 				this.button = new FloatingClickWidget(this.editor, localize('selectALanguage', "Select a Language"), ChangeModeAction.ID, this.keybindingService, this.themeService);
 				this.toDispose.push(this.button.onClick(async () => {
-					await this.commandService.executeCommand(ChangeModeAction.ID);
+					// Need to focus editor before so current editor becomes active and the command is properly executed
+					this.editor.focus();
+					await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'button' });
 					this.editor.focus();
 				}));
 				this.button.render();
@@ -109,14 +118,11 @@ class UntitledHintContentWidget implements IContentWidget {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
-			const select = $('span');
-			select.innerText = localize('select', "Select a  ");
-			this.domNode.appendChild(select);
 			const language = $('span.language-mode.detected-link-active');
 			const keybinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
 			const keybindingLabel = keybinding?.getLabel();
 			const keybindingWithBrackets = keybindingLabel ? `(${keybindingLabel})` : '';
-			language.innerText = localize('language', "language {0}", keybindingWithBrackets);
+			language.innerText = localize('selectAlanguage', "Select a language {0}", keybindingWithBrackets);
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
@@ -132,7 +138,9 @@ class UntitledHintContentWidget implements IContentWidget {
 
 			this.toDispose.push(dom.addDisposableListener(language, 'click', async e => {
 				e.stopPropagation();
-				await this.commandService.executeCommand(ChangeModeAction.ID);
+				// Need to focus editor before so current editor becomes active and the command is properly executed
+				this.editor.focus();
+				await this.commandService.executeCommand(ChangeModeAction.ID, { from: 'hint' });
 				this.editor.focus();
 			}));
 

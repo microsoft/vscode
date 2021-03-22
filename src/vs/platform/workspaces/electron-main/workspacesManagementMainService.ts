@@ -20,7 +20,7 @@ import { originalFSPath, joinPath, basename, extUriBiasedIgnorePathCase } from '
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { localize } from 'vs/nls';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { MessageBoxOptions, BrowserWindow } from 'electron';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -77,7 +77,8 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -101,19 +102,6 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return this.doResolveWorkspace(uri, contents);
 	}
 
-	/* TODO@bpasero remove me */ _test_resolveLocalWorkspaceSync(uri: URI): IResolvedWorkspace {
-		if (!this.isWorkspacePath(uri)) {
-			throw new Error('!this.isWorkspacePath(uri)'); // does not look like a valid workspace config file
-		}
-
-		if (uri.scheme !== Schemas.file) {
-			throw new Error('uri.scheme !== Schemas.file');
-		}
-
-		return this._test_doResolveWorkspace(uri, readFileSync(uri.fsPath, 'utf8'));
-	}
-
-
 	private isWorkspacePath(uri: URI): boolean {
 		return isUntitledWorkspace(uri, this.environmentMainService) || hasWorkspaceFileExtension(uri);
 	}
@@ -135,18 +123,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return null;
 	}
 
-	/* TODO@bpasero remove me */ _test_doResolveWorkspace(path: URI, contents: string): IResolvedWorkspace {
-		const workspace = this.doParseStoredWorkspace(path, contents);
-		const workspaceIdentifier = getWorkspaceIdentifier(path);
-		return {
-			id: workspaceIdentifier.id,
-			configPath: workspaceIdentifier.configPath,
-			folders: toWorkspaceFolders(workspace.folders, workspaceIdentifier.configPath, extUriBiasedIgnorePathCase),
-			remoteAuthority: workspace.remoteAuthority
-		};
-	}
-
-	/* TODO@bpasero make private again */ doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
+	private doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 		// Parse workspace file
 		const storedWorkspace: IStoredWorkspace = parse(contents); // use fault tolerant parser
@@ -175,15 +152,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		const configPathDir = dirname(configPath);
-		if (!existsSync(configPathDir)) {
-			const configPathDirDir = dirname(configPathDir);
-			if (!existsSync(configPathDirDir)) {
-				mkdirSync(configPathDirDir);
-			}
-			mkdirSync(configPathDir);
-		}
-
+		mkdirSync(dirname(configPath), { recursive: true });
 		writeFileSync(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;
@@ -269,21 +238,6 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return untitledWorkspaces;
 	}
 
-	/* TODO@bpasero remove me */_test_getUntitledWorkspacesSync(expected: number): IUntitledWorkspaceInfo[] {
-		const untitledWorkspaces: IUntitledWorkspaceInfo[] = [];
-		const untitledWorkspacePaths = readdirSync(this.untitledWorkspacesHome.fsPath).map(folder => joinPath(this.untitledWorkspacesHome, folder, UNTITLED_WORKSPACE_NAME));
-		if (untitledWorkspacePaths.length !== expected) {
-			throw new Error(`Missing workspaces, expected ${expected} but found ${untitledWorkspacePaths.length}`);
-		}
-		for (const untitledWorkspacePath of untitledWorkspacePaths) {
-			const workspace = getWorkspaceIdentifier(untitledWorkspacePath);
-			const resolvedWorkspace = this._test_resolveLocalWorkspaceSync(untitledWorkspacePath);
-			untitledWorkspaces.push({ workspace, remoteAuthority: resolvedWorkspace.remoteAuthority });
-		}
-
-		return untitledWorkspaces;
-	}
-
 	async enterWorkspace(window: ICodeWindow, windows: ICodeWindow[], path: URI): Promise<IEnterWorkspaceResult | null> {
 		if (!window || !window.win || !window.isReady) {
 			return null; // return early if the window is not ready or disposed
@@ -317,7 +271,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
 			const options: MessageBoxOptions = {
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'info',
 				buttons: [localize('ok', "OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),

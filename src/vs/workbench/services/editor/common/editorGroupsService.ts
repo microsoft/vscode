@@ -108,6 +108,8 @@ export interface ICloseAllEditorsOptions {
 export interface IEditorReplacement {
 	editor: IEditorInput;
 	replacement: IEditorInput;
+	/** Skips asking the user for confirmation and doesn't save the document. Only use this if you really need to! */
+	forceReplaceDirty?: boolean;
 	options?: IEditorOptions | ITextEditorOptions;
 }
 
@@ -137,7 +139,7 @@ export interface IEditorGroupsService {
 	 * An event for when the active editor group changes. The active editor
 	 * group is the default location for new editors to open.
 	 */
-	readonly onDidActiveGroupChange: Event<IEditorGroup>;
+	readonly onDidChangeActiveGroup: Event<IEditorGroup>;
 
 	/**
 	 * An event for when a new group was added.
@@ -167,7 +169,7 @@ export interface IEditorGroupsService {
 	/**
 	 * An event for when the index of a group changes.
 	 */
-	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+	readonly onDidChangeGroupIndex: Event<IEditorGroup>;
 
 	/**
 	 * The size of the editor groups area.
@@ -313,6 +315,11 @@ export interface IEditorGroupsService {
 	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
 
 	/**
+	 * Merge all editor groups into the active one.
+	 */
+	mergeAllGroups(): IEditorGroup;
+
+	/**
 	 * Copy a group to a new group in the editor area.
 	 *
 	 * @param group the group to copy
@@ -329,7 +336,7 @@ export interface IEditorGroupsService {
 	/**
 	 * An event that notifies when editor part options change.
 	 */
-	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Enforce editor part options temporarily.

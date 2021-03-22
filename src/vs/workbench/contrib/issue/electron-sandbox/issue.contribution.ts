@@ -11,7 +11,7 @@ import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/c
 import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { WorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issueService';
+import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-sandbox/issueService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';

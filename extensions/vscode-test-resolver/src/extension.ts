@@ -302,7 +302,7 @@ function getActions(): ActionItem[] {
 		actions.push({
 			title: 'Close Remote',
 			execute: async () => {
-				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
+				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true, remoteAuthority: null });
 			}
 		});
 	}

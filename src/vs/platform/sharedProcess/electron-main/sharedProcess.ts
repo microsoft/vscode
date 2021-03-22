@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMainEvent } from 'electron';
+import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMainEvent, RenderProcessGoneDetails } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { FileAccess } from 'vs/base/common/network';
 import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
@@ -21,12 +21,12 @@ import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
-	private readonly afterWindowOpenBarrier = new Barrier();
+	private readonly firstWindowConnectionBarrier = new Barrier();
 
 	private window: BrowserWindow | undefined = undefined;
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
-	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, message: string }>());
+	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, details: string | RenderProcessGoneDetails }>());
 	readonly onDidError = Event.buffer(this._onDidError.event); // buffer until we have a listener!
 
 	constructor(
@@ -49,13 +49,15 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		// Shared process connections from workbench windows
 		ipcMain.on('vscode:createSharedProcessMessageChannel', async (e, nonce: string) => this.onWindowConnection(e, nonce));
-
-		// Release barrier to create shared process after first window opens
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => this.afterWindowOpenBarrier.open());
 	}
 
 	private async onWindowConnection(e: IpcMainEvent, nonce: string): Promise<void> {
 		this.logService.trace('SharedProcess: on vscode:createSharedProcessMessageChannel');
+
+		// release barrier if this is the first window connection
+		if (!this.firstWindowConnectionBarrier.isOpen()) {
+			this.firstWindowConnectionBarrier.open();
+		}
 
 		// await the shared process to be overall ready
 		// we do not just wait for IPC ready because the
@@ -132,7 +134,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			this._whenIpcReady = (async () => {
 
 				// Always wait for first window asking for connection
-				await this.afterWindowOpenBarrier.wait();
+				await this.firstWindowConnectionBarrier.wait();
 
 				// Resolve shell environment
 				this.userEnv = { ...this.userEnv, ...(await resolveShellEnv(this.logService, this.environmentMainService.args, process.env)) };
@@ -217,9 +219,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		// Crashes & Unrsponsive & Failed to load
 		// We use `onUnexpectedError` explicitly because the error handler
 		// will send the error to the active window to log in devtools too
-		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, message: `SharedProcess: crashed (detail: ${details?.reason})` }));
-		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE, message: 'SharedProcess: detected unresponsive window' }));
-		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this._onDidError.fire({ type: WindowError.LOAD, message: `SharedProcess: failed to load window: ${errorDescription}` }));
+		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, details }));
+		this.window.on('unresponsive', () => this._onDidError.fire({ type: WindowError.UNRESPONSIVE, details: 'SharedProcess: detected unresponsive window' }));
+		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this._onDidError.fire({ type: WindowError.LOAD, details: `SharedProcess: failed to load: ${errorDescription}` }));
 	}
 
 	async connect(): Promise<MessagePortMain> {

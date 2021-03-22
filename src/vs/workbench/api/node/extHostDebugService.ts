@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
-import * as env from 'vs/base/common/platform';
+import * as platform from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
@@ -110,10 +110,23 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			if (giveShellTimeToInitialize) {
 				// give a new terminal some time to initialize the shell
 				await new Promise(resolve => setTimeout(resolve, 1000));
+			} else {
+				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
+					// clear terminal before reusing it
+					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
+						terminal.sendText('cls');
+					} else if (shell.indexOf('bash') >= 0) {
+						terminal.sendText('clear');
+					} else if (platform.isWindows) {
+						terminal.sendText('cls');
+					} else {
+						terminal.sendText('clear');
+					}
+				}
 			}
 
 			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
-			terminal.sendText(command, true);
+			terminal.sendText(command);
 
 			// Mark terminal as unused when its session ends, see #112055
 			const sessionListener = this.onDidTerminateDebugSession(s => {
@@ -133,7 +146,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._workspaceService);
 	}
 }
 
