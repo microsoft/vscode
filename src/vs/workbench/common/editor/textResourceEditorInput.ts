@@ -164,9 +164,9 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 	}
 
 	isUntitled(): boolean {
-		//  anyFile: is never untitled as it can be saved
-		// untitled: is untitled by definition
-		// anyOther: is untitled because it cannot be saved, as such we expect a "Save As" dialog
+		//  any file: is never untitled as it can be saved
+		//  untitled: is untitled by definition
+		// any other: is untitled because it cannot be saved, as such we expect a "Save As" dialog
 		return !this.fileService.canHandleResource(this.resource);
 	}
 
