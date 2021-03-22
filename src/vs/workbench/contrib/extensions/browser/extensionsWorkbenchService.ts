@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoUpdateDisabledExtensionsConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -548,12 +548,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				if (this.isAutoUpdateEnabled()) {
-					this.checkForUpdates();
-				}
-			}
-			if (e.affectsConfiguration(AutoUpdateDisabledExtensionsConfigurationKey)) {
-				if (this.isAutoUpdateDisabledExtensionsEnabled()) {
+				if (this.getAutoUpdate() !== 'none') {
 					this.checkForUpdates();
 				}
 			}
@@ -565,7 +560,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, this));
 
 		this._register(extensionEnablementService.onEnablementChanged(platformExtensions => {
-			if (!this.isAutoUpdateDisabledExtensionsEnabled()) {
+			if (this.getAutoUpdate() === 'enabled') {
 				const extensions = this.local.filter(e => platformExtensions.some(p => areSameExtensions(e.identifier, p.identifier)));
 				if (extensions.some(e => e.enablementState === EnablementState.EnabledGlobally || e.enablementState === EnablementState.EnabledWorkspace)) {
 					this.checkForUpdates();
@@ -846,12 +841,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return Promise.resolve(this.syncDelayer.trigger(() => this.syncWithGallery(), 0));
 	}
 
-	private isAutoUpdateEnabled(): boolean {
-		return this.configurationService.getValue(AutoUpdateConfigurationKey);
-	}
+	private getAutoUpdate(): 'all' | 'enabled' | 'none' {
+		const autoUpdate: (true | false | 'all' | 'enabled' | 'none') = this.configurationService.getValue(AutoUpdateConfigurationKey);
+		if (autoUpdate === true) {
+			return 'all';
+		} else if (autoUpdate === false) {
+			return 'none';
+		}
 
-	private isAutoUpdateDisabledExtensionsEnabled(): boolean {
-		return this.configurationService.getValue(AutoUpdateDisabledExtensionsConfigurationKey);
+		return autoUpdate;
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
@@ -859,7 +857,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
-		const shouldSync = this.isAutoUpdateEnabled() || this.isAutoCheckUpdatesEnabled();
+		const shouldSync = this.getAutoUpdate() !== 'none' || this.isAutoCheckUpdatesEnabled();
 		const loop = () => (shouldSync ? this.syncWithGallery() : Promise.resolve(undefined)).then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
@@ -896,13 +894,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private autoUpdateExtensions(): Promise<any> {
-		if (!this.isAutoUpdateEnabled()) {
+		if (this.getAutoUpdate() === 'none') {
 			return Promise.resolve();
 		}
 
 		const toUpdate = this.outdated.filter(e =>
 			!this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)) &&
-			(this.isAutoUpdateDisabledExtensionsEnabled() || e.enablementState !== EnablementState.DisabledGlobally)
+			(this.getAutoUpdate() === 'all' || e.enablementState !== EnablementState.DisabledGlobally)
 		);
 
 		return Promises.settled(toUpdate.map(e => this.install(e)));

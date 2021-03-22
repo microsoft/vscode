@@ -7,7 +7,7 @@ import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateDisabledExtensionsConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
@@ -80,12 +80,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
 			onDidChangeConfiguration: () => { return undefined!; },
 			getValue: (key?: string) => {
-				if (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) {
+				if (key === AutoCheckUpdatesConfigurationKey) {
 					return true;
-				}
-
-				if (key === AutoUpdateDisabledExtensionsConfigurationKey) {
-					return false;
+				} else if (key === AutoUpdateConfigurationKey) {
+					return 'all';
 				}
 
 				return undefined;
