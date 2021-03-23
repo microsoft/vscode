@@ -16,10 +16,10 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestCollection, ITestRootProvider, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
 type TestLocationIdent = { resource: ExtHostTestingResource, uri: URI };
 
@@ -45,10 +45,10 @@ export class TestService extends Disposable implements ITestService {
 	private readonly hasRunnable: IContextKey<boolean>;
 	private readonly hasDebuggable: IContextKey<boolean>;
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
-	private rootProviderCount = 0;
+	private readonly rootProviders = new Set<ITestRootProvider>();
 
 	public readonly excludeTests = ObservableValue.stored(new StoredValue<ReadonlySet<string>>({
-		key: 'excludedTestItes',
+		key: 'excludedTestItems',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER,
 		serialization: {
@@ -67,6 +67,13 @@ export class TestService extends Disposable implements ITestService {
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
 		this.hasDebuggable = TestingContextKeys.hasDebuggableTests.bindTo(contextKeyService);
 		this.hasRunnable = TestingContextKeys.hasRunnableTests.bindTo(contextKeyService);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public async expandTest(test: TestIdWithSrc, levels: number) {
+		await this.testControllers.get(test.src.provider)?.expandTest(test, levels);
 	}
 
 	/**
@@ -143,7 +150,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public async lookupTest(test: TestIdWithProvider) {
+	public async lookupTest(test: TestIdWithSrc) {
 		for (const { collection } of this.testSubscriptions.values()) {
 			const node = collection.getNodeById(test.testId);
 			if (node) {
@@ -151,17 +158,29 @@ export class TestService extends Disposable implements ITestService {
 			}
 		}
 
-		return this.testControllers.get(test.providerId)?.lookupTest(test);
+		return this.testControllers.get(test.src.provider)?.lookupTest(test);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public updateRootProviderCount(delta: number) {
-		this.rootProviderCount += delta;
-		for (const { collection } of this.testSubscriptions.values()) {
-			collection.updatePendingRoots(delta);
+	public registerRootProvider(provider: ITestRootProvider) {
+		if (this.rootProviders.has(provider)) {
+			return toDisposable(() => { });
 		}
+
+		this.rootProviders.add(provider);
+		for (const { collection } of this.testSubscriptions.values()) {
+			collection.updatePendingRoots(1);
+		}
+
+		return toDisposable(() => {
+			if (this.rootProviders.delete(provider)) {
+				for (const { collection } of this.testSubscriptions.values()) {
+					collection.updatePendingRoots(-1);
+				}
+			}
+		});
 	}
 
 
@@ -179,26 +198,23 @@ export class TestService extends Disposable implements ITestService {
 		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req));
 
 		try {
-			const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
+			const tests = groupBy(req.tests, (a, b) => a.src.provider === b.src.provider ? 0 : 1);
 			const cancelSource = new CancellationTokenSource(token);
 			this.runningTests.set(req, cancelSource);
 
-			const requests = tests.map(group => {
-				const providerId = group[0].providerId;
-				const controller = this.testControllers.get(providerId);
-				return controller?.runTests(
+			const requests = tests.map(
+				group => this.testControllers.get(group[0].src.provider)?.runTests(
 					{
 						runId: result.id,
-						providerId,
 						debug: req.debug,
 						excludeExtIds: req.exclude ?? [],
-						ids: group.map(t => t.testId),
+						tests: group,
 					},
 					cancelSource.token,
 				).catch(err => {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
-				});
-			});
+				})
+			);
 
 			await Promise.all(requests);
 			return result;
@@ -230,10 +246,22 @@ export class TestService extends Disposable implements ITestService {
 		if (!subscription) {
 			subscription = {
 				ident: { resource, uri },
-				collection: new MainThreadTestCollection(this.rootProviderCount),
+				collection: new MainThreadTestCollection(
+					this.rootProviders.size,
+					this.expandTest.bind(this),
+				),
 				listeners: 0,
 				onDiff: new Emitter(),
 			};
+
+			subscription.collection.onDidRetireTest(testId => {
+				for (const result of this.testResults.results) {
+					if (result instanceof LiveTestResult) {
+						result.retire(testId);
+					}
+				}
+			});
+
 			this.subscribeEmitter.fire({ resource, uri });
 			this.testSubscriptions.set(subscriptionKey, subscription);
 		} else if (subscription.disposeTimeout) {
@@ -316,20 +344,25 @@ export class TestService extends Disposable implements ITestService {
 export class MainThreadTestCollection extends AbstractIncrementalTestCollection<IncrementalTestCollectionItem> implements IMainThreadTestCollection {
 	private pendingRootChangeEmitter = new Emitter<number>();
 	private busyProvidersChangeEmitter = new Emitter<number>();
-	private _busyProviders = 0;
+	private retireTestEmitter = new Emitter<string>();
+	private expandPromises = new WeakMap<IncrementalTestCollectionItem, {
+		pendingLvl: number;
+		doneLvl: number;
+		prom: Promise<void>;
+	}>();
 
 	/**
 	 * @inheritdoc
 	 */
 	public get pendingRootProviders() {
-		return this._pendingRootProviders;
+		return this.pendingRootCount;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
 	public get busyProviders() {
-		return this._busyProviders;
+		return this.busyProviderCount;
 	}
 
 	/**
@@ -346,12 +379,37 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 		return this.getIterator();
 	}
 
-
 	public readonly onPendingRootProvidersChange = this.pendingRootChangeEmitter.event;
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
+	public readonly onDidRetireTest = this.retireTestEmitter.event;
 
-	constructor(private _pendingRootProviders: number) {
+	constructor(pendingRootProviders: number, private readonly expandActual: (src: TestIdWithSrc, levels: number) => Promise<void>) {
 		super();
+		this.pendingRootCount = pendingRootProviders;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public expand(testId: string, levels: number): Promise<void> {
+		const test = this.items.get(testId);
+		if (!test) {
+			return Promise.resolve();
+		}
+
+		// simple cache to avoid duplicate/unnecessary expansion calls
+		const existing = this.expandPromises.get(test);
+		if (existing && existing.pendingLvl >= levels) {
+			return existing.prom;
+		}
+
+		const prom = this.expandActual({ src: test.src, testId: test.item.extId }, levels);
+		const record = { doneLvl: existing ? existing.doneLvl : -1, pendingLvl: levels, prom };
+		this.expandPromises.set(test, record);
+
+		return prom.then(() => {
+			record.doneLvl = levels;
+		});
 	}
 
 	/**
@@ -365,21 +423,40 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 * @inheritdoc
 	 */
 	public getReviverDiff() {
-		const ops: TestsDiff = [
-			[TestDiffOpType.DeltaDiscoverComplete, this._busyProviders],
-			[TestDiffOpType.DeltaRootsComplete, this._pendingRootProviders],
-		];
+		const ops: TestsDiff = [[TestDiffOpType.DeltaRootsComplete, this.pendingRootCount]];
 
 		const queue = [this.roots];
 		while (queue.length) {
 			for (const child of queue.pop()!) {
 				const item = this.items.get(child)!;
-				ops.push([TestDiffOpType.Add, { providerId: item.providerId, item: item.item, parent: item.parent }]);
+				ops.push([TestDiffOpType.Add, {
+					src: item.src,
+					expand: item.expand,
+					item: item.item,
+					parent: item.parent,
+				}]);
 				queue.push(item.children);
 			}
 		}
 
 		return ops;
+	}
+
+
+	/**
+	 * Applies the diff to the collection.
+	 */
+	public apply(diff: TestsDiff) {
+		let prevBusy = this.busyProviderCount;
+		let prevPendingRoots = this.pendingRootCount;
+		super.apply(diff);
+
+		if (prevBusy !== this.busyProviderCount) {
+			this.busyProvidersChangeEmitter.fire(this.busyProviderCount);
+		}
+		if (prevPendingRoots !== this.pendingRootCount) {
+			this.pendingRootChangeEmitter.fire(this.pendingRootCount);
+		}
 	}
 
 	/**
@@ -401,24 +478,15 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * @override
 	 */
-	protected updateBusyProviders(delta: number) {
-		this._busyProviders += delta;
-		this.busyProvidersChangeEmitter.fire(this._busyProviders);
-	}
-
-	/**
-	 * @override
-	 */
-	public updatePendingRoots(delta: number) {
-		this._pendingRootProviders = Math.max(0, this._pendingRootProviders + delta);
-		this.pendingRootChangeEmitter.fire(this._pendingRootProviders);
-	}
-
-	/**
-	 * @override
-	 */
 	protected createItem(internal: InternalTestItem): IncrementalTestCollectionItem {
 		return { ...internal, children: new Set() };
+	}
+
+	/**
+	 * @override
+	 */
+	protected retireTest(testId: string) {
+		this.retireTestEmitter.fire(testId);
 	}
 
 	private *getIterator() {

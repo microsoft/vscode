@@ -3240,20 +3240,125 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
+export const TestItemHookProperty = Symbol('TestItemHookProperty');
+
+export interface ITestItemHook {
+	created(item: vscode.TestItem): void;
+	setProp<K extends keyof vscode.TestItem>(key: K, value: vscode.TestItem[K]): void;
+	invalidate(id: string): void;
+	delete(id: string): void;
+}
+
+const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, key: K, defaultValue: vscode.TestItem[K]) => {
+	let value = defaultValue;
+	return {
+		enumerable: true,
+		configurable: false,
+		get() {
+			return value;
+		},
+		set(newValue: vscode.TestItem[K]) {
+			item[TestItemHookProperty]?.setProp(key, newValue);
+			value = newValue;
+		},
+	};
+};
+
+export class TestChildrenCollection implements vscode.TestChildrenCollection<vscode.TestItem> {
+	#map = new Map<string, vscode.TestItem>();
+	#hookRef: () => ITestItemHook | undefined;
+
+	public get size() {
+		return this.#map.size;
+	}
+
+	constructor(hookRef: () => ITestItemHook | undefined) {
+		this.#hookRef = hookRef;
+	}
+
+	public add(child: vscode.TestItem) {
+		const map = this.#map;
+		const hook = this.#hookRef();
+
+		const existing = map.get(child.id);
+		if (existing === child) {
+			return;
+		}
+
+		if (existing) {
+			hook?.delete(child.id);
+		}
+
+		map.set(child.id, child);
+		hook?.created(child);
+	}
+
+	public get(id: string) {
+		return this.#map.get(id);
+	}
+
+	public clear() {
+		for (const key of this.#map.keys()) {
+			this.delete(key);
+		}
+	}
+
+	public delete(childOrId: vscode.TestItem | string) {
+		const id = typeof childOrId === 'string' ? childOrId : childOrId.id;
+		if (this.#map.has(id)) {
+			this.#map.delete(id);
+			this.#hookRef()?.delete(id);
+		}
+	}
+
+	public toJSON() {
+		return [...this.#map.values()];
+	}
+
+	public [Symbol.iterator]() {
+		return this.#map.values();
+	}
+}
+
 export class TestItem implements vscode.TestItem {
 	public id!: string;
-	public location?: Location;
-	public description?: string;
-	public runnable = true;
-	public debuggable = false;
-	public children: vscode.TestItem[] = [];
+	public location!: Location | undefined;
+	public description!: string | undefined;
+	public runnable!: boolean;
+	public debuggable!: boolean;
+	public children!: TestChildrenCollection;
+	public [TestItemHookProperty]!: ITestItemHook | undefined;
 
-	constructor(id: string, public label: string) {
-		Object.defineProperty(this, 'id', {
-			value: id,
-			enumerable: true,
-			writable: false,
+	constructor(id: string, public label: string, public expandable: boolean) {
+		Object.defineProperties(this, {
+			id: {
+				value: id,
+				enumerable: true,
+				writable: false,
+			},
+			children: {
+				value: new TestChildrenCollection(() => this[TestItemHookProperty]),
+				enumerable: true,
+				writable: false,
+			},
+			[TestItemHookProperty]: {
+				enumerable: false,
+				writable: true,
+				configurable: false,
+			},
+			location: testItemPropAccessor(this, 'location', undefined),
+			description: testItemPropAccessor(this, 'description', undefined),
+			runnable: testItemPropAccessor(this, 'runnable', true),
+			debuggable: testItemPropAccessor(this, 'debuggable', true),
 		});
+	}
+
+	public invalidate() {
+		this[TestItemHookProperty]?.invalidate(this.id);
+	}
+
+	public discoverChildren(progress: vscode.Progress<{ busy: boolean }>, _token: vscode.CancellationToken) {
+		progress.report({ busy: false });
 	}
 }
 
