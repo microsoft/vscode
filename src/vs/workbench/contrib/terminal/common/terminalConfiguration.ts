@@ -86,7 +86,7 @@ export const terminalConfiguration: IConfigurationNode = {
 					key: 'terminal.integrated.profiles.windows',
 					comment: ['{0}, {1}, and {2} are the `source`, `path` and optional `args` settings keys']
 				},
-				"The windows shell profiles to select from when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1} and optional {2}", '`source`', '`path`', '`args`.'
+				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1} and optional {2}", '`source`', '`path`', '`args`.'
 			),
 			type: 'object',
 			default: {
@@ -111,7 +111,7 @@ export const terminalConfiguration: IConfigurationNode = {
 					key: 'terminal.integrated.profile.osx',
 					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
 				},
-				"The osx shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+				"The macOS profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
 			),
 			type: 'object',
 			default: {
@@ -135,7 +135,7 @@ export const terminalConfiguration: IConfigurationNode = {
 					key: 'terminal.integrated.profile.linux',
 					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
 				},
-				"The osx shell profiles to select from when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+				"The Linux profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
 			),
 			type: 'object',
 			default: {
