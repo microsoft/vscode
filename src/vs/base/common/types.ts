@@ -58,13 +58,6 @@ export function isIterable<T>(obj: unknown): obj is Iterable<T> {
 }
 
 /**
- * @returns whether the provided parameter is an AsyncIterable, casting to the given generic
- */
-export function isAsyncIterable<T>(obj: unknown): obj is AsyncIterable<T> {
-	return !!obj && typeof (obj as any)[Symbol.asyncIterator] === 'function';
-}
-
-/**
  * @returns whether the provided parameter is a JavaScript Boolean or not.
  */
 export function isBoolean(obj: unknown): obj is boolean {
