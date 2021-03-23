@@ -17,14 +17,17 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hours
-const MAX_INSTALL_AGE = 1000 * 60 * 60 * 8; // 8 hours
+const MAX_INSTALL_AGE = 1000 * 60 * 60 * 24; // 24 hours
 const REMIND_LATER_DELAY = 1000 * 60 * 60 * 4; // 4 hours
 const SKIP_SURVEY_KEY = 'ces/skipSurvey';
 const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
 
-class CESContribution implements IWorkbenchContribution {
+class CESContribution extends Disposable implements IWorkbenchContribution {
+	private promptScheduler!: RunOnceScheduler;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -34,6 +37,8 @@ class CESContribution implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@optional(ITASExperimentService) private readonly tasExperimentService: ITASExperimentService,
 	) {
+		super();
+
 		if (!productService.cesSurveyUrl) {
 			return;
 		}
@@ -42,15 +47,56 @@ class CESContribution implements IWorkbenchContribution {
 		if (skipSurvey) {
 			return;
 		}
-		this.scheduleSurvey();
+		this.promptScheduler = this._register(new RunOnceScheduler(async () => {
+			const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain') => {
+				/* __GDPR__
+				"cesSurvey:popup" : {
+					"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+				*/
+				this.telemetryService.publicLog('cesSurvey:popup', { userReaction });
+			};
+
+			const message = await this.tasExperimentService?.getTreatment<string>('CESSurveyMessage') ?? nls.localize('cesSurveyQuestion', 'Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.');
+			const button = await this.tasExperimentService?.getTreatment<string>('CESSurveyButton') ?? nls.localize('giveFeedback', "Give Feedback");
+
+			this.notificationService.prompt(
+				Severity.Info,
+				message,
+				[{
+					label: button,
+					run: () => {
+						sendTelemetry('neverShowAgain');
+						this.telemetryService.getTelemetryInfo().then(info => {
+							this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
+							this._skipSurvey();
+						});
+					}
+				}, {
+					label: nls.localize('remindLater', "Remind Me later"),
+					run: () => {
+						sendTelemetry('remindLater');
+						this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
+						this._prepareSurvey();
+					}
+				}, {
+					label: nls.localize('neverAgain', "Don't Show Again"),
+					run: () => {
+						sendTelemetry('neverShowAgain');
+						this._skipSurvey();
+					}
+				}],
+				{ sticky: true }
+			);
+		}, WAIT_TIME_TO_SHOW_SURVEY));
+
+		this._prepareSurvey();
 	}
 
-	private async scheduleSurvey(): Promise<void> {
-		// Once the experiment service determined if a user is a survey candidate, this value will be stored and
-		// preferred to any changes in the experiment.
+	private async _prepareSurvey(): Promise<void> {
 		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
 		if (!isCandidate) {
-			this.skipSurvey();
+			this._skipSurvey();
 			return;
 		}
 
@@ -68,51 +114,17 @@ class CESContribution implements IWorkbenchContribution {
 
 			// Installation is older than MAX_INSTALL_AGE
 			if (!isNewInstall) {
-				this.skipSurvey();
+				this._skipSurvey();
 				return;
 			}
-			waitTimeToShowSurvey = Math.max(WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall, WAIT_TIME_TO_SHOW_SURVEY);
+			if (timeFromInstall < WAIT_TIME_TO_SHOW_SURVEY) {
+				waitTimeToShowSurvey = WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall;
+			}
 		}
-
-		setTimeout(() => {
-			this.notificationService.prompt(
-				Severity.Info,
-				nls.localize('cesSurveyQuestion', '👋 Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.'),
-				// Please help us to improve VS Code.
-				// Take a short break from code and help us improve VS Code.
-				// Got a moment? Tell us about your experience with VS Code so far.
-				// Your feedback can help us make VS Code better for everybody.
-				// Got feedback for us? Signed, the VS Code team ❤️
-				// How is VS Code working for you so far? ❤️, the VS Code team!
-				[{
-					label: nls.localize('giveFeedback', "Give Feedback"),
-					// Take Short Survey
-					// Open Survey
-					run: () => {
-						// TODO: Telemetry for yes
-						this.telemetryService.getTelemetryInfo().then(info => {
-							this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
-							this.skipSurvey();
-						});
-					}
-				}, {
-					label: nls.localize('remindLater', "Remind Me later"),
-					// TODO: Telemetry for later
-					run: () => {
-						this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
-						this.scheduleSurvey();
-					}
-				}, {
-					label: nls.localize('neverAgain', "Don't Show Again"),
-					// TODO: Telemetry for no
-					run: () => this.skipSurvey()
-				}],
-				{ sticky: true }
-			);
-		}, waitTimeToShowSurvey);
+		this.promptScheduler.schedule(waitTimeToShowSurvey);
 	}
 
-	skipSurvey(): void {
+	private _skipSurvey(): void {
 		this.storageService.store(SKIP_SURVEY_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
