@@ -16,7 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestRootProvider, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
@@ -72,8 +72,8 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public async expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number) {
-		await Promise.all([...this.rootProviders].map(p => p.expandTest(resource, uri, testId, levels)));
+	public async expandTest(test: TestIdWithSrc, levels: number) {
+		await this.testControllers.get(test.src.provider)?.expandTest(test, levels);
 	}
 
 	/**
@@ -150,7 +150,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public async lookupTest(test: TestIdWithProvider) {
+	public async lookupTest(test: TestIdWithSrc) {
 		for (const { collection } of this.testSubscriptions.values()) {
 			const node = collection.getNodeById(test.testId);
 			if (node) {
@@ -158,7 +158,7 @@ export class TestService extends Disposable implements ITestService {
 			}
 		}
 
-		return this.testControllers.get(test.providerId)?.lookupTest(test);
+		return this.testControllers.get(test.src.provider)?.lookupTest(test);
 	}
 
 	/**
@@ -198,26 +198,23 @@ export class TestService extends Disposable implements ITestService {
 		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req));
 
 		try {
-			const tests = groupBy(req.tests, (a, b) => a.providerId === b.providerId ? 0 : 1);
+			const tests = groupBy(req.tests, (a, b) => a.src.provider === b.src.provider ? 0 : 1);
 			const cancelSource = new CancellationTokenSource(token);
 			this.runningTests.set(req, cancelSource);
 
-			const requests = tests.map(group => {
-				const providerId = group[0].providerId;
-				const controller = this.testControllers.get(providerId);
-				return controller?.runTests(
+			const requests = tests.map(
+				group => this.testControllers.get(group[0].src.provider)?.runTests(
 					{
 						runId: result.id,
-						providerId,
 						debug: req.debug,
 						excludeExtIds: req.exclude ?? [],
-						ids: group.map(t => t.testId),
+						tests: group,
 					},
 					cancelSource.token,
 				).catch(err => {
 					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', err.message));
-				});
-			});
+				})
+			);
 
 			await Promise.all(requests);
 			return result;
@@ -251,7 +248,7 @@ export class TestService extends Disposable implements ITestService {
 				ident: { resource, uri },
 				collection: new MainThreadTestCollection(
 					this.rootProviders.size,
-					this.expandTest.bind(this, resource, uri),
+					this.expandTest.bind(this),
 				),
 				listeners: 0,
 				onDiff: new Emitter(),
@@ -348,6 +345,11 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	private pendingRootChangeEmitter = new Emitter<number>();
 	private busyProvidersChangeEmitter = new Emitter<number>();
 	private retireTestEmitter = new Emitter<string>();
+	private expandPromises = new WeakMap<IncrementalTestCollectionItem, {
+		pendingLvl: number;
+		doneLvl: number;
+		prom: Promise<void>;
+	}>();
 
 	/**
 	 * @inheritdoc
@@ -381,9 +383,33 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
 	public readonly onDidRetireTest = this.retireTestEmitter.event;
 
-	constructor(pendingRootProviders: number, public readonly expand: (testId: string, levels: number) => Promise<void>) {
+	constructor(pendingRootProviders: number, private readonly expandActual: (src: TestIdWithSrc, levels: number) => Promise<void>) {
 		super();
 		this.pendingRootCount = pendingRootProviders;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public expand(testId: string, levels: number): Promise<void> {
+		const test = this.items.get(testId);
+		if (!test) {
+			return Promise.resolve();
+		}
+
+		// simple cache to avoid duplicate/unnecessary expansion calls
+		const existing = this.expandPromises.get(test);
+		if (existing && existing.pendingLvl >= levels) {
+			return existing.prom;
+		}
+
+		const prom = this.expandActual({ src: test.src, testId: test.item.extId }, levels);
+		const record = { doneLvl: existing ? existing.doneLvl : -1, pendingLvl: levels, prom };
+		this.expandPromises.set(test, record);
+
+		return prom.then(() => {
+			record.doneLvl = Math.max(record.doneLvl, levels);
+		});
 	}
 
 	/**
@@ -404,7 +430,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 			for (const child of queue.pop()!) {
 				const item = this.items.get(child)!;
 				ops.push([TestDiffOpType.Add, {
-					providerId: item.providerId,
+					src: item.src,
 					expand: item.expand,
 					item: item.item,
 					parent: item.parent,

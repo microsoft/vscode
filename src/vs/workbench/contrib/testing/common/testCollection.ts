@@ -9,16 +9,22 @@ import { Range } from 'vs/editor/common/core/range';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
-export interface TestIdWithProvider {
+export interface TestIdWithSrc {
 	testId: string;
-	providerId: string;
+	src: { provider: string; tree: number };
 }
+
+/**
+ * Defines the path to a test, as a list of test IDs. The last element of the
+ * array is the test ID, and the predecessors are its parents, in order.
+ */
+export type TestIdPath = string[];
 
 /**
  * Request to the main thread to run a set of tests.
  */
 export interface RunTestsRequest {
-	tests: TestIdWithProvider[];
+	tests: TestIdWithSrc[];
 	exclude?: string[];
 	debug: boolean;
 	isAutoRun?: boolean;
@@ -30,8 +36,7 @@ export interface RunTestsRequest {
 export interface RunTestForProviderRequest {
 	runId: string;
 	excludeExtIds: string[];
-	providerId: string;
-	ids: string[];
+	tests: TestIdWithSrc[];
 	debug: boolean;
 }
 
@@ -83,7 +88,7 @@ export const enum TestItemExpandState {
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
-	providerId: string;
+	src: { provider: string; tree: number };
 	expand: TestItemExpandState;
 	parent: string | null;
 	item: ITestItem;

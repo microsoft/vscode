@@ -365,7 +365,7 @@ export class LiveTestResult implements ITestResult {
 			if (test) {
 				const originalSize = this.testById.size;
 				makeParents(collection, test, this.testById);
-				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById);
+				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById, false);
 				this.counts[TestResult.Unset] += this.testById.size - originalSize;
 				return node;
 			}

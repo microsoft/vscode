@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { TestResult } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestIdWithProvider, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -85,12 +85,12 @@ export interface ITestTreeElement {
 	/**
 	 * Tests that can be run using this tree item.
 	 */
-	readonly runnable: Iterable<TestIdWithProvider>;
+	readonly runnable: Iterable<TestIdWithSrc>;
 
 	/**
 	 * Tests that can be run using this tree item.
 	 */
-	readonly debuggable: Iterable<TestIdWithProvider>;
+	readonly debuggable: Iterable<TestIdWithSrc>;
 
 	/**
 	 * Expand state of the test.

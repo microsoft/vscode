@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate, TestIdWithProvider, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Test tree element element that groups be hierarchy.
@@ -29,15 +29,15 @@ export class HierarchicalElement implements ITestTreeElement {
 		return this.test.item.location;
 	}
 
-	public get runnable(): Iterable<TestIdWithProvider> {
+	public get runnable(): Iterable<TestIdWithSrc> {
 		return this.test.item.runnable
-			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 
 	public get debuggable() {
 		return this.test.item.debuggable
-			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 

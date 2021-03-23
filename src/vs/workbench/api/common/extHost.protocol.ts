@@ -56,7 +56,7 @@ import { Dto } from 'vs/base/common/types';
 import { DebugConfigurationProviderTriggerKind, WorkspaceTrustState } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { InternalTestItem, ITestState, RunTestForProviderRequest, RunTestsRequest, TestIdWithProvider, TestsDiff, ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestState, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff, ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { WorkspaceTrustRequest, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -1917,10 +1917,10 @@ export interface ExtHostTestingShape {
 	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<void>;
 	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
-	$lookupTest(test: TestIdWithProvider): Promise<InternalTestItem | undefined>;
+	$lookupTest(test: TestIdWithSrc): Promise<InternalTestItem | undefined>;
 	$acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 	$publishTestResults(results: ISerializedTestResults[]): void;
-	$expandTest(resource: ExtHostTestingResource, uri: UriComponents, testId: string, levels: number): Promise<void>;
+	$expandTest(src: TestIdWithSrc, levels: number): Promise<void>;
 }
 
 export interface MainThreadTestingShape {

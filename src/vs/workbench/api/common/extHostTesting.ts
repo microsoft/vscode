@@ -21,7 +21,7 @@ import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Disposable, TestItem as TestItemImpl, TestItemHookProperty } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -93,7 +93,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			tests
 				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
-				.map(t => ({ providerId: t.providerId, testId: t.item.extId }));
+				.map(t => ({ src: t.src, testId: t.item.extId }));
 
 		await this.proxy.$runTests({
 			exclude: req.exclude ? testListToProviders(req.exclude).map(t => t.testId) : undefined,
@@ -202,9 +202,9 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * be treated as infinite.
 	 * @override
 	 */
-	public async $expandTest(resource: ExtHostTestingResource, uri: UriComponents, testId: string, levels: number) {
-		const sub = this.testSubscriptions.get(getTestSubscriptionKey(resource, URI.revive(uri)));
-		await sub?.collection.expand(testId, levels < 0 ? Infinity : levels);
+	public async $expandTest(test: TestIdWithSrc, levels: number) {
+		const sub = mapFind(this.testSubscriptions.values(), s => s.collection.treeId === test.src.tree ? s : undefined);
+		await sub?.collection.expand(test.testId, levels < 0 ? Infinity : levels);
 		this.flushCollectionDiffs();
 	}
 
@@ -238,12 +238,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * @override
 	 */
 	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<void> {
-		const provider = this.providers.get(req.providerId);
+		const provider = this.providers.get(req.tests[0].src.provider);
 		if (!provider) {
 			return;
 		}
 
-		const includeTests = req.ids.map(id => this.ownedTests.getTestById(id)?.[1]).filter(isDefined);
+		const includeTests = req.tests
+			.map(({ testId, src }) => this.ownedTests.getTestById(testId, src.tree))
+			.filter(isDefined)
+			.map(([_tree, test]) => test);
+
 		const excludeTests = req.excludeExtIds
 			.map(id => this.ownedTests.getTestById(id))
 			.filter(isDefined)
@@ -286,7 +290,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		}
 	}
 
-	public $lookupTest(req: TestIdWithProvider): Promise<InternalTestItem | undefined> {
+	public $lookupTest(req: TestIdWithSrc): Promise<InternalTestItem | undefined> {
 		const owned = this.ownedTests.getTestById(req.testId);
 		if (!owned) {
 			return Promise.resolve(undefined);

@@ -66,23 +66,35 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Add,
-					{ providerId: 'pid', parent: null, expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(stubTest('root')), expandable: true } }
+					{ src: { tree: 0, provider: 'pid' }, parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('root')), expandable: true } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ providerId: 'pid', parent: 'id-root', expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(stubTest('a')), expandable: true } }
+					{ src: { tree: 0, provider: 'pid' }, parent: 'id-root', expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(stubTest('a')), expandable: true } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ providerId: 'pid', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('aa')) }
+					{ src: { tree: 0, provider: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.BusyExpanding }
 				],
 				[
 					TestDiffOpType.Add,
-					{ providerId: 'pid', parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('ab')) }
+					{ src: { tree: 0, provider: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('aa')) }
 				],
 				[
 					TestDiffOpType.Add,
-					{ providerId: 'pid', parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
+					{ src: { tree: 0, provider: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('ab')) }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.Expanded }
 				],
 			]);
 		});
@@ -132,7 +144,7 @@ suite('ExtHost Testing', () => {
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, {
-					providerId: 'pid',
+					src: { tree: 0, provider: 'pid' },
 					parent: 'id-a',
 					expand: TestItemExpandState.NotExpandable,
 					item: convert.TestItem.from(child),

@@ -80,13 +80,6 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		harness.flush(folder1);
 		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), 'b');
 		assert.deepStrictEqual(harness.flush(folder1), [
-			{ e: 'root' },
-			{ e: 'root2' },
-		]);
-
-		harness.tree.expand(harness.projection.getElementByTestId('id-root')!);
-		harness.tree.expand(harness.projection.getElementByTestId('id-root2')!);
-		assert.deepStrictEqual(harness.tree.getRendered(), [
 			{ e: 'root', children: [{ e: 'a' }, { e: 'b' }] },
 			{ e: 'root2', children: [{ e: 'c' }] },
 		]);

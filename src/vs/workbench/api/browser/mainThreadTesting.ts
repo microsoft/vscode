@@ -66,13 +66,6 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	expandTest(resource: ExtHostTestingResource, uri: URI, testId: string, levels: number): Promise<void> {
-		return this.proxy.$expandTest(resource, uri, testId, isFinite(levels) ? levels : -1);
-	}
-
-	/**
-	 * @inheritdoc
-	 */
 	public $publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
 		this.resultService.push(new HydratedTestResult(results, persist));
 	}
@@ -101,6 +94,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		const disposable = this.testService.registerTestController(id, {
 			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
 			lookupTest: test => this.proxy.$lookupTest(test),
+			expandTest: (src, levels) => this.proxy.$expandTest(src, isFinite(levels) ? levels : -1),
 		});
 
 		this.testProviderRegistrations.set(id, disposable);

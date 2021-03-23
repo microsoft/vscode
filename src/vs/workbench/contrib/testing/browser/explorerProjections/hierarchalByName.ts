@@ -144,7 +144,7 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 		const parent = this.getOrCreateFolderElement(folder);
 		const actualParent = item.parent ? this.items.get(item.parent) as HierarchicalByNameElement : undefined;
 		for (const testRoot of parent.children) {
-			if (testRoot.test.providerId === item.providerId) {
+			if (testRoot.test.src.provider === item.src.provider) {
 				return new HierarchicalByNameElement(item, testRoot, this.addedOrRemoved, actualParent);
 			}
 		}

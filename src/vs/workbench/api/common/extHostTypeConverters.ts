@@ -1712,7 +1712,7 @@ export namespace TestResults {
 					retired: undefined,
 					expand: TestItemExpandState.Expanded,
 					parent: parent?.item.extId ?? null,
-					providerId: '',
+					src: { provider: '', tree: -1 },
 					direct: !parent,
 				};
 
