@@ -3,9 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
-import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
 import { ListTerminalsRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
-import { Metadata } from '@grpc/grpc-js';
 import * as os from 'os';
 import * as path from 'path';
 import * as util from 'util';
@@ -17,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRawURITransformer, transformIncomingURIs, transformOutgoingURIs, URITransformer } from 'vs/base/common/uriIpc';
 import { getSystemShellSync } from 'vs/base/node/shell';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
+import { supervisorDeadlines, supervisorMetadata, terminalServiceClient } from 'vs/gitpod/node/supervisor-client';
 import { OpenSupervisorTerminalProcessOptions, SupervisorTerminalProcess } from 'vs/gitpod/node/supervisorTerminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
@@ -130,7 +129,6 @@ export class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentCo
 
 	constructor(
 		private rawURITransformerFactory: (remoteAuthority: string) => IRawURITransformer,
-		private terminalServiceClient: TerminalServiceClient,
 		private logService: ILogService,
 		private synchingTasks: Promise<Map<string, TaskStatus>>
 	) { }
@@ -144,7 +142,6 @@ export class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentCo
 	): SupervisorTerminalProcess {
 		const terminalProcess = new SupervisorTerminalProcess(
 			this.terminalIdSeq++,
-			this.terminalServiceClient,
 			initialCwd,
 			workspaceId,
 			workspaceName,
@@ -482,8 +479,8 @@ export class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentCo
 	}> {
 		const tasks = await this.synchingTasks;
 		try {
-			const response = await util.promisify(this.terminalServiceClient.list.bind(this.terminalServiceClient, new ListTerminalsRequest(), new Metadata(), {
-				deadline: Date.now() + 30000
+			const response = await util.promisify(terminalServiceClient.list.bind(terminalServiceClient, new ListTerminalsRequest(), supervisorMetadata, {
+				deadline: Date.now() + supervisorDeadlines.long
 			}))();
 			for (const terminal of response.getTerminalsList()) {
 				const alias = terminal.getAlias();

@@ -5,18 +5,19 @@
 require('reflect-metadata');
 import { GitpodClient, GitpodServer, GitpodServiceImpl } from '@gitpod/gitpod-protocol/lib/gitpod-service';
 import { JsonRpcProxyFactory } from '@gitpod/gitpod-protocol/lib/messaging/proxy-factory';
+import { NavigatorContext, PullRequestContext } from '@gitpod/gitpod-protocol/lib/protocol';
 import { GitpodHostUrl } from '@gitpod/gitpod-protocol/lib/util/gitpod-host-url';
 import * as workspaceInstance from '@gitpod/gitpod-protocol/lib/workspace-instance';
 import { ControlServiceClient } from '@gitpod/supervisor-api-grpc/lib/control_grpc_pb';
-import { ExposePortRequest, ExposePortResponse } from '@gitpod/supervisor-api-grpc/lib/control_pb';
+import { ExposePortRequest } from '@gitpod/supervisor-api-grpc/lib/control_pb';
 import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
-import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
+import { WorkspaceInfoRequest } from '@gitpod/supervisor-api-grpc/lib/info_pb';
 import { NotificationServiceClient } from '@gitpod/supervisor-api-grpc/lib/notification_grpc_pb';
 import { NotifyRequest, NotifyResponse, RespondRequest, SubscribeRequest, SubscribeResponse } from '@gitpod/supervisor-api-grpc/lib/notification_pb';
 import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
 import { ExposedPortInfo, OnPortExposedAction, PortsStatus, PortsStatusRequest, PortsStatusResponse, PortVisibility } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TokenServiceClient } from '@gitpod/supervisor-api-grpc/lib/token_grpc_pb';
-import { GetTokenRequest, GetTokenResponse } from '@gitpod/supervisor-api-grpc/lib/token_pb';
+import { GetTokenRequest } from '@gitpod/supervisor-api-grpc/lib/token_pb';
 import * as grpc from '@grpc/grpc-js';
 import * as fs from 'fs';
 import type * as keytarType from 'keytar';
@@ -29,17 +30,29 @@ import * as vscode from 'vscode';
 import { ConsoleLogger, listen as doListen } from 'vscode-ws-jsonrpc';
 import { GitpodPluginModel } from './gitpod-plugin-model';
 import WebSocket = require('ws');
-import { NavigatorContext, PullRequestContext } from '@gitpod/gitpod-protocol/lib/protocol';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const pendingActivate: Promise<void>[] = [];
+
+	const supervisorDeadlines = {
+		long: 30 * 1000,
+		normal: 15 * 1000,
+		short: 5 * 1000
+	};
 	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
-	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	const controlServiceClient = new ControlServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	const notificationServiceClient = new NotificationServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	const tokenServiceClient = new TokenServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
+	const supervisorClientOptions: Partial<grpc.ClientOptions> = {
+		'grpc.primary_user_agent': `${vscode.env.appName}/${vscode.version} ${context.extensionId}/${context.extensionVersion}`,
+	};
+	const supervisorMetadata = new grpc.Metadata();
+	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure(), supervisorClientOptions);
+	const controlServiceClient = new ControlServiceClient(supervisorAddr, grpc.credentials.createInsecure(), supervisorClientOptions);
+	const notificationServiceClient = new NotificationServiceClient(supervisorAddr, grpc.credentials.createInsecure(), supervisorClientOptions);
+	const tokenServiceClient = new TokenServiceClient(supervisorAddr, grpc.credentials.createInsecure(), supervisorClientOptions);
+	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure(), supervisorClientOptions);
+
+	const workspaceInfoResponse = await util.promisify(infoServiceClient.workspaceInfo.bind(infoServiceClient, new WorkspaceInfoRequest(), supervisorMetadata, {
+		deadline: Date.now() + supervisorDeadlines.long
+	}))();
 	const checkoutLocation = workspaceInfoResponse.getCheckoutLocation();
 	const workspaceId = workspaceInfoResponse.getWorkspaceId();
 	const gitpodHost = workspaceInfoResponse.getGitpodHost();
@@ -67,7 +80,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		for (const scope of gitpodScopes) {
 			getTokenRequest.addScope(scope);
 		}
-		const getTokenResponse = await util.promisify<GetTokenRequest, GetTokenResponse>(tokenServiceClient.getToken.bind(tokenServiceClient))(getTokenRequest);
+		const getTokenResponse = await util.promisify(tokenServiceClient.getToken.bind(tokenServiceClient, getTokenRequest, supervisorMetadata, {
+			deadline: Date.now() + supervisorDeadlines.long
+		}))();
 		return getTokenResponse.getToken();
 	})();
 	(async () => {
@@ -353,7 +368,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				try {
 					const req = new PortsStatusRequest();
 					req.setObserve(true);
-					const evts = statusServiceClient.portsStatus(req);
+					const evts = statusServiceClient.portsStatus(req, supervisorMetadata);
 					stopUpdates = evts.cancel.bind(evts);
 
 					await new Promise((resolve, reject) => {
@@ -402,7 +417,9 @@ export async function activate(context: vscode.ExtensionContext) {
 					const request = new ExposePortRequest();
 					request.setPort(portNumber);
 					request.setTargetPort(portNumber);
-					await util.promisify<ExposePortRequest, ExposePortResponse>(controlServiceClient.exposePort).bind(controlServiceClient)(request);
+					await util.promisify(controlServiceClient.exposePort.bind(controlServiceClient, request, supervisorMetadata, {
+						deadline: Date.now() + supervisorDeadlines.normal
+					}))();
 				}
 			} catch (e) {
 				reject(e);
@@ -640,7 +657,9 @@ export async function activate(context: vscode.ExtensionContext) {
 					getTokenRequest.addScope(scope);
 				}
 			}
-			const getTokenResponse = await util.promisify<GetTokenRequest, GetTokenResponse>(tokenServiceClient.getToken.bind(tokenServiceClient))(getTokenRequest);
+			const getTokenResponse = await util.promisify(tokenServiceClient.getToken.bind(tokenServiceClient, getTokenRequest, supervisorMetadata, {
+				deadline: Date.now() + supervisorDeadlines.long
+			}))();
 			const accessToken = getTokenResponse.getToken();
 			gitHubSession = await resolveAuthenticationSession({
 				id: gitHubSessionID,
@@ -738,7 +757,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			while (run) {
 				try {
 					console.info('connecting to notification service');
-					const evts = notificationServiceClient.subscribe(new SubscribeRequest());
+					const evts = notificationServiceClient.subscribe(new SubscribeRequest(), supervisorMetadata);
 					stopUpdates = evts.cancel.bind(evts);
 
 					await new Promise((resolve, reject) => {
@@ -769,7 +788,9 @@ export async function activate(context: vscode.ExtensionContext) {
 								respondRequest.setResponse(notifyResponse);
 								respondRequest.setRequestid(result.getRequestid());
 								console.info('sending notification response', request);
-								notificationServiceClient.respond(respondRequest, (error, _) => {
+								notificationServiceClient.respond(respondRequest, supervisorMetadata, {
+									deadline: Date.now() + supervisorDeadlines.normal
+								}, (error, _) => {
 									if (error?.code !== grpc.status.DEADLINE_EXCEEDED) {
 										reject(error);
 									}

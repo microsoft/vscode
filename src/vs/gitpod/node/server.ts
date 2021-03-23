@@ -3,20 +3,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ResolvedPlugins } from '@gitpod/gitpod-protocol';
-import { StatusServiceClient } from '@gitpod/supervisor-api-grpc/lib/status_grpc_pb';
+import { WorkspaceInfoRequest } from '@gitpod/supervisor-api-grpc/lib/info_pb';
 import { TasksStatusRequest, TasksStatusResponse, TaskState, TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
-import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
-import { InfoServiceClient } from '@gitpod/supervisor-api-grpc/lib/info_grpc_pb';
 import * as grpc from '@grpc/grpc-js';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
-import * as util from 'util';
 import * as http from 'http';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
 import * as url from 'url';
+import * as util from 'util';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -38,6 +36,7 @@ import { ClientConnectionEvent, IPCServer, IServerChannel } from 'vs/base/parts/
 import { PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { RemoteTerminalChannelServer } from 'vs/gitpod/node/remoteTerminalChannelServer';
+import { infoServiceClient, statusServiceClient, supervisorDeadlines, supervisorMetadata } from 'vs/gitpod/node/supervisor-client';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
@@ -77,7 +76,6 @@ import { ExtensionScanner, ExtensionScannerInput, IExtensionReference } from 'vs
 import { IGetEnvironmentDataArguments, IRemoteAgentEnvironmentDTO, IScanExtensionsArguments, IScanSingleExtensionArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { WorkspaceInfoRequest, WorkspaceInfoResponse } from '@gitpod/supervisor-api-grpc/lib/info_pb';
 
 const uriTransformerPath = path.join(__dirname, '../../../gitpodUriTransformer');
 const rawURITransformerFactory: (remoteAuthority: string) => IRawURITransformer = <any>require.__$__nodeRequire(uriTransformerPath);
@@ -209,7 +207,6 @@ function serveError(req: http.IncomingMessage, res: http.ServerResponse, errorCo
 }
 
 async function installExtensionsFromServer(
-	infoServiceClient: InfoServiceClient,
 	extensionGalleryService: IExtensionGalleryService,
 	extensionManagementService: IExtensionManagementService,
 	requestService: IRequestService,
@@ -222,7 +219,9 @@ async function installExtensionsFromServer(
 			// 'eamodio.gitlens'
 		];
 		try {
-			const workspaceInfoResponse = await util.promisify<WorkspaceInfoRequest, WorkspaceInfoResponse>(infoServiceClient.workspaceInfo.bind(infoServiceClient))(new WorkspaceInfoRequest());
+			const workspaceInfoResponse = await util.promisify(infoServiceClient.workspaceInfo.bind(infoServiceClient, new WorkspaceInfoRequest(), supervisorMetadata, {
+				deadline: Date.now() + supervisorDeadlines.long
+			}))();
 			const workspaceContextUrl = URI.parse(workspaceInfoResponse.getWorkspaceContextUrl());
 			if (/github\.com/i.test(workspaceContextUrl.authority)) {
 				ids.push('github.vscode-pull-request-github');
@@ -438,11 +437,6 @@ async function main(): Promise<void> {
 	}
 	channelServer.registerChannel('remoteextensionsenvironment', new RemoteExtensionsEnvironment());
 
-	const supervisorAddr = process.env.SUPERVISOR_ADDR || 'localhost:22999';
-	const infoServiceClient = new InfoServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	const terminalServiceClient = new TerminalServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-	const statusServiceClient = new StatusServiceClient(supervisorAddr, grpc.credentials.createInsecure());
-
 	const synchingTasks = (async () => {
 		const tasks = new Map<string, TaskStatus>();
 		logService.info('code server: synching tasks...');
@@ -451,7 +445,7 @@ async function main(): Promise<void> {
 			try {
 				const req = new TasksStatusRequest();
 				req.setObserve(true);
-				const stream = statusServiceClient.tasksStatus(req);
+				const stream = statusServiceClient.tasksStatus(req, supervisorMetadata);
 				await new Promise((resolve, reject) => {
 					stream.on('end', resolve);
 					stream.on('error', reject);
@@ -480,7 +474,6 @@ async function main(): Promise<void> {
 
 	channelServer.registerChannel('remoteterminal', new RemoteTerminalChannelServer(
 		rawURITransformerFactory,
-		terminalServiceClient,
 		logService,
 		synchingTasks
 	));
@@ -663,7 +656,6 @@ async function main(): Promise<void> {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		channelServer.registerChannel('extensions', new ExtensionManagementChannel(extensionManagementService, requestContext => new URITransformer(rawURITransformerFactory(requestContext))));
 		installExtensionsFromServer(
-			infoServiceClient,
 			extensionGalleryService,
 			extensionManagementService,
 			accessor.get(IRequestService),

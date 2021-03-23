@@ -2,13 +2,13 @@
  *  Copyright (c) Typefox. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
 import { GetTerminalRequest, ListenTerminalRequest, ListenTerminalResponse, OpenTerminalRequest, SetTerminalSizeRequest, ShutdownTerminalRequest, Terminal, TerminalSize, WriteTerminalRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
-import { Metadata, status } from '@grpc/grpc-js';
+import { status } from '@grpc/grpc-js';
 import * as util from 'util';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { supervisorDeadlines, supervisorMetadata, terminalServiceClient } from 'vs/gitpod/node/supervisor-client';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalChildProcess, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -60,7 +60,6 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 
 	constructor(
 		readonly id: number,
-		private readonly terminalServiceClient: TerminalServiceClient,
 		private initialCwd: string,
 		readonly workspaceId: string,
 		readonly workspaceName: string,
@@ -108,8 +107,8 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			request.getAnnotationsMap().set('shouldPersistTerminal', String(this.shouldPersist));
 			request.setSize(this.toSize(this.openOptions.cols, this.openOptions.rows));
 
-			const response = await util.promisify(this.terminalServiceClient.open.bind(this.terminalServiceClient, request, new Metadata(), {
-				deadline: Date.now() + 30000
+			const response = await util.promisify(terminalServiceClient.open.bind(terminalServiceClient, request, supervisorMetadata, {
+				deadline: Date.now() + supervisorDeadlines.long
 			}))();
 			this.syncState = response.getTerminal()!.toObject();
 			this.initialCwd = response.getTerminal()!.getCurrentWorkdir() || response.getTerminal()!.getInitialWorkdir();
@@ -173,7 +172,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 					}
 					const request = new ListenTerminalRequest();
 					request.setAlias(alias);
-					const stream = this.terminalServiceClient.listen(request);
+					const stream = terminalServiceClient.listen(request, supervisorMetadata);
 					this.stopListen = stream.cancel.bind(stream);
 					stream.on('end', resolve);
 					stream.on('error', reject);
@@ -238,8 +237,8 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		try {
 			const request = new ShutdownTerminalRequest();
 			request.setAlias(this.alias);
-			await util.promisify(this.terminalServiceClient.shutdown.bind(this.terminalServiceClient, request, new Metadata(), {
-				deadline: Date.now() + 5000
+			await util.promisify(terminalServiceClient.shutdown.bind(terminalServiceClient, request, supervisorMetadata, {
+				deadline: Date.now() + supervisorDeadlines.short
 			}))();
 		} catch (e) {
 			if (e && e.code === status.NOT_FOUND) {
@@ -267,7 +266,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		const request = new WriteTerminalRequest();
 		request.setAlias(this.alias);
 		request.setStdin(Buffer.from(data));
-		this.terminalServiceClient.write(request, new Metadata(), { deadline: Date.now() + 5000 }, e => {
+		terminalServiceClient.write(request, supervisorMetadata, { deadline: Date.now() + supervisorDeadlines.short }, e => {
 			if (e && e.code !== status.NOT_FOUND) {
 				this.logService.error(`code server: ${this.id}:${this.alias} terminal: write failed:`, e);
 			}
@@ -286,7 +285,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		request.setAlias(this.alias);
 		request.setSize(size);
 		request.setForce(true);
-		this.terminalServiceClient.setSize(request, new Metadata(), { deadline: Date.now() + 5000 }, e => {
+		terminalServiceClient.setSize(request, supervisorMetadata, { deadline: Date.now() + supervisorDeadlines.short }, e => {
 			if (e && e.code !== status.NOT_FOUND) {
 				this.logService.error(`code server: ${this.id}:${this.alias} terminal: resize failed:`, e);
 			}
@@ -304,9 +303,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		try {
 			const request = new GetTerminalRequest();
 			request.setAlias(this.alias);
-			const terminal = await util.promisify(this.terminalServiceClient.get.bind(this.terminalServiceClient, request, new Metadata(), {
-				deadline: Date.now() + 5000
-			}))();
+			const terminal = await util.promisify(terminalServiceClient.get.bind(terminalServiceClient, request, supervisorMetadata, { deadline: Date.now() + supervisorDeadlines.short }))();
 			return terminal.getCurrentWorkdir();
 		} catch {
 			return this.initialCwd;
