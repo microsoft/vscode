@@ -139,10 +139,15 @@ export interface IEditorOptions {
 	 */
 	extraEditorClassName?: string;
 	/**
-	 * Should the editor be read only.
+	 * Should the editor be read only. See also `domReadOnly`.
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * Should the textarea used for input use the DOM `readonly` attribute.
+	 * Defaults to false.
+	 */
+	domReadOnly?: boolean;
 	/**
 	 * Enable linked editing.
 	 * Defaults to false.
@@ -3751,6 +3756,7 @@ export const enum EditorOption {
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
+	domReadOnly,
 	dragAndDrop,
 	emptySelectionClipboard,
 	extraEditorClassName,
@@ -4062,6 +4068,9 @@ export const EditorOptions = {
 	)),
 	disableMonospaceOptimizations: register(new EditorBooleanOption(
 		EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false
+	)),
+	domReadOnly: register(new EditorBooleanOption(
+		EditorOption.domReadOnly, 'domReadOnly', false,
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,
