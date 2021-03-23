@@ -257,6 +257,8 @@ interface IDiffElementLayoutState {
 abstract class AbstractElementRenderer extends Disposable {
 	protected _metadataLocalDisposable = this._register(new DisposableStore());
 	protected _outputLocalDisposable = this._register(new DisposableStore());
+	protected _ignoreMetadata: boolean = false;
+	protected _ignoreOutputs: boolean = false;
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataHeader!: PropertyHeader;
 	protected _metadataInfoContainer!: HTMLElement;
@@ -341,13 +343,15 @@ abstract class AbstractElementRenderer extends Disposable {
 		this.styleContainer(this._diffEditorContainer);
 		this.updateSourceEditor();
 
-		if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+		this._ignoreMetadata = this.configurationService.getValue('notebook.diff.ignoreMetadata');
+		if (this._ignoreMetadata) {
 			this._disposeMetadata();
 		} else {
 			this._buildMetadata();
 		}
 
-		if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+		this._ignoreOutputs = this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(this.notebookEditor.textModel?.transientOptions.transientOutputs);
+		if (this._ignoreOutputs) {
 			this._disposeOutput();
 		} else {
 			this._buildOutput();
@@ -357,25 +361,37 @@ abstract class AbstractElementRenderer extends Disposable {
 			let metadataLayoutChange = false;
 			let outputLayoutChange = false;
 			if (e.affectsConfiguration('notebook.diff.ignoreMetadata')) {
-				this._metadataLocalDisposable.clear();
-				if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
-					this._disposeMetadata();
-				} else {
-					this.cell.metadataStatusHeight = 25;
-					this._buildMetadata();
-					this.updateMetadataRendering();
-					metadataLayoutChange = true;
+				const newValue = this.configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
+
+				if (newValue !== undefined && this._ignoreMetadata !== newValue) {
+					this._ignoreMetadata = newValue;
+
+					this._metadataLocalDisposable.clear();
+					if (this.configurationService.getValue('notebook.diff.ignoreMetadata')) {
+						this._disposeMetadata();
+					} else {
+						this.cell.metadataStatusHeight = 25;
+						this._buildMetadata();
+						this.updateMetadataRendering();
+						metadataLayoutChange = true;
+					}
 				}
 			}
 
 			if (e.affectsConfiguration('notebook.diff.ignoreOutputs')) {
-				this._outputLocalDisposable.clear();
-				if (this.configurationService.getValue('notebook.diff.ignoreOutputs') || this.notebookEditor.textModel?.transientOptions.transientOutputs) {
-					this._disposeOutput();
-				} else {
-					this.cell.outputStatusHeight = 25;
-					this._buildOutput();
-					outputLayoutChange = true;
+				const newValue = this.configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
+
+				if (newValue !== undefined && this._ignoreOutputs !== (newValue || this.notebookEditor.textModel?.transientOptions.transientOutputs)) {
+					this._ignoreOutputs = newValue || !!(this.notebookEditor.textModel?.transientOptions.transientOutputs);
+
+					this._outputLocalDisposable.clear();
+					if (this._ignoreOutputs) {
+						this._disposeOutput();
+					} else {
+						this.cell.outputStatusHeight = 25;
+						this._buildOutput();
+						outputLayoutChange = true;
+					}
 				}
 			}
 
