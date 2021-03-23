@@ -34,9 +34,13 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
 /**
  * Codes that should be omitted from sending to the prediction engine and instead omitted directly:
  * - Hide cursor (DECTCEM): We wrap the local echo sequence in hide and show
+ *   CSI ? 2 5 l
  * - Show cursor (DECTCEM): We wrap the local echo sequence in hide and show
+ *   CSI ? 2 5 h
  * - Device Status Report (DSR): These sequence fire report events from xterm which could cause
  *   double reporting and potentially a stack overflow (#119472)
+ *   CSI Ps n
+ *   CSI ? Ps n
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
