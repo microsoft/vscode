@@ -9,7 +9,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -55,7 +55,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	@memoize
 	get cachePath(): Promise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-update-${this.productService.target}-${process.arch}`);
 		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
@@ -67,9 +67,10 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService productService: IProductService
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
 	initialize(): void {
@@ -86,7 +87,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			this.telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
+			this.telemetryService.publicLog('update:win32SetupTarget', { target: this.productService.target });
 		}
 	}
 
@@ -99,11 +100,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		if (getUpdateType() === UpdateType.Archive) {
 			platform += '-archive';
-		} else if (product.target === 'user') {
+		} else if (this.productService.target === 'user') {
 			platform += '-user';
 		}
 
-		return createUpdateURL(platform, quality);
+		return createUpdateURL(platform, quality, this.productService);
 	}
 
 	protected doCheckForUpdates(context: any): void {
@@ -155,7 +156,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 						this.availableUpdate = { packagePath };
 
 						if (fastUpdatesEnabled && update.supportsFastUpdate) {
-							if (product.target === 'user') {
+							if (this.productService.target === 'user') {
 								this.doApplyUpdate();
 							} else {
 								this.setState(State.Downloaded(update));
@@ -185,11 +186,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	private async getUpdatePackagePath(version: string): Promise<string> {
 		const cachePath = await this.cachePath;
-		return path.join(cachePath, `CodeSetup-${product.quality}-${version}.exe`);
+		return path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
 	}
 
 	private async cleanup(exceptVersion: string | null = null): Promise<any> {
-		const filter = exceptVersion ? (one: string) => !(new RegExp(`${product.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
+		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;
 		const versions = await pfs.readdir(cachePath);
@@ -219,7 +220,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		const cachePath = await this.cachePath;
 
-		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${product.quality}-${update.version}.flag`);
+		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 
 		await pfs.writeFile(this.availableUpdate.updateFilePath, 'flag');
 		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
@@ -233,7 +234,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			this.setState(State.Idle(getUpdateType()));
 		});
 
-		const readyMutexName = `${product.win32MutexName}-ready`;
+		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const mutex = await import('windows-mutex');
 
 		// poll for mutex-ready

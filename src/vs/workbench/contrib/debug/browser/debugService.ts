@@ -153,7 +153,7 @@ export class DebugService implements IDebugService {
 			this.onStateChange();
 		}));
 		this.toDispose.push(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
-			const debugUxValue = !!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.adapterManager.hasDebuggers())) ? 'default' : 'simple';
+			const debugUxValue = (this.state !== State.Inactive || (this.configurationManager.getAllConfigurations().length > 0 && this.adapterManager.hasDebuggers())) ? 'default' : 'simple';
 			this.debugUx.set(debugUxValue);
 			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));
@@ -924,8 +924,8 @@ export class DebugService implements IDebugService {
 		await this.sendFunctionBreakpoints();
 	}
 
-	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): Promise<void> {
-		this.model.addDataBreakpoint(label, dataId, canPersist, accessTypes);
+	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void> {
+		this.model.addDataBreakpoint(label, dataId, canPersist, accessTypes, accessType);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);

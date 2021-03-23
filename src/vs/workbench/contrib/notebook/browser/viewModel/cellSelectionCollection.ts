@@ -32,7 +32,7 @@ export class NotebookCellSelectionCollection extends Disposable {
 
 	private _primary: ICellRange | null = null;
 
-	private _selections: ICellRange[] = [{ start: 0, end: 0 }];
+	private _selections: ICellRange[] = [];
 
 	get selections(): ICellRange[] {
 		return this._selections;
@@ -42,44 +42,25 @@ export class NotebookCellSelectionCollection extends Disposable {
 		return this._selections[0];
 	}
 
-	setState(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'edit') {
-		if (primary !== null) {
-			const primaryRange = primary;
-			// TODO@rebornix deal with overlap
-			const newSelections = [primaryRange, ...selections.filter(selection => !(selection.start === primaryRange.start && selection.end === primaryRange.end)).sort((a, b) => a.start - b.start)];
+	get focus(): ICellRange {
+		return this._primary ?? { start: 0, end: 0 };
+	}
 
-			const changed = primary !== this._primary || !rangesEqual(this._selections, newSelections);
-			this._primary = primary;
-			this._selections = newSelections;
+	setState(primary: ICellRange | null, selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'model') {
+		const changed = primary !== this._primary || !rangesEqual(this._selections, selections);
 
-			if (!this._selections.length) {
-				this._selections.push({ start: 0, end: 0 });
-			}
-
-			if (changed || forceEventEmit) {
-				this._onDidChangeSelection.fire(source);
-			}
-		} else {
-			const changed = primary !== this._primary || !rangesEqual(this._selections, selections);
-
-			this._primary = primary;
-			this._selections = selections;
-
-			if (!this._selections.length) {
-				this._selections.push({ start: 0, end: 0 });
-			}
-
-			if (changed || forceEventEmit) {
-				this._onDidChangeSelection.fire(source);
-			}
+		this._primary = primary;
+		this._selections = selections;
+		if (changed || forceEventEmit) {
+			this._onDidChangeSelection.fire(source);
 		}
 	}
 
-	setFocus(selection: ICellRange | null, forceEventEmit: boolean, source: 'view' | 'edit') {
+	setFocus(selection: ICellRange | null, forceEventEmit: boolean, source: 'view' | 'model') {
 		this.setState(selection, this._selections, forceEventEmit, source);
 	}
 
-	setSelections(selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'edit') {
+	setSelections(selections: ICellRange[], forceEventEmit: boolean, source: 'view' | 'model') {
 		this.setState(this._primary, selections, forceEventEmit, source);
 	}
 }

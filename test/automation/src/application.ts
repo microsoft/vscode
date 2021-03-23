@@ -72,14 +72,10 @@ export class Application {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
 
-		if (expectWalkthroughPart) {
-			if (this.quality === Quality.Stable) {
-				// TODO@bpasero remove me in March 2021
-				await this.code.waitForActiveElement(`.editor-instance[data-editor-id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
-			} else {
-				await this.code.waitForElement(`.editor-instance > div > div.welcomePageFocusElement[tabIndex="0"]`);
-			}
-		}
+		// https://github.com/microsoft/vscode/issues/118748
+		// if (expectWalkthroughPart) {
+		// 	await this.code.waitForElement(`.editor-instance > div > div.welcomePageFocusElement[tabIndex="0"]`);
+		// }
 	}
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {

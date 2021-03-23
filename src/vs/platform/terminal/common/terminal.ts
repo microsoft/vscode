@@ -3,11 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
+export enum WindowsShellType {
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
+}
+export type TerminalShellType = WindowsShellType | undefined;
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
 	terminal: T;
@@ -17,7 +25,7 @@ export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IPtyHos
 
 export interface IRawTerminalTabLayoutInfo<T> {
 	isActive: boolean;
-	activePersistentTerminalId: number | undefined;
+	activePersistentProcessId: number | undefined;
 	terminals: IRawTerminalInstanceLayoutInfo<T>[];
 }
 
@@ -65,20 +73,54 @@ export enum TerminalIpcChannels {
 	Heartbeat = 'heartbeat'
 }
 
+export interface IOffProcessTerminalService {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
+	 * terminals using this pty host connection and mark them as disconnected.
+	 */
+	onPtyHostUnresponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost process becomes responsive after being non-responsive. Allowing
+	 * previously disconnected terminals to reconnect.
+	 */
+	onPtyHostResponsive: Event<void>;
+	/**
+	 * Fired when the ptyHost has been restarted, this is used as a signal for listening terminals
+	 * that its pty has been lost and will remain disconnected.
+	 */
+	onPtyHostRestart: Event<void>;
+
+	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
+	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
+	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+}
+
+export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
+export interface ILocalTerminalService extends IOffProcessTerminalService {
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
+}
+
+export const IPtyService = createDecorator<IPtyService>('ptyService');
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
 	readonly onPtyHostExit?: Event<number>;
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
+	readonly onPtyHostResponsive?: Event<void>;
 
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
+	readonly onProcessShellTypeChanged: Event<{ id: number, event: TerminalShellType }>;
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
+	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -98,6 +140,13 @@ export interface IPtyService {
 	attachToProcess(id: number): Promise<void>;
 	detachFromProcess(id: number): Promise<void>;
 
+	/**
+	 * Lists all orphaned processes, ie. those without a connected frontend.
+	 * @param reduceGraceTime Whether to reduce the reconnection grace time for all orphaned
+	 * terminals.
+	 */
+	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]>;
+
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
@@ -106,8 +155,10 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	/** Confirm the process is _not_ an orphan. */
+	orphanQuestionReply(id: number): Promise<void>;
 
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
@@ -189,7 +240,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * Whether an extension is controlling the terminal via a `vscode.Pseudoterminal`.
 	 */
-	isExtensionTerminal?: boolean;
+	isExtensionCustomPtyTerminal?: boolean;
 
 	/**
 	 * A UUID generated by the extension host process for terminals created on the extension host process.
@@ -199,7 +250,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentTerminal?: { id: number; pid: number; title: string; cwd: string; };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -226,9 +277,9 @@ export interface IShellLaunchConfig {
 	isFeatureTerminal?: boolean;
 
 	/**
-	 * Whether flow control is enabled for this terminal.
+	 * Whether this terminal was created by an extension.
 	 */
-	flowControl?: boolean;
+	isExtensionOwnedTerminal?: boolean;
 }
 
 export interface ITerminalEnvironment {
@@ -255,7 +306,7 @@ export interface ITerminalChildProcess {
 	/**
 	 * Whether the process should be persisted across reloads.
 	 */
-	shouldPersist?: boolean;
+	shouldPersist: boolean;
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessExit: Event<number | undefined>;
@@ -263,6 +314,7 @@ export interface ITerminalChildProcess {
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
+	onProcessShellTypeChanged: Event<TerminalShellType>;
 
 	/**
 	 * Starts the process.
@@ -304,7 +356,7 @@ export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 30000, // 30 seconds
+	ReconnectionGraceTime = 60000, // 60 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
@@ -343,15 +395,15 @@ export interface ITerminalDimensions {
 	/**
 	 * The columns of the terminal.
 	 */
-	readonly cols: number;
+	cols: number;
 
 	/**
 	 * The rows of the terminal.
 	 */
-	readonly rows: number;
+	rows: number;
 }
 
-export interface ITerminalDimensionsOverride extends ITerminalDimensions {
+export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
 	/**
 	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
 	 */

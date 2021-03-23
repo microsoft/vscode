@@ -280,10 +280,10 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.selectConfiguration(undefined);
 			this.setCompoundSchemaValues();
 		}));
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('launch')) {
 				// A change happen in the launch.json. If there is already a launch configuration selected, do not change the selection.
-				this.selectConfiguration(undefined);
+				await this.selectConfiguration(undefined);
 				this.setCompoundSchemaValues();
 			}
 		}));
@@ -374,6 +374,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		let type = config?.type;
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
+			if (!config && name && launch) {
+				config = launch.getConfiguration(name);
+				type = config?.type;
+			}
 		} else if (dynamicConfig && dynamicConfig.type) {
 			// We could not find the previously used name and config is not passed. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293

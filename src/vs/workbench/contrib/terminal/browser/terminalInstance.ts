@@ -25,12 +25,12 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -47,7 +47,9 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -71,12 +73,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private static _lastKnownCanvasDimensions: ICanvasDimensions | undefined;
 	private static _lastKnownGridDimensions: IGridDimensions | undefined;
-	private static _idCounter = 1;
+	private static _instanceIdCounter = 1;
 
 	private _processManager!: ITerminalProcessManager;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 
-	private _id: number;
+	private _instanceId: number;
 	private _latestXtermWriteData: number = 0;
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
@@ -99,7 +101,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _cols: number = 0;
 	private _rows: number = 0;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _windowsShellHelper: IWindowsShellHelper | undefined;
 	private _xtermReadyPromise: Promise<XTermTerminal>;
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
@@ -120,7 +121,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private hasHadInput: boolean;
 
 	public disableLayout: boolean;
-	public get id(): number { return this._id; }
+	public get instanceId(): number { return this._instanceId; }
 	public get cols(): number {
 		if (this._dimensionsOverride && this._dimensionsOverride.cols) {
 			if (this._dimensionsOverride.forceExactSize) {
@@ -156,6 +157,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get shellType(): TerminalShellType { return this._shellType; }
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
+	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -202,7 +204,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 
@@ -211,7 +214,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
 		this._isDisposed = false;
-		this._id = TerminalInstance._idCounter++;
+		this._instanceId = TerminalInstance._instanceIdCounter++;
 
 		this.hasHadInput = false;
 
@@ -224,7 +227,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this.disableLayout = false;
 
-		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
+		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 
 		this._initDimensions();
 		this._createProcessManager();
@@ -251,6 +254,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
+			}
+			if (e.affectsConfiguration('terminal.integrated.rendererType')) {
+				this._storageService.remove(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 			}
 		}));
 
@@ -373,7 +379,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
-	public get persistentTerminalId(): number | undefined { return this._processManager.persistentTerminalId; }
+	public get persistentProcessId(): number | undefined { return this._processManager.persistentProcessId; }
 	public get shouldPersist(): boolean { return this._processManager.shouldPersist; }
 
 	private async _getXtermConstructor(): Promise<typeof XTermTerminal> {
@@ -418,7 +424,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
+			rendererType: (config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl') ? 'canvas' : config.rendererType,
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -531,7 +537,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		this._setAriaLabel(xterm, this._id, this._title);
+		this._setAriaLabel(xterm, this._instanceId, this._title);
 
 		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
 		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
@@ -573,7 +579,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
 					this._notificationService.prompt(
 						Severity.Info,
-						nls.localize('configure terminal settings', "Some keybindings are dispatched to the workbench by default."),
+						nls.localize('keybindingHandling', "Some keybindings don't go to the terminal by default and are handled by {0} instead.", this._productService.nameLong),
 						[
 							{
 								label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
@@ -644,19 +650,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalFocusContextKey.reset();
 			this._refreshSelectionContextKey();
 		}));
-		this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
-			this._terminalFocusContextKey.set(true);
-			if (this.shellType) {
-				this._terminalShellTypeContextKey.set(this.shellType.toString());
-			} else {
-				this._terminalShellTypeContextKey.reset();
-			}
-		}));
-		this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
-			this._terminalFocusContextKey.reset();
-			this._refreshSelectionContextKey();
-		}));
-
 		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
 
@@ -671,11 +664,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// panel was initialized.
 		if (xterm.getOption('disableStdin')) {
 			this._attachPressAnyKeyToCloseListener(xterm);
-		}
-
-		const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
-		if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
-			this._measureRenderTime();
 		}
 	}
 
@@ -784,10 +772,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public dispose(immediate?: boolean): void {
-		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
+		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 
-		dispose(this._windowsShellHelper);
-		this._windowsShellHelper = undefined;
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
@@ -876,8 +862,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
-		await this._processManager.ptyProcessReady;
-		this._processManager.write(text);
+		return this._processManager.write(text);
 	}
 
 	public setVisible(visible: boolean): void {
@@ -945,7 +930,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	protected _createProcessManager(): void {
-		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
+		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.onProcessData(ev => {
@@ -955,21 +940,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e, true));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
-		this._processManager.onPtyDisconnect(() => {
-			this._safeSetOption('disableStdin', true);
-			// Use api source so it cannot be overridden
-			this.setTitle(nls.localize('ptyDisconnected', "{0} (disconnected)", this._title), TitleEventSource.Api);
-		});
-
+		this._processManager.onProcessShellTypeChanged(type => this.setShellType(type));
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		} else {
 			// Only listen for process title changes when a name is not provided
 			if (this._configHelper.config.experimentalUseTitleEvent) {
-				this._processManager.ptyProcessReady.then(() => {
-					this._terminalInstanceService.getDefaultShellAndArgs(false).then(e => {
-						this.setTitle(e.shell, TitleEventSource.Sequence);
-					});
+				// Set the title to the first event if the sequence hasn't set it yet
+				Event.once(this._processManager.onProcessTitle)(e => {
+					if (!this._title) {
+						this.setTitle(this._title, TitleEventSource.Sequence);
+					}
+				});
+				// Listen to xterm.js' sequence title change event, trigger this async to ensure
+				// xterm is constructed since this is called from TerminalInstance's ctor
+				setTimeout(() => {
 					this._xtermReadyPromise.then(xterm => {
 						this._messageTitleDisposable = xterm.onTitleChange(e => this._onTitleChange(e));
 					});
@@ -980,55 +965,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		if (platform.isWindows) {
-			this._processManager.ptyProcessReady.then(() => {
-				if (this._processManager.remoteAuthority) {
-					return;
-				}
-				this._xtermReadyPromise.then(xterm => {
-					if (!this._isDisposed && this._processManager && this._processManager.shellProcessId) {
-						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, xterm);
-						this._windowsShellHelper.onShellNameChange(title => {
-							this.setShellType(this.getShellType(title));
-							if (this.isTitleSetByProcess && !this._configHelper.config.experimentalUseTitleEvent) {
-								this.setTitle(title, TitleEventSource.Process);
-							}
-						});
-					}
-				});
-			});
-		}
+		this._processManager.onPtyDisconnect(() => {
+			this._safeSetOption('disableStdin', true);
+			this._onTitleChanged.fire(this);
+		});
+		this._processManager.onPtyReconnect(() => {
+			this._safeSetOption('disableStdin', false);
+			this._onTitleChanged.fire(this);
+		});
 	}
 
 	private _createProcess(): void {
+		if (this._isDisposed) {
+			return;
+		}
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
 		});
-	}
-
-	private getShellType(executable: string): TerminalShellType {
-		switch (executable.toLowerCase()) {
-			case 'cmd.exe':
-				return WindowsShellType.CommandPrompt;
-			case 'powershell.exe':
-			case 'pwsh.exe':
-				return WindowsShellType.PowerShell;
-			case 'bash.exe':
-			case 'git-cmd.exe':
-				return WindowsShellType.GitBash;
-			case 'wsl.exe':
-			case 'ubuntu.exe':
-			case 'ubuntu1804.exe':
-			case 'kali.exe':
-			case 'debian.exe':
-			case 'opensuse-42.exe':
-			case 'sles-12.exe':
-				return WindowsShellType.Wsl;
-			default:
-				return undefined;
-		}
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
@@ -1038,9 +993,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
-				if (this._shellLaunchConfig.flowControl) {
-					this._processManager.acknowledgeDataEvent(ev.data.length);
-				}
+				this._processManager.acknowledgeDataEvent(ev.data.length);
 			});
 		}
 	}
@@ -1060,7 +1013,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isExiting = true;
 
 		await this._flushXtermData();
-		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${this._exitCode}`);
+		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
 		let exitCodeMessage: string | undefined;
 
@@ -1103,7 +1056,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				break;
 		}
 
-		this._logService.debug(`Terminal process exit (id: ${this.id}) state ${this._processManager.processState}`);
+		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) state ${this._processManager.processState}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1113,10 +1066,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					xterm.writeln(exitCodeMessage);
 				}
 				if (typeof this._shellLaunchConfig.waitOnExit === 'string') {
-					let message = this._shellLaunchConfig.waitOnExit;
-					// Bold the message and add an extra new line to make it stand out from the rest of the output
-					message = `\r\n\x1b[1m${message}\x1b[0m`;
-					xterm.writeln(message);
+					xterm.write(formatMessageForTerminal(this._shellLaunchConfig.waitOnExit));
 				}
 				// Disable all input if the terminal is exiting and listen for next keypress
 				xterm.setOption('disableStdin', true);
@@ -1177,16 +1127,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	@debounce(500)
 	public reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): void {
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
 
 		if (this._xterm) {
-			if (reset) {
-				this._xterm.reset();
-			} else {
+			if (!reset) {
 				// Ensure new processes' output starts at start of new line
 				this._xterm.write('\n\x1b[G');
 			}
@@ -1218,24 +1165,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
 
-		// Kill and clear up the process, making the process manager ready for a new process
-		this._processManager.dispose();
+		this._processManager.relaunch(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized(), reset);
 
-		// Launch the process unless this is only a renderer.
-		// In the renderer only cases, we still need to set the title correctly.
-		const oldTitle = this._title;
-		this._createProcessManager();
-
-		if (oldTitle !== this._title) {
-			this.setTitle(this._title, TitleEventSource.Process);
-		}
-
-		this._processManager.onProcessData(data => this._onProcessData(data));
-		this._createProcess();
-
-		this._xtermTypeAhead?.reset(this._processManager);
+		this._xtermTypeAhead?.reset();
 	}
 
+	@debounce(1000)
 	public relaunch(): void {
 		this.reuseTerminal(this._shellLaunchConfig, true);
 	}
@@ -1319,12 +1254,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-		if (config.rendererType === 'experimentalWebgl') {
+		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+		if ((suggestedRendererType === 'auto' && config.rendererType === 'auto') || config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		} else {
-			this._webglAddon?.dispose();
-			this._webglAddon = undefined;
-			// Never set webgl as it's an addon not a rendererType
+			this._disposeOfWebglRenderer();
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
@@ -1336,7 +1270,25 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
 		this._webglAddon = new Addon();
-		this._xterm.loadAddon(this._webglAddon);
+		try {
+			this._xterm.loadAddon(this._webglAddon);
+			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		} catch (e) {
+			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
+			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			// if it's already set to dom, no need to measure render time
+			if (!neverMeasureRenderTime && this._configHelper.config.rendererType !== 'dom') {
+				this._measureRenderTime();
+			}
+			this._safeSetOption('rendererType', 'canvas');
+			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'canvas', StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this._disposeOfWebglRenderer();
+		}
+	}
+
+	private _disposeOfWebglRenderer(): void {
+		this._webglAddon?.dispose();
+		this._webglAddon = undefined;
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
@@ -1491,10 +1443,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (immediate) {
 			// do not await, call setDimensions synchronously
-			this._processManager.setDimensions(cols, rows);
+			this._processManager.setDimensions(cols, rows, true);
 		} else {
-			await this._processManager.ptyProcessReady;
-			this._processManager.setDimensions(cols, rows);
+			await this._processManager.setDimensions(cols, rows);
 		}
 	}
 
@@ -1536,14 +1487,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// automatically updates the terminal name
 				dispose(this._messageTitleDisposable);
 				this._messageTitleDisposable = undefined;
-				dispose(this._windowsShellHelper);
-				this._windowsShellHelper = undefined;
 				break;
 		}
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		if (didTitleChange) {
-			this._setAriaLabel(this._xterm, this._id, this._title);
+			this._setAriaLabel(this._xterm, this._instanceId, this._title);
 
 			if (this._titleReadyComplete) {
 				this._titleReadyComplete(title);
@@ -1586,7 +1535,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
 		if (info.requiresAction) {
-			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._id));
+			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
@@ -1603,7 +1552,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Recreate the process if the terminal has not yet been interacted with and it's not a
 		// special terminal (eg. task, extension terminal)
-		if (info.requiresAction && !this._processManager.hasWrittenData && !this._shellLaunchConfig.isFeatureTerminal && !this._shellLaunchConfig.isExtensionTerminal && !this._shellLaunchConfig.attachPersistentTerminal) {
+		if (
+			info.requiresAction &&
+			this._configHelper.config.environmentChangesRelaunch &&
+			!this._processManager.hasWrittenData &&
+			!this._shellLaunchConfig.isFeatureTerminal &&
+			!this._shellLaunchConfig.isExtensionCustomPtyTerminal
+			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
+			!this._shellLaunchConfig.attachPersistentProcess
+		) {
 			this.relaunch();
 			return;
 		}

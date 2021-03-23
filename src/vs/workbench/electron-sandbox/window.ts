@@ -21,6 +21,7 @@ import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { env } from 'vs/base/common/process';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -55,7 +56,6 @@ import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgen
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { env } from 'vs/base/common/process';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class NativeWindow extends Disposable {
@@ -534,8 +534,10 @@ export class NativeWindow extends Disposable {
 						} : undefined;
 						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						if (tunnel) {
+							const addressAsUri = URI.parse(tunnel.localAddress);
+							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 							return {
-								resolved: uri.with({ authority: tunnel.localAddress }),
+								resolved,
 								dispose: () => tunnel.dispose(),
 							};
 						}

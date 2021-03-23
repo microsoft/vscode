@@ -277,10 +277,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		switch (this.options.orientation) {
 			case ActionsOrientation.HORIZONTAL:
-			case ActionsOrientation.HORIZONTAL_REVERSE:
 				return posX < rect.left;
 			case ActionsOrientation.VERTICAL:
-			case ActionsOrientation.VERTICAL_REVERSE:
 				return posY < rect.top;
 		}
 	}

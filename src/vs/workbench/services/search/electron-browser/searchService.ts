@@ -13,7 +13,7 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { parseSearchPort } from 'vs/platform/environment/node/environmentService';
+import { parseSearchPort } from 'vs/platform/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileMatch, IFileMatch, IFileQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchProgressItem, ISearchResultProvider, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, ISearchService, isFileMatch } from 'vs/workbench/services/search/common/search';
@@ -26,6 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FileAccess } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -36,9 +37,10 @@ export class LocalSearchService extends SearchService {
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
 		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IInstantiationService readonly instantiationService: IInstantiationService
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 
 		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals, flatten, isNonEmptyArray, mergeSort, coalesce } from 'vs/base/common/arrays';
+import { equals, flatten, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isPromiseCanceledError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -87,7 +87,7 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	) {
 		super();
 		this._register(disposables);
-		this.allActions = mergeSort([...actions], ManagedCodeActionSet.codeActionsComparator);
+		this.allActions = [...actions].sort(ManagedCodeActionSet.codeActionsComparator);
 		this.validActions = this.allActions.filter(({ action }) => !action.disabled);
 	}
 
@@ -247,7 +247,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 	const codeActionSet = await getCodeActions(
 		model,
 		validatedRangeOrSelection,
-		{ type: modes.CodeActionTriggerType.Manual, filter: { includeSourceActions: true, include } },
+		{ type: modes.CodeActionTriggerType.Invoke, filter: { includeSourceActions: true, include } },
 		Progress.None,
 		CancellationToken.None);
 

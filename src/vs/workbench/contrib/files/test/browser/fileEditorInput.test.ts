@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorService, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode, IEditorInputFactoryRegistry, Verbosity, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -90,10 +90,10 @@ suite('Files - FileEditorInput', () => {
 			resolved = await inputToResolve.resolve();
 			assert(resolvedModelA !== resolved); // Different instance, because input got disposed
 
-			const stat = (resolved as TextFileEditorModel).getStat();
+			const stat = getLastResolvedFileStat(resolved);
 			resolved = await inputToResolve.resolve();
 			await timeout(0);
-			assert(stat !== (resolved as TextFileEditorModel).getStat()); // Different stat, because resolve always goes to the server for refresh
+			assert(stat !== getLastResolvedFileStat(resolved)); // Different stat, because resolve always goes to the server for refresh
 		} finally {
 			DisposableStore.DISABLE_DISPOSED_WARNING = false;
 		}
@@ -209,7 +209,7 @@ suite('Files - FileEditorInput', () => {
 	test('resolve handles binary files', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		accessor.textFileService.setResolveTextContentErrorOnce(new TextFileOperationError('error', TextFileOperationResult.FILE_IS_BINARY));
+		accessor.textFileService.setReadStreamErrorOnce(new TextFileOperationError('error', TextFileOperationResult.FILE_IS_BINARY));
 
 		const resolved = await input.resolve();
 		assert.ok(resolved);
@@ -219,7 +219,7 @@ suite('Files - FileEditorInput', () => {
 	test('resolve handles too large files', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		accessor.textFileService.setResolveTextContentErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
+		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('error', FileOperationResult.FILE_TOO_LARGE));
 
 		const resolved = await input.resolve();
 		assert.ok(resolved);

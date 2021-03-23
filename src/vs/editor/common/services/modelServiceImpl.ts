@@ -741,6 +741,19 @@ export class ModelSemanticColoring extends Disposable {
 				this._fetchDocumentSemanticTokens.schedule();
 			}
 		}));
+		this._register(this._model.onDidChangeLanguage(() => {
+			// clear any outstanding state
+			if (this._currentDocumentResponse) {
+				this._currentDocumentResponse.dispose();
+				this._currentDocumentResponse = null;
+			}
+			if (this._currentDocumentRequestCancellationTokenSource) {
+				this._currentDocumentRequestCancellationTokenSource.cancel();
+				this._currentDocumentRequestCancellationTokenSource = null;
+			}
+			this._setDocumentSemanticTokens(null, null, null, []);
+			this._fetchDocumentSemanticTokens.schedule(0);
+		}));
 		const bindDocumentChangeListeners = () => {
 			dispose(this._documentProvidersChangeListeners);
 			this._documentProvidersChangeListeners = [];

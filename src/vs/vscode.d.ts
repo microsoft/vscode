@@ -2271,10 +2271,14 @@ declare module 'vscode' {
 		 * there is a currently active editor.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 *
+		 * @return An array of code actions, such as quick fixes or refactorings. The lack of a result can be signaled
+		 * by returning `undefined`, `null`, or an empty array.
+		 *
+		 * We also support returning `Command` for legacy reasons, however all new extensions should return
+		 * `CodeAction` object instead.
 		 */
-		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | T)[]>;
 
 		/**
 		 * Given a code action fill in its [`edit`](#CodeAction.edit)-property. Changes to
@@ -2662,6 +2666,134 @@ declare module 'vscode' {
 		 * signaled by returning `undefined` or `null`.
 		 */
 		provideEvaluatableExpression(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
+	}
+
+	/**
+	 * Provide inline value as text.
+	 */
+	export class InlineValueText {
+		/**
+		 * The document range for which the inline value applies.
+		 */
+		readonly range: Range;
+		/**
+		 * The text of the inline value.
+		 */
+		readonly text: string;
+		/**
+		 * Creates a new InlineValueText object.
+		 *
+		 * @param range The document line where to show the inline value.
+		 * @param text The value to be shown for the line.
+		 */
+		constructor(range: Range, text: string);
+	}
+
+	/**
+	 * Provide inline value through a variable lookup.
+	 * If only a range is specified, the variable name will be extracted from the underlying document.
+	 * An optional variable name can be used to override the extracted name.
+	 */
+	export class InlineValueVariableLookup {
+		/**
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the variable name from the underlying document.
+		 */
+		readonly range: Range;
+		/**
+		 * If specified the name of the variable to look up.
+		 */
+		readonly variableName?: string;
+		/**
+		 * How to perform the lookup.
+		 */
+		readonly caseSensitiveLookup: boolean;
+		/**
+		 * Creates a new InlineValueVariableLookup object.
+		 *
+		 * @param range The document line where to show the inline value.
+		 * @param variableName The name of the variable to look up.
+		 * @param caseSensitiveLookup How to perform the lookup. If missing lookup is case sensitive.
+		 */
+		constructor(range: Range, variableName?: string, caseSensitiveLookup?: boolean);
+	}
+
+	/**
+	 * Provide an inline value through an expression evaluation.
+	 * If only a range is specified, the expression will be extracted from the underlying document.
+	 * An optional expression can be used to override the extracted expression.
+	 */
+	export class InlineValueEvaluatableExpression {
+		/**
+		 * The document range for which the inline value applies.
+		 * The range is used to extract the evaluatable expression from the underlying document.
+		 */
+		readonly range: Range;
+		/**
+		 * If specified the expression overrides the extracted expression.
+		 */
+		readonly expression?: string;
+		/**
+		 * Creates a new InlineValueEvaluatableExpression object.
+		 *
+		 * @param range The range in the underlying document from which the evaluatable expression is extracted.
+		 * @param expression If specified overrides the extracted expression.
+		 */
+		constructor(range: Range, expression?: string);
+	}
+
+	/**
+	 * Inline value information can be provided by different means:
+	 * - directly as a text value (class InlineValueText).
+	 * - as a name to use for a variable lookup (class InlineValueVariableLookup)
+	 * - as an evaluatable expression (class InlineValueEvaluatableExpression)
+	 * The InlineValue types combines all inline value types into one type.
+	 */
+	export type InlineValue = InlineValueText | InlineValueVariableLookup | InlineValueEvaluatableExpression;
+
+	/**
+	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+	 */
+	export interface InlineValueContext {
+
+		/**
+		 * The stack frame (as a DAP Id) where the execution has stopped.
+		 */
+		readonly frameId: number;
+
+		/**
+		 * The document range where execution has stopped.
+		 * Typically the end position of the range denotes the line where the inline values are shown.
+		 */
+		readonly stoppedLocation: Range;
+	}
+
+	/**
+	 * The inline values provider interface defines the contract between extensions and the VS Code debugger inline values feature.
+	 * In this contract the provider returns inline value information for a given document range
+	 * and VS Code shows this information in the editor at the end of lines.
+	 */
+	export interface InlineValuesProvider {
+
+		/**
+		 * An optional event to signal that inline values have changed.
+		 * @see [EventEmitter](#EventEmitter)
+		 */
+		onDidChangeInlineValues?: Event<void> | undefined;
+
+		/**
+		 * Provide "inline value" information for a given document and range.
+		 * VS Code calls this method whenever debugging stops in the given document.
+		 * The returned inline values information is rendered in the editor at the end of lines.
+		 *
+		 * @param document The document for which the inline values information is needed.
+		 * @param viewPort The visible document range for which inline values should be computed.
+		 * @param context A bag containing contextual information like the current location.
+		 * @param token A cancellation token.
+		 * @return An array of InlineValueDescriptors or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideInlineValues(document: TextDocument, viewPort: Range, context: InlineValueContext, token: CancellationToken): ProviderResult<InlineValue[]>;
 	}
 
 	/**
@@ -3232,7 +3364,7 @@ declare module 'vscode' {
 		appendPlaceholder(value: string | ((snippet: SnippetString) => any), number?: number): SnippetString;
 
 		/**
-		 * Builder-function that appends a choice (`${1|a,b,c}`) to
+		 * Builder-function that appends a choice (`${1|a,b,c|}`) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
 		 * @param values The values for choices - the array of strings
@@ -6542,6 +6674,10 @@ declare module 'vscode' {
 		 * tasks are always fully resolved. A valid default implementation for the
 		 * `resolveTask` method is to return `undefined`.
 		 *
+		 * Note that when filling in the properties of `task`, you _must_ be sure to
+		 * use the exact same `TaskDefinition` and not create a new one. Other properties
+		 * may be changed.
+		 *
 		 * @param task The task to resolve.
 		 * @param token A cancellation token.
 		 * @return The resolved task
@@ -7901,6 +8037,24 @@ declare module 'vscode' {
 		 * Changes each time the editor is started.
 		 */
 		export const sessionId: string;
+
+		/**
+		 * Indicates that this is a fresh install of the application.
+		 * `true` if within the first day of installation otherwise `false`.
+		 */
+		export const isNewAppInstall: boolean;
+
+		/**
+		 * Indicates whether the users has telemetry enabled.
+		 * Can be observed to determine if the extension should send telemetry.
+		 */
+		export const isTelemetryEnabled: boolean;
+
+		/**
+		 * An [event](#Event) which fires when the user enabled or disables telemetry.
+		 * `true` if the user has enabled telemetry or `false` if the user has disabled telemetry.
+		 */
+		export const onDidChangeTelemetryEnabled: Event<boolean>;
 
 		/**
 		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
@@ -10050,9 +10204,16 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Namespace for dealing with the current workspace. A workspace is the representation
-	 * of the folder that has been opened. There is no workspace when just a file but not a
-	 * folder has been opened.
+	 * Namespace for dealing with the current workspace. A workspace is the collection of one
+	 * or more folders that are opened in a VS Code window (instance).
+	 *
+	 * It is also possible to open VS Code without a workspace. For example, when you open a
+	 * new VS Code window by selecting a file from your platform's File menu, you will not be
+	 * inside a workspace. In this mode, some of VS Code's capabilities are reduced but you can
+	 * still open text files and edit them.
+	 *
+	 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+	 * the concept of workspaces in VS Code.
 	 *
 	 * The workspace offers support for [listening](#workspace.createFileSystemWatcher) to fs
 	 * events and for [finding](#workspace.findFiles) files. Both perform well and run _outside_
@@ -10069,22 +10230,33 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * The folder that is open in the editor. `undefined` when no folder
+		 * The workspace folder that is open in VS Code. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
 		 */
 		export const rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders or `undefined` when no folder is open.
+		 * List of workspace folders that are open in VS Code. `undefined when no workspace
+		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
+		 * on workspaces in VS Code.
+		 *
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
 		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
 
 		/**
-		 * The name of the workspace. `undefined` when no folder
+		 * The name of the workspace. `undefined` when no workspace
 		 * has been opened.
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 */
 		export const name: string | undefined;
 
@@ -10100,7 +10272,7 @@ declare module 'vscode' {
 		 * for a workspace that is untitled and not yet saved.
 		 *
 		 * Depending on the workspace that is opened, the value will be:
-		 *  * `undefined` when no workspace or  a single folder is opened
+		 *  * `undefined` when no workspace is opened
 		 *  * the path of the workspace file as `Uri` otherwise. if the workspace
 		 * is untitled, the returned URI will use the `untitled:` scheme
 		 *
@@ -10111,6 +10283,9 @@ declare module 'vscode' {
 		 * ```typescript
 		 * vscode.commands.executeCommand('vscode.openFolder', uriOfWorkspace);
 		 * ```
+		 *
+		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information on
+		 * the concept of workspaces in VS Code.
 		 *
 		 * **Note:** it is not advised to use `workspace.workspaceFile` to write
 		 * configuration data into the file. You can use `workspace.getConfiguration().update()`
@@ -10743,6 +10918,21 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerEvaluatableExpressionProvider(selector: DocumentSelector, provider: EvaluatableExpressionProvider): Disposable;
+
+		/**
+		 * Register a provider that returns data for the debugger's 'inline value' feature.
+		 * Whenever the generic VS Code debugger has stopped in a source file, providers registered for the language of the file
+		 * are called to return textual data that will be shown in the editor at the end of lines.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline values provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerInlineValuesProvider(selector: DocumentSelector, provider: InlineValuesProvider): Disposable;
 
 		/**
 		 * Register a document highlight provider.
@@ -11488,7 +11678,7 @@ declare module 'vscode' {
 		readonly path: string;
 
 		/**
-		 * Create a description for a debug adapter running as a socket based server.
+		 * Create a description for a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
 		 */
 		constructor(path: string);
 	}

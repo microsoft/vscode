@@ -24,7 +24,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import product from 'vs/platform/product/common/product';
 import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -1014,11 +1013,6 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
-		},
-		'search.experimental.searchInOpenEditors': {
-			type: 'boolean',
-			default: product.quality !== 'stable',
-			markdownDescription: nls.localize('search.experimental.searchInOpenEditors', "Experimental. When enabled, an option is provided to make workspace search only search files that have been opened. **Requires restart to take effect.**")
 		}
 	}
 });

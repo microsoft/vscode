@@ -226,12 +226,14 @@ const requestHandler = (req, res) => {
 	const parsedUrl = url.parse(req.url, true);
 	const pathname = parsedUrl.pathname;
 
+	res.setHeader('Access-Control-Allow-Origin', '*');
+
 	try {
-		if (pathname === '/favicon.ico') {
+		if (/(\/static)?\/favicon\.ico/.test(pathname)) {
 			// favicon
 			return serveFile(req, res, path.join(APP_ROOT, 'resources', 'win32', 'code.ico'));
 		}
-		if (pathname === '/manifest.json') {
+		if (/(\/static)?\/manifest\.json/.test(pathname)) {
 			// manifest
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			return res.end(JSON.stringify({

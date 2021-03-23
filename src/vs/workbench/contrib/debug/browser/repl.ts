@@ -849,15 +849,15 @@ registerAction2(class extends ViewAction<Repl> {
 		if (session && session.state !== State.Inactive && session !== debugService.getViewModel().focusedSession) {
 			if (session.state !== State.Stopped) {
 				// Focus child session instead if it is stopped #112595
-				const stopppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session);
+				const stopppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session && s.state === State.Stopped);
 				if (stopppedChildSession) {
 					session = stopppedChildSession;
 				}
 			}
 			await debugService.focusStackFrame(undefined, undefined, session, true);
-		} else {
-			await view.selectSession(session);
 		}
+		// Need to select the session in the view since the focussed session might not have changed
+		await view.selectSession(session);
 	}
 });
 

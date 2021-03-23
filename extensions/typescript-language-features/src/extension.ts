@@ -14,6 +14,7 @@ import { nodeRequestCancellerFactory } from './tsServer/cancellation.electron';
 import { NodeLogDirectoryProvider } from './tsServer/logDirectoryProvider.electron';
 import { ChildServerProcess } from './tsServer/serverProcess.electron';
 import { DiskTypeScriptVersionProvider } from './tsServer/versionProvider.electron';
+import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
 import { onCaseInsenitiveFileSystem } from './utils/fileSystem.electron';
 import { PluginManager } from './utils/plugins';
 import * as temp from './utils/temp.electron';
@@ -35,6 +36,9 @@ export function activate(
 
 	context.subscriptions.push(new LanguageConfigurationManager());
 
+	const activeJsTsEditorTracker = new ActiveJsTsEditorTracker();
+	context.subscriptions.push(activeJsTsEditorTracker);
+
 	const lazyClientHost = createLazyClientHost(context, onCaseInsenitiveFileSystem(), {
 		pluginManager,
 		commandManager,
@@ -42,11 +46,12 @@ export function activate(
 		cancellerFactory: nodeRequestCancellerFactory,
 		versionProvider,
 		processFactory: ChildServerProcess,
+		activeJsTsEditorTracker,
 	}, item => {
 		onCompletionAccepted.fire(item);
 	});
 
-	registerBaseCommands(commandManager, lazyClientHost, pluginManager);
+	registerBaseCommands(commandManager, lazyClientHost, pluginManager, activeJsTsEditorTracker);
 
 	import('./task/taskProvider').then(module => {
 		context.subscriptions.push(module.register(lazyClientHost.map(x => x.serviceClient)));
@@ -56,7 +61,7 @@ export function activate(
 		context.subscriptions.push(module.register());
 	});
 
-	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager));
+	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }

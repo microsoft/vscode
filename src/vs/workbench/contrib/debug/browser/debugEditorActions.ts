@@ -501,16 +501,14 @@ class CloseExceptionWidgetAction extends EditorAction {
 	}
 }
 
-export function registerEditorActions(): void {
-	registerAction2(ToggleBreakpointAction);
-	registerAction2(ConditionalBreakpointAction);
-	registerAction2(LogPointAction);
-	registerEditorAction(RunToCursorAction);
-	registerEditorAction(StepIntoTargetsAction);
-	registerEditorAction(SelectionToReplAction);
-	registerEditorAction(SelectionToWatchExpressionsAction);
-	registerEditorAction(ShowDebugHoverAction);
-	registerEditorAction(GoToNextBreakpointAction);
-	registerEditorAction(GoToPreviousBreakpointAction);
-	registerEditorAction(CloseExceptionWidgetAction);
-}
+registerAction2(ToggleBreakpointAction);
+registerAction2(ConditionalBreakpointAction);
+registerAction2(LogPointAction);
+registerEditorAction(RunToCursorAction);
+registerEditorAction(StepIntoTargetsAction);
+registerEditorAction(SelectionToReplAction);
+registerEditorAction(SelectionToWatchExpressionsAction);
+registerEditorAction(ShowDebugHoverAction);
+registerEditorAction(GoToNextBreakpointAction);
+registerEditorAction(GoToPreviousBreakpointAction);
+registerEditorAction(CloseExceptionWidgetAction);

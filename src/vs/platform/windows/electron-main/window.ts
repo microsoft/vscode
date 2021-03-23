@@ -15,9 +15,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -26,7 +26,6 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -37,6 +36,7 @@ import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -118,7 +118,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -143,7 +145,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
 				show: !isFullscreenOrMaximized,
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
@@ -195,7 +197,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const useNativeTabs = isMacintosh && windowConfig?.nativeTabs === true;
 			if (useNativeTabs) {
-				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
+				options.tabbingIdentifier = this.productService.nameShort; // this opts in to sierra tabs
 			}
 
 			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -262,7 +264,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentMainService, this.fileService, {
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.environmentMainService, this.fileService, {
 			get: key => storageMainService.globalStorage.get(key),
 			store: (key, value) => storageMainService.globalStorage.set(key, value)
 		});
@@ -468,7 +470,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		if (isMacintosh) {
-			const displayChangedScheduler = this._register(new RunOnceScheduler(() => {
+			this._register(this.nativeHostMainService.onDidChangeDisplay(() => {
 				if (!this._win) {
 					return; // disposed
 				}
@@ -480,27 +482,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
-			}, 100));
-
-			const displayChangedListener = (event: Event, display: Display, changedMetrics?: string[]) => {
-				if (Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea') {
-					// Electron will emit 'display-metrics-changed' events even when actually
-					// going fullscreen, because the dock hides. However, we do not want to
-					// react on this event as there is no change in display bounds.
-					return;
-				}
-
-				displayChangedScheduler.schedule();
-			};
-
-			screen.on('display-metrics-changed', displayChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayChangedListener)));
-
-			screen.on('display-added', displayChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-added', displayChangedListener)));
-
-			screen.on('display-removed', displayChangedListener);
-			this._register(toDisposable(() => screen.removeListener('display-removed', displayChangedListener)));
+			}));
 		}
 
 		// Window (Un)Maximize
@@ -578,7 +560,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: (details && typeof details !== 'string') ? details.reason : undefined });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: typeof details !== 'string' ? details?.reason : undefined });
 
 		// Unresponsive
 		if (type === WindowError.UNRESPONSIVE) {
@@ -594,7 +576,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Show Dialog
 			const result = await this.dialogMainService.showMessageBox({
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appStalled', "The window is no longer responding"),
@@ -624,7 +606,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			const result = await this.dialogMainService.showMessageBox({
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message,
@@ -750,7 +732,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this.setRepresentedFilename('');
 			}
 
-			this._win.setTitle(product.nameLong);
+			this._win.setTitle(this.productService.nameLong);
 		}
 
 		// Load URL
@@ -869,8 +851,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.os = {
 			release: release()
 		};
-
-		windowConfiguration.enableExperimentalMainProcessWorkspaceStorage = !!(windowConfig?.enableExperimentalMainProcessWorkspaceStorage);
 
 		// Config (combination of process.argv and window configuration)
 		const environment = parseArgs(process.argv, OPTIONS);

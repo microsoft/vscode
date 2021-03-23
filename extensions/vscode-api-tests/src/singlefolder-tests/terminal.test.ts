@@ -9,8 +9,7 @@ import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
-// - Remote https://github.com/microsoft/vscode/issues/96057
-((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
+(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - terminal', () => {
 	let extensionContext: ExtensionContext;
 
 	suiteSetup(async () => {
@@ -25,6 +24,8 @@ import { assertNoRpc } from '../utils';
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
 		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
+		// Disable env var relaunch for tests to prevent terminals relaunching themselves
+		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {

@@ -8,7 +8,7 @@ import { ILocalExtension, IExtensionGalleryService } from 'vs/platform/extension
 import { URI } from 'vs/base/common/uri';
 import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -18,6 +18,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -31,9 +32,10 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService dialogService: IDialogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceTrustService workspaceTrustService: IWorkspaceTrustService
 	) {
-		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustService);
+		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, instantiationService, workspaceTrustService);
 	}
 
 	protected async installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
@@ -52,4 +54,4 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 	}
 }
 
-registerSingleton(IWorkbenchExtensioManagementService, ExtensionManagementService);
+registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);

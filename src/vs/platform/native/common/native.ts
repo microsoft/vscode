@@ -45,6 +45,8 @@ export interface ICommonNativeHostService {
 	readonly onDidFocusWindow: Event<number>;
 	readonly onDidBlurWindow: Event<number>;
 
+	readonly onDidChangeDisplay: Event<void>;
+
 	readonly onDidResumeOS: Event<unknown>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
@@ -98,7 +100,7 @@ export interface ICommonNativeHostService {
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 
 	isAdmin(): Promise<boolean>;
-	writeElevated(source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void>;
+	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;

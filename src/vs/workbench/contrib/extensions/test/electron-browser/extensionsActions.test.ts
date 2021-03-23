@@ -26,7 +26,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestSharedProcessService, TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
@@ -57,6 +57,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -74,6 +75,12 @@ async function setupTest() {
 	didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 	instantiationService = new TestInstantiationService();
+
+	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(INativeEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
+	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
+
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ILogService, NullLogService);
 
@@ -1715,8 +1722,11 @@ suite('RemoteInstallAction', () => {
 		// multi server setup
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
-		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
-		instantiationService.stub(INativeWorkbenchEnvironmentService, { disableExtensions: true } as INativeWorkbenchEnvironmentService);
+		const environmentService = { disableExtensions: true } as INativeWorkbenchEnvironmentService;
+		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationService.stub(INativeEnvironmentService, environmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+		instantiationService.stub(INativeWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
@@ -2095,8 +2105,11 @@ suite('LocalInstallAction', () => {
 	test('Test local install action is disabled for remote ui extension which is disabled in env', async () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
-		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
-		instantiationService.stub(INativeWorkbenchEnvironmentService, { disableExtensions: true } as INativeWorkbenchEnvironmentService);
+		const environmentService = { disableExtensions: true } as INativeWorkbenchEnvironmentService;
+		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationService.stub(INativeEnvironmentService, environmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
+		instantiationService.stub(INativeWorkbenchEnvironmentService, environmentService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));

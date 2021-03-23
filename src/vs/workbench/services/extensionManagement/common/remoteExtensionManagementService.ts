@@ -5,13 +5,15 @@
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionManagementService, IGalleryExtension, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { canExecuteOnWorkspace } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 
 export class WebRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IExtensionManagementService {
+
+	protected readonly extensionKindController: ExtensionKindController;
 
 	constructor(
 		channel: IChannel,
@@ -20,11 +22,13 @@ export class WebRemoteExtensionManagementService extends ExtensionManagementChan
 		@IProductService protected readonly productService: IProductService
 	) {
 		super(channel);
+
+		this.extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
 	async canInstall(extension: IGalleryExtension): Promise<boolean> {
 		const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
-		return !!manifest && canExecuteOnWorkspace(manifest, this.productService, this.configurationService);
+		return !!manifest && this.extensionKindController.canExecuteOnWorkspace(manifest);
 	}
 
 }

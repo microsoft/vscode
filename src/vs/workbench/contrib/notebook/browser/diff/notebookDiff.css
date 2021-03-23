@@ -61,6 +61,10 @@
 	/* overflow: hidden; */
 }
 
+.notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	cursor: default;
+}
+
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .output-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {
@@ -192,26 +196,26 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left {
 	top: 0;
 	position: absolute;
 	left: 0;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right {
 	position: absolute;
 	top: 0;
 	left: 50%;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left,
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left,
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right {
 	width: 50%;
 	display: inline-block;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-left div.foreground,
-.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container.modified .output-view-container .output-view-container-right div.foreground {
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-left div.foreground,
+.monaco-workbench .notebook-text-diff-editor .cell-body.full .output-info-container .output-view-container .output-view-container-right div.foreground {
 	width: 100%;
 }
 

@@ -26,13 +26,15 @@ import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workb
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
-export interface WebviewIntialized {
+interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
-	type: 'initialized'
 }
 
-export interface IDimensionMessage {
-	readonly __vscode_notebook_message: true;
+export interface WebviewIntialized extends BaseToWebviewMessage {
+	type: 'initialized';
+}
+
+export interface IDimensionMessage extends BaseToWebviewMessage {
 	type: 'dimension';
 	id: string;
 	init?: boolean;
@@ -40,97 +42,95 @@ export interface IDimensionMessage {
 	isOutput?: boolean;
 }
 
-export interface IMouseEnterMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseEnterMessage extends BaseToWebviewMessage {
 	type: 'mouseenter';
 	id: string;
 }
 
-export interface IMouseLeaveMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseLeaveMessage extends BaseToWebviewMessage {
 	type: 'mouseleave';
 	id: string;
 }
 
-export interface IWheelMessage {
-	readonly __vscode_notebook_message: true;
+export interface IWheelMessage extends BaseToWebviewMessage {
 	type: 'did-scroll-wheel';
 	payload: any;
 }
 
-
-export interface IScrollAckMessage {
-	readonly __vscode_notebook_message: true;
+export interface IScrollAckMessage extends BaseToWebviewMessage {
 	type: 'scroll-ack';
 	data: { top: number };
 	version: number;
 }
 
-export interface IBlurOutputMessage {
-	readonly __vscode_notebook_message: true;
+export interface IBlurOutputMessage extends BaseToWebviewMessage {
 	type: 'focus-editor';
 	id: string;
 	focusNext?: boolean;
 }
 
-export interface IClickedDataUrlMessage {
-	readonly __vscode_notebook_message: true;
+export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	type: 'clicked-data-url';
 	data: string | ArrayBuffer | null;
 	downloadName?: string;
 }
 
-export interface IFocusMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
-	type: 'focusMarkdownPreview';
-	cellId: string;
+export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'clickMarkdownPreview';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly shiftKey: boolean;
 }
 
-export interface IMouseEnterMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'mouseEnterMarkdownPreview';
 	cellId: string;
 }
 
-export interface IMouseLeaveMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IMouseLeaveMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'mouseLeaveMarkdownPreview';
 	cellId: string;
 }
 
-export interface IToggleMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 	type: 'toggleMarkdownPreview';
 	cellId: string;
 }
 
-export interface ICellDragStartMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
-export interface ICellDragMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
-export interface ICellDragEndMessage {
-	readonly __vscode_notebook_message: true;
-	readonly type: 'cell-drag-end';
+export interface ICellDropMessage extends BaseToWebviewMessage {
+	readonly type: 'cell-drop';
 	readonly cellId: string;
 	readonly ctrlKey: boolean
 	readonly altKey: boolean;
 	readonly position: {
-		readonly clientX: number;
 		readonly clientY: number;
 	};
 }
-export interface IInitializedMarkdownPreviewMessage {
-	readonly __vscode_notebook_message: true;
+
+export interface ICellDragEndMessage extends BaseToWebviewMessage {
+	readonly type: 'cell-drag-end';
+	readonly cellId: string;
+}
+
+export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkdownPreview';
 }
 
@@ -159,7 +159,7 @@ export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; output: IOutputRequestDto; mimeType: string };
+	| { type: RenderOutputType.Extension; outputId: string; value: unknown; metadata: unknown; mimeType: string };
 	cellId: string;
 	outputId: string;
 	top: number;
@@ -240,8 +240,7 @@ export interface IUpdateDecorationsMessage {
 	removedClassNames: string[];
 }
 
-export interface ICustomRendererMessage {
-	readonly __vscode_notebook_message: true;
+export interface ICustomRendererMessage extends BaseToWebviewMessage {
 	type: 'customRendererMessage';
 	rendererId: string;
 	message: unknown;
@@ -250,6 +249,7 @@ export interface ICustomRendererMessage {
 export interface ICreateMarkdownMessage {
 	type: 'createMarkdownPreview',
 	id: string;
+	handle: number;
 	content: string;
 	top: number;
 }
@@ -271,13 +271,20 @@ export interface IUnhideMarkdownMessage {
 export interface IShowMarkdownMessage {
 	type: 'showMarkdownPreview',
 	id: string;
-	content: string;
+	handle: number;
+	content: string | undefined;
 	top: number;
+}
+
+export interface IUpdateMarkdownPreviewSelectionState {
+	readonly type: 'updateMarkdownPreviewSelectionState',
+	readonly id: string;
+	readonly isSelected: boolean;
 }
 
 export interface IInitializeMarkdownMessage {
 	type: 'initializeMarkdownPreview';
-	cells: Array<{ cellId: string, content: string }>;
+	cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>;
 }
 
 export type FromWebviewMessage =
@@ -290,12 +297,13 @@ export type FromWebviewMessage =
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
-	| IFocusMarkdownPreviewMessage
+	| IClickMarkdownPreviewMessage
 	| IMouseEnterMarkdownPreviewMessage
 	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
+	| ICellDropMessage
 	| ICellDragEndMessage
 	| IInitializedMarkdownPreviewMessage
 	;
@@ -316,6 +324,7 @@ export type ToWebviewMessage =
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
 	| IUnhideMarkdownMessage
+	| IUpdateMarkdownPreviewSelectionState
 	| IInitializeMarkdownMessage
 	| IViewScrollMarkdownRequestMessage;
 
@@ -341,12 +350,16 @@ export interface INotebookWebviewMessage {
 	forRenderer?: string;
 }
 
+export interface IResolvedBackLayerWebview {
+	webview: WebviewElement;
+}
+
 let version = 0;
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	markdownPreviewMapping: Set<string> = new Set();
+	markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -365,7 +378,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		public documentUri: URI,
 		public options: {
 			outputNodePadding: number,
-			outputNodeLeftPadding: number
+			outputNodeLeftPadding: number,
+			previewNodePadding: number,
+			leftMargin: number,
+			cellMargin: number,
+			runGutter: number,
 		},
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
@@ -391,7 +408,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<base href="${baseUrl}/"/>
 				<style>
 					#container > div > div.output {
-						width: 100%;
+						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
+						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
 						box-sizing: border-box;
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
@@ -402,17 +420,24 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
-						user-select: text;
-						-webkit-user-select: text;
-						-ms-user-select: text;
+						user-select: none;
+						-webkit-user-select: none;
+						-ms-user-select: none;
 						white-space: initial;
-						padding-left: 0px !important;
 						cursor: grab;
 					}
 
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
+						width: 100%;
+						padding-left: ${this.options.leftMargin}px;
+						padding-top: ${this.options.previewNodePadding}px;
+						padding-bottom: ${this.options.previewNodePadding}px;
+					}
+
+					#container > div > div.preview.selected {
+						background: var(--vscode-notebook-selectedCellBackground);
 					}
 
 					#container > div > div.preview img {
@@ -443,11 +468,20 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div.preview h1 {
-						padding-bottom: 0.3em;
-						line-height: 1.2;
+						font-size: 26px;
+						padding-bottom: 8px;
+						line-height: 31px;
 						border-bottom-width: 1px;
 						border-bottom-style: solid;
 						border-color: var(--vscode-foreground);
+						margin: 0;
+						margin-bottom: 13px;
+					}
+
+					#container > div > div.preview h2 {
+						font-size: 19px;
+						margin: 0;
+						margin-bottom: 10px;
 					}
 
 					#container > div > div.preview h1,
@@ -479,7 +513,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					/* makes all markdown cells consistent */
 					#container > div > div.preview div {
-						min-height: 24px;
+						min-height: ${this.options.previewNodePadding * 2}px;
 					}
 
 					#container > div > div.preview table {
@@ -561,7 +595,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						background-color: var(--vscode-diffEditor-insertedTextBackground);
 					}
 
-					#container > div > div > div {
+					#container > div > div:not(.preview) > div {
 						overflow-x: scroll;
 					}
 
@@ -611,7 +645,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				</script>
 				${coreDependencies}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-				<script>${preloadsScriptStr(this.options.outputNodePadding, this.options.outputNodeLeftPadding, 8)}</script>
+				<script>${preloadsScriptStr({
+			outputNodePadding: this.options.outputNodePadding,
+			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
+			previewNodePadding: this.options.previewNodePadding,
+			leftMargin: this.options.leftMargin
+		})}</script>
 				${markdownRenderersSrc}
 			</body>
 		</html>`;
@@ -652,6 +691,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 		const cellInfo = this.insetMapping.get(output)!.cellInfo;
 		return { cellInfo, output };
+	}
+
+	isResolved(): this is IResolvedBackLayerWebview {
+		return !!this.webview;
 	}
 
 	async createWebview(): Promise<void> {
@@ -843,7 +886,7 @@ var requirejs = (function() {
 						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 						break;
 					}
-				case 'focusMarkdownPreview':
+				case 'clickMarkdownPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -886,17 +929,21 @@ var requirejs = (function() {
 						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
 						break;
 					}
-				case 'cell-drag-end':
+				case 'cell-drop':
 					{
-						this.notebookEditor.markdownCellDragEnd(data.cellId, {
+						this.notebookEditor.markdownCellDrop(data.cellId, {
 							clientY: data.position.clientY,
 							ctrlKey: data.ctrlKey,
 							altKey: data.altKey,
 						});
 						break;
 					}
+				case 'cell-drag-end':
+					{
+						this.notebookEditor.markdownCellDragEnd(data.cellId);
+						break;
+					}
 			}
-
 		}));
 	}
 
@@ -1036,33 +1083,57 @@ var requirejs = (function() {
 		});
 	}
 
-	async createMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
 		}
 
+		if (this.markdownPreviewMapping.has(cellId)) {
+			console.error('Trying to create markdown preview that already exists');
+			return;
+		}
+
 		const initialTop = cellTop;
-		this.markdownPreviewMapping.add(cellId);
+		this.markdownPreviewMapping.set(cellId, { version: contentVersion, visible: true });
 
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
 			id: cellId,
+			handle: cellHandle,
 			content: content,
 			top: initialTop,
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, content: string, cellTop: number) {
+	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
 		if (this._disposed) {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'showMarkdownPreview',
-			id: cellId,
-			content: content,
-			top: cellTop
-		});
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentVersion);
+		}
+
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.error('Try to show a preview that does not exist');
+			return;
+		}
+
+		if (entry.version !== contentVersion || !entry.visible) {
+			this._sendMessageToWebview({
+				type: 'showMarkdownPreview',
+				id: cellId,
+				handle: cellHandle,
+				// If the content has not changed, we still want to make sure the
+				// preview is visible but don't need to send anything over
+				content: entry.version === contentVersion ? undefined : content,
+				top: cellTop
+			});
+		}
+
+		entry.version = contentVersion;
+		entry.visible = true;
 	}
 
 	async hideMarkdownPreview(cellId: string,) {
@@ -1070,10 +1141,20 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'hideMarkdownPreview',
-			id: cellId
-		});
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			// TODO: this currently seems expected on first load
+			// console.error(`Try to hide a preview that does not exist: ${cellId}`);
+			return;
+		}
+
+		if (entry.visible) {
+			this._sendMessageToWebview({
+				type: 'hideMarkdownPreview',
+				id: cellId
+			});
+			entry.visible = false;
+		}
 	}
 
 	async unhideMarkdownPreview(cellId: string,) {
@@ -1081,14 +1162,28 @@ var requirejs = (function() {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'unhideMarkdownPreview',
-			id: cellId
-		});
+		const entry = this.markdownPreviewMapping.get(cellId);
+		if (!entry) {
+			console.error(`Try to unhide a preview that does not exist: ${cellId}`);
+			return;
+		}
+
+		if (!entry.visible) {
+			this._sendMessageToWebview({
+				type: 'unhideMarkdownPreview',
+				id: cellId
+			});
+			entry.visible = true;
+		}
 	}
 
 	async removeMarkdownPreview(cellId: string,) {
 		if (this._disposed) {
+			return;
+		}
+
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			console.error(`Try to delete a preview that does not exist: ${cellId}`);
 			return;
 		}
 
@@ -1100,8 +1195,30 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkdown(cells: Array<{ cellId: string, content: string }>) {
+	async updateMarkdownPreviewSelectionState(cellId: any, isSelected: boolean) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (!this.markdownPreviewMapping.has(cellId)) {
+			// TODO: this currently seems expected on first load
+			// console.error(`Try to update selection state for preview that does not exist: ${cellId}`);
+			return;
+		}
+
+		this._sendMessageToWebview({
+			type: 'updateMarkdownPreviewSelectionState',
+			id: cellId,
+			isSelected
+		});
+	}
+
+	async initializeMarkdown(cells: Array<{ cellId: string, cellHandle: number, content: string, offset: number }>) {
 		await this._loaded;
+
+		if (this._disposed) {
+			return;
+		}
 
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
@@ -1113,7 +1230,7 @@ var requirejs = (function() {
 		});
 
 		for (const cell of cells) {
-			this.markdownPreviewMapping.add(cell.cellId);
+			this.markdownPreviewMapping.set(cell.cellId, { version: 0, visible: false });
 		}
 
 		this._sendMessageToWebview({
@@ -1124,7 +1241,7 @@ var requirejs = (function() {
 		await p;
 	}
 
-	async createInset(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1159,10 +1276,7 @@ var requirejs = (function() {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			renderer = content.renderer;
-			let data: { [key: string]: unknown } = {};
-			let metadata: { [key: string]: unknown } = {};
-			data[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.value || undefined;
-			metadata[content.mimeType] = output.outputs.find(op => op.mime === content.mimeType)?.metadata || undefined;
+			const outputDto = output.outputs.find(op => op.mime === content.mimeType);
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1170,12 +1284,10 @@ var requirejs = (function() {
 				requiredPreloads: await this.updateRendererPreloads([content.renderer]),
 				content: {
 					type: RenderOutputType.Extension,
+					outputId: output.outputId,
 					mimeType: content.mimeType,
-					output: {
-						metadata: metadata,
-						data: data,
-						outputId: output.outputId
-					},
+					value: outputDto?.value,
+					metadata: outputDto?.metadata,
 				},
 			};
 		} else {

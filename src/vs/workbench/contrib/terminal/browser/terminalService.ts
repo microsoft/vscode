@@ -4,34 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
+import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/path';
 import { isMacintosh, isWeb, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { TerminalConnectionState, IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalShellType, WindowsShellType, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalTab, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalExecutable, ITerminalProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
-import { IAvailableShellsRequest, IRemoteTerminalAttachTarget, IShellDefinition, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { newQuickLaunchProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -70,6 +71,8 @@ export class TerminalService implements ITerminalService {
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
 
+	private _availableProfiles: ITerminalProfile[] | undefined;
+
 	public get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 
 	private readonly _onActiveTabChanged = new Emitter<void>();
@@ -82,8 +85,6 @@ export class TerminalService implements ITerminalService {
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
 	public get onInstanceLinksReady(): Event<ITerminalInstance> { return this._onInstanceLinksReady.event; }
-	private readonly _onInstanceRequestSpawnExtHostProcess = new Emitter<ISpawnExtHostProcessRequest>();
-	public get onInstanceRequestSpawnExtHostProcess(): Event<ISpawnExtHostProcessRequest> { return this._onInstanceRequestSpawnExtHostProcess.event; }
 	private readonly _onInstanceRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
 	public get onInstanceRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onInstanceRequestStartExtensionTerminal.event; }
 	private readonly _onInstanceDimensionsChanged = new Emitter<ITerminalInstance>();
@@ -98,13 +99,16 @@ export class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onTabDisposed = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
-	private readonly _onRequestAvailableShells = new Emitter<IAvailableShellsRequest>();
-	public get onRequestAvailableShells(): Event<IAvailableShellsRequest> { return this._onRequestAvailableShells.event; }
+	private readonly _onRequestAvailableProfiles = new Emitter<IAvailableProfilesRequest>();
+	public get onRequestAvailableProfiles(): Event<IAvailableProfilesRequest> { return this._onRequestAvailableProfiles.event; }
 	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
 	public get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
 	public get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	public get connectionState(): TerminalConnectionState { return this._connectionState; }
+	private readonly _onProfilesConfigChanged = new Emitter<void>();
+	public get onProfilesConfigChanged(): Event<void> { return this._onProfilesConfigChanged.event; }
+	private readonly _localTerminalService?: ILocalTerminalService;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -112,7 +116,6 @@ export class TerminalService implements ITerminalService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
-		@IExtensionService private _extensionService: IExtensionService,
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private _quickInputService: IQuickInputService,
 		@IConfigurationService private _configurationService: IConfigurationService,
@@ -121,8 +124,11 @@ export class TerminalService implements ITerminalService {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
+		this._localTerminalService = localTerminalService;
+
 		this._activeTabIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
@@ -143,19 +149,34 @@ export class TerminalService implements ITerminalService {
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
 
-		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
-		const serverSpawn = this.configHelper.config.serverSpawn;
+		this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
+				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
+				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
+				e.affectsConfiguration('terminal.integrated.showQuickLaunchWslProfiles')) {
+				this._updateAvailableProfilesNow();
+			}
+		});
 
-		//TODO@meganrogge: deal with case where there are both local and remote terminals to reconnect
-		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection && serverSpawn) {
-			this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
-			this._connectionState = TerminalConnectionState.Connecting;
+		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+
+		// Connect to the extension host if it's there, set the connection state to connected when
+		// it's done. This should happen even when there is no extension host.
+		this._connectionState = TerminalConnectionState.Connecting;
+		let initPromise: Promise<any>;
+		if (!!this._environmentService.remoteAuthority && enableTerminalReconnection) {
+			initPromise = this._remoteTerminalsInitPromise = this._reconnectToRemoteTerminals();
 		} else if (enableTerminalReconnection) {
-			this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
-			this._connectionState = TerminalConnectionState.Connecting;
+			initPromise = this._localTerminalsInitPromise = this._reconnectToLocalTerminals();
 		} else {
-			this._connectionState = TerminalConnectionState.Connected;
+			initPromise = Promise.resolve();
 		}
+		initPromise.then(() => this._setConnected());
+	}
+
+	private _setConnected() {
+		this._connectionState = TerminalConnectionState.Connected;
+		this._onDidChangeConnectionState.fire();
 	}
 
 	private async _reconnectToRemoteTerminals(): Promise<void> {
@@ -171,27 +192,23 @@ export class TerminalService implements ITerminalService {
 			count: reconnectCounter
 		};
 		this._telemetryService.publicLog('terminalReconnection', data);
-		this._connectionState = TerminalConnectionState.Connected;
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
 		this.attachProcessLayoutListeners(true);
-		this._onDidChangeConnectionState.fire();
 	}
 
 	private async _reconnectToLocalTerminals(): Promise<void> {
+		if (!this._localTerminalService) {
+			return;
+		}
 		// Reattach to all local terminals
-		const layoutInfo = await this._terminalInstanceService.getTerminalLayoutInfo();
+		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			this._recreateTerminalTabs(layoutInfo);
-			// now that terminals have been restored,
-			// attach listeners to update local state when terminals are changed
-			this.attachProcessLayoutListeners(false);
-		} else {
-			this.createTerminal();
-			this.attachProcessLayoutListeners(false);
 		}
-		this._connectionState = TerminalConnectionState.Connected;
-		this._onDidChangeConnectionState.fire();
+		// now that terminals have been restored,
+		// attach listeners to update local state when terminals are changed
+		this.attachProcessLayoutListeners(false);
 	}
 
 	private _recreateTerminalTabs(layoutInfo?: ITerminalsLayoutInfo): number {
@@ -207,18 +224,18 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create tab and terminal
-							terminalInstance = this.createTerminal({ attachPersistentTerminal: terminalLayout.terminal! });
+							terminalInstance = this.createTerminal({ attachPersistentProcess: terminalLayout.terminal! });
 							tab = this._getTabForInstance(terminalInstance);
 							if (tabLayout.isActive) {
 								activeTab = tab;
 							}
 						} else {
 							// add split terminals to this tab
-							this.splitInstance(terminalInstance, { attachPersistentTerminal: terminalLayout.terminal! });
+							this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
 						}
 					});
 					const activeInstance = this.terminalInstances.find(t => {
-						return t.shellLaunchConfig.attachPersistentTerminal?.id === tabLayout.activePersistentTerminalId;
+						return t.shellLaunchConfig.attachPersistentProcess?.id === tabLayout.activePersistentProcessId;
 					});
 					if (activeInstance) {
 						this.setActiveInstance(activeInstance);
@@ -237,6 +254,9 @@ export class TerminalService implements ITerminalService {
 		this.onActiveTabChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onActiveInstanceChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 		this.onInstancesChanged(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
+		// The state must be updated when the terminal is relaunched, otherwise the persistent
+		// terminal ID will be stale and the process will be leaked.
+		this.onInstanceProcessIdReady(() => isRemote ? this._updateRemoteState() : this._updateLocalState());
 	}
 
 	public setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void {
@@ -260,18 +280,6 @@ export class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined);
 	}
 
-	public async requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined> {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-		// Wait for the remoteAuthority to be ready (and listening for events) before firing
-		// the event to spawn the ext host process
-		const conn = this._remoteAgentService.getConnection();
-		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
-		await this._whenExtHostReady(remoteAuthority);
-		return new Promise<ITerminalLaunchError | undefined>(callback => {
-			this._onInstanceRequestSpawnExtHostProcess.fire({ proxy, shellLaunchConfig, activeWorkspaceRootUri, cols, rows, isWorkspaceShellAllowed, callback });
-		});
-	}
-
 	public requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
@@ -284,8 +292,83 @@ export class TerminalService implements ITerminalService {
 		this._extHostsReady[remoteAuthority]!.resolve();
 	}
 
+	public getAvailableProfiles(): ITerminalProfile[] {
+		this._updateAvailableProfiles();
+		return this._availableProfiles?.map(p => ({ profileName: p.profileName, path: p.path, args: p.args, isWorkspaceProfile: this._getWorkspaceProfilePermissions(p) } as ITerminalProfile)) || [];
+	}
+
+	private _getWorkspaceProfilePermissions(profile: ITerminalProfile): boolean {
+		if (isWindows) {
+			const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(`terminal.integrated.profiles.windows`);
+			if (profiles && profiles.workspaceValue && profiles.defaultValue) {
+				const workspaceProfile = Object.entries(profiles.workspaceValue).find(p => p[0] === profile.profileName);
+				const defaultProfile = Object.entries(profiles.defaultValue).find(p => p[0] === profile.profileName);
+				if (workspaceProfile && defaultProfile && workspaceProfile[0] === defaultProfile[0]) {
+					let result = !this._terminalProfileObjectEqual(workspaceProfile[1], defaultProfile[1]);
+					return result;
+				} else if (!workspaceProfile && !defaultProfile) {
+					// user profile
+					return false;
+				} else {
+					// this key is missing from either default or the workspace config
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private _terminalProfileObjectEqual(one?: ITerminalProfileObject, two?: ITerminalProfileObject): boolean {
+		if (one === null && two === null) {
+			return true;
+		} else if ((one as ITerminalExecutable).path && (two as ITerminalExecutable).path) {
+			const oneExec = (one as ITerminalExecutable);
+			const twoExec = (two as ITerminalExecutable);
+			return ((Array.isArray(oneExec.path) && Array.isArray(twoExec.path) && oneExec.path.length === twoExec.path.length && oneExec.path.every((p, index) => p === twoExec.path[index])) ||
+				(oneExec.path === twoExec.path)
+			) && ((Array.isArray(oneExec.args) && Array.isArray(twoExec.args) && oneExec.args?.every((a, index) => a === twoExec.args?.[index])) ||
+				(oneExec.args === twoExec.args)
+				);
+		} else if ((one as ITerminalProfileSource).source && (two as ITerminalProfileSource).source) {
+			const oneSource = (one as ITerminalProfileSource);
+			const twoSource = (two as ITerminalProfileSource);
+			return oneSource.source === twoSource.source;
+		}
+		return false;
+	}
+
+	// when relevant config changes, update without debouncing
+	private async _updateAvailableProfilesNow(): Promise<void> {
+		const result = await this._detectProfiles(true);
+		if (result !== this._availableProfiles) {
+			this._availableProfiles = result;
+			this._onProfilesConfigChanged.fire();
+		}
+	}
+
+	// avoid checking this very often, every ten seconds shoulds suffice
+	@throttle(10000)
+	private async _updateAvailableProfiles(): Promise<void> {
+		const result = await this._detectProfiles(true);
+		if (result !== this._availableProfiles) {
+			this._availableProfiles = result;
+			this._onProfilesConfigChanged.fire();
+		}
+	}
+
+	private async _detectProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		// Wait for the remoteAuthority to be ready (and listening for events) before firing
+		// the event to spawn the ext host process
+		const conn = this._remoteAgentService.getConnection();
+		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+		await this._whenExtHostReady(remoteAuthority);
+		return new Promise(r => this._onRequestAvailableProfiles.fire({ callback: r, quickLaunchOnly: quickLaunchOnly }));
+	}
+
 	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
+		this._updateAvailableProfiles();
 		return this._extHostsReady[remoteAuthority]!.promise;
 	}
 
@@ -332,13 +415,19 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 
-		// Force dispose of all terminal instances
-		this.terminalInstances.forEach(instance => instance.dispose(true));
-		this._terminalInstanceService.setTerminalLayoutInfo(undefined);
+		// Force dispose of all terminal instances, don't force immediate disposal of the terminal
+		// processes on Windows as an additional mitigation for https://github.com/microsoft/vscode/issues/71966
+		// which causes the pty host to become unresponsive, disconnecting all terminals across all
+		// windows
+		this.terminalInstances.forEach(instance => instance.dispose(!isWindows));
+
+		this._localTerminalService!.setTerminalLayoutInfo(undefined);
 	}
 
 	public getTabLabels(): string[] {
-		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => `${index + 1}: ${tab.title ? tab.title : ''}`);
+		return this._terminalTabs.filter(tab => tab.terminalInstances.length > 0).map((tab, index) => {
+			return `${index + 1}: ${tab.title ? tab.title : ''}`;
+		});
 	}
 
 	public getFindState(): FindReplaceState {
@@ -360,7 +449,7 @@ export class TerminalService implements ITerminalService {
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
 		};
-		this._terminalInstanceService.setTerminalLayoutInfo(state);
+		this._localTerminalService!.setTerminalLayoutInfo(state);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
@@ -433,7 +522,7 @@ export class TerminalService implements ITerminalService {
 	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				bgIndex = i;
 			}
 		});
@@ -457,7 +546,7 @@ export class TerminalService implements ITerminalService {
 		if (terminalInstance.shellLaunchConfig.hideFromUser) {
 			this._showBackgroundTerminal(terminalInstance);
 		}
-		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.id));
+		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.instanceId));
 	}
 
 	public setActiveTabByIndex(tabIndex: number): void {
@@ -481,16 +570,10 @@ export class TerminalService implements ITerminalService {
 	public async initializeTerminals(): Promise<void> {
 		if (this._remoteTerminalsInitPromise) {
 			await this._remoteTerminalsInitPromise;
-
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
 		} else if (this._localTerminalsInitPromise) {
 			await this._localTerminalsInitPromise;
-			if (!this.terminalTabs.length) {
-				this.createTerminal();
-			}
-		} else if (!this.terminalTabs.length) {
+		}
+		if (this.terminalTabs.length === 0 && this.isProcessSupportRegistered) {
 			this.createTerminal();
 		}
 	}
@@ -575,7 +658,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onLinksReady(this._onInstanceLinksReady.fire, this._onInstanceLinksReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => {
 			this._onInstanceDimensionsChanged.fire(instance);
-			if (this.configHelper.config.enablePersistentSessions) {
+			if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
 				!!this._environmentService.remoteAuthority ? this._updateRemoteState() : this._updateLocalState();
 			}
 		}));
@@ -642,7 +725,7 @@ export class TerminalService implements ITerminalService {
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.terminalInstances.forEach((terminalInstance, i) => {
-			if (terminalInstance.id === terminalId) {
+			if (terminalInstance.instanceId === terminalId) {
 				terminalIndex = i;
 			}
 		});
@@ -744,19 +827,8 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
-	public async selectDefaultShell(): Promise<void> {
-		const shells = await this._detectShells();
-		const options: IPickOptions<IQuickPickItem> = {
-			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings")
-		};
-		const quickPickItems = shells.map((s): IQuickPickItem => {
-			return { label: s.label, description: s.path };
-		});
-		const value = await this._quickInputService.pick(quickPickItems, options);
-		if (!value) {
-			return undefined;
-		}
-		const shell = value.description;
+	public async selectDefaultProfile(): Promise<void> {
+		const profiles = await this._detectProfiles(false);
 		const env = await this._remoteAgentService.getEnvironment();
 		let platformKey: string;
 		if (env) {
@@ -764,11 +836,62 @@ export class TerminalService implements ITerminalService {
 		} else {
 			platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		}
-		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, shell, ConfigurationTarget.USER);
-	}
 
-	private _detectShells(): Promise<IShellDefinition[]> {
-		return new Promise(r => this._onRequestAvailableShells.fire({ callback: r }));
+		interface IProfileQuickPickItem extends IQuickPickItem {
+			profile: ITerminalProfile;
+		}
+		const options: IPickOptions<IProfileQuickPickItem> = {
+			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings"),
+			onDidTriggerItemButton: async (context) => {
+				const configKey = `terminal.integrated.profiles.${platformKey}`;
+				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
+				const existingProfiles = configProfiles.userValue ? Object.keys(configProfiles.userValue) : [];
+				const name = await this._quickInputService.input({
+					prompt: nls.localize('enterTerminalProfileName', "Enter profile name"),
+					value: context.item.profile.profileName,
+					validateInput: async input => {
+						if (existingProfiles.includes(input)) {
+							return nls.localize('terminalProfileAlreadyExists', "A profile already exists with that name");
+						}
+						return undefined;
+					}
+				});
+				if (!name) {
+					return;
+				}
+				const newConfigValue: { [key: string]: ITerminalProfileObject } = { ...configProfiles.userValue } ?? {};
+				newConfigValue[name] = {
+					path: context.item.profile.path,
+					args: context.item.profile.args
+				};
+				await this._configurationService.updateValue(configKey, newConfigValue, ConfigurationTarget.USER);
+			}
+		};
+		const quickPickItems = profiles.map((profile): IProfileQuickPickItem => {
+			const buttons: IQuickInputButton[] = [{
+				iconClass: ThemeIcon.asClassName(newQuickLaunchProfileIcon),
+				tooltip: nls.localize('createQuickLaunchProfile', "Create a quick launch profile based on this shell")
+			}];
+			if (profile.args) {
+				if (typeof profile.args === 'string') {
+					return { label: profile.profileName, description: `${profile.path} ${profile.args}`, profile, buttons };
+				}
+				const argsString = profile.args.map(e => {
+					if (e.includes(' ')) {
+						return `"${e.replace('/"/g', '\\"')}"`;
+					}
+					return e;
+				}).join(' ');
+				return { label: profile.profileName, description: `${profile.path} ${argsString}`, profile, buttons };
+			}
+			return { label: profile.profileName, description: profile.path, profile, buttons };
+		});
+		const value = await this._quickInputService.pick(quickPickItems, options);
+		if (!value) {
+			return;
+		}
+		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
+		await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
 	}
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
@@ -785,7 +908,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		if (!this.isProcessSupportRegistered) {
+		if (!shell.isExtensionCustomPtyTerminal && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shell.hideFromUser) {

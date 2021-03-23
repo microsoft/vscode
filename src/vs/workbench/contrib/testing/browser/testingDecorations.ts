@@ -22,12 +22,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
-import { IncrementalTestCollectionItem, IRichLocation, ITestMessage, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, IRichLocation, ITestMessage, TestDiffOpType, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -125,7 +125,20 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
-		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, () => this.setDecorations(uri!));
+		const collection = this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, diff => {
+			this.setDecorations(uri!);
+
+			for (const op of diff) {
+				if (op[0] === TestDiffOpType.Add && !op[1].parent) {
+					collection.object?.expand(op[1].item.extId, Infinity);
+				}
+			}
+		});
+
+		for (const root of collection.object.rootIds) {
+			collection.object.expand(root, Infinity);
+		}
+
 		this.setDecorations(uri);
 	}
 
@@ -141,7 +154,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				const stateLookup = this.results.getStateById(test.item.extId);
 				if (hasValidLocation(uri, test.item)) {
 					newDecorations.push(this.instantiationService.createInstance(
-						RunTestDecoration, test, test.item.location, this.editor, stateLookup?.[1]));
+						RunTestDecoration, test, ref.object, test.item.location, this.editor, stateLookup?.[1]));
 				}
 
 				if (!stateLookup) {
@@ -227,6 +240,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 
 	constructor(
 		private readonly test: IncrementalTestCollectionItem,
+		private readonly collection: IMainThreadTestCollection,
 		private readonly location: IRichLocation,
 		private readonly editor: ICodeEditor,
 		stateItem: TestResultItem | undefined,
@@ -237,7 +251,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		super();
 		this.line = location.range.startLineNumber;
 
-		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestRunState.Unset
+		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResult.Unset
 			? testingStatesToIcons.get(stateItem.computedState)!
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
 
@@ -282,7 +296,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		} else {
 			// todo: customize click behavior
 			this.testService.runTests({
-				tests: [{ testId: this.test.item.extId, providerId: this.test.providerId }],
+				tests: [{ testId: this.test.item.extId, src: this.test.src }],
 				debug: false,
 			});
 		}
@@ -304,19 +318,30 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		if (this.test.item.runnable) {
 			testActions.push(new Action('testing.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
 				debug: false,
-				tests: [{ providerId: this.test.providerId, testId: this.test.item.extId }],
+				tests: [{ src: this.test.src, testId: this.test.item.extId }],
 			})));
 		}
 
 		if (this.test.item.debuggable) {
 			testActions.push(new Action('testing.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
 				debug: true,
-				tests: [{ providerId: this.test.providerId, testId: this.test.item.extId }],
+				tests: [{ src: this.test.src, testId: this.test.item.extId }],
 			})));
 		}
 
 		testActions.push(new Action('testing.reveal', localize('reveal test', 'Reveal in Test Explorer'), undefined, undefined, async () => {
-			await this.commandService.executeCommand('vscode.revealTestInExplorer', this.test.item.extId);
+			const path = [this.test];
+			while (true) {
+				const parentId = path[0].parent;
+				const parent = parentId && this.collection.getNodeById(parentId);
+				if (!parent) {
+					break;
+				}
+
+				path.unshift(parent);
+			}
+
+			await this.commandService.executeCommand('vscode.revealTestInExplorer', path.map(t => t.item.extId));
 		}));
 
 		const breakpointActions = this.editor
