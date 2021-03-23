@@ -201,8 +201,11 @@ async function detectAvailableUnixProfiles(statProvider: IStatProvider, logServi
 	}
 
 	for (const [profileName, value] of Object.entries(configProfiles || {})) {
-		if (value === null) { detectedProfiles.delete(profileName); }
-		detectedProfiles.set(profileName, value);
+		if (value === null) {
+			detectedProfiles.delete(profileName);
+		} else {
+			detectedProfiles.set(profileName, value);
+		}
 	}
 
 	return await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
