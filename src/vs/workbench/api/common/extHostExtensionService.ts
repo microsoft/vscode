@@ -417,7 +417,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				get extensionMode() { return extensionMode; },
 				get extension() {
 					if (extension === undefined) {
-						extension = new Extension(this, extensionDescription.identifier, extensionDescription, extensionKind);
+						extension = new Extension(that, extensionDescription.identifier, extensionDescription, extensionKind);
 					}
 					return extension;
 				},
