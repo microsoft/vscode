@@ -393,6 +393,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			this.inputDone(false, false);
 			this.inputDone = undefined;
 		}
+		container.style.paddingLeft = '5px';
 		const value = editableData.startingValue || '';
 		const inputBox = new InputBox(container, this.contextViewService, {
 			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
