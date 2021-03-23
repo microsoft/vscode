@@ -206,7 +206,7 @@ registerAction2(class extends Action2 {
 });
 
 class ToggleRenderAction extends Action2 {
-	constructor(id: string, title: string | ICommandActionTitle, precondition: ContextKeyExpression | undefined, order: number, private readonly ignoreOutputs?: boolean, private readonly ignoreMetadata?: boolean) {
+	constructor(id: string, title: string | ICommandActionTitle, precondition: ContextKeyExpression | undefined, toggled: ContextKeyExpression | undefined, order: number, private readonly toggleOutputs?: boolean, private readonly toggleMetadata?: boolean) {
 		super({
 			id: id,
 			title: title,
@@ -215,20 +215,23 @@ class ToggleRenderAction extends Action2 {
 				id: MenuId.EditorTitle,
 				group: 'notebook',
 				when: precondition,
-				order: order
-			}]
+				order: order,
+			}],
+			toggled: toggled
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		if (this.ignoreOutputs !== undefined) {
-			configurationService.updateValue('notebook.diff.ignoreOutputs', this.ignoreOutputs);
+		if (this.toggleOutputs !== undefined) {
+			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
+			configurationService.updateValue('notebook.diff.ignoreOutputs', !oldValue);
 		}
 
-		if (this.ignoreMetadata !== undefined) {
-			configurationService.updateValue('notebook.diff.ignoreMetadata', this.ignoreMetadata);
+		if (this.toggleMetadata !== undefined) {
+			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
+			configurationService.updateValue('notebook.diff.ignoreMetadata', !oldValue);
 		}
 	}
 }
@@ -237,20 +240,8 @@ registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showOutputs',
 			{ value: localize('notebook.diff.showOutputs', "Show Outputs Differences"), original: 'Show Outputs Differences' },
-			ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ContextKeyExpr.notEquals('config.notebook.diff.ignoreOutputs', false)),
-			2,
-			false,
-			undefined
-		);
-	}
-});
-
-registerAction2(class extends ToggleRenderAction {
-	constructor() {
-		super(
-			'notebook.diff.hideOutputs',
-			{ value: localize('notebook.diff.hideOutputs', "Hide Outputs Differences"), original: 'Hide Outputs Differences' },
-			ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ContextKeyExpr.notEquals('config.notebook.diff.ignoreOutputs', true)),
+			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			ContextKeyExpr.notEquals('config.notebook.diff.ignoreOutputs', true),
 			2,
 			true,
 			undefined
@@ -262,19 +253,8 @@ registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showMetadata',
 			{ value: localize('notebook.diff.showMetadata', "Show Metadata Differences"), original: 'Show Metadata Differences' },
-			ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ContextKeyExpr.notEquals('config.notebook.diff.ignoreMetadata', false)),
-			1,
-			undefined,
-			false
-		);
-	}
-});
-
-registerAction2(class extends ToggleRenderAction {
-	constructor() {
-		super('notebook.diff.hideMetadata',
-			{ value: localize('notebook.diff.hideMetadata', "Hide Metadata Differences"), original: 'Hide Metadata Differences' },
-			ContextKeyExpr.and(ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID), ContextKeyExpr.notEquals('config.notebook.diff.ignoreMetadata', true)),
+			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
+			ContextKeyExpr.notEquals('config.notebook.diff.ignoreMetadata', true),
 			1,
 			undefined,
 			true
