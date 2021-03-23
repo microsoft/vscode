@@ -154,7 +154,7 @@ interface PortAttributes extends Attributes {
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
-	private static DEFAULTS = 'remote.unconfiguredPortsAttributes';
+	private static DEFAULTS = 'remote.otherPortsAttributes';
 	private static RANGE = /^(\d+)\-(\d+)$/;
 	private portsAttributes: PortAttributes[] = [];
 	private defaultPortAttributes: Attributes | undefined;
