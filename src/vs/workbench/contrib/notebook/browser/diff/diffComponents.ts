@@ -443,14 +443,14 @@ abstract class AbstractElementRenderer extends Disposable {
 		this.cell.layoutChange();
 	}
 
-	private _hideOutputsRaw() {
+	protected _hideOutputsRaw() {
 		if (this._outputEditorContainer) {
 			this._outputEditorContainer.style.display = 'none';
 			this.cell.rawOutputHeight = 0;
 		}
 	}
 
-	private _hideOutputsEmptyView() {
+	protected _hideOutputsEmptyView() {
 		this.cell.layoutChange();
 	}
 
@@ -931,6 +931,10 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 	}
 
 	_disposeOutput() {
+		this._hideOutputsRaw();
+		this._hideOutputsRenderer();
+		this._hideOutputsEmptyView();
+
 		this.cell.rawOutputHeight = 0;
 		this.cell.outputStatusHeight = 0;
 		this.templateData.outputHeaderContainer.style.display = 'none';
@@ -1314,6 +1318,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	_disposeOutput() {
+		this._hideOutputsRaw();
+		this._hideOutputsRenderer();
+		this._hideOutputsEmptyView();
+
 		this.cell.rawOutputHeight = 0;
 		this.cell.outputStatusHeight = 0;
 		this.templateData.outputHeaderContainer.style.display = 'none';
