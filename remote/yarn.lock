@@ -371,10 +371,10 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-vscode-oniguruma@1.3.1:
-  version "1.3.1"
-  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.3.1.tgz#e2383879c3485b19f533ec34efea9d7a2b14be8f"
-  integrity sha512-gz6ZBofA7UXafVA+m2Yt2zHKgXC2qedArprIsHAPKByTkwq9l5y/izAGckqxYml7mSbYxTRTfdRwsFq3cwF4LQ==
+vscode-oniguruma@1.5.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.5.0.tgz#d2235868efe933c5796fdc687cfcd644407259b1"
+  integrity sha512-5MgXSXvwy2GBy8BRi1Pegk+60LAHiY184cW93Fe1SmA9oPu8fRV3G9Yurbhkh/0hrb0E0/VK4JPieBX66gkftQ==
 
 vscode-proxy-agent@^0.8.1:
   version "0.8.1"
@@ -399,10 +399,10 @@ vscode-ripgrep@^1.11.1:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
 
-vscode-textmate@5.2.0:
-  version "5.2.0"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.2.0.tgz#01f01760a391e8222fe4f33fbccbd1ad71aed74e"
-  integrity sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ==
+vscode-textmate@5.3.0:
+  version "5.3.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.3.0.tgz#476f280939edff863de52685fdf4213b27a1c6ff"
+  integrity sha512-Pz9ukuyb9TY1pnsAZC0rRevRPeHIJFEm7f5bzFvb4StK8DIGbnKRN+XTijgkWVeYNVmDI8HY6KHgUKdxFb1QCg==
 
 vscode-windows-ca-certs@0.3.0:
   version "0.3.0"
