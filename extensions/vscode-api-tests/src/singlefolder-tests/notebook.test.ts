@@ -213,7 +213,8 @@ suite('Notebook API tests', function () {
 							language: 'typescript',
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [],
-							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
+							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } }),
+							latestExecutionSummary: { duration: 25 }
 						},
 						{
 							source: 'test2',
@@ -1340,12 +1341,7 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cells[0];
 
 		assert.strictEqual(cell.latestExecutionSummary?.success, undefined);
-		assert.strictEqual(cell.latestExecutionSummary?.executionOrder, undefined);
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		assert.strictEqual(cell.outputs.length, 1, 'should execute');
-		assert.ok(cell.latestExecutionSummary);
-		assert.strictEqual(cell.latestExecutionSummary!.success, true);
-		assert.strictEqual(typeof cell.latestExecutionSummary!.executionOrder, 'number');
+		assert.strictEqual(cell.latestExecutionSummary?.duration, 25);
 
 		await saveAllFilesAndCloseAll(undefined);
 	});
