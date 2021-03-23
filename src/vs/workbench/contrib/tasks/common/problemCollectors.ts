@@ -433,7 +433,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}, 500)(async (markerEvent) => {
 					markerChanged?.dispose();
 					markerChanged = undefined;
-					if (!markerEvent.includes(modelEvent.uri)) {
+					if (!markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
 						return;
 					}
 					const oldLines = Array.from(this.lines);
