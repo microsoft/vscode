@@ -389,7 +389,7 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
+UndoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
 	if (explorerService.hasViewFocus() && undoRedoService.canUndo(UNDO_REDO_SOURCE)) {
@@ -400,7 +400,7 @@ UndoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
 	return false;
 });
 
-RedoCommand.addImplementation(110, (accessor: ServicesAccessor) => {
+RedoCommand.addImplementation(110, 'explorer', (accessor: ServicesAccessor) => {
 	const undoRedoService = accessor.get(IUndoRedoService);
 	const explorerService = accessor.get(IExplorerService);
 	if (explorerService.hasViewFocus() && undoRedoService.canRedo(UNDO_REDO_SOURCE)) {

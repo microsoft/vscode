@@ -286,7 +286,7 @@ CommandsRegistry.registerCommand({
 });
 
 function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
-	command?.addImplementation(105, (accessor) => {
+	command?.addImplementation(105, 'extensions-editor', (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
 		if (editor instanceof ExtensionEditor) {
