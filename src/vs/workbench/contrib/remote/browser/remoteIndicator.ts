@@ -149,6 +149,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					}
 				}));
 			}
+		} else {
+			this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.updateRemoteStatusIndicator()));
 		}
 	}
 
