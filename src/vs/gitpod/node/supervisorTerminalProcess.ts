@@ -3,15 +3,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
-import { GetTerminalRequest, ListenTerminalRequest, ListenTerminalResponse, OpenTerminalRequest, OpenTerminalResponse, SetTerminalSizeRequest, ShutdownTerminalRequest, Terminal, TerminalSize, WriteTerminalRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
-import { status } from '@grpc/grpc-js';
+import { GetTerminalRequest, ListenTerminalRequest, ListenTerminalResponse, OpenTerminalRequest, SetTerminalSizeRequest, ShutdownTerminalRequest, Terminal, TerminalSize, WriteTerminalRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
+import { Metadata, status } from '@grpc/grpc-js';
 import * as util from 'util';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalChildProcess, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
-import { IRemoteTerminalProcessEvent, IRemoteTerminalProcessReplayEvent, ReplayEntry } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
+import { IRemoteTerminalProcessEvent, IRemoteTerminalProcessReplayEvent } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 
 export interface OpenSupervisorTerminalProcessOptions {
 	shell: string
@@ -28,7 +29,12 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 
 	private exitCode: number | undefined;
 	private closeTimeout: any;
-	alias?: string;
+	syncState: Terminal.AsObject | undefined;
+	get alias(): string | undefined {
+		return this.syncState?.alias;
+	}
+
+	private readonly _recorder = new TerminalRecorder(1, 1);
 
 	private readonly _onProcessData = this.add(new Emitter<string>());
 	get onProcessData(): Event<string> { return this._onProcessData.event; }
@@ -56,8 +62,8 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		readonly id: number,
 		private readonly terminalServiceClient: TerminalServiceClient,
 		private initialCwd: string,
-		private readonly workspaceId: string,
-		private readonly workspaceName: string,
+		readonly workspaceId: string,
+		readonly workspaceName: string,
 		readonly shouldPersist: boolean,
 		private readonly logService: ILogService,
 		private readonly openOptions?: OpenSupervisorTerminalProcessOptions
@@ -101,8 +107,11 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			request.getAnnotationsMap().set('workspaceName', this.workspaceName);
 			request.getAnnotationsMap().set('shouldPersistTerminal', String(this.shouldPersist));
 			request.setSize(this.toSize(this.openOptions.cols, this.openOptions.rows));
-			const response = await util.promisify<OpenTerminalRequest, OpenTerminalResponse>(this.terminalServiceClient.open.bind(this.terminalServiceClient))(request);
-			this.alias = response.getTerminal()!.getAlias();
+
+			const response = await util.promisify(this.terminalServiceClient.open.bind(this.terminalServiceClient, request, new Metadata(), {
+				deadline: Date.now() + 30000
+			}))();
+			this.syncState = response.getTerminal()!.toObject();
 			this.initialCwd = response.getTerminal()!.getCurrentWorkdir() || response.getTerminal()!.getInitialWorkdir();
 
 			this._onProcessReady.fire({ pid: response.getTerminal()!.getPid(), cwd: this.initialCwd });
@@ -203,7 +212,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			}
 			if (notFound) {
 				this.shutdownImmediate();
-			} else if (typeof exitCode !== undefined) {
+			} else if (typeof exitCode === 'number') {
 				this.exitCode = exitCode;
 				this.shutdownGracefully();
 			}
@@ -229,7 +238,9 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		try {
 			const request = new ShutdownTerminalRequest();
 			request.setAlias(this.alias);
-			await util.promisify(this.terminalServiceClient.shutdown.bind(this.terminalServiceClient))(request);
+			await util.promisify(this.terminalServiceClient.shutdown.bind(this.terminalServiceClient, request, new Metadata(), {
+				deadline: Date.now() + 5000
+			}))();
 		} catch (e) {
 			if (e && e.code === status.NOT_FOUND) {
 				// Swallow, the pty has already been killed
@@ -256,7 +267,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		const request = new WriteTerminalRequest();
 		request.setAlias(this.alias);
 		request.setStdin(Buffer.from(data));
-		this.terminalServiceClient.write(request, e => {
+		this.terminalServiceClient.write(request, new Metadata(), { deadline: Date.now() + 5000 }, e => {
 			if (e && e.code !== status.NOT_FOUND) {
 				this.logService.error(`code server: ${this.id}:${this.alias} terminal: write failed:`, e);
 			}
@@ -275,7 +286,7 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		request.setAlias(this.alias);
 		request.setSize(size);
 		request.setForce(true);
-		this.terminalServiceClient.setSize(request, e => {
+		this.terminalServiceClient.setSize(request, new Metadata(), { deadline: Date.now() + 5000 }, e => {
 			if (e && e.code !== status.NOT_FOUND) {
 				this.logService.error(`code server: ${this.id}:${this.alias} terminal: resize failed:`, e);
 			}
@@ -293,7 +304,9 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 		try {
 			const request = new GetTerminalRequest();
 			request.setAlias(this.alias);
-			const terminal = await util.promisify<GetTerminalRequest, Terminal>(this.terminalServiceClient.get.bind(this.terminalServiceClient))(request);
+			const terminal = await util.promisify(this.terminalServiceClient.get.bind(this.terminalServiceClient, request, new Metadata(), {
+				deadline: Date.now() + 5000
+			}))();
 			return terminal.getCurrentWorkdir();
 		} catch {
 			return this.initialCwd;
@@ -310,50 +323,25 @@ export class SupervisorTerminalProcess extends DisposableStore implements ITermi
 			clearTimeout(this.closeTimeout);
 			this.shutdownGracefully();
 		}
-		this.record(data);
+		this._recorder.recordData(data);
 	}
 
 	private toSize(cols: number, rows: number): TerminalSize | undefined {
 		if (typeof cols !== 'number' || typeof rows !== 'number' || isNaN(cols) || isNaN(rows)) {
 			return undefined;
 		}
-		this.recording.cols = Math.max(cols, 1);
-		this.recording.rows = Math.max(rows, 1);
 		const size = new TerminalSize();
-		size.setCols(this.recording.cols);
-		size.setRows(this.recording.rows);
+		size.setCols(Math.max(cols, 1));
+		size.setRows(Math.max(rows, 1));
+		this._recorder.recordResize(size.getCols(), size.getRows());
 		return size;
 	}
 
-	private recording: ReplayEntry = {
-		data: '',
-		cols: 0,
-		rows: 0
-	};
-	private readonly maxRecodingSize = 256 << 10;
-	private recordingOffset = 0;
 	private replay(): IRemoteTerminalProcessReplayEvent {
 		return {
 			type: 'replay',
-			events: [this.recording]
+			events: this._recorder.generateReplayEvent().events
 		};
-	}
-	private record(buf: string): void {
-		// If the buffer is larger than ours, then we only care
-		// about the last size bytes anyways
-		if (buf.length > this.maxRecodingSize) {
-			buf = buf.substr(buf.length - this.maxRecodingSize);
-		}
-
-		// Copy in place
-		const remainingOffset = this.maxRecodingSize - this.recordingOffset;
-		this.recording.data = this.recording.data.substr(0, this.recordingOffset) + buf;
-		if (buf.length > remainingOffset) {
-			this.recording.data = buf.substr(0, remainingOffset) + this.recording.data.substr(remainingOffset);
-		}
-
-		// Update location of the cursor
-		this.recordingOffset = (this.recordingOffset + buf.length) % this.maxRecodingSize;
 	}
 
 }

@@ -1,11 +1,10 @@
 FROM gitpod/workspace-full:latest
 
-FROM gitpod/workspace-full:latest
-
+# We use latest major version of Node.js distributed VS Code. (see about dialog in your local VS Code)
 RUN bash -c ". .nvm/nvm.sh \
-    && nvm install 12.18.3 \
-    && nvm use 12.18.3 \
-    && nvm alias default 12.18.3"
+    && nvm install 12 \
+    && nvm use 12 \
+    && nvm alias default 12"
 
 RUN echo "nvm use default &>/dev/null" >> ~/.bashrc.d/51-nvm-fix
 

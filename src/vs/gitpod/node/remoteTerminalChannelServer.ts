@@ -4,7 +4,8 @@
 
 import { TaskStatus } from '@gitpod/supervisor-api-grpc/lib/status_pb';
 import { TerminalServiceClient } from '@gitpod/supervisor-api-grpc/lib/terminal_grpc_pb';
-import { ListTerminalsRequest, ListTerminalsResponse } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
+import { ListTerminalsRequest } from '@gitpod/supervisor-api-grpc/lib/terminal_pb';
+import { Metadata } from '@grpc/grpc-js';
 import * as os from 'os';
 import * as path from 'path';
 import * as util from 'util';
@@ -27,7 +28,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
-import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IGetTerminalCwdArguments, IGetTerminalInitialCwdArguments, IOnTerminalProcessEventArguments, IRemoteTerminalDescriptionDto, IResizeTerminalProcessArguments, ISendCharCountToTerminalProcessArguments, ISendInputToTerminalProcessArguments, IShutdownTerminalProcessArguments, IStartTerminalProcessArguments, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IGetTerminalCwdArguments, IGetTerminalInitialCwdArguments, IOnTerminalProcessEventArguments, IResizeTerminalProcessArguments, ISendCharCountToTerminalProcessArguments, ISendInputToTerminalProcessArguments, IShutdownTerminalProcessArguments, IStartTerminalProcessArguments, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteTerminalAttachTarget } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
@@ -357,46 +358,8 @@ export class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentCo
 		}*/
 		if (command === '$listTerminals') {
 			try {
-				const result: IRemoteTerminalDescriptionDto[] = [];
-				const tasks = await this.synchingTasks;
-				const response = await util.promisify<ListTerminalsRequest, ListTerminalsResponse>(this.terminalServiceClient.list.bind(this.terminalServiceClient))(new ListTerminalsRequest());
-				for (const terminal of response.getTerminalsList()) {
-					const alias = terminal.getAlias();
-					const id = this.aliasToId.get(alias);
-					const annotations = terminal.getAnnotationsMap();
-					const workspaceId = annotations.get('workspaceId') || '';
-					const workspaceName = annotations.get('workspaceName') || '';
-					const shouldPersistTerminal = tasks.has(alias) || Boolean(annotations.get('shouldPersistTerminal'));
-					let terminalProcess: SupervisorTerminalProcess | undefined;
-					if (!id) {
-						terminalProcess = this.createTerminalProcess(
-							terminal.getInitialWorkdir(),
-							workspaceId,
-							workspaceName,
-							shouldPersistTerminal
-						);
-						this.terminalProcesses.set(terminalProcess.id, terminalProcess);
-
-						terminalProcess.alias = alias;
-						this.attachTerminalProcess(terminalProcess);
-					} else {
-						terminalProcess = this.terminalProcesses.get(id);
-					}
-					if (!terminalProcess) {
-						continue;
-					}
-
-					result.push({
-						id: terminalProcess.id,
-						cwd: terminal.getCurrentWorkdir(),
-						pid: terminal.getPid(),
-						title: terminal.getTitle(),
-						workspaceId,
-						workspaceName,
-						isOrphan: true
-					});
-				}
-
+				const state = await this.sync();
+				const result: IRemoteTerminalAttachTarget[] = [...state.terminals.values()];
 				return result;
 			} catch (e) {
 				this.logService.error('code server: failed to list remote terminals:', e);
@@ -405,125 +368,7 @@ export class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentCo
 		}
 		if (command === '$getTerminalLayoutInfo') {
 			try {
-				const args: IGetTerminalLayoutInfoArgs = arg;
-
-				const tasks = await this.synchingTasks;
-				const response = await util.promisify<ListTerminalsRequest, ListTerminalsResponse>(this.terminalServiceClient.list.bind(this.terminalServiceClient))(new ListTerminalsRequest());
-				const workspaceTerminals = new Set<number>();
-				const targets = new Map<number, IRemoteTerminalAttachTarget>();
-				for (const terminal of response.getTerminalsList()) {
-					const alias = terminal.getAlias();
-					const id = this.aliasToId.get(alias);
-					const annotations = terminal.getAnnotationsMap();
-					const workspaceId = annotations.get('workspaceId') || '';
-					const workspaceName = annotations.get('workspaceName') || '';
-					const shouldPersistTerminal = tasks.has(alias) || Boolean(annotations.get('shouldPersistTerminal'));
-					let terminalProcess: SupervisorTerminalProcess | undefined;
-					if (!id) {
-						terminalProcess = this.createTerminalProcess(
-							terminal.getInitialWorkdir(),
-							workspaceId,
-							workspaceName,
-							shouldPersistTerminal
-						);
-						this.terminalProcesses.set(terminalProcess.id, terminalProcess);
-
-						terminalProcess.alias = alias;
-						this.attachTerminalProcess(terminalProcess);
-					} else {
-						terminalProcess = this.terminalProcesses.get(id);
-					}
-					if (!terminalProcess) {
-						continue;
-					}
-
-					if (workspaceId === args.workspaceId) {
-						workspaceTerminals.add(terminalProcess.id);
-					}
-					if (workspaceId === args.workspaceId || tasks.has(alias)) {
-						targets.set(terminalProcess.id, {
-							id: terminalProcess.id,
-							cwd: terminal.getCurrentWorkdir(),
-							pid: terminal.getPid(),
-							title: terminal.getTitle(),
-							workspaceId,
-							workspaceName,
-							isOrphan: true
-						});
-					}
-				}
-
-				const result: ITerminalsLayoutInfo = { tabs: [] };
-				if (this.layoutInfo.has(args.workspaceId)) {
-					// restoring layout
-					for (const tab of this.layoutInfo.get(args.workspaceId)!) {
-						result.tabs.push({
-							...tab,
-							terminals: tab.terminals.map(terminal => {
-								const target = targets.get(terminal.terminal) || null;
-								return {
-									...terminal,
-									terminal: target
-								};
-							})
-						});
-					}
-				} else {
-					// initial layout
-					type Tab = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
-					let currentTab: Tab | undefined;
-					let currentTerminal: IRemoteTerminalAttachTarget | undefined;
-					const layoutTerminal = (terminal: IRemoteTerminalAttachTarget, mode: TerminalOpenMode = defaultOpenMode) => {
-						if (!currentTab) {
-							currentTab = {
-								isActive: false,
-								activePersistentTerminalId: terminal.id,
-								terminals: [{ relativeSize: 1, terminal }]
-							};
-							result.tabs.push(currentTab);
-						} else if (mode === 'tab-after' || mode === 'tab-before') {
-							const tab: Tab = {
-								isActive: false,
-								activePersistentTerminalId: terminal.id,
-								terminals: [{ relativeSize: 1, terminal }]
-							};
-							const currentIndex = result.tabs.indexOf(currentTab);
-							const direction = mode === 'tab-after' ? 1 : -1;
-							result.tabs.splice(currentIndex + direction, 0, tab);
-							currentTab = tab;
-						} else {
-							currentTab.activePersistentTerminalId = terminal.id;
-							let currentIndex = -1;
-							const relativeSize = 1 / (currentTab.terminals.length + 1);
-							currentTab.terminals.forEach((info, index) => {
-								info.relativeSize = relativeSize;
-								if (info.terminal === currentTerminal) {
-									currentIndex = index;
-								}
-							});
-							const direction = (mode === 'split-right' || mode === 'split-bottom') ? 1 : -1;
-							currentTab.terminals.splice(currentIndex + direction, 0, { relativeSize, terminal });
-						}
-						currentTerminal = terminal;
-					};
-					for (const [alias, status] of tasks) {
-						const id = this.aliasToId.get(alias);
-						const terminal = typeof id === 'number' && targets.get(id);
-						if (terminal) {
-							layoutTerminal(terminal, asTerminalOpenMode(status.getPresentation()?.getOpenMode()));
-						}
-					}
-					for (const id of workspaceTerminals) {
-						const terminal = targets.get(id);
-						if (terminal) {
-							layoutTerminal(terminal);
-						}
-					}
-					if (currentTab) {
-						currentTab.isActive = true;
-					}
-				}
-
+				const result = await this.getTerminalLayoutInfo(arg as IGetTerminalLayoutInfoArgs);
 				return result;
 			} catch (e) {
 				this.logService.error('code server: failed to get terminal layout info:', e);
@@ -550,4 +395,140 @@ export class RemoteTerminalChannelServer implements IServerChannel<RemoteAgentCo
 		this.logService.error('Unknown event: RemoteTerminalChannel.' + event);
 		throw new Error('Unknown event: RemoteTerminalChannel.' + event);
 	}
+
+	private async getTerminalLayoutInfo(arg: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo> {
+		const { tasks, terminals: targets } = await this.sync(arg);
+		const result: ITerminalsLayoutInfo = { tabs: [] };
+		if (this.layoutInfo.has(arg.workspaceId)) {
+			// restoring layout
+			for (const tab of this.layoutInfo.get(arg.workspaceId)!) {
+				result.tabs.push({
+					...tab,
+					terminals: tab.terminals.map(terminal => {
+						const target = targets.get(terminal.terminal) || null;
+						return {
+							...terminal,
+							terminal: target
+						};
+					})
+				});
+			}
+		} else {
+			// initial layout
+			type Tab = IRawTerminalTabLayoutInfo<IRemoteTerminalAttachTarget | null>;
+			let currentTab: Tab | undefined;
+			let currentTerminal: IRemoteTerminalAttachTarget | undefined;
+			const layoutTerminal = (terminal: IRemoteTerminalAttachTarget, mode: TerminalOpenMode = defaultOpenMode) => {
+				if (!currentTab) {
+					currentTab = {
+						isActive: false,
+						activePersistentTerminalId: terminal.id,
+						terminals: [{ relativeSize: 1, terminal }]
+					};
+					result.tabs.push(currentTab);
+				} else if (mode === 'tab-after' || mode === 'tab-before') {
+					const tab: Tab = {
+						isActive: false,
+						activePersistentTerminalId: terminal.id,
+						terminals: [{ relativeSize: 1, terminal }]
+					};
+					const currentIndex = result.tabs.indexOf(currentTab);
+					const direction = mode === 'tab-after' ? 1 : -1;
+					result.tabs.splice(currentIndex + direction, 0, tab);
+					currentTab = tab;
+				} else {
+					currentTab.activePersistentTerminalId = terminal.id;
+					let currentIndex = -1;
+					const relativeSize = 1 / (currentTab.terminals.length + 1);
+					currentTab.terminals.forEach((info, index) => {
+						info.relativeSize = relativeSize;
+						if (info.terminal === currentTerminal) {
+							currentIndex = index;
+						}
+					});
+					const direction = (mode === 'split-right' || mode === 'split-bottom') ? 1 : -1;
+					currentTab.terminals.splice(currentIndex + direction, 0, { relativeSize, terminal });
+				}
+				currentTerminal = terminal;
+			};
+			for (const [alias, status] of tasks) {
+				const id = this.aliasToId.get(alias);
+				if (typeof id !== 'number') {
+					continue;
+				}
+				const terminal = targets.get(id);
+				if (terminal) {
+					targets.delete(id);
+					layoutTerminal(terminal, asTerminalOpenMode(status.getPresentation()?.getOpenMode()));
+				}
+			}
+			for (const id of targets.keys()) {
+				const terminal = targets.get(id);
+				if (terminal) {
+					layoutTerminal(terminal);
+				}
+			}
+			if (currentTab) {
+				currentTab.isActive = true;
+			}
+		}
+
+		return result;
+	}
+
+	private async sync(arg?: IGetTerminalLayoutInfoArgs): Promise<{
+		tasks: Map<string, TaskStatus>,
+		terminals: Map<number, IRemoteTerminalAttachTarget>
+	}> {
+		const tasks = await this.synchingTasks;
+		try {
+			const response = await util.promisify(this.terminalServiceClient.list.bind(this.terminalServiceClient, new ListTerminalsRequest(), new Metadata(), {
+				deadline: Date.now() + 30000
+			}))();
+			for (const terminal of response.getTerminalsList()) {
+				const alias = terminal.getAlias();
+				const id = this.aliasToId.get(alias);
+				const annotations = terminal.getAnnotationsMap();
+				const workspaceId = annotations.get('workspaceId') || '';
+				const workspaceName = annotations.get('workspaceName') || '';
+				const shouldPersistTerminal = tasks.has(alias) || Boolean(annotations.get('shouldPersistTerminal'));
+				if (id) {
+					const terminalProcess = this.terminalProcesses.get(id);
+					if (terminalProcess) {
+						terminalProcess.syncState = terminal.toObject();
+					}
+				} else {
+					const terminalProcess = this.createTerminalProcess(
+						terminal.getInitialWorkdir(),
+						workspaceId,
+						workspaceName,
+						shouldPersistTerminal
+					);
+
+					terminalProcess.syncState = terminal.toObject();
+					this.attachTerminalProcess(terminalProcess);
+				}
+			}
+		} catch (e) {
+			console.error('code server: failed to sync terminals:', e);
+		}
+		const terminals = new Map<number, IRemoteTerminalAttachTarget>();
+		for (const terminal of this.terminalProcesses.values()) {
+			if (terminal.syncState && (!arg || (
+				arg.workspaceId === terminal.workspaceId || (terminal.alias && tasks.has(terminal.alias)))
+			)) {
+				terminals.set(terminal.id, {
+					id: terminal.id,
+					cwd: terminal.syncState.currentWorkdir,
+					pid: terminal.syncState.pid,
+					title: terminal.syncState.title,
+					workspaceId: terminal.workspaceId,
+					workspaceName: terminal.workspaceName,
+					isOrphan: true
+				});
+			}
+		}
+		return { tasks, terminals };
+	}
+
 }
