@@ -147,7 +147,7 @@ export class CopyNotificationMessageAction extends Action {
 }
 
 interface NotificationActionMetrics {
-	id: number;
+	id: string;
 	actionLabel: string;
 	source: string | undefined;
 }
@@ -170,7 +170,7 @@ export class NotificationActionRunner extends ActionRunner {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
 		if (context) {
 			// If the context is not present it is a "global" notification action. Will be captured by other events
-			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()), actionLabel: action.label, source: context.sourceId });
+			this.telemetryService.publicLog2<NotificationActionMetrics, NotificationActionMetricsClassification>('notification:actionExecuted', { id: hash(context.message.original.toString()).toString(), actionLabel: action.label, source: context.sourceId });
 		}
 
 		// Run and make sure to notify on any error again
