@@ -989,6 +989,15 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 					}
 				}
 				return undefined;
+			},
+			getColumnNumber: (): string | undefined => {
+				if (editorService) {
+					const activeEditor = editorService.activeEditor();
+					if (activeEditor) {
+						return String(activeEditor.selection.end.character + 1);
+					}
+				}
+				return undefined;
 			}
 		}, undefined, process.env);
 	}

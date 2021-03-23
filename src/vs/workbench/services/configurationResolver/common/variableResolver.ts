@@ -25,6 +25,7 @@ export interface IVariableResolveContext {
 	getFilePath(): string | undefined;
 	getWorkspaceFolderPathForFile?(): string | undefined;
 	getSelectedText(): string | undefined;
+	getColumnNumber(): string | undefined;
 	getLineNumber(): string | undefined;
 }
 
@@ -256,6 +257,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					case 'workspaceRootFolderName':
 					case 'workspaceFolderBasename':
 						return paths.basename(this.fsPath(getFolderUri()));
+
+					case 'columnNumber':
+						const columnNumber = this._context.getColumnNumber();
+						if (columnNumber) {
+							return columnNumber;
+						}
+						throw new Error(localize('canNotResolveColumnNumber', "Variable {0} can not be resolved. Make sure to have a line selected in the active editor.", match));
 
 					case 'lineNumber':
 						const lineNumber = this._context.getLineNumber();
