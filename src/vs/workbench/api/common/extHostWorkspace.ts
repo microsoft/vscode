@@ -563,8 +563,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._workspaceTrustState;
 	}
 
-	requireWorkspaceTrust(request?: vscode.WorkspaceTrustRequest): Promise<WorkspaceTrustState> {
-		return this._proxy.$requireWorkspaceTrust(request);
+	requireWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState> {
+		return this._proxy.$requireWorkspaceTrust(options);
 	}
 
 	$onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void {
