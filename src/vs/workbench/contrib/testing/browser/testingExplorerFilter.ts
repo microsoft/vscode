@@ -27,14 +27,19 @@ import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestExplorerStateFilter, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { TestIdPath } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
 	readonly text: ObservableValue<string>;
-	/** Reveal request, the extId of the test to reveal */
-	readonly reveal: ObservableValue<string | undefined>;
+	/**
+	 * Reveal request: the path to the test to reveal. The last element of the
+	 * array is the test the user wanted to reveal, and the previous
+	 * items are its parents.
+	*/
+	readonly reveal: ObservableValue<TestIdPath | undefined>;
 	readonly stateFilter: ObservableValue<TestExplorerStateFilter>;
 	readonly currentDocumentOnly: ObservableValue<boolean>;
 	/** Whether excluded test should be shown in the view */
@@ -62,7 +67,7 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	}, this.storage), false);
 
 	public readonly showExcludedTests = new ObservableValue(false);
-	public readonly reveal = new ObservableValue<string | undefined>(undefined);
+	public readonly reveal = new ObservableValue<TestIdPath | undefined>(undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
 

@@ -253,14 +253,22 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
 			await this.workingCopyFileService.move([{ file: { source, target } }]);
 
-			return this.save(target, options);
+			// At this point we don't know whether we have a
+			// model for the source or the target URI so we
+			// simply try to save with both resources.
+			const success = await this.save(source, options);
+			if (!success) {
+				await this.save(target, options);
+			}
+
+			return target;
 		}
 
 		// Do it
 		return this.doSaveAs(source, target, options);
 	}
 
-	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI> {
+	private async doSaveAs(source: URI, target: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 		let success = false;
 
 		// If the source is an existing text file model, we can directly
@@ -273,7 +281,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Otherwise if the source can be handled by the file service
 		// we can simply invoke the copy() function to save as
 		else if (this.fileService.canHandleResource(source)) {
-			await this.fileService.copy(source, target);
+			await this.fileService.copy(source, target, true);
 
 			success = true;
 		}
@@ -302,9 +310,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Revert the source if result is success
 		if (success) {
 			await this.revert(source);
+
+			return target;
 		}
 
-		return target;
+		return undefined;
 	}
 
 	private async doSaveAsTextFile(sourceModel: IResolvedTextEditorModel | ITextModel, source: URI, target: URI, options?: ITextFileSaveOptions): Promise<boolean> {
@@ -409,7 +419,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// save model
-		return await targetModel.save(options);
+		return targetModel.save(options);
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {

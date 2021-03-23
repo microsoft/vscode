@@ -93,7 +93,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.54.4",
+			"version": "1.55.0",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -123,7 +123,7 @@
 		},
 		{
 			"name": "ms-vscode.remotehub",
-			"version": "0.1.0",
+			"version": "0.1.2",
 			"repo": "https://github.com/microsoft/vscode-remotehub",
 			"metadata": {
 				"id": "ed0ffe1d-36f0-49a0-bafe-da68355eb33a",
@@ -140,7 +140,7 @@
 	"webBuiltInExtensions": [
 		{
 			"name": "ms-vscode.remotehub",
-			"version": "0.1.0",
+			"version": "0.1.2",
 			"repo": "https://github.com/microsoft/vscode-remotehub",
 			"metadata": {
 				"id": "ed0ffe1d-36f0-49a0-bafe-da68355eb33a",

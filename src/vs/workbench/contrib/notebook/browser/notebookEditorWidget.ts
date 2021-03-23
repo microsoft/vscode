@@ -717,6 +717,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			renderDropdownAsChildElement: true
 		});
 		this._register(this._topToolbar);
+		this._topToolbar.context = {
+			ui: true,
+			notebookEditor: this
+		};
 
 		this._showNotebookActionsinEditorToolbar();
 		this._register(this._notebookGlobalActionsMenu.onDidChange(() => {
@@ -2347,11 +2351,17 @@ export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
 	hc: contrastBorder
 }, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focused."));
 
+export const inactiveSelectedCellBorder = registerColor('notebook.inactiveSelectedCellBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('notebook.inactiveSelectedCellBorder', "The color of the cell's borders when multiple cells are selected."));
+
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	dark: focusBorder,
 	light: focusBorder,
 	hc: focusBorder
-}, nls.localize('notebook.focusedCellBorder', "The color of the cell's top and bottom border when the cell is focused."));
+}, nls.localize('notebook.focusedCellBorder', "The color of the cell's borders when the cell is focused."));
 
 export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
 	dark: notebookCellBorder,
@@ -2479,6 +2489,16 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-right { background-color: ${selectedCellBackgroundColor} !important; }`);
 		collector.addRule(`.notebookOverlay .monaco-list.selection-multiple .code-cell-row.selected .cell-focus-indicator-bottom { background-color: ${selectedCellBackgroundColor} !important; }`);
 	}
+
+	const inactiveSelectedCellBorderColor = theme.getColor(inactiveSelectedCellBorder);
+	collector.addRule(`
+			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-focus-indicator-top:before,
+			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-focus-indicator-bottom:before,
+			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
+			.notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
+					border-color: ${inactiveSelectedCellBorderColor} !important;
+			}
+	`);
 
 	const cellHoverBackgroundColor = theme.getColor(cellHoverBackground);
 	if (cellHoverBackgroundColor) {
@@ -2645,5 +2665,13 @@ registerThemingParticipant((theme, collector) => {
 
 	collector.addRule(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { height: ${BOTTOM_CELL_TOOLBAR_HEIGHT}px }`);
 	collector.addRule(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { height: ${BOTTOM_CELL_TOOLBAR_HEIGHT}px }`);
-	collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-left:before, .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-right:before { top: -${CELL_TOP_MARGIN}px; height: calc(100% + ${CELL_TOP_MARGIN + CELL_BOTTOM_MARGIN}px)}`);
+
+	// left and right border margins
+	collector.addRule(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-left:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-right:before,
+			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-left:before,
+			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-right:before {
+				top: -${CELL_TOP_MARGIN}px; height: calc(100% + ${CELL_TOP_MARGIN + CELL_BOTTOM_MARGIN}px)
+			}`);
 });

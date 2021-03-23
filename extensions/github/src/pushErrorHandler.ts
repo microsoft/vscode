@@ -32,7 +32,9 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 				}
 			} catch { }
 		} else {
-			// TODO@eamodio Figure out how to get the codespace id when on the desktop
+			// Call into the codespaces extension to get the codespace id
+			const info = await commands.executeCommand<{ name: string } | undefined>('github.codespaces.getCurrentCodespace');
+			codespace = info?.name;
 		}
 
 		if (!codespace) {

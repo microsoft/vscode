@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { TestResult } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -25,6 +25,11 @@ export interface ITestTreeProjection extends IDisposable {
 	 * Event that fires when the projection changes.
 	 */
 	onUpdate: Event<void>;
+
+	/**
+	 * Fired when an element in the tree is expanded.
+	 */
+	expandElement(element: ITestTreeElement, depth: number): void;
 
 	/**
 	 * Gets an element by its extension-assigned ID.
@@ -80,12 +85,17 @@ export interface ITestTreeElement {
 	/**
 	 * Tests that can be run using this tree item.
 	 */
-	readonly runnable: Iterable<TestIdWithProvider>;
+	readonly runnable: Iterable<TestIdWithSrc>;
 
 	/**
 	 * Tests that can be run using this tree item.
 	 */
-	readonly debuggable: Iterable<TestIdWithProvider>;
+	readonly debuggable: Iterable<TestIdWithSrc>;
+
+	/**
+	 * Expand state of the test.
+	 */
+	readonly expandable: TestItemExpandState;
 
 	/**
 	 * Element state to display.

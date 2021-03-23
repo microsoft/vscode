@@ -416,7 +416,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				get globalStorageUri() { return that._storagePath.globalValue(extensionDescription); },
 				get extensionMode() { return extensionMode; },
 				get extension() {
-					checkProposedApiEnabled(extensionDescription);
 					if (extension === undefined) {
 						extension = new Extension(this, extensionDescription.identifier, extensionDescription, extensionKind);
 					}

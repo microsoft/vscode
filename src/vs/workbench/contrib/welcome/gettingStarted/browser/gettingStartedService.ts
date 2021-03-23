@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -18,12 +18,18 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
-import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { BuiltinGettingStartedCategory, BuiltinGettingStartedItem, content } from 'vs/workbench/services/gettingStarted/common/gettingStartedContent';
+import { BuiltinGettingStartedCategory, BuiltinGettingStartedItem, content } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -136,6 +142,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private tasks = new Map<string, IGettingStartedTask>();
 
 	private tasExperimentService?: ITASExperimentService;
+	private sessionInstalledExtensions = new Set<string>();
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -144,6 +151,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IHostService private readonly hostService: IHostService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
@@ -164,6 +177,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 
 		this._register(this.commandService.onDidExecuteCommand(command => this.progressByCommand(command.commandId)));
+
+		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
+			if (await this.hostService.hadLastFocus()) {
+				this.sessionInstalledExtensions.add(e.identifier.id);
+			}
+		}));
 
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
 			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
@@ -212,7 +231,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				const existing = assertIsDefined(this.gettingStartedContributions.get(category.id));
 				existing.title = title ?? existing.title;
 				existing.description = description ?? existing.description;
-				console.log('hello', title, description, existing);
 				this._onDidChangeCategory.fire(this.getCategoryProgress(existing));
 			} else {
 				resolve({
@@ -277,16 +295,34 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 		};
 
+		let sectionToOpen: string | undefined;
+
 		if (!this.trackedExtensions.has(ExtensionIdentifier.toKey(extension.identifier))) {
 			this.trackedExtensions.add(ExtensionIdentifier.toKey(extension.identifier));
+			if (!(extension.contributes?.walkthroughs?.length)) {
+				return;
+			}
 
-			if ((extension.contributes?.walkthroughs?.length) && this.productService.quality === 'stable') {
+			if (this.productService.quality === 'stable') {
 				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but this is a Stable build and extension contributions are only available in Insiders. The contributed content will be disregarded.');
+				return;
+			}
+
+			if (!this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions')) {
+				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set.');
 				return;
 			}
 
 			extension.contributes?.walkthroughs?.forEach(section => {
 				const categoryID = extension.identifier.value + '#' + section.id;
+				if (
+					this.sessionInstalledExtensions.has(extension.identifier.value)
+					&& section.primary
+					&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true())
+				) {
+					this.sessionInstalledExtensions.delete(extension.identifier.value);
+					sectionToOpen = categoryID;
+				}
 				this.registerCategory({
 					content: { type: 'items' },
 					description: section.description,
@@ -322,6 +358,23 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					console.error('Error registering walkthrough tasks for ', categoryID, e);
 				}
 			});
+		}
+
+		if (sectionToOpen) {
+			for (const group of this.editorGroupsService.groups) {
+				if (group.activeEditor instanceof GettingStartedInput) {
+					(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(sectionToOpen);
+					return;
+				}
+			}
+
+			if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openToSide') {
+				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {}, SIDE_GROUP);
+			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'open') {
+				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {});
+			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openInBackground') {
+				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), { inactive: true });
+			}
 		}
 	}
 
@@ -425,7 +478,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (category.content.type !== 'items') { throw Error('Registering getting started task to category that is not of `items` type (' + task.category + ')'); }
 		if (this.tasks.has(task.id)) { throw Error('Attempting to register task with id ' + task.id + ' twice. Second is dropped.'); }
 		this.tasks.set(task.id, task);
-		const insertIndex = category.content.items.findIndex(item => item.order > task.order);
+		let insertIndex: number | undefined = category.content.items.findIndex(item => item.order > task.order);
+		if (insertIndex === -1) { insertIndex = undefined; }
+		insertIndex = insertIndex ?? category.content.items.length;
 		category.content.items.splice(insertIndex, 0, task);
 		this.registerDoneListeners(task);
 		this._onDidAddTask.fire(this.getTaskProgress(task));
@@ -460,7 +515,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
 	const convertPath = (path: string) => path.startsWith('https://')
 		? URI.parse(path, true)
-		: FileAccess.asBrowserUri('vs/workbench/services/gettingStarted/common/media/' + path, require);
+		: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 	if (typeof path === 'string') {
 		const converted = convertPath(path);
 		return { hc: converted, dark: converted, light: converted };

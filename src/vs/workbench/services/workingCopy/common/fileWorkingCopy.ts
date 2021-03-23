@@ -46,10 +46,15 @@ export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 export interface IFileWorkingCopyModel extends IDisposable {
 
 	/**
-	 * An even that fires whenever the content of the file working
-	 * copy model changes. The file working copy will listen to these
-	 * changes and mark the working copy as dirty whenever this event
-	 * fires.
+	 * This event signals ANY changes to the contents of the file
+	 * working copy model, for example:
+	 * - through the user typing into the editor
+	 * - from API usage (e.g. bulk edits)
+	 * - when `IFileWorkingCopyModel#update` is invoked with contents
+	 *   that are different from the current contents
+	 *
+	 * The file working copy will listen to these changes and mark
+	 * the working copy as dirty whenever this event fires.
 	 *
 	 * Note: ONLY report changes to the model but not the underlying
 	 * file. The file working copy is tracking changes to the file
@@ -75,6 +80,9 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 * behave in a similar fashion as `IFileWorkingCopyModelFactory#createModel`
 	 * except that here the model already exists and just needs to update to
 	 * the provided contents.
+	 *
+	 * Note: it is expected that the model fires a `onDidChangeContent` event
+	 * as part of the update.
 	 *
 	 * @param the contents to use for the model
 	 * @param token support for cancellation
@@ -169,6 +177,27 @@ export interface IFileWorkingCopy<T extends IFileWorkingCopyModel> extends IWork
 	 * Resolves a file working copy.
 	 */
 	resolve(options?: IFileWorkingCopyResolveOptions): Promise<void>;
+
+	/**
+	 * Explicitly sets the working copy to be dirty.
+	 */
+	markDirty(): void;
+
+	/**
+	 * Whether the file working copy is in the provided `state`
+	 * or not.
+	 *
+	 * @param state the `FileWorkingCopyState` to check on.
+	 */
+	hasState(state: FileWorkingCopyState): boolean;
+
+	/**
+	 * Allows to join a state change away from the provided `state`.
+	 *
+	 * @param state currently only `FileWorkingCopyState.PENDING_SAVE`
+	 * can be awaited on to resolve.
+	 */
+	joinState(state: FileWorkingCopyState.PENDING_SAVE): Promise<void>;
 
 	/**
 	 * Whether we have a resolved model or not.
@@ -419,7 +448,11 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.dirty;
 	}
 
-	setDirty(dirty: boolean): void {
+	markDirty(): void {
+		this.setDirty(true);
+	}
+
+	private setDirty(dirty: boolean): void {
 		if (!this.isResolved()) {
 			return; // only resolved working copies can be marked dirty
 		}
@@ -632,15 +665,16 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+			// if we are resolved
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 				return;
 			}
 
-			// Ignore when a working copy has been resolved once and the file was deleted
-			// meanwhile. Since we already have the working copy resolved, we can return to
-			// this state and update the orphaned flag to indicate that this working copy
-			// has no version on disk anymore.
-			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+			// Unless we are forced to read from the file, ignore when a working copy has
+			// been resolved once and the file was deleted meanwhile. Since we already have
+			// the working copy resolved, we can return to this state and update the orphaned
+			// flag to indicate that this working copy has no version on disk anymore.
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND && !forceReadFromFile) {
 				return;
 			}
 
@@ -1087,8 +1121,8 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	//#region Revert
 
 	async revert(options?: IRevertOptions): Promise<void> {
-		if (!this.isResolved()) {
-			return;
+		if (!this.isResolved() || (!this.dirty && !options?.force)) {
+			return; // ignore if not resolved or not dirty and not enforced
 		}
 
 		// Unset flags

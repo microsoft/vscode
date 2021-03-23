@@ -32,7 +32,7 @@ import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -1661,10 +1661,23 @@ export namespace TestItem {
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
+			expandable: item.expandable,
 		};
 	}
 
-	export function toPlainShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
+	export function fromResultSnapshot(item: vscode.TestResultSnapshot): ITestItem {
+		return {
+			extId: item.id,
+			label: item.label,
+			location: item.location ? location.from(item.location) as any : undefined,
+			debuggable: false,
+			description: item.description,
+			runnable: true,
+			expandable: true,
+		};
+	}
+
+	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
 			id: item.extId,
 			label: item.label,
@@ -1672,14 +1685,15 @@ export namespace TestItem {
 				range: item.location.range,
 				uri: URI.revive(item.location.uri)
 			}),
+			expandable: item.expandable,
 			debuggable: item.debuggable,
 			description: item.description,
 			runnable: item.runnable,
 		};
 	}
 
-	export function toShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
-		const testItem = new types.TestItem(item.extId, item.label);
+	export function to(item: ITestItem): types.TestItem {
+		const testItem = new types.TestItem(item.extId, item.label, item.expandable);
 		if (item.location) {
 			testItem.location = location.to({
 				range: item.location.range,
@@ -1702,7 +1716,7 @@ export namespace TestResults {
 			items: [],
 		};
 
-		const queue: [parent: SerializedTestResultItem | null, children: Iterable<vscode.TestItemWithResults>][] = [
+		const queue: [parent: SerializedTestResultItem | null, children: Iterable<vscode.TestResultSnapshot>][] = [
 			[null, results.results],
 		];
 
@@ -1712,11 +1726,12 @@ export namespace TestResults {
 				const serializedItem: SerializedTestResultItem = {
 					children: item.children?.map(c => c.id) ?? [],
 					computedState: item.result.state,
-					item: TestItem.from(item),
+					item: TestItem.fromResultSnapshot(item),
 					state: TestState.from(item.result),
 					retired: undefined,
+					expand: TestItemExpandState.Expanded,
 					parent: parent?.item.extId ?? null,
-					providerId: '',
+					src: { provider: '', tree: -1 },
 					direct: !parent,
 				};
 
@@ -1730,8 +1745,8 @@ export namespace TestResults {
 		return serialized;
 	}
 
-	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestItemWithResults => ({
-		...TestItem.toPlainShallow(item.item),
+	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => ({
+		...TestItem.toPlain(item.item),
 		result: TestState.to(item.state),
 		children: item.children
 			.map(c => byInternalId.get(c))

@@ -75,9 +75,13 @@ export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	downloadName?: string;
 }
 
-export interface IFocusMarkdownPreviewMessage extends BaseToWebviewMessage {
-	type: 'focusMarkdownPreview';
-	cellId: string;
+export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'clickMarkdownPreview';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly shiftKey: boolean;
 }
 
 export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
@@ -293,7 +297,7 @@ export type FromWebviewMessage =
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
-	| IFocusMarkdownPreviewMessage
+	| IClickMarkdownPreviewMessage
 	| IMouseEnterMarkdownPreviewMessage
 	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
@@ -416,9 +420,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
-						user-select: text;
-						-webkit-user-select: text;
-						-ms-user-select: text;
+						user-select: none;
+						-webkit-user-select: none;
+						-ms-user-select: none;
 						white-space: initial;
 						cursor: grab;
 					}
@@ -882,7 +886,7 @@ var requirejs = (function() {
 						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 						break;
 					}
-				case 'focusMarkdownPreview':
+				case 'clickMarkdownPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {

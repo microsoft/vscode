@@ -21,7 +21,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -76,6 +76,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _ptyResponsiveListener: IDisposable | undefined;
 	private _ptyListenersAttached: boolean = false;
 	private _dataFilter: SeamlessRelaunchDataFilter;
+	private _processListeners?: IDisposable[];
 
 	private _shellLaunchConfig?: IShellLaunchConfig;
 	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
@@ -188,9 +189,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dimensions.rows = rows;
 		this._isScreenReaderModeEnabled = isScreenReaderModeEnabled;
 
+		let newProcess: ITerminalChildProcess;
+
 		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			this._processType = ProcessType.ExtensionTerminal;
-			this._process = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
+			newProcess = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
@@ -226,13 +229,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await this._remoteTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
-						this._process = result;
+						newProcess = result;
 					} else {
 						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
 						return undefined;
 					}
 				} else {
-					this._process = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
+					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._remoteTerminalService);
@@ -245,13 +248,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await this._localTerminalService.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
-						this._process = result;
+						newProcess = result;
 					} else {
 						this._logService.trace(`Attach to process failed for terminal ${shellLaunchConfig.attachPersistentProcess}`);
 						return undefined;
 					}
 				} else {
-					this._process = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
+					newProcess = await this._launchLocalProcess(this._localTerminalService, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(this._localTerminalService);
@@ -261,34 +264,40 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		// If the process was disposed during its creation, shut it down and return failure
 		if (this._isDisposed) {
-			this._process.shutdown(false);
+			newProcess.shutdown(false);
 			return undefined;
 		}
+
+		this._process = newProcess;
 
 		this.processState = ProcessState.LAUNCHING;
 
 		this._dataFilter.newProcess(this._process, reset);
 
-		this._process.onProcessReady((e: { pid: number, cwd: string }) => {
-			this.shellProcessId = e.pid;
-			this._initialCwd = e.cwd;
-			this._onProcessReady.fire();
-
-			if (this._preLaunchInputQueue.length > 0 && this._process) {
-				// Send any queued data that's waiting
-				this._process.input(this._preLaunchInputQueue.join(''));
-				this._preLaunchInputQueue.length = 0;
-			}
-		});
-
-		this._process.onProcessTitleChanged(title => this._onProcessTitle.fire(title));
-		this._process.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type));
-		this._process.onProcessExit(exitCode => this._onExit(exitCode));
-		if (this._process.onProcessOverrideDimensions) {
-			this._process.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e));
+		if (this._processListeners) {
+			dispose(this._processListeners);
 		}
-		if (this._process.onProcessResolvedShellLaunchConfig) {
-			this._process.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e));
+		this._processListeners = [
+			newProcess.onProcessReady((e: { pid: number, cwd: string }) => {
+				this.shellProcessId = e.pid;
+				this._initialCwd = e.cwd;
+				this._onProcessReady.fire();
+
+				if (this._preLaunchInputQueue.length > 0 && this._process) {
+					// Send any queued data that's waiting
+					newProcess.input(this._preLaunchInputQueue.join(''));
+					this._preLaunchInputQueue.length = 0;
+				}
+			}),
+			newProcess.onProcessTitleChanged(title => this._onProcessTitle.fire(title)),
+			newProcess.onProcessShellTypeChanged(type => this._onProcessShellTypeChanged.fire(type)),
+			newProcess.onProcessExit(exitCode => this._onExit(exitCode))
+		];
+		if (newProcess.onProcessOverrideDimensions) {
+			this._processListeners.push(newProcess.onProcessOverrideDimensions(e => this._onProcessOverrideDimensions.fire(e)));
+		}
+		if (newProcess.onProcessResolvedShellLaunchConfig) {
+			this._processListeners.push(newProcess.onProcessResolvedShellLaunchConfig(e => this._onProcessOverrideShellLaunchConfig.fire(e)));
 		}
 
 		setTimeout(() => {
@@ -297,7 +306,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, LAUNCHING_DURATION);
 
-		const result = await this._process.start();
+		const result = await newProcess.start();
 		if (result) {
 			// Error
 			return result;
@@ -324,7 +333,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
-		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
+		const isWorkspaceShellAllowed = this._configHelper.checkIsProcessLaunchSafe();
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
 		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService);
@@ -597,8 +606,10 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	}
 
 	newProcess(process: ITerminalChildProcess, reset: boolean) {
-		// Stop listening to the old process
+		// Stop listening to the old process and trigger delayed shutdown (for hang issue #71966)
 		this._dataListener?.dispose();
+		this._activeProcess?.shutdown(false);
+
 		this._activeProcess = process;
 
 		// If the process is new, relaunch has timed out or the terminal should not reset, start

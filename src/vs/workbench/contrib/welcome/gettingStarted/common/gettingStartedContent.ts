@@ -186,7 +186,7 @@ export const content: GettingStartedContent = [
 					title: localize('gettingStarted.pickColor.title', "Customize the look with themes"),
 					description: localize('gettingStarted.pickColor.description', "Pick a color theme to match your taste and mood while coding."),
 					button: { title: localize('gettingStarted.pickColor.button', "Pick a Theme"), command: 'workbench.action.selectTheme' },
-					doneOn: { eventFired: 'themeSelected' },
+					doneOn: { commandExecuted: 'workbench.action.selectTheme' },
 					media: { type: 'image', altText: 'Color theme preview for dark and light theme.', path: 'colorTheme.png', }
 				},
 				{

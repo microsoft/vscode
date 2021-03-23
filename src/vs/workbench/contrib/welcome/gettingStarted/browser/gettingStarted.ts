@@ -6,13 +6,13 @@
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
+import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -25,7 +25,6 @@ import { URI } from 'vs/base/common/uri';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
@@ -38,49 +37,15 @@ import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { coalesce } from 'vs/base/common/arrays';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Throttler } from 'vs/base/common/async';
+import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
 const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
-export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
-
 export const inGettingStartedContext = new RawContextKey('inGettingStarted', false);
-
-export class GettingStartedInput extends EditorInput {
-
-	get resource(): URI | undefined {
-		return URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
-	}
-	getTypeId(): string {
-		return GettingStartedInput.ID;
-	}
-
-	matches(other: unknown) {
-		if (other instanceof GettingStartedInput) {
-			return true;
-		}
-		return false;
-	}
-
-	static readonly ID = gettingStartedInputTypeId;
-
-	constructor(
-		options: { selectedCategory?: string, selectedTask?: string }
-	) {
-		super();
-		this.selectedCategory = options.selectedCategory;
-		this.selectedTask = options.selectedTask;
-	}
-
-	getName() {
-		return localize('gettingStarted', "Getting Started");
-	}
-
-	selectedCategory: string | undefined;
-	selectedTask: string | undefined;
-}
 
 type GettingStartedActionClassification = {
 	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -107,6 +72,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesScrollbar: DomScrollableElement | undefined;
 	private detailsScrollbar: DomScrollableElement | undefined;
 	private detailImageScrollbar: DomScrollableElement | undefined;
+	private buildSlideThrottle: Throttler = new Throttler();
 
 	private container: HTMLElement;
 
@@ -150,22 +116,17 @@ export class GettingStartedPage extends EditorPane {
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
+		this.buildSlideThrottle = new Throttler();
 		this._register(this.gettingStartedService.onDidAddTask(task => {
 			this.gettingStartedCategories = this.gettingStartedService.getCategories();
-			this.buildCategoriesSlide();
+			this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
 		}));
 
 		this._register(this.gettingStartedService.onDidChangeTask(task => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === task.category);
-			if (!ourCategory || ourCategory.content.type === 'startEntry') {
-				console.error('Attempting to modify category that does not exist or is invalid type', task);
-				return;
-			}
+			if (!ourCategory || ourCategory.content.type === 'startEntry') { return; }
 			const ourTask = ourCategory.content.items.find(item => item.id === task.id);
-			if (!ourTask) {
-				console.error('Attempting to modify task that cannot be found', task);
-				return;
-			}
+			if (!ourTask) { return; }
 			ourTask.title = task.title;
 			ourTask.description = task.description;
 			ourTask.media.path = task.media.path;
@@ -173,10 +134,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this._register(this.gettingStartedService.onDidChangeCategory(category => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
-			if (!ourCategory) {
-				console.error('Attempting to modify category that does not exist or is invalid type', category);
-				return;
-			}
+			if (!ourCategory) { return; }
 
 			ourCategory.title = category.title;
 			ourCategory.description = category.description;
@@ -218,6 +176,18 @@ export class GettingStartedPage extends EditorPane {
 		await super.setInput(newInput, options, context, token);
 		await this.buildCategoriesSlide();
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
+	}
+
+	makeCategoryVisibleWhenAvailable(categoryID: string) {
+		this.gettingStartedCategories = this.gettingStartedService.getCategories();
+		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
+		if (!ourCategory) {
+			throw Error('Could not find category with ID: ' + categoryID);
+		}
+		if (ourCategory.content.type !== 'items') {
+			throw Error('internaal error: category is not items');
+		}
+		this.scrollToCategory(categoryID);
 	}
 
 	private registerDispatchListeners() {
