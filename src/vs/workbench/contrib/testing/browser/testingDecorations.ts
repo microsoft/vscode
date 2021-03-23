@@ -130,10 +130,15 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 
 			for (const op of diff) {
 				if (op[0] === TestDiffOpType.Add && !op[1].parent) {
-					collection.object.expand(op[1].item.extId, Infinity);
+					collection.object?.expand(op[1].item.extId, Infinity);
 				}
 			}
 		});
+
+		for (const root of collection.object.rootIds) {
+			collection.object.expand(root, Infinity);
+		}
+
 		this.setDecorations(uri);
 	}
 

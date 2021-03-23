@@ -408,7 +408,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 		this.expandPromises.set(test, record);
 
 		return prom.then(() => {
-			record.doneLvl = Math.max(record.doneLvl, levels);
+			record.doneLvl = levels;
 		});
 	}
 
