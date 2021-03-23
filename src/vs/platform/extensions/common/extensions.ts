@@ -130,6 +130,7 @@ export interface IWalkthrough {
 	readonly title: string;
 	readonly description: string;
 	readonly tasks: IWalkthroughTask[];
+	readonly primary?: boolean;
 	readonly when?: string;
 }
 

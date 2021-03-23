@@ -220,11 +220,11 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-category img.category-icon {
-	margin-right: 10px;
-	margin-left: 10px;
 	padding-right: 8px;
 	max-width: 20px;
 	max-height: 20px;
+	position: relative;
+	top: 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category img.category-icon {
