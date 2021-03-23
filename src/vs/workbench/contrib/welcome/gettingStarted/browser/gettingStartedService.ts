@@ -25,10 +25,11 @@ import { BuiltinGettingStartedCategory, BuiltinGettingStartedItem, content } fro
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -152,6 +153,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IProductService private readonly productService: IProductService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
@@ -297,9 +299,17 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		if (!this.trackedExtensions.has(ExtensionIdentifier.toKey(extension.identifier))) {
 			this.trackedExtensions.add(ExtensionIdentifier.toKey(extension.identifier));
+			if (!(extension.contributes?.walkthroughs?.length)) {
+				return;
+			}
 
-			if ((extension.contributes?.walkthroughs?.length) && this.productService.quality === 'stable') {
+			if (this.productService.quality === 'stable') {
 				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but this is a Stable build and extension contributions are only available in Insiders. The contributed content will be disregarded.');
+				return;
+			}
+
+			if (!this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions')) {
+				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set.');
 				return;
 			}
 
@@ -357,7 +367,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					return;
 				}
 			}
-			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {});
+
+			if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openToSide') {
+				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {}, SIDE_GROUP);
+			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'open') {
+				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), {});
+			} else if (this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') === 'openInBackground') {
+				this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, { selectedCategory: sectionToOpen }), { inactive: true });
+			}
 		}
 	}
 
