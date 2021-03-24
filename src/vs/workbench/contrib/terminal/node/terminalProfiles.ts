@@ -39,20 +39,22 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
-	// Add non-quick launch profiles
+	// Add auto detected profiles
 	if (!quickLaunchOnly) {
-		detectedProfiles.set('PowerShell', { source: ProfileSource.Pwsh });
-		detectedProfiles.set('Git Bash', { source: ProfileSource.GitBash });
+		detectedProfiles.set('PowerShell', { source: ProfileSource.Pwsh, isAutoDetected: true });
+		detectedProfiles.set('Git Bash', { source: ProfileSource.GitBash, isAutoDetected: true });
 		detectedProfiles.set('Cygwin', {
 			path: [
 				`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
 				`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 			],
-			args: ['--login']
+			args: ['--login'],
+			isAutoDetected: true
 		});
 		detectedProfiles.set('Command Prompt',
 			{
-				path: [`${system32Path}\\cmd.exe`]
+				path: [`${system32Path}\\cmd.exe`],
+				isAutoDetected: true
 			},
 		);
 	}
@@ -94,6 +96,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		}
 		const validatedProfile = await validateProfilePaths(profileName, paths, statProvider, args, logService);
 		if (validatedProfile) {
+			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			resultProfiles.push(validatedProfile);
 		} else {
 			logService?.trace('profile not validated', profileName, originalPaths);
@@ -197,7 +200,7 @@ async function detectAvailableUnixProfiles(statProvider: IStatProvider, logServi
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		for (const profile of profiles) {
 			const profileName = basename(profile);
-			detectedProfiles.set(profileName, { path: profile });
+			detectedProfiles.set(profileName, { path: profile, isAutoDetected: true });
 		}
 	}
 

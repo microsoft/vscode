@@ -15,7 +15,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -843,11 +843,8 @@ export class TerminalService implements ITerminalService {
 		const profiles = await this._detectProfiles(false);
 		const platformKey = await this._getPlatformKey();
 
-		interface IProfileQuickPickItem extends IQuickPickItem {
-			profile: ITerminalProfile;
-		}
 		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal profile, you can change this later in your settings"),
+			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
@@ -873,31 +870,46 @@ export class TerminalService implements ITerminalService {
 				await this._configurationService.updateValue(configKey, newConfigValue, ConfigurationTarget.USER);
 			}
 		};
-		const quickPickItems = profiles.map((profile): IProfileQuickPickItem => {
-			const buttons: IQuickInputButton[] = [{
-				iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
-				tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
-			}];
-			if (profile.args) {
-				if (typeof profile.args === 'string') {
-					return { label: profile.profileName, description: `${profile.path} ${profile.args}`, profile, buttons };
-				}
-				const argsString = profile.args.map(e => {
-					if (e.includes(' ')) {
-						return `"${e.replace('/"/g', '\\"')}"`;
-					}
-					return e;
-				}).join(' ');
-				return { label: profile.profileName, description: `${profile.path} ${argsString}`, profile, buttons };
-			}
-			return { label: profile.profileName, description: profile.path, profile, buttons };
-		});
+
+		// Build quick pick items
+		const quickPickItems: (IProfileQuickPickItem | IQuickPickSeparator)[] = [];
+		const configProfiles = profiles.filter(e => !e.isAutoDetected);
+		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
+		if (configProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
+			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e)));
+		}
+		if (configProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
+			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)));
+		}
+
 		const value = await this._quickInputService.pick(quickPickItems, options);
 		if (!value) {
 			return;
 		}
 		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
 		await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+	}
+
+	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
+		const buttons: IQuickInputButton[] = [{
+			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
+			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
+		}];
+		if (profile.args) {
+			if (typeof profile.args === 'string') {
+				return { label: profile.profileName, description: `${profile.path} ${profile.args}`, profile, buttons };
+			}
+			const argsString = profile.args.map(e => {
+				if (e.includes(' ')) {
+					return `"${e.replace('/"/g', '\\"')}"`;
+				}
+				return e;
+			}).join(' ');
+			return { label: profile.profileName, description: `${profile.path} ${argsString}`, profile, buttons };
+		}
+		return { label: profile.profileName, description: profile.path, profile, buttons };
 	}
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
@@ -1002,4 +1014,8 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 	}
+}
+
+interface IProfileQuickPickItem extends IQuickPickItem {
+	profile: ITerminalProfile;
 }

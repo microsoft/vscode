@@ -234,6 +234,7 @@ export interface IBeforeProcessDataEvent {
 export interface ITerminalProfile {
 	profileName: string;
 	path: string;
+	isAutoDetected?: boolean;
 	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
 }
@@ -246,10 +247,12 @@ export const enum ProfileSource {
 export interface ITerminalExecutable {
 	path: string | string[];
 	args?: string | string[] | undefined;
+	isAutoDetected?: boolean;
 }
 
 export interface ITerminalProfileSource {
 	source: ProfileSource;
+	isAutoDetected?: boolean;
 }
 
 export type ProfileName = string;
