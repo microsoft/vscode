@@ -184,6 +184,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 		}));
 
+		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
 			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
 		}));
