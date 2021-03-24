@@ -13,7 +13,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -411,5 +411,31 @@ suite('NotebookCell#Document', function () {
 
 		assert.strictEqual(first.document.languageId, 'fooLang');
 		assert.ok(removedDoc === addedDoc);
+	});
+
+	test('change cell execution state does not trigger onDidChangeMetadata event', async function () {
+		let didFireOnDidChangeMetadata = false;
+		let e = extHostNotebooks.onDidChangeCellMetadata(() => {
+			didFireOnDidChangeMetadata = true;
+		});
+
+		const changeExeState = Event.toPromise(extHostNotebooks.onDidChangeNotebookCellExecutionState);
+
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			versionId: 12, rawEvents: [{
+				kind: NotebookCellsChangeType.ChangeCellMetadata,
+				index: 0,
+				metadata: {
+					...notebook.getCellFromIndex(0)?.internalMetadata,
+					...{
+						runState: NotebookCellExecutionState.Executing
+					}
+				}
+			}]
+		}, false);
+
+		await changeExeState;
+		assert.strictEqual(didFireOnDidChangeMetadata, false);
+		e.dispose();
 	});
 });

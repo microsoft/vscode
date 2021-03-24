@@ -156,7 +156,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
 
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
-		'enable-proposed-api'
+		'enable-proposed-api',
+
+		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		'log-level'
 	];
 
 	// Read argv config
@@ -193,6 +196,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 						argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
 					} else {
 						console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+					}
+					break;
+
+				case 'log-level':
+					if (typeof argvValue === 'string') {
+						process.argv.push('--log', argvValue);
 					}
 					break;
 			}

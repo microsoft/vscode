@@ -9,16 +9,22 @@ import { Range } from 'vs/editor/common/core/range';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
-export interface TestIdWithProvider {
+export interface TestIdWithSrc {
 	testId: string;
-	providerId: string;
+	src: { provider: string; tree: number };
 }
+
+/**
+ * Defines the path to a test, as a list of test IDs. The last element of the
+ * array is the test ID, and the predecessors are its parents, in order.
+ */
+export type TestIdPath = string[];
 
 /**
  * Request to the main thread to run a set of tests.
  */
 export interface RunTestsRequest {
-	tests: TestIdWithProvider[];
+	tests: TestIdWithSrc[];
 	exclude?: string[];
 	debug: boolean;
 	isAutoRun?: boolean;
@@ -30,8 +36,7 @@ export interface RunTestsRequest {
 export interface RunTestForProviderRequest {
 	runId: string;
 	excludeExtIds: string[];
-	providerId: string;
-	ids: string[];
+	tests: TestIdWithSrc[];
 	debug: boolean;
 }
 
@@ -69,16 +74,43 @@ export interface ITestItem {
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;
+	expandable: boolean;
+}
+
+export const enum TestItemExpandState {
+	NotExpandable,
+	Expandable,
+	BusyExpanding,
+	Expanded,
 }
 
 /**
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
-	providerId: string;
+	src: { provider: string; tree: number };
+	expand: TestItemExpandState;
 	parent: string | null;
 	item: ITestItem;
 }
+
+/**
+ * A partial update made to an existing InternalTestItem.
+ */
+export interface ITestItemUpdate {
+	extId: string;
+	expand?: TestItemExpandState;
+	item?: Partial<ITestItem>;
+}
+
+export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate, patch: ITestItemUpdate) => {
+	if (patch.expand !== undefined) {
+		internal.expand = patch.expand;
+	}
+	if (patch.item !== undefined) {
+		Object.assign(internal.item, patch.item);
+	}
+};
 
 /**
  * Test result item used in the main thread.
@@ -94,7 +126,8 @@ export interface TestResultItem extends IncrementalTestCollectionItem {
 	direct?: boolean;
 }
 
-export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'retired'> & { children: string[], retired: undefined };
+export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
+	& { children: string[], retired: undefined };
 
 /**
  * Test results serialized for transport and storage.
@@ -115,17 +148,18 @@ export const enum TestDiffOpType {
 	Update,
 	/** Removes a test (and all its children) */
 	Remove,
-	/** Changes the number of providers running initial test discovery. */
-	DeltaDiscoverComplete,
 	/** Changes the number of providers who are yet to publish their collection roots. */
 	DeltaRootsComplete,
+	/** Retires a test/result */
+	Retire,
 }
 
 export type TestsDiffOp =
 	| [op: TestDiffOpType.Add, item: InternalTestItem]
-	| [op: TestDiffOpType.Update, item: InternalTestItem]
+	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
-	| [op: TestDiffOpType.DeltaDiscoverComplete | TestDiffOpType.DeltaRootsComplete, amount: number];
+	| [op: TestDiffOpType.Retire, itemId: string]
+	| [op: TestDiffOpType.DeltaRootsComplete, amount: number];
 
 /**
  * Utility function to get a unique string for a subscription to a resource,
@@ -190,6 +224,16 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	protected readonly roots = new Set<string>();
 
 	/**
+	 * Number of 'busy' providers.
+	 */
+	protected busyProviderCount = 0;
+
+	/**
+	 * Number of pending roots.
+	 */
+	protected pendingRootCount = 0;
+
+	/**
 	 * Applies the diff to the collection.
 	 */
 	public apply(diff: TestsDiff) {
@@ -211,15 +255,24 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
 					}
+
+					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
+						this.updateBusyProviders(1);
+					}
 					break;
 				}
 
 				case TestDiffOpType.Update: {
-					const internalTest = op[1];
-					const existing = this.items.get(internalTest.item.extId);
-					if (existing) {
-						Object.assign(existing.item, internalTest.item);
-						changes.update(existing);
+					const patch = op[1];
+					const existing = this.items.get(patch.extId);
+					if (!existing) {
+						break;
+					}
+
+					applyTestItemUpdate(existing, patch);
+					changes.update(existing);
+					if (patch.expand !== undefined && existing.expand === TestItemExpandState.BusyExpanding && patch.expand !== TestItemExpandState.BusyExpanding) {
+						this.updateBusyProviders(-1);
 					}
 					break;
 				}
@@ -245,14 +298,18 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 								queue.push(existing.children);
 								this.items.delete(itemId);
 								changes.remove(existing, existing !== toRemove);
+
+								if (existing.expand === TestItemExpandState.BusyExpanding) {
+									this.updateBusyProviders(-1);
+								}
 							}
 						}
 					}
 					break;
 				}
 
-				case TestDiffOpType.DeltaDiscoverComplete:
-					this.updateBusyProviders(op[1]);
+				case TestDiffOpType.Retire:
+					this.retireTest(op[1]);
 					break;
 
 				case TestDiffOpType.DeltaRootsComplete:
@@ -265,10 +322,17 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	}
 
 	/**
+	 * Called when the extension signals a test result should be retired.
+	 */
+	protected retireTest(testId: string) {
+		// no-op
+	}
+
+	/**
 	 * Updates the number of providers who are still discovering items.
 	 */
 	protected updateBusyProviders(delta: number) {
-		// no-op
+		this.busyProviderCount += delta;
 	}
 
 	/**
@@ -276,8 +340,8 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * the total pending test roots reaches 0, the roots for all providers
 	 * will exist in the collection.
 	 */
-	protected updatePendingRoots(delta: number) {
-		// no-op
+	public updatePendingRoots(delta: number) {
+		this.pendingRootCount += delta;
 	}
 
 	/**

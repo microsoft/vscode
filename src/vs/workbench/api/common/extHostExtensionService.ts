@@ -416,9 +416,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				get globalStorageUri() { return that._storagePath.globalValue(extensionDescription); },
 				get extensionMode() { return extensionMode; },
 				get extension() {
-					checkProposedApiEnabled(extensionDescription);
 					if (extension === undefined) {
-						extension = new Extension(this, extensionDescription.identifier, extensionDescription, extensionKind);
+						extension = new Extension(that, extensionDescription.identifier, extensionDescription, extensionKind);
 					}
 					return extension;
 				},
@@ -566,7 +565,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const extensionTestsPath = originalFSPath(extensionTestsLocationURI);
 
 		// Require the test runner via node require from the provided path
-		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, URI.file(extensionTestsPath), new ExtensionActivationTimesBuilder(false));
+		const testRunner: ITestRunner | INewTestRunner | undefined = await this._loadCommonJSModule(null, extensionTestsLocationURI, new ExtensionActivationTimesBuilder(false));
 
 		if (!testRunner || typeof testRunner.run !== 'function') {
 			throw new Error(nls.localize('extensionTestError', "Path {0} does not point to a valid extension test runner.", extensionTestsPath));

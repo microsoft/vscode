@@ -72,7 +72,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private registerListeners(): void {
 		this._register(this.requestModel.onDidInitiateRequest(async () => {
-			if (this.requestModel.trustRequest) {
+			if (this.requestModel.trustRequestOptions) {
 				this.toggleRequestBadge(true);
 
 				type WorkspaceTrustRequestedEventClassification = {
@@ -88,18 +88,18 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				};
 
 				this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-					modal: this.requestModel.trustRequest.modal,
+					modal: this.requestModel.trustRequestOptions.modal,
 					workspaceId: this.workspaceContextService.getWorkspace().id,
 					extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
 				});
 
-				if (this.requestModel.trustRequest.modal) {
+				if (this.requestModel.trustRequestOptions.modal) {
 					// Message
 					const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
-					const message = this.requestModel.trustRequest.message ?? defaultMessage;
+					const message = this.requestModel.trustRequestOptions.message ?? defaultMessage;
 
 					// Buttons
-					const buttons = this.requestModel.trustRequest.buttons ?? [
+					const buttons = this.requestModel.trustRequestOptions.buttons ?? [
 						{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
 						{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
 					];

@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { flatten } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -31,7 +30,7 @@ import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, DisplayOrderKey
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ComplexNotebookProviderInfo, IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEditorAssociationsRegistry } from 'vs/workbench/browser/editor';
@@ -233,16 +232,13 @@ class ModelData implements IDisposable {
 	}
 }
 
-interface INotebookProviderData {
-	controller: IMainNotebookController;
-	extensionData: NotebookExtensionDescription;
-}
+
 
 export class NotebookService extends Disposable implements INotebookService, IEditorTypesHandler {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _notebookProviders = new Map<string, INotebookProviderData>();
+	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
 	private readonly _notebookProviderInfoStore: NotebookProviderInfoStore;
 	private readonly _notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	private readonly _markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
@@ -253,9 +249,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<URI>());
 	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
 	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
-
-	private readonly _onNotebookDocumentSaved: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onNotebookDocumentSaved: Event<URI> = this._onNotebookDocumentSaved.event;
 
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
@@ -430,11 +423,15 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return this._notebookProviders.has(viewType);
 	}
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
+	private _registerProviderData(viewType: string, data: SimpleNotebookProviderInfo | ComplexNotebookProviderInfo): void {
 		if (this._notebookProviders.has(viewType)) {
 			throw new Error(`notebook controller for viewtype '${viewType}' already exists`);
 		}
-		this._notebookProviders.set(viewType, { extensionData, controller });
+		this._notebookProviders.set(viewType, data);
+	}
+
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
+		this._registerProviderData(viewType, new ComplexNotebookProviderInfo(viewType, controller, extensionData));
 
 		if (controller.viewOptions && !this._notebookProviderInfoStore.get(viewType)) {
 			// register this content provider to the static contribution, if it does not exist
@@ -463,6 +460,26 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 			this._notebookProviders.delete(viewType);
 			this._onDidChangeEditorTypes.fire();
 		});
+	}
+
+	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable {
+		this._registerProviderData(viewType, new SimpleNotebookProviderInfo(viewType, serializer, extensionData));
+		return toDisposable(() => {
+			this._notebookProviders.delete(viewType);
+		});
+	}
+
+	async withNotebookDataProvider(resource: URI): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
+		const [first] = this._notebookProviderInfoStore.getContributedNotebook(resource);
+		if (!first) {
+			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
+		}
+		await this.canResolve(first.id);
+		const result = this._notebookProviders.get(first.id);
+		if (!result) {
+			throw new Error(`NO provider registered for view type: '${first.id}'`);
+		}
+		return result;
 	}
 
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable {
@@ -503,47 +520,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return Array.from(this._markdownRenderersInfos);
 	}
 
-	// --- notebook documents: IO
-
-	private _withProvider(viewType: string): INotebookProviderData {
-		const result = this._notebookProviders.get(viewType);
-		if (!result) {
-			throw new Error(`having NO provider for ${viewType}`);
-		}
-		return result;
-	}
-
-	async fetchNotebookRawData(viewType: string, uri: URI, backupId: string | undefined, token: CancellationToken, untitledDocumentData?: VSBuffer): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }> {
-		if (!await this.canResolve(viewType)) {
-			throw new Error(`CANNOT fetch notebook data, there is NO provider for '${viewType}'`);
-		}
-		const provider = this._withProvider(viewType)!;
-		return await provider.controller.openNotebook(viewType, uri, backupId, token, untitledDocumentData);
-	}
-
-	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._withProvider(viewType);
-		const ret = await provider.controller.save(resource, token);
-		if (ret) {
-			this._onNotebookDocumentSaved.fire(resource);
-		}
-		return ret;
-	}
-
-	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
-		const provider = this._withProvider(viewType);
-		const ret = await provider.controller.saveAs(resource, target, token);
-		if (ret) {
-			this._onNotebookDocumentSaved.fire(resource);
-		}
-		return ret;
-	}
-
-	async backup(viewType: string, uri: URI, token: CancellationToken): Promise<string | undefined> {
-		const provider = this._withProvider(viewType);
-		return provider.controller.backup(uri, token);
-	}
-
 	// --- notebook documents: create, destory, retrieve, enumerate
 
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel {
@@ -568,17 +544,10 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return [...this._models].map(e => e[1].model);
 	}
 
-	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
-		this._onWillDisposeDocument(notebook);
-	}
-
 	private _onWillDisposeDocument(model: INotebookTextModel): void {
-
 		const modelData = this._models.get(model.uri);
-		this._models.delete(model.uri);
-
 		if (modelData) {
-			modelData.model.dispose();
+			this._models.delete(model.uri);
 			modelData.dispose();
 			this._onDidRemoveNotebookDocument.fire(modelData.model.uri);
 		}
@@ -675,17 +644,18 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return ret;
 	}
 
+	// --- data provider IPC (deprecated)
+
 	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void> {
 		const entry = this._notebookProviders.get(viewType);
-		if (entry) {
+		if (entry instanceof ComplexNotebookProviderInfo) {
 			entry.controller.resolveNotebookEditor(viewType, uri, editorId);
 		}
 	}
 
 	onDidReceiveMessage(viewType: string, editorId: string, rendererType: string | undefined, message: any): void {
 		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
+		if (provider instanceof ComplexNotebookProviderInfo) {
 			return provider.controller.onDidReceiveMessage(editorId, rendererType, message);
 		}
 	}

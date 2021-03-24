@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDragEndMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IFocusMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -561,6 +561,7 @@ function webviewPreloads() {
 
 					postNotebookMessage<IDimensionMessage>('dimension', {
 						id: outputId,
+						isOutput: true,
 						init: true,
 						data: {
 							height: outputNode.clientHeight
@@ -642,6 +643,7 @@ function webviewPreloads() {
 
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: outputId,
+							isOutput: true,
 							data: {
 								height: output.clientHeight
 							}
@@ -695,29 +697,6 @@ function webviewPreloads() {
 		type: 'initialized'
 	});
 
-	document.addEventListener('dragover', e => {
-		// Allow dropping dragged markdown cells
-		e.preventDefault();
-	});
-
-	const markdownCellDragDataType = 'x-vscode-markdown-cell-drag';
-
-	document.addEventListener('drop', e => {
-		const data = e.dataTransfer?.getData(markdownCellDragDataType);
-		if (!data) {
-			return;
-		}
-		e.preventDefault();
-
-		const { cellId } = JSON.parse(data);
-		postNotebookMessage<ICellDragEndMessage>('cell-drag-end', {
-			cellId: cellId,
-			ctrlKey: e.ctrlKey,
-			altKey: e.altKey,
-			position: { clientX: e.clientX, clientY: e.clientY },
-		});
-	});
-
 	function createMarkdownPreview(cellId: string, content: string, top: number) {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
@@ -735,8 +714,14 @@ function webviewPreloads() {
 			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.addEventListener('click', () => {
-			postNotebookMessage<IFocusMarkdownPreviewMessage>('focusMarkdownPreview', { cellId });
+		previewContainerNode.addEventListener('click', e => {
+			postNotebookMessage<IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
+				cellId,
+				altKey: e.altKey,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				shiftKey: e.shiftKey,
+			});
 		});
 
 		previewContainerNode.addEventListener('mouseenter', () => {
@@ -750,28 +735,15 @@ function webviewPreloads() {
 		previewContainerNode.setAttribute('draggable', 'true');
 
 		previewContainerNode.addEventListener('dragstart', e => {
-			if (!e.dataTransfer) {
-				return;
-			}
-			e.dataTransfer.setData(markdownCellDragDataType, JSON.stringify({ cellId }));
-
-			(e.target as HTMLElement).classList.add('dragging');
-
-			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
-				cellId: cellId,
-				position: { clientX: e.clientX, clientY: e.clientY },
-			});
+			markdownPreviewDragManager.startDrag(e, cellId);
 		});
 
 		previewContainerNode.addEventListener('drag', e => {
-			postNotebookMessage<ICellDragMessage>('cell-drag', {
-				cellId: cellId,
-				position: { clientX: e.clientX, clientY: e.clientY },
-			});
+			markdownPreviewDragManager.updateDrag(e, cellId);
 		});
 
 		previewContainerNode.addEventListener('dragend', e => {
-			(e.target as HTMLElement).classList.remove('dragging');
+			markdownPreviewDragManager.endDrag(e, cellId);
 		});
 
 		cellContainer.appendChild(previewContainerNode);
@@ -822,7 +794,6 @@ function webviewPreloads() {
 			}]);
 		}
 
-		console.log(previewContainerNode.clientHeight);
 		postNotebookMessage<IDimensionMessage>('dimension', {
 			id: `${cellId}_preview`,
 			data: {
@@ -831,6 +802,85 @@ function webviewPreloads() {
 			isOutput: false
 		});
 	}
+
+	const markdownCellDragDataType = 'x-vscode-markdown-cell-drag';
+
+	const markdownPreviewDragManager = new class MarkdownPreviewDragManager {
+
+		private currentDrag: { cellId: string, clientY: number } | undefined;
+
+		constructor() {
+			document.addEventListener('dragover', e => {
+				// Allow dropping dragged markdown cells
+				e.preventDefault();
+			});
+
+			document.addEventListener('drop', e => {
+				e.preventDefault();
+				this.currentDrag = undefined;
+
+				const data = e.dataTransfer?.getData(markdownCellDragDataType);
+				if (!data) {
+					return;
+				}
+
+				const { cellId } = JSON.parse(data);
+				postNotebookMessage<ICellDropMessage>('cell-drop', {
+					cellId: cellId,
+					ctrlKey: e.ctrlKey,
+					altKey: e.altKey,
+					position: { clientY: e.clientY },
+				});
+			});
+		}
+
+		startDrag(e: DragEvent, cellId: string) {
+			if (!e.dataTransfer) {
+				return;
+			}
+
+			this.currentDrag = { cellId, clientY: e.clientY };
+
+			e.dataTransfer.setData(markdownCellDragDataType, JSON.stringify({ cellId }));
+
+			(e.target as HTMLElement).classList.add('dragging');
+
+			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
+				cellId: cellId,
+				position: { clientY: e.clientY },
+			});
+
+			// Continuously send updates while dragging instead of relying on `updateDrag`.
+			// This lets us scroll the list based on drag position.
+			const trySendDragUpdate = () => {
+				if (this.currentDrag?.cellId !== cellId) {
+					return;
+				}
+
+				postNotebookMessage<ICellDragMessage>('cell-drag', {
+					cellId: cellId,
+					position: { clientY: this.currentDrag.clientY },
+				});
+				requestAnimationFrame(trySendDragUpdate);
+			};
+			requestAnimationFrame(trySendDragUpdate);
+		}
+
+		updateDrag(e: DragEvent, cellId: string) {
+			if (cellId !== this.currentDrag?.cellId) {
+				this.currentDrag = undefined;
+			}
+			this.currentDrag = { cellId, clientY: e.clientY };
+		}
+
+		endDrag(e: DragEvent, cellId: string) {
+			this.currentDrag = undefined;
+			(e.target as HTMLElement).classList.remove('dragging');
+			postNotebookMessage<ICellDragEndMessage>('cell-drag-end', {
+				cellId: cellId
+			});
+		}
+	}();
 }
 
 export function preloadsScriptStr(values: {

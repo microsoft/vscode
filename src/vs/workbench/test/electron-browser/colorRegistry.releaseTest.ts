@@ -16,6 +16,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import 'vs/workbench/workbench.desktop.main';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 interface ColorInfo {
 	description: string;
@@ -33,7 +34,7 @@ export const experimental: string[] = []; // 'settings.modifiedItemForeground', 
 suite('Color Registry', function () {
 
 	test('all colors documented in theme-color.md', async function () {
-		const reqContext = await new RequestService(new TestConfigurationService(), new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
+		const reqContext = await new RequestService(new TestConfigurationService(), TestEnvironmentService, new NullLogService()).request({ url: 'https://raw.githubusercontent.com/microsoft/vscode-docs/vnext/api/references/theme-color.md' }, CancellationToken.None);
 		const content = (await asText(reqContext))!;
 
 		const expression = /\-\s*\`([\w\.]+)\`: (.*)/g;

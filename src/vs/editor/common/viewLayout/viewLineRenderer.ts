@@ -953,7 +953,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						break;
 
 					case CharCode.Null:
-						sb.appendASCIIString('&#00;');
+						if (renderControlCharacters) {
+							// See https://unicode-table.com/en/blocks/control-pictures/
+							sb.write1(9216);
+						} else {
+							sb.appendASCIIString('&#00;');
+						}
 						break;
 
 					case CharCode.UTF8_BOM:
@@ -967,8 +972,12 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 						if (strings.isFullWidthCharacter(charCode)) {
 							charWidth++;
 						}
+						// See https://unicode-table.com/en/blocks/control-pictures/
 						if (renderControlCharacters && charCode < 32) {
 							sb.write1(9216 + charCode);
+						} else if (renderControlCharacters && charCode === 127) {
+							// DEL
+							sb.write1(9249);
 						} else {
 							sb.write1(charCode);
 						}

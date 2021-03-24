@@ -20,19 +20,19 @@ suite('Workbench - Test Results Service', () => {
 	let r: LiveTestResult;
 	let changed = new Set<TestResultItemChange>();
 
-	setup(() => {
+	setup(async () => {
 		changed = new Set();
 		r = LiveTestResult.from(
-			[getInitializedMainTestCollection()],
-			{ tests: [{ providerId: 'provider', testId: 'id-a' }], debug: false }
+			[await getInitializedMainTestCollection()],
+			{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: 'id-a' }], debug: false }
 		);
 
 		r.onChange(e => changed.add(e));
 	});
 
 	suite('LiveTestResult', () => {
-		test('is empty if no tests are requesteed', () => {
-			const r = LiveTestResult.from([getInitializedMainTestCollection()], { tests: [], debug: false });
+		test('is empty if no tests are requesteed', async () => {
+			const r = LiveTestResult.from([await getInitializedMainTestCollection()], { tests: [], debug: false });
 			assert.deepStrictEqual(getLabelsIn(r.tests), []);
 		});
 
@@ -165,24 +165,24 @@ suite('Workbench - Test Results Service', () => {
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});
 
-		test('clears results but keeps ongoing tests', () => {
+		test('clears results but keeps ongoing tests', async () => {
 			results.push(r);
 			r.markComplete();
 
 			const r2 = results.push(LiveTestResult.from(
-				[getInitializedMainTestCollection()],
-				{ tests: [{ providerId: 'provider', testId: '1' }], debug: false }
+				[await getInitializedMainTestCollection()],
+				{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: '1' }], debug: false }
 			));
 			results.clear();
 
 			assert.deepStrictEqual(results.results, [r2]);
 		});
 
-		test('keeps ongoing tests on top', () => {
+		test('keeps ongoing tests on top', async () => {
 			results.push(r);
 			const r2 = results.push(LiveTestResult.from(
-				[getInitializedMainTestCollection()],
-				{ tests: [{ providerId: 'provider', testId: '1' }], debug: false }
+				[await getInitializedMainTestCollection()],
+				{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: '1' }], debug: false }
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);
@@ -192,11 +192,11 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(results.results, [r, r2]);
 		});
 
-		const makeHydrated = (completedAt = 42, state = TestRunState.Passed) => new HydratedTestResult({
+		const makeHydrated = async (completedAt = 42, state = TestRunState.Passed) => new HydratedTestResult({
 			completedAt,
 			id: 'some-id',
 			items: [{
-				...getInitializedMainTestCollection().getNodeById('id-a')!,
+				...(await getInitializedMainTestCollection()).getNodeById('id-a')!,
 				state: { state, duration: 0, messages: [] },
 				computedState: state,
 				retired: undefined,
@@ -204,36 +204,36 @@ suite('Workbench - Test Results Service', () => {
 			}]
 		});
 
-		test('pushes hydrated results', () => {
+		test('pushes hydrated results', async () => {
 			results.push(r);
-			const hydrated = makeHydrated();
+			const hydrated = await makeHydrated();
 			results.push(hydrated);
 			assert.deepStrictEqual(results.results, [r, hydrated]);
 		});
 
-		test('deduplicates identical results', () => {
+		test('deduplicates identical results', async () => {
 			results.push(r);
-			const hydrated1 = makeHydrated();
+			const hydrated1 = await makeHydrated();
 			results.push(hydrated1);
-			const hydrated2 = makeHydrated();
+			const hydrated2 = await makeHydrated();
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated1]);
 		});
 
-		test('does not deduplicate if different completedAt', () => {
+		test('does not deduplicate if different completedAt', async () => {
 			results.push(r);
-			const hydrated1 = makeHydrated();
+			const hydrated1 = await makeHydrated();
 			results.push(hydrated1);
-			const hydrated2 = makeHydrated(30);
+			const hydrated2 = await makeHydrated(30);
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
 		});
 
-		test('does not deduplicate if different tests', () => {
+		test('does not deduplicate if different tests', async () => {
 			results.push(r);
-			const hydrated1 = makeHydrated();
+			const hydrated1 = await makeHydrated();
 			results.push(hydrated1);
-			const hydrated2 = makeHydrated(undefined, TestRunState.Failed);
+			const hydrated2 = await makeHydrated(undefined, TestRunState.Failed);
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated2, hydrated1]);
 		});

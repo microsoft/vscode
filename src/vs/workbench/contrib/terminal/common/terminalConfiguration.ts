@@ -80,6 +80,84 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: []
 		},
+		'terminal.integrated.profiles.windows': {
+			markdownDescription: localize(
+				{
+					key: 'terminal.integrated.profiles.windows',
+					comment: ['{0}, {1}, and {2} are the `source`, `path` and optional `args` settings keys']
+				},
+				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1} and optional {2}", '`source`', '`path`', '`args`.'
+			),
+			type: 'object',
+			default: {
+				'PowerShell': {
+					source: 'PowerShell'
+				},
+				'Command Prompt': {
+					path: [
+						'${env:windir}\\Sysnative\\cmd.exe',
+						'${env:windir}\\System32\\cmd.exe'
+					],
+					args: []
+				},
+				'Git Bash': {
+					source: 'Git Bash'
+				}
+			},
+		},
+		'terminal.integrated.profiles.osx': {
+			markdownDescription: localize(
+				{
+					key: 'terminal.integrated.profile.osx',
+					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
+				},
+				"The macOS profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+			),
+			type: 'object',
+			default: {
+				'bash': {
+					path: 'bash'
+				},
+				'zsh': {
+					path: 'zsh'
+				},
+				'fish': {
+					path: 'fish'
+				},
+				'tmux': {
+					path: 'tmux'
+				}
+			},
+		},
+		'terminal.integrated.profiles.linux': {
+			markdownDescription: localize(
+				{
+					key: 'terminal.integrated.profile.linux',
+					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
+				},
+				"The Linux profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+			),
+			type: 'object',
+			default: {
+				'bash': {
+					path: 'bash'
+				},
+				'zsh': {
+					path: 'zsh'
+				},
+				'fish': {
+					path: 'fish'
+				},
+				'tmux': {
+					path: 'tmux'
+				}
+			}
+		},
+		'terminal.integrated.showQuickLaunchWslProfiles': {
+			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
+			type: 'boolean',
+			default: true
+		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',

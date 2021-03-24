@@ -8,7 +8,7 @@ declare const extendMarkdownIt: undefined | (
 	(f: (md: markdownIt.MarkdownIt) => void) => void
 );
 
-const styleHref = (document.currentScript as any).src.replace('notebook-out/katex.js', '') + 'node_modules/katex/dist/katex.min.css';
+const styleHref = (document.currentScript as any).src.replace(/katex.js$/, 'katex.min.css');
 
 const link = document.createElement('link');
 link.rel = 'stylesheet';
