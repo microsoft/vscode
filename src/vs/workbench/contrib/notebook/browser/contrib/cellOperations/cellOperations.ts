@@ -240,8 +240,8 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		const selections = viewModel.getSelections();
 		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model));
 		const countDelta = newCells.length;
-		const newFocus = { start: focus.start + countDelta, end: focus.end + countDelta };
-		const newSelections = [{ start: range.start + countDelta, end: range.end + countDelta }];
+		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
+		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
 		viewModel.notebookDocument.applyEdits([
 			{
 				editType: CellEditType.Replace,
