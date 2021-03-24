@@ -36,7 +36,7 @@ export interface IWorkspaceTrustModel {
 	readonly onDidChangeTrustState: Event<void>;
 
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
-	getFolderTrustState(folder: URI): WorkspaceTrustState;
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustFolderInfo;
 
 	setTrustedFolders(folders: URI[]): void;
 	setUntrustedFolders(folders: URI[]): void;
@@ -44,19 +44,27 @@ export interface IWorkspaceTrustModel {
 	getTrustStateInfo(): IWorkspaceTrustStateInfo;
 }
 
-export interface IWorkspaceTrustRequest {
-	modal: boolean;
+export interface WorkspaceTrustRequestButton {
+	label: string;
+	type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+}
+
+export interface WorkspaceTrustRequestOptions {
+	buttons?: WorkspaceTrustRequestButton[];
 	message?: string;
+	modal: boolean;
 }
 
 export interface IWorkspaceTrustRequestModel {
-	readonly trustRequest: IWorkspaceTrustRequest | undefined;
+	readonly trustRequestOptions: WorkspaceTrustRequestOptions | undefined;
 
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
+	readonly onDidCancelRequest: Event<void>;
 
-	initiateRequest(request?: IWorkspaceTrustRequest): void;
+	initiateRequest(options?: WorkspaceTrustRequestOptions): void;
 	completeRequest(trustState?: WorkspaceTrustState): void;
+	cancelRequest(): void;
 }
 
 export interface WorkspaceTrustStateChangeEvent {
@@ -76,11 +84,16 @@ export interface IWorkspaceTrustService {
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(request: IWorkspaceTrustRequest): Promise<WorkspaceTrustState>;
+	requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState>;
+}
+
+export interface IWorkspaceTrustFolderInfo {
+	uri: string,
+	trustState: WorkspaceTrustState
 }
 
 export interface IWorkspaceTrustStateInfo {
-	localFolders: { uri: string, trustState: WorkspaceTrustState }[]
+	localFolders: IWorkspaceTrustFolderInfo[]
 
 	// Removing complexity of remote items
 	//trustedRemoteItems: { uri: string }[]

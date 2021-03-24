@@ -221,7 +221,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.load({ forceReadFromDisk: true });
+				await this.load({ forceReadFromFile: true });
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -390,12 +390,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private async loadFromFile(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
 		this.logService.trace('[text file model] loadFromFile()', this.resource.toString(true));
 
-		const forceReadFromDisk = options?.forceReadFromDisk;
+		const forceReadFromFile = options?.forceReadFromFile;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
 		// Decide on etag
 		let etag: string | undefined;
-		if (forceReadFromDisk) {
+		if (forceReadFromFile) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
 		} else if (this.lastResolvedFileStat) {
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
@@ -428,14 +428,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+			// if we are resolved
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 				return this;
 			}
 
-			// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
-			// we already have the model loaded, we can return to this state and update the orphaned
-			// flag to indicate that this model has no version on disk anymore.
-			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+			// Unless we are forced to read from the file, Ignore when a model has been resolved once
+			// and the file was deleted meanwhile. Since we already have the model loaded, we can return
+			// to this state and update the orphaned flag to indicate that this model has no version on
+			// disk anymore.
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND && !forceReadFromFile) {
 				return this;
 			}
 
@@ -783,17 +785,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				return;
 			}
 
-			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
-			// the file has not changed and as such was not dirty before.
-			// The conditions are all of:
-			// - a forced, explicit save (Ctrl+S)
-			// - the model is not dirty (otherwise we know there are changed which needs to go to the file)
-			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
-			// - the model version did not change due to save participants running
-			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === this.versionId) {
-				return this.doTouch(this.versionId, options);
-			}
-
 			// update versionId with its new value (if pre-save changes happened)
 			versionId = this.versionId;
 
@@ -805,14 +796,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString(true));
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-			const textFileEditorModel = this;
+			const resolvedTextFileEditorModel = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
-						overwriteReadonly: options.overwriteReadonly,
+					const stat = await this.textFileService.write(lastResolvedFileStat.resource, resolvedTextFileEditorModel.createSnapshot(), {
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
-						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, resolvedTextFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						unlock: options.writeUnlock,
 						writeElevated: options.writeElevated
 					});
 
@@ -853,6 +844,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			throw error;
 		}
 
+		// In any case of an error, we mark the model as dirty to prevent data loss
+		// It could be possible that the write corrupted the file on disk (e.g. when
+		// an error happened after truncating the file) and as such we want to preserve
+		// the model contents to prevent data loss.
+		this.setDirty(true);
+
 		// Flag as error state in the model
 		this.inErrorMode = true;
 
@@ -866,41 +863,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as event
 		this._onDidSaveError.fire();
-	}
-
-	private doTouch(this: TextFileEditorModel & IResolvedTextFileEditorModel, versionId: number, options: ITextFileSaveOptions): Promise<void> {
-		const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-
-		return this.saveSequentializer.setPending(versionId, (async () => {
-			try {
-
-				// Write contents to touch: we used to simply update the mtime of the file
-				// but this lead to weird results, either for external watchers or even for
-				// us where we thought the file has changed on disk. As such, we let the OS
-				// handle the increment of mtime and not deal with it ourselves.
-				const stat = await this.textFileService.write(lastResolvedFileStat.resource, this.createSnapshot(), {
-					mtime: lastResolvedFileStat.mtime,
-					encoding: this.getEncoding(),
-					etag: lastResolvedFileStat.etag
-				});
-
-				// Updated resolved stat with updated stat since touching it might have changed mtime
-				this.updateLastResolvedFileStat(stat);
-
-				// Emit File Saved Event
-				this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
-			} catch (error) {
-
-				// In any case of an error, we mark the model as dirty to prevent data loss
-				// It could be possible that the touch corrupted the file on disk (e.g. when
-				// an error happened after truncating the file) and as such we want to preserve
-				// the model contents to prevent data loss
-				this.setDirty(true);
-
-				// Notify user to handle this save error
-				this.handleSaveError(error, versionId, options);
-			}
-		})());
 	}
 
 	private updateSavedVersionId(): void {
@@ -1000,7 +962,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Load
 			this.load({
-				forceReadFromDisk: true	// because encoding has changed
+				forceReadFromFile: true	// because encoding has changed
 			});
 		}
 	}
@@ -1036,10 +998,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	isReadonly(): boolean {
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
-	}
-
-	getStat(): IFileStatWithMetadata | undefined {
-		return this.lastResolvedFileStat;
 	}
 
 	dispose(): void {

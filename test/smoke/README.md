@@ -5,7 +5,7 @@ Make sure you are on **Node v12.x**.
 ### Quick Overview
 
 ```bash
-# Build extensions in repo (if needed)
+# Build extensions in the VS Code repo (if needed)
 yarn && yarn compile
 
 # Install Dependencies and Compile
@@ -22,6 +22,7 @@ yarn smoketest --web --browser [chromium|webkit]
 
 # Build (Electron)
 yarn smoketest --build <path to latest version> --stable-build <path to stable version>
+example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app --stable-build /Applications/Visual\ Studio\ Code.app/
 
 # Build (Web - read instructions below)
 yarn smoketest --build <path to server web build> --web --browser [chromium|webkit]

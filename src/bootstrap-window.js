@@ -23,11 +23,10 @@
 }(this, function () {
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = globals();
-	const sandbox = preloadGlobals.context.sandbox;
 	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = preloadGlobals.process;
 	const configuration = parseWindowConfiguration();
-	const useCustomProtocol = sandbox || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
+	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	// Start to resolve process.env before anything gets load
 	// so that we can run loading and resolving in parallel
@@ -83,7 +82,7 @@
 		}
 
 		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
+		if (!safeProcess.sandboxed) {
 			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
@@ -115,7 +114,7 @@
 		// - sandbox: we list paths of webpacked modules to help the loader
 		// - non-sandbox: we signal that any module that does not begin with
 		//                `vs/` should be loaded using node.js require()
-		if (sandbox) {
+		if (safeProcess.sandboxed) {
 			loaderConfig.paths = {
 				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
@@ -159,7 +158,9 @@
 
 				// Wait for process environment being fully resolved
 				performance.mark('code/willWaitForShellEnv');
-				await whenEnvResolved;
+				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+					await whenEnvResolved;
+				}
 				performance.mark('code/didWaitForShellEnv');
 
 				// Callback only after process environment is resolved

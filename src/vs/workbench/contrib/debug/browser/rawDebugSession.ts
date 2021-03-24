@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
@@ -80,10 +80,10 @@ export class RawDebugSession implements IDisposable {
 
 	constructor(
 		debugAdapter: IDebugAdapter,
-		dbgr: IDebugger,
+		public readonly dbgr: IDebugger,
 		private readonly sessionId: string,
 		private readonly telemetryService: ITelemetryService,
-		public readonly customTelemetryService: ITelemetryService | undefined,
+		private readonly customTelemetryService: ICustomEndpointTelemetryService,
 		private readonly extensionHostDebugService: IExtensionHostDebugService,
 		private readonly openerService: IOpenerService,
 		private readonly notificationService: INotificationService
@@ -464,9 +464,7 @@ export class RawDebugSession implements IDisposable {
 	async stepBack(args: DebugProtocol.StepBackArguments): Promise<DebugProtocol.StepBackResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('stepBack', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('stepBack not supported'));
@@ -475,9 +473,7 @@ export class RawDebugSession implements IDisposable {
 	async reverseContinue(args: DebugProtocol.ReverseContinueArguments): Promise<DebugProtocol.ReverseContinueResponse | undefined> {
 		if (this.capabilities.supportsStepBack) {
 			const response = await this.send('reverseContinue', args);
-			if (response && response.body === undefined) {	// TODO@AW why this check?
-				this.fireSimulatedContinuedEvent(args.threadId);
-			}
+			this.fireSimulatedContinuedEvent(args.threadId);
 			return response;
 		}
 		return Promise.reject(new Error('reverseContinue not supported'));
@@ -728,12 +724,13 @@ export class RawDebugSession implements IDisposable {
 			}
 		*/
 		this.telemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
-		if (this.customTelemetryService) {
+		const telemetryEndpoint = this.dbgr.getCustomTelemetryEndpoint();
+		if (telemetryEndpoint) {
 			/* __GDPR__TODO__
 				The message is sent in the name of the adapter but the adapter doesn't know about it.
 				However, since adapters are an open-ended set, we can not declared the events statically either.
 			*/
-			this.customTelemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
+			this.customTelemetryService.publicLogError(telemetryEndpoint, 'debugProtocolErrorResponse', { error: telemetryMessage });
 		}
 	}
 

@@ -13,7 +13,8 @@
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
  *   fakeLoad?: boolean,
  *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
- *   onElectron?: boolean
+ *   onElectron?: boolean,
+ *   useParentPostMessage: boolean,
  * }} WebviewHost
  */
 
@@ -56,6 +57,8 @@
 	const getPendingFrame = () => {
 		return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
 	};
+
+	const vscodePostMessageFuncName = '__vscode_post_message__';
 
 	const defaultCssRules = `
 	html {
@@ -141,15 +144,22 @@
 
 	/**
 	 * @param {boolean} allowMultipleAPIAcquire
+	 * @param {boolean} useParentPostMessage
 	 * @param {*} [state]
 	 * @return {string}
 	 */
-	function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
+	function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
 		return `
 			globalThis.acquireVsCodeApi = (function() {
-				const originalPostMessage = window.parent.postMessage.bind(window.parent);
-				const targetOrigin = '*';
+				const originalPostMessage = window.parent['${useParentPostMessage ? 'postMessage' : vscodePostMessageFuncName}'].bind(window.parent);
+				const doPostMessage = (channel, data) => {
+					${useParentPostMessage
+				? `originalPostMessage({ command: channel, data: data }, '*');`
+				: `originalPostMessage(channel, data);`
+			}
+				};
+
 				let acquired = false;
 
 				let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
@@ -161,11 +171,11 @@
 					acquired = true;
 					return Object.freeze({
 						postMessage: function(msg) {
-							return originalPostMessage({ command: 'onmessage', data: msg }, targetOrigin);
+							doPostMessage('onmessage', msg);
 						},
 						setState: function(newState) {
 							state = newState;
-							originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, targetOrigin);
+							doPostMessage('do-update-state', JSON.stringify(newState));
 							return newState;
 						},
 						getState: function() {
@@ -192,7 +202,6 @@
 		const initData = {
 			initialScrollProgress: undefined,
 		};
-
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -406,7 +415,7 @@
 			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.id = '_vscodeApiScript';
-				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
+				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, host.useParentPostMessage, data.state);
 				newDocument.head.prepend(defaultScript);
 			}
 
@@ -697,6 +706,15 @@
 				onFocus: () => host.postMessage('did-focus'),
 				onBlur: () => host.postMessage('did-blur')
 			});
+
+			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (command, data) => {
+				switch (command) {
+					case 'onmessage':
+					case 'do-update-state':
+						host.postMessage(command, data);
+						break;
+				}
+			};
 
 			// signal ready
 			host.postMessage('webview-ready', {});

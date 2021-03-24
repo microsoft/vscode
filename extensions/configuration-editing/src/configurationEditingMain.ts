@@ -150,6 +150,7 @@ function registerContextKeyCompletions(): vscode.Disposable {
 		[{ language: 'json', pattern: '**/package.json' }, [
 			['contributes', 'menus', '*', '*', 'when'],
 			['contributes', 'views', '*', '*', 'when'],
+			['contributes', 'viewsWelcome', '*', 'when'],
 			['contributes', 'keybindings', '*', 'when'],
 			['contributes', 'keybindings', 'when'],
 		]]
@@ -180,7 +181,21 @@ function registerContextKeyCompletions(): vscode.Disposable {
 					return;
 				}
 
-				const replacing = document.getWordRangeAtPosition(position, /[^"\s]+/);
+				// for JSON everything with quotes is a word
+				const jsonWord = document.getWordRangeAtPosition(position);
+				if (!jsonWord || jsonWord.start.isEqual(position) || jsonWord.end.isEqual(position)) {
+					// we aren't inside a "JSON word" or on its quotes
+					return;
+				}
+
+				let replacing: vscode.Range | undefined;
+				if (jsonWord.end.character - jsonWord.start.character === 2 || document.getWordRangeAtPosition(position, /\s+/)) {
+					// empty json word or on whitespace
+					replacing = new vscode.Range(position, position);
+				} else {
+					replacing = document.getWordRangeAtPosition(position, /[a-zA-Z.]+/);
+				}
+
 				if (!replacing) {
 					return;
 				}

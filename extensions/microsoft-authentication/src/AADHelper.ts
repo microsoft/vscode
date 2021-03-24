@@ -317,7 +317,10 @@ export class AzureActiveDirectoryService {
 		}
 
 		return new Promise(async (resolve, reject) => {
-			if (vscode.env.remoteName !== undefined) {
+			const runsRemote = vscode.env.remoteName !== undefined;
+			const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
+
+			if (runsRemote || runsServerless) {
 				resolve(this.loginWithoutLocalServer(scope));
 				return;
 			}
@@ -654,7 +657,8 @@ export class AzureActiveDirectoryService {
 
 		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 			try {
-				await this.refreshToken(refreshToken, scope, sessionId);
+				const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
+				onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 			} catch (e) {
 				this.pollForReconnect(sessionId, refreshToken, scope);
 			}
@@ -668,21 +672,14 @@ export class AzureActiveDirectoryService {
 				return resolve(false);
 			}
 
-			if (attempts === 1) {
-				const token = this._tokens.find(token => token.sessionId === sessionId);
-				if (token) {
-					token.accessToken = undefined;
-					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(token)] });
-				}
-			}
-
 			const delayBeforeRetry = 5 * attempts * attempts;
 
 			this.clearSessionTimeout(sessionId);
 
 			this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 				try {
-					await this.refreshToken(refreshToken, scope, sessionId);
+					const refreshedToken = await this.refreshToken(refreshToken, scope, sessionId);
+					onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 					return resolve(true);
 				} catch (e) {
 					return resolve(await this.handleRefreshNetworkError(sessionId, refreshToken, scope, attempts + 1));

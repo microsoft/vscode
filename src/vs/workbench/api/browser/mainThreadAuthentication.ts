@@ -183,7 +183,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	}
 
-	private async selectSession(providerId: string, extensionId: string, extensionName: string, potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean, silent: boolean): Promise<modes.AuthenticationSession | undefined> {
+	private async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean, silent: boolean): Promise<modes.AuthenticationSession | undefined> {
 		if (!potentialSessions.length) {
 			throw new Error('No potential sessions found');
 		}
@@ -203,7 +203,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 								throw new Error('User did not consent to login.');
 							}
 						} else {
-							this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, potentialSessions);
+							this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, potentialSessions);
 							return undefined;
 						}
 					}
@@ -214,11 +214,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		if (silent) {
-			this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, potentialSessions);
+			this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, potentialSessions);
 			return undefined;
 		}
 
-		return this.authenticationService.selectSession(providerId, extensionId, extensionName, potentialSessions);
+		return this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, potentialSessions);
 	}
 
 	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone: boolean, clearSessionPreference: boolean }): Promise<modes.AuthenticationSession | undefined> {
@@ -237,14 +237,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 							throw new Error('User did not consent to login.');
 						}
 					} else if (allowed !== false) {
-						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, [session]);
+						this.authenticationService.requestSessionAccess(providerId, extensionId, extensionName, scopes, [session]);
 						return undefined;
 					} else {
 						return undefined;
 					}
 				}
 			} else {
-				return this.selectSession(providerId, extensionId, extensionName, sessions, !!options.clearSessionPreference, silent);
+				return this.selectSession(providerId, extensionId, extensionName, scopes, sessions, !!options.clearSessionPreference, silent);
 			}
 		} else {
 			if (!silent) {

@@ -16,7 +16,7 @@ import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,7 +36,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
@@ -392,6 +392,14 @@ class Extensions extends Disposable {
 		return false;
 	}
 
+	private async syncInstalledExtensionWithGallery(extension: Extension): Promise<void> {
+		const compatible = await this.galleryService.getCompatibleExtension(extension.identifier);
+		if (compatible) {
+			extension.gallery = compatible;
+			this._onChange.fire({ extension });
+		}
+	}
+
 	private getInstalledExtensionMatchingGallery(gallery: IGalleryExtension): Extension | null {
 		for (const installed of this.installed) {
 			if (installed.uuid) { // Installed from Gallery
@@ -441,6 +449,9 @@ class Extensions extends Disposable {
 			}
 		}
 		this._onChange.fire(error || !extension ? undefined : { extension, operation: event.operation });
+		if (extension && !extension.gallery) {
+			this.syncInstalledExtensionWithGallery(extension);
+		}
 	}
 
 	private onUninstallExtension(identifier: IExtensionIdentifier): void {
@@ -453,13 +464,13 @@ class Extensions extends Disposable {
 	}
 
 	private onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
+		const uninstalled = this.uninstalling.find(e => areSameExtensions(e.identifier, identifier)) || this.installed.find(e => areSameExtensions(e.identifier, identifier));
+		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
 		if (!error) {
 			this.installed = this.installed.filter(e => !areSameExtensions(e.identifier, identifier));
 		}
-		const uninstalling = this.uninstalling.filter(e => areSameExtensions(e.identifier, identifier))[0];
-		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
-		if (uninstalling) {
-			this._onChange.fire({ extension: uninstalling });
+		if (uninstalled) {
+			this._onChange.fire({ extension: uninstalled });
 		}
 	}
 
@@ -506,10 +517,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private installing: IExtension[] = [];
 
+	private readonly extensionKindController: ExtensionKindController;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkbenchExtensioManagementService private readonly extensionManagementService: IWorkbenchExtensioManagementService,
+		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -568,6 +581,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.updateContexts();
 			this.updateActivity();
 		}));
+
+		this.extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
 	get local(): IExtension[] {
@@ -694,7 +709,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return extensionsToChoose[0];
 		}
 
-		const extensionKinds = getExtensionKind(manifest, this.productService, this.configurationService);
+		const extensionKinds = this.extensionKindController.getExtensionKind(manifest);
 
 		let extension = extensionsToChoose.find(extension => {
 			for (const extensionKind of extensionKinds) {

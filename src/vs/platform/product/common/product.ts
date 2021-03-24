@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { FileAccess } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
-import { FileAccess } from 'vs/base/common/network';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
 
 let product: IProductConfiguration;
 
@@ -20,7 +20,7 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.54.0-dev',
+			version: '1.55.0-dev',
 			nameShort: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
 			nameLong: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
 			applicationName: 'code-oss',
@@ -32,7 +32,9 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',
-				'ms-vscode.github-browser'
+				'ms-vscode.github-browser',
+				'ms-vscode.remotehub',
+				'ms-vscode.remotehub-insiders'
 			],
 		});
 	}

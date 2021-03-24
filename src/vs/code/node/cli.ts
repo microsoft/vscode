@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir } from 'os';
-import { constants, existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
+import { existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
 import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
@@ -23,7 +23,6 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
-		|| !!argv['install-builtin-extension']
 		|| !!argv['uninstall-extension']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
@@ -84,8 +83,8 @@ export async function main(argv: string[]): Promise<any> {
 			let restoreMode = false;
 			if (!!args['file-chmod']) {
 				targetMode = statSync(target).mode;
-				if (!(targetMode & constants.S_IWUSR)) {
-					chmodSync(target, targetMode | constants.S_IWUSR);
+				if (!(targetMode & 0o200 /* File mode indicating writable by owner */)) {
+					chmodSync(target, targetMode | 0o200);
 					restoreMode = true;
 				}
 			}

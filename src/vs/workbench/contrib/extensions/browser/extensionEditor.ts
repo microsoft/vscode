@@ -11,7 +11,7 @@ import { OS } from 'vs/base/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, finalHandler, join, hide, show, addDisposableListener, EventType, setParentFlowTo } from 'vs/base/browser/dom';
@@ -66,6 +66,9 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { insane } from 'vs/base/common/insane/insane';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	return insane(documentContent, {
@@ -78,7 +81,8 @@ function removeEmbeddedSVGs(documentContent: string): string {
 		allowedAttributes: {
 			'*': [
 				'align',
-			]
+			],
+			img: ['src', 'alt', 'title', 'aria-label', 'width', 'height'],
 		},
 		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
 			return token.tag !== 'svg';
@@ -923,6 +927,7 @@ export class ExtensionEditor extends EditorPane {
 					this.renderLanguages(content, manifest, layout),
 					this.renderColorThemes(content, manifest, layout),
 					this.renderIconThemes(content, manifest, layout),
+					this.renderProductIconThemes(content, manifest, layout),
 					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
@@ -998,7 +1003,7 @@ export class ExtensionEditor extends EditorPane {
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content);
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
 		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();
@@ -1034,7 +1039,7 @@ export class ExtensionEditor extends EditorPane {
 				),
 				...contrib.map(key => $('tr', undefined,
 					$('td', undefined, $('code', undefined, key)),
-					$('td', undefined, properties[key].description),
+					$('td', undefined, properties[key].description || (properties[key].markdownDescription && renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposeables: this.contentDisposables } }))),
 					$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`))
 				))
 			)
@@ -1240,6 +1245,21 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
+			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderProductIconThemes(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contrib = manifest.contributes?.productIconThemes || [];
+		if (!contrib.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('productThemes', "Product Icon Themes ({0})", contrib.length)),
 			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
 		);
 
@@ -1513,7 +1533,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 }
 
-const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), ContextKeyExpr.not('editorFocus'));
+const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', ExtensionEditor.ID), EditorContextKeys.focus.toNegated());
 registerAction2(class ShowExtensionEditorFindAction extends Action2 {
 	constructor() {
 		super({

@@ -8,13 +8,12 @@ import { tmpdir } from 'os';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { copy, rimraf, rimrafSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync, mkdirSync, createReadStream, promises } from 'fs';
-import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileStat, FileOperationResult, FileSystemProviderCapabilities, FileChangeType, IFileChange, FileChangesEvent, FileOperationError, etag, IStat, IFileStatWithMetadata, IReadFileOptions } from 'vs/platform/files/common/files';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -66,6 +65,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 				FileSystemProviderCapabilities.FileOpenReadWriteClose |
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.Trash |
+				FileSystemProviderCapabilities.FileWriteUnlock |
 				FileSystemProviderCapabilities.FileFolderCopy;
 
 			if (isLinux) {
@@ -1181,8 +1181,14 @@ flakySuite('Disk File Service', function () {
 		return testReadFile(URI.file(join(testDir, 'lorem.txt')));
 	});
 
-	async function testReadFile(resource: URI): Promise<void> {
-		const content = await service.readFile(resource);
+	test('readFile - atomic', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
+
+		return testReadFile(URI.file(join(testDir, 'lorem.txt')), { atomic: true });
+	});
+
+	async function testReadFile(resource: URI, options?: IReadFileOptions): Promise<void> {
+		const content = await service.readFile(resource, options);
 
 		assert.strictEqual(content.value.toString(), readFileSync(resource.fsPath).toString());
 	}
@@ -1754,19 +1760,23 @@ flakySuite('Disk File Service', function () {
 		assert.ok(error!);
 	}
 
-	test('writeFile (large file) - multiple parallel writes queue up', async () => {
+	test('writeFile (large file) - multiple parallel writes queue up and atomic read support', async () => {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
 		const content = readFileSync(resource.fsPath);
 		const newContent = content.toString() + content.toString();
 
-		await Promise.all(['0', '00', '000', '0000', '00000'].map(async offset => {
+		const writePromises = Promise.all(['0', '00', '000', '0000', '00000'].map(async offset => {
 			const fileStat = await service.writeFile(resource, VSBuffer.fromString(offset + newContent));
 			assert.strictEqual(fileStat.name, 'lorem.txt');
 		}));
 
-		const fileContent = readFileSync(resource.fsPath).toString();
-		assert.ok(['0', '00', '000', '0000', '00000'].some(offset => fileContent === offset + newContent));
+		const readPromises = Promise.all(['0', '00', '000', '0000', '00000'].map(async () => {
+			const fileContent = await service.readFile(resource, { atomic: true });
+			assert.ok(fileContent.value.byteLength > 0); // `atomic: true` ensures we never read a truncated file
+		}));
+
+		await Promise.all([writePromises, readPromises]);
 	});
 
 	test('writeFile (readable) - default', async () => {
@@ -1888,6 +1898,63 @@ flakySuite('Disk File Service', function () {
 
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), content);
 	});
+
+	test('writeFile - locked files and unlocking', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.FileWriteUnlock);
+
+		return testLockedFiles(false);
+	});
+
+	test('writeFile (stream) - locked files and unlocking', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileWriteUnlock);
+
+		return testLockedFiles(false);
+	});
+
+	test('writeFile - locked files and unlocking throws error when missing capability', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
+
+		return testLockedFiles(true);
+	});
+
+	test('writeFile (stream) - locked files and unlocking throws error when missing capability', async () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testLockedFiles(true);
+	});
+
+	async function testLockedFiles(expectError: boolean) {
+		const lockedFile = URI.file(join(testDir, 'my-locked-file'));
+
+		await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
+
+		const stats = await promises.stat(lockedFile.fsPath);
+		await promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
+
+		let error;
+		const newContent = 'Updates to locked file';
+		try {
+			await service.writeFile(lockedFile, VSBuffer.fromString(newContent));
+		} catch (e) {
+			error = e;
+		}
+
+		assert.ok(error);
+		error = undefined;
+
+		if (expectError) {
+			try {
+				await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+		} else {
+			await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
+			assert.strictEqual(readFileSync(lockedFile.fsPath).toString(), newContent);
+		}
+	}
 
 	test('writeFile (error when folder is encountered)', async () => {
 		const resource = URI.file(testDir);
@@ -2286,7 +2353,7 @@ flakySuite('Disk File Service', function () {
 		const resource = URI.file(join(testDir, 'lorem.txt'));
 
 		const buffer = VSBuffer.alloc(1024);
-		const fdWrite = await fileProvider.open(resource, { create: true });
+		const fdWrite = await fileProvider.open(resource, { create: true, unlock: false });
 		const fdRead = await fileProvider.open(resource, { create: false });
 
 		let posInFileWrite = 0;

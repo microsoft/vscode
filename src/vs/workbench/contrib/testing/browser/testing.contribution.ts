@@ -20,10 +20,11 @@ import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testing
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { CloseTestPeek, ITestingPeekOpener, TestingOutputPeekController, TestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestIdPath, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -39,6 +40,7 @@ registerSingleton(ITestResultService, TestResultService);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState);
 registerSingleton(ITestingAutoRun, TestingAutoRun, true);
 registerSingleton(ITestingPeekOpener, TestingPeekOpener);
+registerSingleton(ITestingProgressUiService, TestingProgressUiService);
 registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
@@ -108,31 +110,33 @@ registerAction2(Action.DebugLastRun);
 registerAction2(Action.SearchForTestExtension);
 registerAction2(CloseTestPeek);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressUiService, LifecyclePhase.Eventually);
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.runTests',
-	handler: async (accessor: ServicesAccessor, tests: TestIdWithProvider[]) => {
+	handler: async (accessor: ServicesAccessor, tests: TestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: false, tests: tests.filter(t => t.providerId && t.testId) });
+		testService.runTests({ debug: false, tests: tests.filter(t => t.src && t.testId) });
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.debugTests',
-	handler: async (accessor: ServicesAccessor, tests: TestIdWithProvider[]) => {
+	handler: async (accessor: ServicesAccessor, tests: TestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: true, tests: tests.filter(t => t.providerId && t.testId) });
+		testService.runTests({ debug: true, tests: tests.filter(t => t.src && t.testId) });
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, extId: string) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = extId;
+	handler: async (accessor: ServicesAccessor, pathToTest: TestIdPath) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = pathToTest;
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
 	}
 });

@@ -51,6 +51,13 @@ export function isNumber(obj: unknown): obj is number {
 }
 
 /**
+ * @returns whether the provided parameter is an Iterable, casting to the given generic
+ */
+export function isIterable<T>(obj: unknown): obj is Iterable<T> {
+	return !!obj && typeof (obj as any)[Symbol.iterator] === 'function';
+}
+
+/**
  * @returns whether the provided parameter is a JavaScript Boolean or not.
  */
 export function isBoolean(obj: unknown): obj is boolean {

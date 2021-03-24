@@ -11,6 +11,8 @@ import { BaseTunnelService } from 'vs/platform/remote/node/tunnelService';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 
 export class TunnelService extends BaseTunnelService {
 	public constructor(
@@ -27,3 +29,5 @@ export class TunnelService extends BaseTunnelService {
 		return super.canTunnel(uri) && !!this.environmentService.remoteAuthority;
 	}
 }
+
+registerSingleton(ITunnelService, TunnelService);

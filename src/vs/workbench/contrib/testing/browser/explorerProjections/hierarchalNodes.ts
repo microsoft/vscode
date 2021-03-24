@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Test tree element element that groups be hierarchy.
@@ -17,7 +18,7 @@ export class HierarchicalElement implements ITestTreeElement {
 	public readonly depth: number = this.parentItem.depth + 1;
 
 	public get treeId() {
-		return `hitest:${this.test.item.extId}`;
+		return generateUuid();
 	}
 
 	public get label() {
@@ -28,28 +29,36 @@ export class HierarchicalElement implements ITestTreeElement {
 		return this.test.item.location;
 	}
 
-	public get runnable(): Iterable<TestIdWithProvider> {
+	public get runnable(): Iterable<TestIdWithSrc> {
 		return this.test.item.runnable
-			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 
 	public get debuggable() {
 		return this.test.item.debuggable
-			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 
-	public state = TestRunState.Unset;
+	public get expandable() {
+		return this.test.expand;
+	}
+
+	public get folder(): IWorkspaceFolder {
+		return this.parentItem.folder;
+	}
+
+	public state = TestResult.Unset;
 	public retired = false;
-	public ownState = TestRunState.Unset;
+	public ownState = TestResult.Unset;
 
 	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchicalFolder | HierarchicalElement) {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
 	}
 
-	public update(actual: InternalTestItem) {
-		Object.assign(this.test, actual);
+	public update(patch: ITestItemUpdate) {
+		applyTestItemUpdate(this.test, patch);
 	}
 }
 
@@ -60,10 +69,10 @@ export class HierarchicalFolder implements ITestTreeElement {
 	public readonly children = new Set<HierarchicalElement>();
 	public readonly parentItem = null;
 	public readonly depth = 0;
-	public computedState: TestRunState | undefined;
+	public computedState: TestResult | undefined;
 
 	public get treeId() {
-		return `hifolder:${this.folder.index}`;
+		return generateUuid();
 	}
 
 	public get runnable() {
@@ -74,11 +83,15 @@ export class HierarchicalFolder implements ITestTreeElement {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
 	}
 
-	public retired = false;
-	public state = TestRunState.Unset;
-	public ownState = TestRunState.Unset;
+	public get expandable() {
+		return TestItemExpandState.Expanded;
+	}
 
-	constructor(private readonly folder: IWorkspaceFolder) { }
+	public retired = false;
+	public state = TestResult.Unset;
+	public ownState = TestResult.Unset;
+
+	constructor(public readonly folder: IWorkspaceFolder) { }
 
 	public get label() {
 		return this.folder.name;

@@ -155,6 +155,10 @@ export function createDecorator<T>(serviceId: string): ServiceIdentifier<T> {
 	return id;
 }
 
+export function refineServiceDecorator<T1, T extends T1>(serviceIdentifier: ServiceIdentifier<T1>): ServiceIdentifier<T> {
+	return <ServiceIdentifier<T>>serviceIdentifier;
+}
+
 /**
  * Mark a service dependency as optional.
  */
