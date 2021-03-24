@@ -72,6 +72,7 @@ import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = DOM.$;
 
@@ -326,6 +327,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@INotebookService private notebookService: INotebookService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -668,10 +670,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
 
 		this._reigsterNotebookActionsToolbar();
-		this._register(this.onDidFocus(() => {
-			this._showNotebookActionsinEditorToolbar();
-		}));
-		this._register(this.onDidBlur(() => {
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
+				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditor;
+				if (notebookEditor === this) {
+					// this is the active editor
+					this._showNotebookActionsinEditorToolbar();
+					return;
+				}
+			}
+
 			this._editorToolbarDisposable?.dispose();
 			this._toolbarActionDisposable.clear();
 		}));
