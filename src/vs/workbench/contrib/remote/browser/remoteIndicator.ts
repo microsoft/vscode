@@ -247,9 +247,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private getWorkspaceLabel() {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const firstFolderUri = workspace.folders.length === 1 ? workspace.folders[0].uri : undefined;
-		if (firstFolderUri) {
-			return this.labelService.getHostLabel(firstFolderUri.scheme, firstFolderUri.authority);
+		const workspaceLocation = workspace.configuration || (workspace.folders.length === 1 ? workspace.folders[0].uri : undefined);
+		if (workspaceLocation) {
+			return this.labelService.getHostLabel(workspaceLocation.scheme, workspaceLocation.authority);
 		}
 
 		return undefined;
