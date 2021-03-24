@@ -161,12 +161,13 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			return false;
 		}
 
-		if (!remote.pushUrl) {
+		const remoteUrl = remote.pushUrl || (isInCodespaces() ? remote.fetchUrl : undefined);
+		if (!remoteUrl) {
 			return false;
 		}
 
-		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(remote.pushUrl)
-			|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(remote.pushUrl);
+		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(remoteUrl)
+			|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(remoteUrl);
 
 		if (!match) {
 			return false;
