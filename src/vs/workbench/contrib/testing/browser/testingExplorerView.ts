@@ -687,7 +687,7 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 
 		for (let e: ITestTreeElement | null = element; e; e = e.parentItem) {
 			// start as included if the first glob is a negation
-			let included = this.filters[0][0] === false ? FilterResult.Exclude : FilterResult.Inherit;
+			let included = this.filters[0][0] === false ? FilterResult.Include : FilterResult.Inherit;
 			const data = e.label.toLowerCase();
 
 			for (const [include, filter] of this.filters) {
