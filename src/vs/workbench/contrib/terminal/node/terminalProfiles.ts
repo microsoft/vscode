@@ -225,25 +225,25 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
-	const current = potentialPaths.shift()!;
-	if (current === '') {
+	const path = potentialPaths.shift()!;
+	if (path === '') {
 		return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName, isAutoDetected);
 	}
 
 	const profile = {
 		profileName,
-		path: current,
+		path,
 		args,
 		overrideName,
 		isAutoDetected
 	};
 
-	if (basename(current) === current) {
+	if (basename(path) === path) {
 		return profile;
 	}
 
 	try {
-		const result = await fs.promises.stat(normalize(current));
+		const result = await fs.promises.stat(normalize(path));
 		if (result.isFile() || result.isSymbolicLink()) {
 			return profile;
 		}
@@ -252,7 +252,7 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 		// throw 'permission denied' using 'stat' but don't throw
 		// using 'lstat'
 		try {
-			const result = await fs.promises.lstat(normalize(current));
+			const result = await fs.promises.lstat(normalize(path));
 			if (result.isFile() || result.isSymbolicLink()) {
 				{
 					return profile;
@@ -263,7 +263,7 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 			// noop
 		}
 	}
-	return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName);
+	return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName, isAutoDetected);
 }
 
 export interface IStatProvider {
