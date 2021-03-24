@@ -80,7 +80,7 @@ export class CodeCell extends Disposable {
 				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 			}
 
-			if (viewCell.focusMode === CellFocusMode.Editor) {
+			if (viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
 				templateData.editor?.focus();
 			}
 
