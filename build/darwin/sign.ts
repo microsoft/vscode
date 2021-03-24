@@ -37,6 +37,9 @@ async function main(): Promise<void> {
 		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
 		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
 		hardenedRuntime: true,
+		extendInfo: {
+			NSAppleEventsUsageDescription: 'This app needs access to AppleScript',
+		},
 		'pre-auto-entitlements': false,
 		'pre-embed-provisioning-profile': false,
 		keychain: path.join(tempDir, 'buildagent.keychain'),
