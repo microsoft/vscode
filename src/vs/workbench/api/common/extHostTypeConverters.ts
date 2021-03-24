@@ -32,7 +32,7 @@ import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface PositionLike {
 	line: number;
@@ -568,7 +568,7 @@ export namespace WorkspaceEdit {
 							metadata: entry.metadata,
 							resource: entry.uri,
 							edit: {
-								editType: notebooks.CellEditType.Metadata,
+								editType: notebooks.CellEditType.PartialMetadata,
 								index: entry.index,
 								metadata: entry.newMetadata
 							}
@@ -594,7 +594,6 @@ export namespace WorkspaceEdit {
 						resource: entry.uri,
 						edit: {
 							editType: notebooks.CellEditType.OutputItems,
-							index: entry.index,
 							outputId: entry.outputId,
 							items: entry.newOutputItems?.map(NotebookCellOutputItem.from) || [],
 							append: entry.append
@@ -1420,7 +1419,7 @@ export namespace NotebookCellRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.executionOrder, data.runState, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.statusMessage, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
 
@@ -1431,9 +1430,26 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.runState, data.trusted);
+		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.trusted);
+	}
+}
+
+export namespace NotebookCellPreviousExecutionResult {
+	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
+		return {
+			duration: data.lastRunDuration,
+			executionOrder: data.executionOrder,
+			success: data.lastRunSuccess
+		};
 	}
 
+	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
+		return {
+			lastRunSuccess: data.success,
+			lastRunDuration: data.duration,
+			executionOrder: data.executionOrder
+		};
+	}
 }
 
 export namespace NotebookCellKind {
@@ -1465,9 +1481,22 @@ export namespace NotebookCellData {
 			cellKind: NotebookCellKind.from(data.kind),
 			language: data.language,
 			source: data.source,
-			metadata: data.metadata,
+			metadata: {
+				...data.metadata,
+				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
+			},
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
+	}
+
+	export function to(data: notebooks.ICellDto2): vscode.NotebookCellData {
+		return new types.NotebookCellData(
+			NotebookCellKind.to(data.cellKind),
+			data.source,
+			data.language,
+			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
+			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
+		);
 	}
 }
 
@@ -1632,10 +1661,23 @@ export namespace TestItem {
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
+			expandable: item.expandable,
 		};
 	}
 
-	export function toPlainShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
+	export function fromResultSnapshot(item: vscode.TestResultSnapshot): ITestItem {
+		return {
+			extId: item.id,
+			label: item.label,
+			location: item.location ? location.from(item.location) as any : undefined,
+			debuggable: false,
+			description: item.description,
+			runnable: true,
+			expandable: true,
+		};
+	}
+
+	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
 			id: item.extId,
 			label: item.label,
@@ -1643,14 +1685,15 @@ export namespace TestItem {
 				range: item.location.range,
 				uri: URI.revive(item.location.uri)
 			}),
+			expandable: item.expandable,
 			debuggable: item.debuggable,
 			description: item.description,
 			runnable: item.runnable,
 		};
 	}
 
-	export function toShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
-		const testItem = new types.TestItem(item.extId, item.label);
+	export function to(item: ITestItem): types.TestItem {
+		const testItem = new types.TestItem(item.extId, item.label, item.expandable);
 		if (item.location) {
 			testItem.location = location.to({
 				range: item.location.range,
@@ -1673,7 +1716,7 @@ export namespace TestResults {
 			items: [],
 		};
 
-		const queue: [parent: SerializedTestResultItem | null, children: Iterable<vscode.TestItemWithResults>][] = [
+		const queue: [parent: SerializedTestResultItem | null, children: Iterable<vscode.TestResultSnapshot>][] = [
 			[null, results.results],
 		];
 
@@ -1683,11 +1726,12 @@ export namespace TestResults {
 				const serializedItem: SerializedTestResultItem = {
 					children: item.children?.map(c => c.id) ?? [],
 					computedState: item.result.state,
-					item: TestItem.from(item),
+					item: TestItem.fromResultSnapshot(item),
 					state: TestState.from(item.result),
 					retired: undefined,
+					expand: TestItemExpandState.Expanded,
 					parent: parent?.item.extId ?? null,
-					providerId: '',
+					src: { provider: '', tree: -1 },
 					direct: !parent,
 				};
 
@@ -1701,8 +1745,8 @@ export namespace TestResults {
 		return serialized;
 	}
 
-	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestItemWithResults => ({
-		...TestItem.toPlainShallow(item.item),
+	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => ({
+		...TestItem.toPlain(item.item),
 		result: TestState.to(item.state),
 		children: item.children
 			.map(c => byInternalId.get(c))
@@ -1731,11 +1775,11 @@ export namespace CodeActionTriggerKind {
 
 	export function to(value: modes.CodeActionTriggerType): types.CodeActionTriggerKind {
 		switch (value) {
+			case modes.CodeActionTriggerType.Invoke:
+				return types.CodeActionTriggerKind.Invoke;
+
 			case modes.CodeActionTriggerType.Auto:
 				return types.CodeActionTriggerKind.Automatic;
-
-			case modes.CodeActionTriggerType.Manual:
-				return types.CodeActionTriggerKind.Manual;
 		}
 	}
 }

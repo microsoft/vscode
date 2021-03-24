@@ -325,6 +325,13 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'description': localize('settings.editor.desc', "Determines which settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
+			},
+			'workbench.hover.delay': {
+				'type': 'number',
+				'description': localize('workbench.hover.delay', "Controls the delay in milliseconds after which the hover is shown for workbench items (ex. some extension provided tree view items). Already visible items may require a refresh before reflecting this setting change."),
+				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
+				// On Mac, the delay is 1500.
+				'default': isMacintosh ? 1500 : 500
 			}
 		}
 	});

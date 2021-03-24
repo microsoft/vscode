@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as Codicons from 'vs/base/common/codicons';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { domEvent } from 'vs/base/browser/event';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -47,7 +49,7 @@ import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, NotebookCellsChangeType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangeType, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodiconActionViewItem, createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -375,11 +377,14 @@ abstract class AbstractCellRenderer {
 export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, MarkdownCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
+	private readonly useRenderer: boolean;
+
 	constructor(
 		notebookEditor: INotebookEditor,
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
+		options: { useRenderer: boolean },
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -387,6 +392,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		@INotificationService notificationService: INotificationService,
 	) {
 		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'markdown', dndController);
+		this.useRenderer = options.useRenderer;
 	}
 
 	get templateId() {
@@ -428,10 +434,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
-		const useRenderer = !!(this.configurationService.getValue<string>('notebook.experimental.useMarkdownRenderer'));
-
 		const templateData: MarkdownCellRenderTemplate = {
-			useRenderer,
+			useRenderer: this.useRenderer,
 			rootContainer,
 			collapsedPart,
 			expandButton,
@@ -456,7 +460,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			toJSON: () => { return {}; }
 		};
 
-		if (!useRenderer) {
+		if (!this.useRenderer) {
 			this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
 		}
 
@@ -562,6 +566,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellActionContext>{
+			ui: true,
 			cell: element,
 			notebookEditor: this.notebookEditor,
 			$mid: 12
@@ -879,9 +884,15 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateExecutionOrder(metadata, templateData);
 		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
-		templateData.cellRunState.renderState(element.metadata?.runState);
+		templateData.cellRunState.renderState(element.metadata?.runState, () => {
+			if (!this.notebookEditor.viewModel) {
+				return -1;
+			}
 
-		if (metadata.runState === NotebookCellRunState.Running) {
+			return this.notebookEditor.viewModel.getCellIndex(element);
+		}, element.metadata?.lastRunSuccess);
+
+		if (metadata.runState === NotebookCellExecutionState.Executing) {
 			if (metadata.runStartTime) {
 				templateData.elementDisposables.add(templateData.timer.start(metadata.runStartTime));
 			} else {
@@ -897,7 +908,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			editorOptions.setGlyphMargin(metadata.breakpointMargin);
 		}
 
-		if (metadata.runState === NotebookCellRunState.Running) {
+		if (metadata.runState === NotebookCellExecutionState.Executing) {
 			templateData.progressBar.infinite().show(500);
 		} else {
 			templateData.progressBar.hide();
@@ -1015,6 +1026,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.setupCellToolbarActions(templateData, elementDisposables);
 
 		const toolbarContext = <INotebookCellActionContext>{
+			ui: true,
 			cell: element,
 			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
@@ -1092,7 +1104,9 @@ export class RunStateRenderer {
 	private static readonly MIN_SPINNER_TIME = 200;
 
 	private spinnerTimer: any | undefined;
-	private pendingNewState: NotebookCellRunState | undefined;
+	private lastRunState: NotebookCellExecutionState | undefined;
+	private pendingNewState: NotebookCellExecutionState | undefined;
+	private pendingLastRunSuccess: boolean | undefined;
 
 	constructor(private readonly element: HTMLElement) {
 		DOM.hide(element);
@@ -1105,35 +1119,52 @@ export class RunStateRenderer {
 		}
 	}
 
-	renderState(runState: NotebookCellRunState = NotebookCellRunState.Idle) {
+	renderState(runState: NotebookCellExecutionState = NotebookCellExecutionState.Idle, getCellIndex: () => number, lastRunSuccess: boolean | undefined = undefined) {
 		if (this.spinnerTimer) {
 			this.pendingNewState = runState;
+			this.pendingLastRunSuccess = lastRunSuccess;
 			return;
 		}
 
-		if (runState === NotebookCellRunState.Success) {
+		let runStateTooltip: string | undefined;
+		if (runState === NotebookCellExecutionState.Idle && lastRunSuccess) {
+			aria.alert(`Code cell at ${getCellIndex()} finishes running successfully`);
 			DOM.reset(this.element, renderIcon(successStateIcon));
-		} else if (runState === NotebookCellRunState.Error) {
+		} else if (runState === NotebookCellExecutionState.Idle && !lastRunSuccess) {
+			aria.alert(`Code cell at ${getCellIndex()} finishes running with errors`);
 			DOM.reset(this.element, renderIcon(errorStateIcon));
-		} else if (runState === NotebookCellRunState.Running) {
+		} else if (runState === NotebookCellExecutionState.Executing) {
+			runStateTooltip = localize('runStateExecuting', "Executing");
+			if (this.lastRunState !== NotebookCellExecutionState.Executing) {
+				aria.alert(`Code cell at ${getCellIndex()} starts running`);
+			}
 			DOM.reset(this.element, renderIcon(syncing));
-
 			this.spinnerTimer = setTimeout(() => {
 				this.spinnerTimer = undefined;
-				if (this.pendingNewState) {
-					this.renderState(this.pendingNewState);
+				if (this.pendingNewState && this.pendingNewState !== runState) {
+					this.renderState(this.pendingNewState, getCellIndex, this.pendingLastRunSuccess);
 					this.pendingNewState = undefined;
 				}
 			}, RunStateRenderer.MIN_SPINNER_TIME);
+		} else if (runState === NotebookCellExecutionState.Pending) {
+			// Not spinning
+			runStateTooltip = localize('runStatePending', "Pending");
+			DOM.reset(this.element, renderIcon(Codicons.Codicon.sync));
 		} else {
 			this.element.innerText = '';
 		}
 
-		if (runState === NotebookCellRunState.Idle) {
+		if (runState === NotebookCellExecutionState.Idle && typeof lastRunSuccess !== 'boolean') {
 			DOM.hide(this.element);
 		} else {
 			this.element.style.display = 'flex';
 		}
+
+		if (runStateTooltip) {
+			this.element.setAttribute('title', runStateTooltip);
+		}
+
+		this.lastRunState = runState;
 	}
 }
 

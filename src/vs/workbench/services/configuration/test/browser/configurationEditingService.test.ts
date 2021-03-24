@@ -163,7 +163,7 @@ suite('ConfigurationEditingService', () => {
 	test('do not notify error', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		const target = sinon.stub();
-		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
+		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');

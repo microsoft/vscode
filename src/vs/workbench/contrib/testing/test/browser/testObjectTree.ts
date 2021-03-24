@@ -86,14 +86,26 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	public readonly projection: T;
 	public readonly tree: TestObjectTree<ITestTreeElement>;
 
-	constructor(makeTree: (listener: TestSubscriptionListener) => T) {
+	constructor(folders: IWorkspaceFolderData[], makeTree: (listener: TestSubscriptionListener) => T) {
 		super();
 		this.projection = this._register(makeTree({
-			workspaceFolderCollections: [],
+			workspaceFolderCollections: folders.map(folder => [{ folder }, {
+				expand: (testId: string, levels: number) => {
+					this.c.expand(testId, levels);
+					this.onDiff.fire([folder, this.c.collectDiff()]);
+					return Promise.resolve();
+				},
+				all: [],
+			}]),
 			onDiff: this.onDiff.event,
 			onFolderChange: this.onFolderChange.event,
 		} as any));
 		this.tree = this._register(new TestObjectTree(t => t.label));
+		this._register(this.tree.onDidChangeCollapseState(evt => {
+			if (evt.node.element) {
+				this.projection.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+			}
+		}));
 	}
 
 	public flush(folder?: IWorkspaceFolderData) {

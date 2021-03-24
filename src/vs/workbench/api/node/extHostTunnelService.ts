@@ -39,7 +39,7 @@ class ExtensionTunnel implements vscode.Tunnel {
 	}
 }
 
-export function getSockets(stdout: string): { pid: number, socket: number }[] {
+export function getSockets(stdout: string): Record<string, { pid: number; socket: number; }> {
 	const lines = stdout.trim().split('\n');
 	const mapped: { pid: number, socket: number }[] = [];
 	lines.forEach(line => {
@@ -51,7 +51,11 @@ export function getSockets(stdout: string): { pid: number, socket: number }[] {
 			});
 		}
 	});
-	return mapped;
+	const socketMap = mapped.reduce((m, socket) => {
+		m[socket.socket] = socket;
+		return m;
+	}, {} as Record<string, typeof mapped[0]>);
+	return socketMap;
 }
 
 export function loadListeningPorts(...stdouts: string[]): { socket: number, ip: string, port: number }[] {
@@ -108,26 +112,65 @@ function knownExcludeCmdline(command: string): boolean {
 		|| (command.indexOf('_productName=VSCode') !== -1);
 }
 
-export async function findPorts(tcp: string, tcp6: string, procSockets: string, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
-	const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
-	const sockets = getSockets(procSockets);
+export function getRootProcesses(stdout: string) {
+	const lines = stdout.trim().split('\n');
+	const mapped: { pid: number, cmd: string, ppid: number }[] = [];
+	lines.forEach(line => {
+		const match = /^\d+\s+\D+\s+root\s+(\d+)\s+(\d+).+\d+\:\d+\:\d+\s+(.+)$/.exec(line)!;
+		if (match && match.length >= 4) {
+			mapped.push({
+				pid: parseInt(match[1], 10),
+				ppid: parseInt(match[2]),
+				cmd: match[3]
+			});
+		}
+	});
+	return mapped;
+}
 
-	const socketMap = sockets.reduce((m, socket) => {
-		m[socket.socket] = socket;
-		return m;
-	}, {} as Record<string, typeof sockets[0]>);
+export async function findPorts(connections: { socket: number, ip: string, port: number }[], socketMap: Record<string, { pid: number, socket: number }>, processes: { pid: number, cwd: string, cmd: string }[]): Promise<CandidatePort[]> {
 	const processMap = processes.reduce((m, process) => {
 		m[process.pid] = process;
 		return m;
 	}, {} as Record<string, typeof processes[0]>);
 
 	const ports: CandidatePort[] = [];
-	connections.filter((connection => socketMap[connection.socket])).forEach(({ socket, ip, port }) => {
-		const command: string | undefined = processMap[socketMap[socket].pid]?.cmd;
-		if (command && !knownExcludeCmdline(command)) {
-			ports.push({ host: ip, port, detail: command, pid: socketMap[socket].pid });
+	connections.forEach(({ socket, ip, port }) => {
+		const pid = socketMap[socket] ? socketMap[socket].pid : undefined;
+		const command: string | undefined = pid ? processMap[pid]?.cmd : undefined;
+		if (pid && command && !knownExcludeCmdline(command)) {
+			ports.push({ host: ip, port, detail: command, pid });
 		}
 	});
+	return ports;
+}
+
+export function tryFindRootPorts(connections: { socket: number, ip: string, port: number }[], rootProcessesStdout: string, previousPorts: Map<number, CandidatePort & { ppid: number }>): Map<number, CandidatePort & { ppid: number }> {
+	const ports: Map<number, CandidatePort & { ppid: number }> = new Map();
+	const rootProcesses = getRootProcesses(rootProcessesStdout);
+
+	for (const connection of connections) {
+		const previousPort = previousPorts.get(connection.port);
+		if (previousPort) {
+			ports.set(connection.port, previousPort);
+			continue;
+		}
+		const rootProcessMatch = rootProcesses.find((value) => value.cmd.includes(`${connection.port}`));
+		if (rootProcessMatch) {
+			let bestMatch = rootProcessMatch;
+			// There are often several processes that "look" like they could match the port.
+			// The one we want is usually the child of the other. Find the most child process.
+			let mostChild: { pid: number, cmd: string, ppid: number } | undefined;
+			do {
+				mostChild = rootProcesses.find(value => value.ppid === bestMatch.pid);
+				if (mostChild) {
+					bestMatch = mostChild;
+				}
+			} while (mostChild);
+			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: bestMatch.pid, detail: bestMatch.cmd, ppid: bestMatch.ppid });
+		}
+	}
+
 	return ports;
 }
 
@@ -140,6 +183,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
+	private _foundRootPorts: Map<number, CandidatePort & { ppid: number }> = new Map();
 
 	private _providerHandleCounter: number = 0;
 	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider, selector: PortAttributesProviderSelector }> = new Map();
@@ -320,11 +364,14 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
+		const connections: { socket: number, ip: string, port: number }[] = loadListeningPorts(tcp, tcp6);
+
 		const procSockets: string = await (new Promise(resolve => {
 			exec('ls -l /proc/[0-9]*/fd/[0-9]* | grep socket:', (error, stdout, stderr) => {
 				resolve(stdout);
 			});
 		}));
+		const socketMap = getSockets(procSockets);
 
 		const procChildren = await pfs.readdir('/proc');
 		const processes: {
@@ -344,6 +391,36 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				//
 			}
 		}
-		return findPorts(tcp, tcp6, procSockets, processes);
+
+		const unFoundConnections: { socket: number, ip: string, port: number }[] = [];
+		const filteredConnections = connections.filter((connection => {
+			const foundConnection = socketMap[connection.socket];
+			if (!foundConnection) {
+				unFoundConnections.push(connection);
+			}
+			return foundConnection;
+		}));
+
+		const foundPorts = findPorts(filteredConnections, socketMap, processes);
+		let heuristicPorts: CandidatePort[] | undefined;
+		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) number of possible root ports ${unFoundConnections.length}`);
+		if (unFoundConnections.length > 0) {
+			const rootProcesses: string = await (new Promise(resolve => {
+				exec('ps -F -A -l | grep root', (error, stdout, stderr) => {
+					resolve(stdout);
+				});
+			}));
+			this._foundRootPorts = tryFindRootPorts(unFoundConnections, rootProcesses, this._foundRootPorts);
+			heuristicPorts = Array.from(this._foundRootPorts.values());
+			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) heuristic ports ${heuristicPorts.join(', ')}`);
+
+		}
+		return foundPorts.then(foundCandidates => {
+			if (heuristicPorts) {
+				return foundCandidates.concat(heuristicPorts);
+			} else {
+				return foundCandidates;
+			}
+		});
 	}
 }

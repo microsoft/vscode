@@ -425,7 +425,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerInlineValuesProvider(selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerInlineValuesProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
@@ -914,10 +913,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkRequiresWorkspaceTrust(extension);
 				return extHostWorkspace.trustState;
 			},
-			requireWorkspaceTrust: (request?: vscode.WorkspaceTrustRequest) => {
+			requireWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension);
 				checkRequiresWorkspaceTrust(extension);
-				return extHostWorkspace.requireWorkspaceTrust(request);
+				return extHostWorkspace.requireWorkspaceTrust(options);
 			},
 			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
 				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
@@ -1052,6 +1051,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeActiveNotebookKernel;
 			},
+			registerNotebookSerializer(viewType, serializer, options) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options);
+			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: {
 				transientOutputs: boolean;
 				transientMetadata: { [K in keyof vscode.NotebookCellMetadata]?: boolean }
@@ -1075,6 +1078,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
 			},
+			onDidChangeCellExecutionState(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
+			},
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeCellOutputs(listener, thisArgs, disposables);
@@ -1090,6 +1097,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createCellStatusBarItem(cell: vscode.NotebookCell, alignment?: vscode.NotebookCellStatusBarAlignment, priority?: number): vscode.NotebookCellStatusBarItem {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookCellStatusBarItemInternal(cell, alignment, priority);
+			},
+			createNotebookCellExecutionTask(uri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.createNotebookCellExecution(uri, index, kernelId);
 			}
 		};
 
@@ -1228,12 +1239,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TimelineItem: extHostTypes.TimelineItem,
 			NotebookCellRange: extHostTypes.NotebookCellRange,
 			NotebookCellKind: extHostTypes.NotebookCellKind,
-			NotebookCellRunState: extHostTypes.NotebookCellRunState,
+			NotebookCellExecutionState: extHostTypes.NotebookCellExecutionState,
 			NotebookDocumentMetadata: extHostTypes.NotebookDocumentMetadata,
 			NotebookCellMetadata: extHostTypes.NotebookCellMetadata,
 			NotebookCellData: extHostTypes.NotebookCellData,
 			NotebookData: extHostTypes.NotebookData,
-			NotebookRunState: extHostTypes.NotebookRunState,
 			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment,
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,

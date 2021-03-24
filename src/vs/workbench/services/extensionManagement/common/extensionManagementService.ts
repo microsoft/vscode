@@ -5,7 +5,7 @@
 
 import { Event, EventMultiplexer } from 'vs/base/common/event';
 import {
-	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, INSTALL_ERROR_NOT_SUPPORTED, InstallOptions, UninstallOptions
+	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -285,7 +285,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 		}
 
-		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", gallery.displayName || gallery.name));
+		const error = new Error(localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", gallery.displayName || gallery.name));
 		error.name = INSTALL_ERROR_NOT_SUPPORTED;
 		return Promise.reject(error);
 	}

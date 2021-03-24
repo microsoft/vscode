@@ -225,6 +225,12 @@ interface ISettingsSyncOptions {
 	readonly enabled: boolean;
 
 	/**
+	 * Version of extensions sync state.
+	 * Extensions sync state will be reset if version is provided and different from previous version.
+	 */
+	readonly extensionsSyncStateVersion?: string;
+
+	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
 	enablementHandler?(enablement: boolean): void;

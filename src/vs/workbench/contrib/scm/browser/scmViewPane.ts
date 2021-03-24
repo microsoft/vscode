@@ -1612,6 +1612,12 @@ class SCMInputWidget extends Disposable {
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
 		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
 
+		const fontFamily = this.getInputEditorFontFamily();
+		const fontSize = this.getInputEditorFontSize();
+		const lineHeight = this.computeLineHeight(fontSize);
+
+		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
+
 		const contextKeyService2 = contextKeyService.createScoped(this.element);
 		this.repositoryContextKey = contextKeyService2.createKey('scmRepository', undefined);
 
@@ -1620,9 +1626,9 @@ class SCMInputWidget extends Disposable {
 			lineDecorationsWidth: 4,
 			dragAndDrop: false,
 			cursorWidth: 1,
-			fontSize: 13,
-			lineHeight: 20,
-			fontFamily: this.getInputEditorFontFamily(),
+			fontSize: fontSize,
+			lineHeight: lineHeight,
+			fontFamily: fontFamily,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
@@ -1676,8 +1682,20 @@ class SCMInputWidget extends Disposable {
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
 		}));
 
-		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
-		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily') || e.affectsConfiguration('scm.inputFontSize'));
+		this._register(onInputFontFamilyChanged(() => {
+			const fontFamily = this.getInputEditorFontFamily();
+			const fontSize = this.getInputEditorFontSize();
+			const lineHeight = this.computeLineHeight(fontSize);
+
+			this.inputEditor.updateOptions({
+				fontFamily: fontFamily,
+				fontSize: fontSize,
+				lineHeight: lineHeight,
+			});
+
+			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
+		}));
 
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged));
 	}
@@ -1759,6 +1777,20 @@ class SCMInputWidget extends Disposable {
 		}
 
 		return this.defaultInputFontFamily;
+	}
+
+	private getInputEditorFontSize(): number {
+		return this.configurationService.getValue<number>('scm.inputFontSize');
+	}
+
+	private computeLineHeight(fontSize: number): number {
+		return Math.round(fontSize * 1.5);
+	}
+
+	private setPlaceholderFontStyles(fontFamily: string, fontSize: number, lineHeight: number): void {
+		this.placeholderTextContainer.style.fontFamily = fontFamily;
+		this.placeholderTextContainer.style.fontSize = `${fontSize}px`;
+		this.placeholderTextContainer.style.lineHeight = `${lineHeight}px`;
 	}
 
 	clearValidation(): void {

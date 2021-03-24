@@ -28,7 +28,7 @@ export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'bracket
 /**
  * Configuration options for typing over closing quotes or brackets
  */
-export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
+export type EditorAutoClosingEditStrategy = 'always' | 'auto' | 'never';
 
 /**
  * Configuration options for auto indentation in the editor
@@ -139,10 +139,15 @@ export interface IEditorOptions {
 	 */
 	extraEditorClassName?: string;
 	/**
-	 * Should the editor be read only.
+	 * Should the editor be read only. See also `domReadOnly`.
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * Should the textarea used for input use the DOM `readonly` attribute.
+	 * Defaults to false.
+	 */
+	domReadOnly?: boolean;
 	/**
 	 * Enable linked editing.
 	 * Defaults to false.
@@ -414,9 +419,13 @@ export interface IEditorOptions {
 	 */
 	autoClosingQuotes?: EditorAutoClosingStrategy;
 	/**
+	 * Options for pressing backspace near quotes or bracket pairs.
+	 */
+	autoClosingDelete?: EditorAutoClosingEditStrategy;
+	/**
 	 * Options for typing over closing quotes or brackets.
 	 */
-	autoClosingOvertype?: EditorAutoClosingOvertypeStrategy;
+	autoClosingOvertype?: EditorAutoClosingEditStrategy;
 	/**
 	 * Options for auto surrounding.
 	 * Defaults to always allowing auto surrounding.
@@ -3140,7 +3149,7 @@ export interface ISuggestOptions {
 	 */
 	snippetsPreventQuickSuggestions?: boolean;
 	/**
-	 * Favours words that appear close to the cursor.
+	 * Favors words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
 	/**
@@ -3332,7 +3341,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				'editor.suggest.localityBonus': {
 					type: 'boolean',
 					default: defaults.localityBonus,
-					description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
+					description: nls.localize('suggest.localityBonus', "Controls whether sorting favors words that appear close to the cursor.")
 				},
 				'editor.suggest.shareSuggestSelections': {
 					type: 'boolean',
@@ -3725,6 +3734,7 @@ export const enum EditorOption {
 	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
+	autoClosingDelete,
 	autoClosingOvertype,
 	autoClosingQuotes,
 	autoIndent,
@@ -3746,6 +3756,7 @@ export const enum EditorOption {
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
+	domReadOnly,
 	dragAndDrop,
 	emptySelectionClipboard,
 	extraEditorClassName,
@@ -3904,6 +3915,19 @@ export const EditorOptions = {
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
 		}
 	)),
+	autoClosingDelete: register(new EditorStringEnumOption(
+		EditorOption.autoClosingDelete, 'autoClosingDelete',
+		'auto' as 'always' | 'auto' | 'never',
+		['always', 'auto', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingDelete.auto', "Remove adjacent closing quotes or brackets only if they were automatically inserted."),
+				'',
+			],
+			description: nls.localize('autoClosingDelete', "Controls whether the editor should remove adjacent closing quotes or brackets when deleting.")
+		}
+	)),
 	autoClosingOvertype: register(new EditorStringEnumOption(
 		EditorOption.autoClosingOvertype, 'autoClosingOvertype',
 		'auto' as 'always' | 'auto' | 'never',
@@ -4044,6 +4068,9 @@ export const EditorOptions = {
 	)),
 	disableMonospaceOptimizations: register(new EditorBooleanOption(
 		EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false
+	)),
+	domReadOnly: register(new EditorBooleanOption(
+		EditorOption.domReadOnly, 'domReadOnly', false,
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,
