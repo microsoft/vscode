@@ -325,6 +325,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._onPtyReconnect.fire();
 		}
 
+		// Clear data written flag to re-enable seamless relaunch if this relaunch was manually
+		// triggered
+		this._hasWrittenData = false;
+
 		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
 	}
 
