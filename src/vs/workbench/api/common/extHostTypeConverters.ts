@@ -3,36 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as modes from 'vs/editor/common/modes';
-import * as types from './extHostTypes';
-import * as search from 'vs/workbench/contrib/search/common/search';
-import { ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
-import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import type * as vscode from 'vscode';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as editorRange from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import * as htmlContent from 'vs/base/common/htmlContent';
-import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { isString, isNumber, isDefined } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { isDefined, isNumber, isString } from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IPosition } from 'vs/editor/common/core/position';
+import * as editorRange from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
+import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import * as languageSelector from 'vs/editor/common/modes/languageSelector';
+import { EditorOverride, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
+import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as search from 'vs/workbench/contrib/search/common/search';
 import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import type * as vscode from 'vscode';
+import * as types from './extHostTypes';
 
 export interface PositionLike {
 	line: number;
@@ -1657,7 +1656,8 @@ export namespace TestItem {
 		return {
 			extId: item.id,
 			label: item.label,
-			location: item.location ? location.from(item.location) as any : undefined,
+			uri: item.uri,
+			range: Range.from(item.range),
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
@@ -1669,7 +1669,8 @@ export namespace TestItem {
 		return {
 			extId: item.id,
 			label: item.label,
-			location: item.location ? location.from(item.location) as any : undefined,
+			uri: item.uri,
+			range: Range.from(item.range),
 			debuggable: false,
 			description: item.description,
 			runnable: true,
@@ -1681,10 +1682,8 @@ export namespace TestItem {
 		return {
 			id: item.extId,
 			label: item.label,
-			location: item.location && location.to({
-				range: item.location.range,
-				uri: URI.revive(item.location.uri)
-			}),
+			uri: URI.revive(item.uri),
+			range: Range.to(item.range),
 			expandable: item.expandable,
 			debuggable: item.debuggable,
 			description: item.description,
@@ -1693,14 +1692,8 @@ export namespace TestItem {
 	}
 
 	export function to(item: ITestItem): types.TestItem {
-		const testItem = new types.TestItem(item.extId, item.label, item.expandable);
-		if (item.location) {
-			testItem.location = location.to({
-				range: item.location.range,
-				uri: URI.revive(item.location.uri)
-			});
-		}
-
+		const testItem = new types.TestItem(item.extId, item.label, URI.revive(item.uri), item.expandable);
+		testItem.range = Range.to(item.range);
 		testItem.debuggable = item.debuggable;
 		testItem.description = item.description;
 		testItem.runnable = item.runnable;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { TestItem, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
@@ -10,7 +11,7 @@ export class StubTestItem extends TestItem {
 	parent: StubTestItem | undefined;
 
 	constructor(id: string, label: string, private readonly pendingChildren: StubTestItem[]) {
-		super(id, label, pendingChildren.length > 0);
+		super(id, label, URI.file('/'), pendingChildren.length > 0);
 	}
 
 	public discoverChildren(progress: IProgress<{ busy: boolean }>) {

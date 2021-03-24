@@ -160,7 +160,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 						break;
 					}
 
-					const locationChanged = !!patch.item?.location;
+					const locationChanged = !!patch.item?.range;
 					if (locationChanged) { this.locations.remove(existing); }
 					existing.update(patch);
 					if (locationChanged) { this.locations.add(existing); }

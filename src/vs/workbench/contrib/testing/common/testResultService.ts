@@ -440,10 +440,7 @@ export class HydratedTestResult implements ITestResult {
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true, children: new Set(item.children) };
-			if (cast.item.location) {
-				cast.item.location.uri = URI.revive(cast.item.location.uri);
-				cast.item.location.range = Range.lift(cast.item.location.range);
-			}
+			cast.item.uri = URI.revive(cast.item.uri);
 
 			for (const message of cast.state.messages) {
 				if (message.location) {
