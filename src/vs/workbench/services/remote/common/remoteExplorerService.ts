@@ -76,6 +76,7 @@ export interface Tunnel {
 	closeable?: boolean;
 	privacy: TunnelPrivacy;
 	runningProcess: string | undefined;
+	hasRunningProcess?: boolean;
 	pid: number | undefined;
 	source?: string;
 	userForwarded: boolean;
@@ -576,6 +577,7 @@ export class TunnelModel extends Disposable {
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = value.detail;
+				forwardedValue.hasRunningProcess = true;
 				forwardedValue.pid = value.pid;
 			}
 		});
@@ -587,11 +589,13 @@ export class TunnelModel extends Disposable {
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, parsedAddress.host, parsedAddress.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = undefined;
+				forwardedValue.hasRunningProcess = false;
 				forwardedValue.pid = undefined;
 			}
 			const detectedValue = mapHasAddressLocalhostOrAllInterfaces(this.detected, parsedAddress.host, parsedAddress.port);
 			if (detectedValue) {
 				detectedValue.runningProcess = undefined;
+				detectedValue.hasRunningProcess = false;
 				detectedValue.pid = undefined;
 			}
 		});
@@ -618,7 +622,7 @@ export class TunnelModel extends Disposable {
 
 	async getAttributes(ports: number[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
-		const pidToPortsMapping: Map<number, number[]> = new Map();
+		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
 		ports.forEach(port => {
 			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], port);
 			if (matchingCandidate) {
@@ -684,8 +688,8 @@ export class TunnelModel extends Disposable {
 export interface CandidatePort {
 	host: string;
 	port: number;
-	detail: string;
-	pid: number;
+	detail?: string;
+	pid?: number;
 }
 
 export interface IRemoteExplorerService {
