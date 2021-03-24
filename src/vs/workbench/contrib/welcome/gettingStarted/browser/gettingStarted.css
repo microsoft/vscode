@@ -211,7 +211,6 @@
 	position: relative;
 	border-radius: 6px;
 	overflow: hidden;
-	box-shadow: 0px 1px 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon {

@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -862,6 +862,11 @@ registerThemingParticipant((theme, collector) => {
 	const buttonColor = theme.getColor(welcomePageTileBackground);
 	if (buttonColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { background: ${buttonColor}; }`);
+	}
+
+	const shadowColor = theme.getColor(welcomePageTileShadow);
+	if (shadowColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-category { filter: drop-shadow(2px 2px 2px ${buttonColor}); }`);
 	}
 
 	const buttonHoverColor = theme.getColor(welcomePageTileHoverBackground);
