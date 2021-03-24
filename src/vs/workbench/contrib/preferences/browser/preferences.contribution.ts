@@ -778,7 +778,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_UP,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS.toNegated()),
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS.toNegated(), CONTEXT_SETTINGS_JSON_EDITOR.toNegated()),
 					keybinding: {
 						primary: KeyCode.Escape,
 						weight: KeybindingWeight.WorkbenchContrib,

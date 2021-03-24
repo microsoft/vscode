@@ -218,6 +218,11 @@ registerAction2(class extends Action2 {
 
 		const controller = editor.getContribution<FoldingController>(FoldingController.id);
 		if (index !== undefined) {
+			const targetCell = editor.viewModel?.viewCells[index];
+			if (targetCell?.cellKind === CellKind.Code && direction === 'down') {
+				return;
+			}
+
 			if (direction === 'up') {
 				controller.setFoldingStateUp(index, CellFoldingState.Collapsed, levels);
 			} else {

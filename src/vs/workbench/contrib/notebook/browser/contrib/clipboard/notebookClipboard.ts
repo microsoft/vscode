@@ -43,7 +43,7 @@ class NotebookClipboardContribution extends Disposable {
 		const PRIORITY = 105;
 
 		if (CopyAction) {
-			this._register(CopyAction.addImplementation(PRIORITY, accessor => {
+			this._register(CopyAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				const activeElement = <HTMLElement>document.activeElement;
 				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 					return false;
@@ -80,7 +80,7 @@ class NotebookClipboardContribution extends Disposable {
 		}
 
 		if (PasteAction) {
-			PasteAction.addImplementation(PRIORITY, accessor => {
+			PasteAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				const activeElement = <HTMLElement>document.activeElement;
 				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 					return false;
@@ -137,7 +137,7 @@ class NotebookClipboardContribution extends Disposable {
 		}
 
 		if (CutAction) {
-			CutAction.addImplementation(PRIORITY, accessor => {
+			CutAction.addImplementation(PRIORITY, 'notebook-clipboard', accessor => {
 				const activeElement = <HTMLElement>document.activeElement;
 				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 					return false;

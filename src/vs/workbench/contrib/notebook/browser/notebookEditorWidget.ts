@@ -67,7 +67,6 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { isWeb } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -341,7 +340,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
 
-		this.useRenderer = this.configurationService.getValue<boolean>('notebook.experimental.useMarkdownRenderer') ?? (!isWeb && !accessibilityService.isScreenReaderOptimized());
+		this.useRenderer = (this.configurationService.getValue<boolean>('notebook.experimental.useMarkdownRenderer') ?? false /*!isWeb*/) && !accessibilityService.isScreenReaderOptimized();
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);

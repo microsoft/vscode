@@ -83,10 +83,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}));
 
 		const PRIORITY = 105;
-		this._register(UndoCommand.addImplementation(PRIORITY, () => {
+		this._register(UndoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
 			return this.withActiveCustomEditor(editor => editor.undo());
 		}));
-		this._register(RedoCommand.addImplementation(PRIORITY, () => {
+		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
 			return this.withActiveCustomEditor(editor => editor.redo());
 		}));
 

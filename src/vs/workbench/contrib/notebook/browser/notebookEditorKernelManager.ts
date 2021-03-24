@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Memento } from 'vs/workbench/common/memento';
-import { ICellViewModel, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_KERNEL_COUNT, getRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { configureKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -421,11 +421,11 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
-		const fullRange: ICellRange = {
-			start: 0, end: this._delegate.viewModel.length
-		};
-		this._activeKernelExecuted = true;
-		await this._activeKernel?.executeNotebookCellsRequest(this._delegate.viewModel.uri, [fullRange]);
+		const codeCellRanges = getRanges(this._delegate.viewModel.viewCells, cell => cell.cellKind === CellKind.Code);
+		if (codeCellRanges.length) {
+			this._activeKernelExecuted = true;
+			await this._activeKernel?.executeNotebookCellsRequest(this._delegate.viewModel.uri, codeCellRanges);
+		}
 	}
 
 	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
