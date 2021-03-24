@@ -954,12 +954,18 @@ export class CodeApplication extends Disposable {
 			type SharedProcessErrorClassification = {
 				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;
 				reason: string | undefined;
+				visible: boolean;
 			};
-			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type, reason: typeof details !== 'string' ? details?.reason : undefined });
+			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
+				type,
+				reason: typeof details !== 'string' ? details?.reason : undefined,
+				visible: sharedProcess.isVisible()
+			});
 		}));
 
 		// Windows: install mutex
