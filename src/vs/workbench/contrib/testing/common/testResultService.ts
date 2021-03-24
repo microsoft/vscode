@@ -119,6 +119,7 @@ const itemToNode = (
 		...item,
 		// shallow-clone the test to take a 'snapshot' of it at the point in time where tests run
 		item: { ...item.item },
+		children: new Set(item.children),
 		state: unsetState,
 		computedState: TestResult.Unset,
 		retired: false,
