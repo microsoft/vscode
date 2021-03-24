@@ -57,10 +57,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 		);
 	}
 
-	for (const [profileName, value] of Object.entries(configProfiles || {})) {
-		if (value === null) { detectedProfiles.delete(profileName); }
-		detectedProfiles.set(profileName, value);
-	}
+	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
 
@@ -200,15 +197,22 @@ async function detectAvailableUnixProfiles(statProvider: IStatProvider, logServi
 		}
 	}
 
-	for (const [profileName, value] of Object.entries(configProfiles || {})) {
-		if (value === null) {
-			detectedProfiles.delete(profileName);
-		} else {
-			detectedProfiles.set(profileName, value);
-		}
-	}
+	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
 	return await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
+}
+
+function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProfileObject } | undefined, profilesMap: Map<string, ITerminalProfileObject>) {
+	if (!configProfiles) {
+		return;
+	}
+	for (const [profileName, value] of Object.entries(configProfiles)) {
+		if (value === null) {
+			profilesMap.delete(profileName);
+		} else {
+			profilesMap.set(profileName, value);
+		}
+	}
 }
 
 async function validateProfilePaths(label: string, potentialPaths: string[], statProvider: IStatProvider, args?: string[] | string, logService?: ILogService): Promise<ITerminalProfile | undefined> {
