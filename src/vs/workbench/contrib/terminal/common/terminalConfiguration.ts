@@ -27,6 +27,10 @@ const terminalProfileSchema: IJSONSchema = {
 			items: {
 				type: 'string'
 			}
+		},
+		overrideName: {
+			description: localize('terminalProfile.overrideName', 'An optional name for the terminal which will override the detected one.'),
+			type: 'string'
 		}
 	}
 };
@@ -135,6 +139,10 @@ export const terminalConfiguration: IConfigurationNode = {
 							source: {
 								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
 								enum: ['PowerShell', 'Git Bash']
+							},
+							overrideName: {
+								description: localize('terminalProfile.overrideName', 'An optional name for the terminal which will override the detected one.'),
+								type: 'string'
 							}
 						}
 					},

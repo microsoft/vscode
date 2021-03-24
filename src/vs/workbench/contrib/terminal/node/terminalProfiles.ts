@@ -76,7 +76,6 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		if (profile === null) { continue; }
 		let originalPaths: string[];
 		let args: string[] | string | undefined;
-
 		if ('source' in profile) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
@@ -94,7 +93,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		for (let i = 0; i < paths.length; i++) {
 			paths[i] = variableResolver?.resolve(workspaceFolder, paths[i]) || paths[i];
 		}
-		const validatedProfile = await validateProfilePaths(profileName, paths, statProvider, args, logService);
+		const validatedProfile = await validateProfilePaths(profileName, paths, statProvider, args, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			resultProfiles.push(validatedProfile);
@@ -222,38 +221,31 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 	}
 }
 
-async function validateProfilePaths(label: string, potentialPaths: string[], statProvider: IStatProvider, args?: string[] | string, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, potentialPaths: string[], statProvider: IStatProvider, args?: string[] | string, overrideName?: string, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
 	const current = potentialPaths.shift()!;
 	if (current === '') {
-		return validateProfilePaths(label, potentialPaths, statProvider, args);
+		return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName, isAutoDetected);
 	}
 
+	const profile = {
+		profileName,
+		path: current,
+		args,
+		overrideName,
+		isAutoDetected
+	};
+
 	if (basename(current) === current) {
-		return {
-			profileName: label,
-			path: current,
-			args
-		};
+		return profile;
 	}
 
 	try {
 		const result = await fs.promises.stat(normalize(current));
 		if (result.isFile() || result.isSymbolicLink()) {
-			if (args) {
-				return {
-					profileName: label,
-					path: current,
-					args
-				};
-			} else {
-				return {
-					profileName: label,
-					path: current
-				};
-			}
+			return profile;
 		}
 	} catch (e) {
 		// Also try using lstat as some symbolic links on Windows
@@ -262,17 +254,8 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 		try {
 			const result = await fs.promises.lstat(normalize(current));
 			if (result.isFile() || result.isSymbolicLink()) {
-				if (args) {
-					return {
-						profileName: label,
-						path: current,
-						args
-					};
-				} else {
-					return {
-						profileName: label,
-						path: current
-					};
+				{
+					return profile;
 				}
 			}
 		}
@@ -280,7 +263,7 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 			// noop
 		}
 	}
-	return validateProfilePaths(label, potentialPaths, statProvider, args);
+	return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName);
 }
 
 export interface IStatProvider {

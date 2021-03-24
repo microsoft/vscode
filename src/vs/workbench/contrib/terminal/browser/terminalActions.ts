@@ -1473,7 +1473,7 @@ export function registerTerminalActions() {
 				if (launchConfig) {
 					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
 					if (workspaceShellAllowed) {
-						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
+						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args, name: launchConfig.overrideName });
 						terminalService.setActiveInstance(instance);
 					}
 				} else {
