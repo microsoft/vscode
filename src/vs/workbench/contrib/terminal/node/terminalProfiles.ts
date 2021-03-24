@@ -5,9 +5,9 @@
 
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
-import { normalize, basename } from 'vs/base/common/path';
+import { normalize, basename, delimiter } from 'vs/base/common/path';
 import { enumeratePowerShellInstallations } from 'vs/base/node/powershell';
-import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { ITerminalConfiguration, ITerminalProfile, ITerminalProfileObject, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
@@ -239,7 +239,14 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 
 	const profile = { profileName, path, args, overrideName, isAutoDetected };
 
+	// For non-absolute paths, check if it's available on $PATH
 	if (basename(path) === path) {
+		// The executable isn't an absolute path, try find it on the PATH
+		const envPaths: string[] | undefined = process.env.PATH ? process.env.PATH.split(delimiter) : undefined;
+		const executable = await findExecutable(path, undefined, envPaths);
+		if (!executable) {
+			return validateProfilePaths(profileName, potentialPaths, statProvider, args);
+		}
 		return profile;
 	}
 
