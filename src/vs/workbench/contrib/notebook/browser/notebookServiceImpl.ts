@@ -35,6 +35,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEditorAssociationsRegistry } from 'vs/workbench/browser/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Schemas } from 'vs/base/common/network';
 
 export class NotebookKernelProviderInfoStore {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
@@ -185,7 +186,17 @@ export class NotebookProviderInfoStore extends Disposable {
 	}
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
-		return [...Iterable.filter(this._contributedEditors.values(), customEditor => resource.scheme === 'untitled' || customEditor.matches(resource))];
+		const result: NotebookProviderInfo[] = [];
+		for (let info of this._contributedEditors.values()) {
+			if (info.matches(resource)) {
+				result.push(info);
+			}
+		}
+		if (result.length === 0 && resource.scheme === Schemas.untitled) {
+			// untitled resource and no path-specific match => all providers apply
+			return Array.from(this._contributedEditors.values());
+		}
+		return result;
 	}
 
 	[Symbol.iterator](): Iterator<NotebookProviderInfo> {
