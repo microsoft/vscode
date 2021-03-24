@@ -358,6 +358,7 @@ export class TunnelModel extends Disposable {
 						localAddress: tunnel.localAddress,
 						localPort: tunnel.tunnelLocalPort,
 						runningProcess: matchingCandidate?.detail,
+						hasRunningProcess: !!matchingCandidate,
 						pid: matchingCandidate?.pid,
 						privacy: this.makeTunnelPrivacy(tunnel.public),
 						userForwarded: true
@@ -379,6 +380,7 @@ export class TunnelModel extends Disposable {
 					localPort: tunnel.tunnelLocalPort,
 					closeable: true,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
 					userForwarded: true
@@ -464,7 +466,7 @@ export class TunnelModel extends Disposable {
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
-				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), remote.host, remote.port);
+				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), remote.host, remote.port);
 				const newForward: Tunnel = {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
@@ -473,6 +475,7 @@ export class TunnelModel extends Disposable {
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					source,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
@@ -531,6 +534,7 @@ export class TunnelModel extends Disposable {
 					localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 					closeable: false,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					privacy: TunnelPrivacy.ConstantPrivate,
 					userForwarded: false
