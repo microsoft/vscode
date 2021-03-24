@@ -453,13 +453,13 @@ class Extensions extends Disposable {
 	}
 
 	private onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
+		const uninstalled = this.uninstalling.find(e => areSameExtensions(e.identifier, identifier)) || this.installed.find(e => areSameExtensions(e.identifier, identifier));
+		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
 		if (!error) {
 			this.installed = this.installed.filter(e => !areSameExtensions(e.identifier, identifier));
 		}
-		const uninstalling = this.uninstalling.filter(e => areSameExtensions(e.identifier, identifier))[0];
-		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
-		if (uninstalling) {
-			this._onChange.fire({ extension: uninstalling });
+		if (uninstalled) {
+			this._onChange.fire({ extension: uninstalled });
 		}
 	}
 
