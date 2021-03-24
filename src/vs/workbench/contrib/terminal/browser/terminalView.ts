@@ -417,7 +417,9 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 		items.push({ text: contributed.title });
 	}
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-	items.push({ text: selectDefaultProfileTitle });
+	if (terminalService.isProcessSupportRegistered) {
+		items.push({ text: selectDefaultProfileTitle });
+	}
 	items.push({ text: configureTerminalSettingsTitle });
 	return items;
 }
