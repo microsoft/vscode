@@ -184,9 +184,9 @@ class NotebookClipboardContribution extends Disposable {
 				 * and cells 1, 2 are selected, and then we delete cells 1 and 2
 				 * the new focused cell should still be at index 1
 				 */
-				const newFocusedCellIndex = firstSelectIndex < viewModel.notebookDocument.cells.length
+				const newFocusedCellIndex = firstSelectIndex < viewModel.notebookDocument.cells.length - 1
 					? firstSelectIndex
-					: viewModel.notebookDocument.cells.length - 1;
+					: Math.max(viewModel.notebookDocument.cells.length - 2, 0);
 
 				viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: selectionRanges }, () => {
 					return {
