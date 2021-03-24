@@ -2052,7 +2052,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		};
 	}
 
-	async createMarkdownPreview(cell: MarkdownCellViewModel) {
+	private async _assertWebviewForMarkdownPreview() {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
@@ -2065,6 +2065,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!this._webview.isResolved()) {
 			await this._resolveWebview();
 		}
+	}
+
+	async createMarkdownPreview(cell: MarkdownCellViewModel) {
+		await this._assertWebviewForMarkdownPreview();
 
 		if (!this._webview) {
 			return;
@@ -2075,69 +2079,25 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async unhideMarkdownPreview(cell: MarkdownCellViewModel) {
-		if (!this.useRenderer) {
-			// TODO: handle case where custom renderer is disabled?
-			return;
-		}
-
-		if (!this._webview) {
-			return;
-		}
-
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
-		}
+		await this._assertWebviewForMarkdownPreview();
 
 		await this._webview?.unhideMarkdownPreview(cell.id);
 	}
 
 	async hideMarkdownPreview(cell: MarkdownCellViewModel) {
-		if (!this.useRenderer) {
-			// TODO: handle case where custom renderer is disabled?
-			return;
-		}
-
-		if (!this._webview) {
-			return;
-		}
-
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
-		}
+		await this._assertWebviewForMarkdownPreview();
 
 		await this._webview?.hideMarkdownPreview(cell.id);
 	}
 
 	async removeMarkdownPreview(cell: MarkdownCellViewModel) {
-		if (!this.useRenderer) {
-			// TODO: handle case where custom renderer is disabled?
-			return;
-		}
-
-		if (!this._webview) {
-			return;
-		}
-
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
-		}
+		await this._assertWebviewForMarkdownPreview();
 
 		await this._webview?.removeMarkdownPreview(cell.id);
 	}
 
 	async updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
-		if (!this.useRenderer) {
-			// TODO: handle case where custom renderer is disabled?
-			return;
-		}
-
-		if (!this._webview) {
-			return;
-		}
-
-		if (!this._webview.isResolved()) {
-			await this._resolveWebview();
-		}
+		await this._assertWebviewForMarkdownPreview();
 
 		await this._webview?.updateMarkdownPreviewSelectionState(cell.id, isSelected);
 	}
