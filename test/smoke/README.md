@@ -25,7 +25,7 @@ yarn smoketest --build <path to latest version> --stable-build <path to stable v
 example: yarn smoketest --build /Applications/Visual\ Studio\ Code\ -\ Insiders.app --stable-build /Applications/Visual\ Studio\ Code.app/
 
 # Build (Web - read instructions below)
-yarn smoketest --build <path to server web build> --web --browser [chromium|webkit]
+yarn smoketest --build <path to server web build (ends in -web)> --web --browser [chromium|webkit]
 
 # Remote (Electron)
 yarn smoketest --build <path to latest version> --remote
