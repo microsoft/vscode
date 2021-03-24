@@ -1104,7 +1104,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 				templateData.element.classList.add('input-mode');
 				templateData.whenInput.focus();
 				templateData.whenInput.select();
-				templateData.element.parentElement!.style.paddingLeft = '5px';
+				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
 		}));
 
