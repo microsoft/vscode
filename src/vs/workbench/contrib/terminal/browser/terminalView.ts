@@ -129,13 +129,15 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				const hadTerminals = !!this._terminalService.terminalTabs.length;
-				if (this._terminalsInitialized) {
-					if (!hadTerminals) {
-						this._terminalService.createTerminal();
+				if (this._terminalService.isProcessSupportRegistered) {
+					if (this._terminalsInitialized) {
+						if (!hadTerminals) {
+							this._terminalService.createTerminal();
+						}
+					} else {
+						this._terminalsInitialized = true;
+						this._terminalService.initializeTerminals();
 					}
-				} else {
-					this._terminalsInitialized = true;
-					this._terminalService.initializeTerminals();
 				}
 
 				this._updateTheme();
