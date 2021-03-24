@@ -12,22 +12,25 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService, INotificationHandle, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 
-const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hours
+const WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 60; // 1 hour
+const MIN_WAIT_TIME_TO_SHOW_SURVEY = 1000 * 60 * 5; // 5 minutes
 const MAX_INSTALL_AGE = 1000 * 60 * 60 * 24; // 24 hours
 const REMIND_LATER_DELAY = 1000 * 60 * 60 * 4; // 4 hours
 const SKIP_SURVEY_KEY = 'ces/skipSurvey';
 const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
 
 class CESContribution extends Disposable implements IWorkbenchContribution {
-	private promptScheduler!: RunOnceScheduler;
+	private _promptScheduler!: RunOnceScheduler;
+	private _notification?: INotificationHandle | null;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -47,8 +50,11 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		if (skipSurvey) {
 			return;
 		}
-		this.promptScheduler = this._register(new RunOnceScheduler(async () => {
-			const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain') => {
+		this._promptScheduler = this._register(new RunOnceScheduler(async () => {
+			if (this._notification) {
+				return;
+			}
+			const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
 				/* __GDPR__
 				"cesSurvey:popup" : {
 					"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -60,13 +66,13 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 			const message = await this.tasExperimentService?.getTreatment<string>('CESSurveyMessage') ?? nls.localize('cesSurveyQuestion', 'Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.');
 			const button = await this.tasExperimentService?.getTreatment<string>('CESSurveyButton') ?? nls.localize('giveFeedback', "Give Feedback");
 
-			this.notificationService.prompt(
+			this._notification = this.notificationService.prompt(
 				Severity.Info,
 				message,
 				[{
 					label: button,
 					run: () => {
-						sendTelemetry('neverShowAgain');
+						sendTelemetry('accept');
 						this.telemetryService.getTelemetryInfo().then(info => {
 							this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
 							this._skipSurvey();
@@ -79,15 +85,19 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 						this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
 						this._prepareSurvey();
 					}
-				}, {
-					label: nls.localize('neverAgain', "Don't Show Again"),
-					run: () => {
-						sendTelemetry('neverShowAgain');
+				}],
+				{
+					sticky: true,
+					neverShowAgain: { id: 'cesSurvey:prompt', isSecondary: true, scope: NeverShowAgainScope.GLOBAL },
+					onCancel: () => {
+						sendTelemetry('cancelled');
 						this._skipSurvey();
 					}
-				}],
-				{ sticky: true }
+				}
 			);
+
+			await Event.toPromise(this._notification.onDidClose);
+			this._notification = null;
 		}, WAIT_TIME_TO_SHOW_SURVEY));
 
 		this._prepareSurvey();
@@ -121,7 +131,11 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 				waitTimeToShowSurvey = WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall;
 			}
 		}
-		this.promptScheduler.schedule(waitTimeToShowSurvey);
+		/* __GDPR__
+		"cesSurvey:schedule" : { }
+		*/
+		this.telemetryService.publicLog('cesSurvey:schedule');
+		this._promptScheduler.schedule(Math.max(waitTimeToShowSurvey, MIN_WAIT_TIME_TO_SHOW_SURVEY));
 	}
 
 	private _skipSurvey(): void {
