@@ -32,7 +32,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { newQuickLaunchProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { equals } from 'vs/base/common/objects';
 
 interface IExtHostReadyEntry {
@@ -847,17 +847,17 @@ export class TerminalService implements ITerminalService {
 			profile: ITerminalProfile;
 		}
 		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings"),
+			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal profile, you can change this later in your settings"),
 			onDidTriggerItemButton: async (context) => {
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
 				const existingProfiles = configProfiles.userValue ? Object.keys(configProfiles.userValue) : [];
 				const name = await this._quickInputService.input({
-					prompt: nls.localize('enterTerminalProfileName', "Enter profile name"),
+					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
 					value: context.item.profile.profileName,
 					validateInput: async input => {
 						if (existingProfiles.includes(input)) {
-							return nls.localize('terminalProfileAlreadyExists', "A profile already exists with that name");
+							return nls.localize('terminalProfileAlreadyExists', "A terminal profile already exists with that name");
 						}
 						return undefined;
 					}
@@ -875,8 +875,8 @@ export class TerminalService implements ITerminalService {
 		};
 		const quickPickItems = profiles.map((profile): IProfileQuickPickItem => {
 			const buttons: IQuickInputButton[] = [{
-				iconClass: ThemeIcon.asClassName(newQuickLaunchProfileIcon),
-				tooltip: nls.localize('createQuickLaunchProfile', "Create a quick launch profile based on this shell")
+				iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
+				tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
 			}];
 			if (profile.args) {
 				if (typeof profile.args === 'string') {
