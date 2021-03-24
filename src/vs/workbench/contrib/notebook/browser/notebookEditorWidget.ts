@@ -2075,6 +2075,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async unhideMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
@@ -2087,6 +2092,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async hideMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
@@ -2099,6 +2109,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async removeMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
@@ -2111,6 +2126,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
