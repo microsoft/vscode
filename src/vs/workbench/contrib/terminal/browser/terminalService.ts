@@ -33,6 +33,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { newQuickLaunchProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { equals } from 'vs/base/common/objects';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -159,6 +160,12 @@ export class TerminalService implements ITerminalService {
 		});
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+
+		const conn = this._remoteAgentService.getConnection();
+		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+		this._whenExtHostReady(remoteAuthority).then(() => {
+			this._updateAvailableProfiles();
+		});
 
 		// Connect to the extension host if it's there, set the connection state to connected when
 		// it's done. This should happen even when there is no extension host.
@@ -339,10 +346,10 @@ export class TerminalService implements ITerminalService {
 	// when relevant config changes, update without debouncing
 	private async _updateAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles(true);
-		if (result !== this._availableProfiles) {
-			for (const p of result) {
-				p.isWorkspaceProfile = await this._getWorkspaceProfilePermissions(p);
-			}
+		for (const p of result) {
+			p.isWorkspaceProfile = await this._getWorkspaceProfilePermissions(p);
+		}
+		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
 			this._onProfilesConfigChanged.fire();
 		}
@@ -366,7 +373,6 @@ export class TerminalService implements ITerminalService {
 
 	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
-		this._updateAvailableProfiles();
 		return this._extHostsReady[remoteAuthority]!.promise;
 	}
 
