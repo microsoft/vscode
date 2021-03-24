@@ -1149,7 +1149,7 @@ export class RunStateRenderer {
 		} else if (runState === NotebookCellExecutionState.Pending) {
 			// Not spinning
 			runStateTooltip = localize('runStatePending', "Pending");
-			DOM.reset(this.element, renderIcon(Codicons.Codicon.sync));
+			DOM.reset(this.element, renderIcon(Codicons.Codicon.clock));
 		} else {
 			this.element.innerText = '';
 		}
