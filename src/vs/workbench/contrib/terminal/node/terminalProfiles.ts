@@ -72,19 +72,23 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 	const resultProfiles: ITerminalProfile[] = [];
 	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
-		let paths: string[];
+		let originalPaths: string[];
 		let args: string[] | string | undefined;
+
 		if ('source' in profile) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
 				continue;
 			}
-			paths = source.paths.slice();
+			originalPaths = source.paths;
 			args = source.args;
 		} else {
-			paths = Array.isArray(profile.path) ? profile.path : [profile.path];
+			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = profile.args;
 		}
+
+		const paths = originalPaths.slice();
+
 		for (let i = 0; i < paths.length; i++) {
 			paths[i] = variableResolver?.resolve(workspaceFolder, paths[i]) || paths[i];
 		}
@@ -92,7 +96,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		if (validatedProfile) {
 			resultProfiles.push(validatedProfile);
 		} else {
-			logService?.trace('profile not validated', profileName, paths);
+			logService?.trace('profile not validated', profileName, originalPaths);
 		}
 	}
 	return resultProfiles;
@@ -249,7 +253,6 @@ async function validateProfilePaths(label: string, potentialPaths: string[], sta
 			}
 		}
 	} catch (e) {
-		logService?.info('error', e);
 		// Also try using lstat as some symbolic links on Windows
 		// throw 'permission denied' using 'stat' but don't throw
 		// using 'lstat'
