@@ -214,6 +214,10 @@ export class GettingStartedPage extends EditorPane {
 							this.commandService.executeCommand('workbench.action.openRecent');
 							break;
 						}
+						case 'configureVisibility': {
+							this.commandService.executeCommand('workbench.action.openSettings', hiddenEntriesConfigurationKey);
+							break;
+						}
 						case 'openFolder': {
 							this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 							break;
@@ -402,6 +406,13 @@ export class GettingStartedPage extends EditorPane {
 		categoryElements.forEach(element => {
 			categoriesContainer.appendChild(element);
 		});
+
+		categoriesContainer.appendChild(
+			$('.no-categories', {},
+				localize('no categories', "No remaining walkthroughs."),
+				$('button.button-link', { 'x-dispatch': 'configureVisibility' }, localize('configure visiblity', "Configure visibility?")))
+		);
+
 
 		categoryScrollContainer.appendChild(categoriesContainer);
 
