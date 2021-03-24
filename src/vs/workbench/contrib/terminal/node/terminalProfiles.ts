@@ -86,7 +86,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 			args = source.args;
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
-			args = profile.args;
+			args = platform.isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
 		}
 
 		const paths = originalPaths.slice();
