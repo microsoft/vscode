@@ -13,15 +13,15 @@ import * as cp from 'child_process';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
+import * as pfs from 'vs/base/node/pfs';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	const provider = statProvider ? statProvider : fs.promises;
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, provider, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(provider, logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, statProvider, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(statProvider, logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProvider: IStatProvider, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProvider?: IStatProvider, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -61,7 +61,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
+	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), logService, statProvider, variableResolver, workspaceFolder);
 
 	if (!quickLaunchOnly || (quickLaunchOnly && showQuickLaunchWslProfiles)) {
 		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles));
@@ -70,7 +70,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 	return resultProfiles;
 }
 
-async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, statProvider: IStatProvider, logService?: ILogService, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, logService?: ILogService, statProvider?: IStatProvider, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const resultProfiles: ITerminalProfile[] = [];
 	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
@@ -190,22 +190,29 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	return [];
 }
 
-async function detectAvailableUnixProfiles(statProvider: IStatProvider, logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(statProvider?: IStatProvider, logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add non-quick launch profiles
 	if (!quickLaunchOnly) {
 		const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
+		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
-			const profileName = basename(profile);
+			let profileName = basename(profile);
+			let count = counts.get(profileName) || 0;
+			count++;
+			if (count > 1) {
+				profileName = `${profileName} (${count})`;
+			}
+			counts.set(profileName, count);
 			detectedProfiles.set(profileName, { path: profile, isAutoDetected: true });
 		}
 	}
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	return await transformToTerminalProfiles(detectedProfiles.entries(), statProvider, logService, variableResolver, workspaceFolder);
+	return await transformToTerminalProfiles(detectedProfiles.entries(), logService, statProvider, variableResolver, workspaceFolder);
 }
 
 function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProfileObject } | undefined, profilesMap: Map<string, ITerminalProfileObject>) {
@@ -221,7 +228,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 	}
 }
 
-async function validateProfilePaths(profileName: string, potentialPaths: string[], statProvider: IStatProvider, args?: string[] | string, overrideName?: string, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string, overrideName?: string, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
@@ -230,51 +237,22 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 		return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName, isAutoDetected);
 	}
 
-	const profile = {
-		profileName,
-		path,
-		args,
-		overrideName,
-		isAutoDetected
-	};
+	const profile = { profileName, path, args, overrideName, isAutoDetected };
 
 	if (basename(path) === path) {
 		return profile;
 	}
 
-	try {
-		const result = await fs.promises.stat(normalize(path));
-		if (result.isFile() || result.isSymbolicLink()) {
-			return profile;
-		}
-	} catch (e) {
-		// Also try using lstat as some symbolic links on Windows
-		// throw 'permission denied' using 'stat' but don't throw
-		// using 'lstat'
-		try {
-			const result = await fs.promises.lstat(normalize(path));
-			if (result.isFile() || result.isSymbolicLink()) {
-				{
-					return profile;
-				}
-			}
-		}
-		catch (e) {
-			// noop
-		}
+	const result = statProvider ? await statProvider.existsFile(path) : await pfs.SymlinkSupport.existsFile(normalize(path));
+	if (result) {
+		return profile;
 	}
+
 	return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName, isAutoDetected);
 }
 
 export interface IStatProvider {
-	stat(path: string): Promise<{
-		isFile(): boolean;
-		isSymbolicLink(): boolean;
-	}>,
-	lstat(path: string): Promise<{
-		isFile(): boolean;
-		isSymbolicLink(): boolean;
-	}>
+	existsFile(path: string): Promise<boolean>,
 }
 
 interface IPotentialTerminalProfile {

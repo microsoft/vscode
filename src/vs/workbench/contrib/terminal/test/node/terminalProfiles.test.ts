@@ -114,17 +114,8 @@ suite('Workbench - TerminalProfiles', () => {
 
 	function createStatProvider(expectedPaths: string[]): IStatProvider {
 		const provider = {
-			async stat(path: string) {
-				return {
-					isFile: () => expectedPaths.includes(path),
-					isSymbolicLink: () => false
-				};
-			},
-			async lstat(path: string) {
-				return {
-					isFile: () => expectedPaths.includes(path),
-					isSymbolicLink: () => false
-				};
+			async existsFile(path: string): Promise<boolean> {
+				return expectedPaths.includes(path);
 			}
 		};
 		return provider;
