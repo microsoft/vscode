@@ -726,6 +726,12 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 
 	const text = cell.getText();
 	const idx = notebookEditor.viewModel.getCellIndex(cell);
+
+	if (language === undefined) {
+		const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
+		language = availableLanguages[0] ?? 'plaintext';
+	}
+
 	notebookEditor.viewModel.notebookDocument.applyEdits([
 		{
 			editType: CellEditType.Replace,
