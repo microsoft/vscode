@@ -8,6 +8,28 @@ import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+
+const terminalProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalProfile.path', 'A single path to a shell executable or an array of paths that will be used as fallbacks when one fails.'),
+			type: ['string', 'array'],
+			items: {
+				type: 'string'
+			}
+		},
+		args: {
+			description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
+			type: 'array',
+			items: {
+				type: 'string'
+			}
+		}
+	}
+};
 
 export const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -104,6 +126,21 @@ export const terminalConfiguration: IConfigurationNode = {
 					source: 'Git Bash'
 				}
 			},
+			additionalProperties: {
+				'anyOf': [
+					{
+						type: 'object',
+						required: ['source'],
+						properties: {
+							source: {
+								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
+								enum: ['PowerShell', 'Git Bash']
+							}
+						}
+					},
+					terminalProfileSchema
+				]
+			}
 		},
 		'terminal.integrated.profiles.osx': {
 			markdownDescription: localize(
@@ -128,6 +165,7 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'tmux'
 				}
 			},
+			additionalProperties: terminalProfileSchema
 		},
 		'terminal.integrated.profiles.linux': {
 			markdownDescription: localize(
@@ -151,7 +189,8 @@ export const terminalConfiguration: IConfigurationNode = {
 				'tmux': {
 					path: 'tmux'
 				}
-			}
+			},
+			additionalProperties: terminalProfileSchema
 		},
 		'terminal.integrated.showQuickLaunchWslProfiles': {
 			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
