@@ -58,7 +58,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { InternalTestItem, ITestState, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff, ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { WorkspaceTrustRequest, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -891,7 +891,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
-	$requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState>;
+	$requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState>;
 }
 
 export interface IFileChangeDto {
