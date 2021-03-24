@@ -404,4 +404,74 @@ suite('NotebookTextModel', () => {
 			assert.strictEqual(model.cells[0].outputs.length, 2);
 		});
 	});
+
+	test('Clearing output of an empty notebook makes it dirty #119608', function () {
+		withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+			['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+		], (editor) => {
+			const model = editor.viewModel.notebookDocument;
+
+			let event: NotebookTextModelChangedEvent | undefined;
+
+			model.onDidChangeContent(e => { event = e; });
+
+			{
+				// 1: add ouput -> event
+				const success = model.applyEdits(
+					[{
+						editType: CellEditType.Output, index: 0, outputs: [
+							{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', value: 1 }] }
+						],
+						append: false
+					}], true, undefined, () => undefined, undefined, false
+				);
+
+				assert.ok(success);
+				assert.strictEqual(model.cells[0].outputs.length, 1);
+				assert.ok(event);
+			}
+
+			{
+				// 2: clear all output w/ output -> event
+				event = undefined;
+				const success = model.applyEdits(
+					[{
+						editType: CellEditType.Output,
+						index: 0,
+						outputs: [],
+						append: false
+					}, {
+						editType: CellEditType.Output,
+						index: 1,
+						outputs: [],
+						append: false
+					}], true, undefined, () => undefined, undefined, false
+				);
+				assert.ok(success);
+				assert.ok(event);
+			}
+
+			{
+				// 2: clear all output wo/ output -> NO event
+				event = undefined;
+				const success = model.applyEdits(
+					[{
+						editType: CellEditType.Output,
+						index: 0,
+						outputs: [],
+						append: false
+					}, {
+						editType: CellEditType.Output,
+						index: 1,
+						outputs: [],
+						append: false
+					}], true, undefined, () => undefined, undefined, false
+				);
+
+				assert.ok(success);
+				assert.ok(event === undefined);
+			}
+		});
+	});
 });

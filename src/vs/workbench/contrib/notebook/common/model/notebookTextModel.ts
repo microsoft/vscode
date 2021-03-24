@@ -735,6 +735,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[], computeUndoRedo: boolean): void {
+		if (splices.length === 0) {
+			return;
+		}
 		const cell = this._mapping.get(cellHandle);
 		if (cell) {
 			cell.spliceNotebookCellOutputs(splices);

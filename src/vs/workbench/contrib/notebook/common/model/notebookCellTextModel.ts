@@ -143,11 +143,12 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
-		splices.reverse().forEach(splice => {
-			this.outputs.splice(splice[0], splice[1], ...splice[2]);
-		});
-
-		this._onDidChangeOutputs.fire(splices);
+		if (splices.length > 0) {
+			splices.reverse().forEach(splice => {
+				this.outputs.splice(splice[0], splice[1], ...splice[2]);
+			});
+			this._onDidChangeOutputs.fire(splices);
+		}
 	}
 
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
