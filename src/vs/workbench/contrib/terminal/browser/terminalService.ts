@@ -294,28 +294,27 @@ export class TerminalService implements ITerminalService {
 
 	public getAvailableProfiles(): ITerminalProfile[] {
 		this._updateAvailableProfiles();
-		return this._availableProfiles?.map(p => ({ profileName: p.profileName, path: p.path, args: p.args, isWorkspaceProfile: this._getWorkspaceProfilePermissions(p) } as ITerminalProfile)) || [];
+		return this._availableProfiles || [];
 	}
 
-	private _getWorkspaceProfilePermissions(profile: ITerminalProfile): boolean {
-		if (isWindows) {
-			const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(`terminal.integrated.profiles.windows`);
-			if (profiles && profiles.workspaceValue && profiles.defaultValue) {
-				const workspaceProfile = Object.entries(profiles.workspaceValue).find(p => p[0] === profile.profileName);
-				const defaultProfile = Object.entries(profiles.defaultValue).find(p => p[0] === profile.profileName);
-				if (workspaceProfile && defaultProfile && workspaceProfile[0] === defaultProfile[0]) {
-					let result = !this._terminalProfileObjectEqual(workspaceProfile[1], defaultProfile[1]);
-					return result;
-				} else if (!workspaceProfile && !defaultProfile) {
-					// user profile
-					return false;
-				} else {
-					// this key is missing from either default or the workspace config
-					return true;
-				}
-			}
+	private async _getWorkspaceProfilePermissions(profile: ITerminalProfile): Promise<boolean> {
+		const platformKey = await this._getPlatformKey();
+		const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(`terminal.integrated.profiles.${platformKey}`);
+		if (!profiles || !profiles.workspaceValue || !profiles.defaultValue) {
+			return false;
 		}
-		return false;
+		const workspaceProfile = Object.entries(profiles.workspaceValue).find(p => p[0] === profile.profileName);
+		const defaultProfile = Object.entries(profiles.defaultValue).find(p => p[0] === profile.profileName);
+		if (workspaceProfile && defaultProfile && workspaceProfile[0] === defaultProfile[0]) {
+			let result = !this._terminalProfileObjectEqual(workspaceProfile[1], defaultProfile[1]);
+			return result;
+		} else if (!workspaceProfile && !defaultProfile) {
+			// user profile
+			return false;
+		} else {
+			// this key is missing from either default or the workspace config
+			return true;
+		}
 	}
 
 	private _terminalProfileObjectEqual(one?: ITerminalProfileObject, two?: ITerminalProfileObject): boolean {
@@ -341,6 +340,9 @@ export class TerminalService implements ITerminalService {
 	private async _updateAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles(true);
 		if (result !== this._availableProfiles) {
+			for (const p of result) {
+				p.isWorkspaceProfile = await this._getWorkspaceProfilePermissions(p);
+			}
 			this._availableProfiles = result;
 			this._onProfilesConfigChanged.fire();
 		}
@@ -348,12 +350,8 @@ export class TerminalService implements ITerminalService {
 
 	// avoid checking this very often, every ten seconds shoulds suffice
 	@throttle(10000)
-	private async _updateAvailableProfiles(): Promise<void> {
-		const result = await this._detectProfiles(true);
-		if (result !== this._availableProfiles) {
-			this._availableProfiles = result;
-			this._onProfilesConfigChanged.fire();
-		}
+	private _updateAvailableProfiles(): Promise<void> {
+		return this._updateAvailableProfilesNow();
 	}
 
 	private async _detectProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
@@ -827,15 +825,17 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
+	private async _getPlatformKey(): Promise<string> {
+		const env = await this._remoteAgentService.getEnvironment();
+		if (env) {
+			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
+		}
+		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+	}
+
 	public async selectDefaultProfile(): Promise<void> {
 		const profiles = await this._detectProfiles(false);
-		const env = await this._remoteAgentService.getEnvironment();
-		let platformKey: string;
-		if (env) {
-			platformKey = env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
-		} else {
-			platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
-		}
+		const platformKey = await this._getPlatformKey();
 
 		interface IProfileQuickPickItem extends IQuickPickItem {
 			profile: ITerminalProfile;
