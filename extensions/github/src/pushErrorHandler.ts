@@ -166,8 +166,8 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			return false;
 		}
 
-		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(remoteUrl)
-			|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(remoteUrl);
+		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)(?:\.git)?/i.exec(remoteUrl)
+			|| /^git@github\.com:([^/]+)\/([^/]+)(?:\.git)?/i.exec(remoteUrl);
 
 		if (!match) {
 			return false;
