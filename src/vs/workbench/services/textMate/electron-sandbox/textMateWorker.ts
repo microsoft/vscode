@@ -155,7 +155,7 @@ export class TextMateWorker {
 		await vscodeOniguruma.loadWASM(bytes);
 
 		const onigLib: Promise<IOnigLib> = Promise.resolve({
-			createOnigScanner: (sources) => vscodeOniguruma.createOnigScanner(sources),
+			createOnigScanner: (sources) => <any>vscodeOniguruma.createOnigScanner(sources),
 			createOnigString: (str) => vscodeOniguruma.createOnigString(str)
 		});
 
