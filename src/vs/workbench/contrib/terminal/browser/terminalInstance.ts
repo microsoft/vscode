@@ -529,7 +529,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
-		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
+
+		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+		if (this._configHelper.config.rendererType === 'auto' && (suggestedRendererType === 'auto' || suggestedRendererType === undefined) || this._configHelper.config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		}
 
@@ -1255,7 +1257,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-		if ((suggestedRendererType === 'auto' && config.rendererType === 'auto') || config.rendererType === 'experimentalWebgl') {
+		if (config.rendererType === 'auto' && (suggestedRendererType === 'auto' || suggestedRendererType === undefined) || config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
