@@ -250,6 +250,8 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
+	private readonly _onResize = this._register(new Emitter<void>());
+	readonly onResize = this._onResize.event;
 	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
@@ -295,7 +297,9 @@ export class PersistentTerminalProcess extends Disposable {
 		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire({ data: data, sync: true }));
 		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
-		// TODO: Buffered events should flush when a resize occurs
+
+		// Buffered events should flush when a resize occurs
+		this._register(this.onResize(() => this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData)));
 
 		// Data recording for reconnect
 		this._register(this.onProcessData(e => this._recorder.recordData(e.data)));
@@ -343,6 +347,7 @@ export class PersistentTerminalProcess extends Disposable {
 			return;
 		}
 		this._recorder.recordResize(cols, rows);
+		this._onResize.fire();
 		return this._terminalProcess.resize(cols, rows);
 	}
 	acknowledgeDataEvent(charCount: number): void {
