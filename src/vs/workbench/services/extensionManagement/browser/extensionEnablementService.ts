@@ -281,13 +281,18 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private _isDisabledByTrustRequirement(extension: IExtension): boolean {
 		const workspaceTrustState = this.workspaceTrustService.getWorkspaceTrustState();
 
-		if (extension.manifest.workspaceTrust?.required === 'onStart') {
+		if (this._requiresWorkspaceTrust(extension)) {
 			if (workspaceTrustState !== WorkspaceTrustState.Trusted) {
 				this._addToWorkspaceDisabledExtensionsByTrustRequirement(extension);
 			}
 			return workspaceTrustState !== WorkspaceTrustState.Trusted;
 		}
 		return false;
+	}
+
+	private _requiresWorkspaceTrust(extension: IExtension): boolean {
+		return extension.manifest.workspaceTrust?.required === 'onStart' ||
+			(extension.manifest.workspaceTrust?.required === undefined && extension.manifest.main !== undefined);
 	}
 
 	private _getEnablementState(identifier: IExtensionIdentifier): EnablementState {
