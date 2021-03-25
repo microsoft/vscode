@@ -1186,13 +1186,15 @@ class NotebookCellExecutionTask extends Disposable {
 				return that.applyEdits([{ editType: CellEditType.Output, handle, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
 			},
 
-			async appendOutputItems(items: vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
+			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
+				items = Array.isArray(items) ? items : [items];
 				return that.applyEdits([{ editType: CellEditType.OutputItems, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
 			},
 
-			async replaceOutputItems(items: vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
+			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
+				items = Array.isArray(items) ? items : [items];
 				return that.applyEdits([{ editType: CellEditType.OutputItems, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
 			},
 
