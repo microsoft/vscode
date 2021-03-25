@@ -724,6 +724,10 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
+	if (!notebookEditor.viewModel.metadata.editable) {
+		return null;
+	}
+
 	const text = cell.getText();
 	const idx = notebookEditor.viewModel.getCellIndex(cell);
 
