@@ -146,6 +146,7 @@ export const terminalConfiguration: IConfigurationNode = {
 							}
 						}
 					},
+					{ type: 'null' },
 					terminalProfileSchema
 				]
 			}
@@ -173,7 +174,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'tmux'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
 		'terminal.integrated.profiles.linux': {
 			markdownDescription: localize(
@@ -198,7 +204,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'tmux'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
 		'terminal.integrated.showQuickLaunchWslProfiles': {
 			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
