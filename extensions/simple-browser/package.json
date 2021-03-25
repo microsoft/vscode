@@ -57,8 +57,7 @@
     "build-preview": "npx webpack-cli --mode development",
     "build-preview-production": "npx webpack-cli --mode production",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose",
-    "postinstall": "node ./build/copy"
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.7",

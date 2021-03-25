@@ -7,12 +7,14 @@ import { mapFind } from 'vs/base/common/arrays';
 import { DeferredPromise, isThenable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
+import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestItem as TestItemImpl, TestItemHookProperty } from 'vs/workbench/api/common/extHostTypes';
 import { applyTestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 
+type TestItemRaw = Convert.TestItem.Raw;
+
 export interface IHierarchyProvider {
-	getChildren(node: TestItem.Raw, token: CancellationToken): Iterable<TestItem.Raw> | AsyncIterable<TestItem.Raw> | undefined | null;
+	getChildren(node: TestItemRaw, token: CancellationToken): Iterable<TestItemRaw> | AsyncIterable<TestItemRaw> | undefined | null;
 }
 
 /**
@@ -191,7 +193,7 @@ export class TestTree<T extends InternalTestItem> {
  * @private
  */
 export class SingleUseTestCollection implements IDisposable {
-	protected readonly testItemToInternal = new Map<TestItem.Raw, OwnedCollectionTestItem>();
+	protected readonly testItemToInternal = new Map<TestItemRaw, OwnedCollectionTestItem>();
 	protected diff: TestsDiff = [];
 	private readonly debounceSendDiff = new RunOnceScheduler(() => this.flushDiff(), 200);
 
@@ -207,7 +209,7 @@ export class SingleUseTestCollection implements IDisposable {
 	/**
 	 * Adds a new root node to the collection.
 	 */
-	public addRoot(item: TestItem.Raw, providerId: string) {
+	public addRoot(item: TestItemRaw, providerId: string) {
 		this.addItem(item, providerId, null);
 	}
 
@@ -215,7 +217,7 @@ export class SingleUseTestCollection implements IDisposable {
 	 * Gets test information by its reference, if it was defined and still exists
 	 * in this extension host.
 	 */
-	public getTestByReference(item: TestItem.Raw) {
+	public getTestByReference(item: TestItemRaw) {
 		return this.testItemToInternal.get(item);
 	}
 
@@ -296,7 +298,7 @@ export class SingleUseTestCollection implements IDisposable {
 		this.debounceSendDiff.dispose();
 	}
 
-	private addItem(actual: TestItem.Raw, providerId: string, parent: OwnedCollectionTestItem | null) {
+	private addItem(actual: TestItemRaw, providerId: string, parent: OwnedCollectionTestItem | null) {
 		if (!(actual instanceof TestItemImpl)) {
 			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
 		}
@@ -316,7 +318,7 @@ export class SingleUseTestCollection implements IDisposable {
 		const internal: OwnedCollectionTestItem = {
 			actual,
 			parent: parentId,
-			item: TestItem.from(actual),
+			item: Convert.TestItem.from(actual),
 			expandLevels: pExpandLvls && expand === TestItemExpandState.Expandable ? pExpandLvls - 1 : undefined,
 			expand,
 			src,
@@ -330,7 +332,10 @@ export class SingleUseTestCollection implements IDisposable {
 			created: item => this.addItem(item, providerId, internal!),
 			delete: id => this.removeItembyId(id),
 			invalidate: item => this.pushDiff([TestDiffOpType.Retire, item]),
-			setProp: (key, value) => this.pushDiff([TestDiffOpType.Update, { extId: actual.id, item: { [key]: value } }])
+			setProp: (key, value) => this.pushDiff([TestDiffOpType.Update, {
+				extId: actual.id,
+				item: { [key]: key === 'range' ? Convert.Range.from(value as any) : value },
+			}])
 		};
 
 		// Discover any existing children that might have already been added

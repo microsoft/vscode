@@ -25,8 +25,12 @@ export class HierarchicalElement implements ITestTreeElement {
 		return this.test.item.label;
 	}
 
-	public get location() {
-		return this.test.item.location;
+	public get uri() {
+		return this.test.item.uri;
+	}
+
+	public get range() {
+		return this.test.item.range;
 	}
 
 	public get runnable(): Iterable<TestIdWithSrc> {
@@ -77,6 +81,10 @@ export class HierarchicalFolder implements ITestTreeElement {
 
 	public get runnable() {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));
+	}
+
+	public get uri() {
+		return this.folder.uri;
 	}
 
 	public get debuggable() {

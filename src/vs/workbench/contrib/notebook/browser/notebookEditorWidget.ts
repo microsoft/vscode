@@ -72,6 +72,7 @@ import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = DOM.$;
 
@@ -326,6 +327,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@INotebookService private notebookService: INotebookService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
@@ -668,11 +670,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(widgetFocusTracker.onDidBlur(() => this._onDidBlurEmitter.fire()));
 
 		this._reigsterNotebookActionsToolbar();
-		this._register(this.onDidFocus(() => {
-			this._showNotebookActionsinEditorToolbar();
-		}));
-		this._register(this.onDidBlur(() => {
-			this._editorToolbarDisposable?.dispose();
+		this._register(this.editorService.onDidActiveEditorChange(() => {
+			if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
+				const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditor;
+				if (notebookEditor === this) {
+					// this is the active editor
+					this._showNotebookActionsinEditorToolbar();
+					return;
+				}
+			}
+
+			this._editorToolbarDisposable.clear();
 			this._toolbarActionDisposable.clear();
 		}));
 	}
@@ -694,7 +702,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _toolbarActionDisposable = this._register(new DisposableStore());
 	private _topToolbar!: ToolBar;
 	private _useGlobalToolbar: boolean = false;
-	private _editorToolbarDisposable: IDisposable | null = null;
+	private _editorToolbarDisposable = this._register(new DisposableStore());
 	private _reigsterNotebookActionsToolbar() {
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.scopedContextKeyService));
@@ -740,10 +748,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private _showNotebookActionsinEditorToolbar() {
+		// when there is no view model, just ignore.
+		if (!this.viewModel) {
+			return;
+		}
+
 		if (!this._useGlobalToolbar) {
 			// schedule actions registration in next frame, otherwise we are seeing duplicated notbebook actions temporarily
-			this._editorToolbarDisposable?.dispose();
-			this._editorToolbarDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+			this._editorToolbarDisposable.clear();
+			this._editorToolbarDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
 				const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
 				this._toolbarActionDisposable.clear();
 				this._topToolbar.setActions([], []);
@@ -751,8 +764,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					return;
 				}
 
-				if (!this._isVisible || !this.hasFocus()) {
+				if (!this._isVisible) {
 					return;
+				}
+
+				if (this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
+					const notebookEditor = this.editorService.activeEditorPane.getControl() as INotebookEditor;
+					if (notebookEditor !== this) {
+						// clear actions but not recreate because it is not active editor
+						return;
+					}
 				}
 
 				groups.forEach(group => {
@@ -765,7 +786,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 						this._toolbarActionDisposable.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 							command: {
 								id: menuItemAction.item.id,
-								title: menuItemAction.item.title + ' ' + this.viewModel?.uri.scheme,
+								title: menuItemAction.item.title,
 								category: menuItemAction.item.category,
 								tooltip: menuItemAction.item.tooltip,
 								icon: menuItemAction.item.icon,
@@ -779,7 +800,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 						order++;
 					}
 				});
-			});
+			}));
 
 			this._notebookTopToolbarContainer.style.display = 'none';
 		} else {
@@ -877,15 +898,25 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this._localStore.add(this._list.onDidChangeFocus(() => {
-			const focused = this._list.getFocusedElements()[0];
-			if (focused) {
-				if (!this._cellContextKeyManager) {
-					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, textModel, focused as CellViewModel));
-				}
-
-				this._cellContextKeyManager.updateForElement(focused as CellViewModel);
-			}
+			this.updateContextKeysOnFocusChange();
 		}));
+
+		this.updateContextKeysOnFocusChange();
+	}
+
+	private updateContextKeysOnFocusChange() {
+		if (!this.viewModel) {
+			return;
+		}
+
+		const focused = this._list.getFocusedElements()[0];
+		if (focused) {
+			if (!this._cellContextKeyManager) {
+				this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, this.viewModel.notebookDocument, focused as CellViewModel));
+			}
+
+			this._cellContextKeyManager.updateForElement(focused as CellViewModel);
+		}
 	}
 
 	async setOptions(options: NotebookEditorOptions | undefined) {
@@ -1445,7 +1476,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.viewModel?.setFocus(focused);
 
 		if (!focused) {
-			this._editorToolbarDisposable?.dispose();
+			this._editorToolbarDisposable.clear();
 			this._toolbarActionDisposable.clear();
 		}
 	}
@@ -2075,6 +2106,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async unhideMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
@@ -2087,6 +2123,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async hideMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
@@ -2099,6 +2140,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async removeMarkdownPreview(cell: MarkdownCellViewModel) {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}
@@ -2111,6 +2157,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
+		if (!this.useRenderer) {
+			// TODO: handle case where custom renderer is disabled?
+			return;
+		}
+
 		if (!this._webview) {
 			return;
 		}

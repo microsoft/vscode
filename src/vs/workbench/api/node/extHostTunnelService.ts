@@ -168,6 +168,8 @@ export function tryFindRootPorts(connections: { socket: number, ip: string, port
 				}
 			} while (mostChild);
 			ports.set(connection.port, { host: connection.ip, port: connection.port, pid: bestMatch.pid, detail: bestMatch.cmd, ppid: bestMatch.ppid });
+		} else {
+			ports.set(connection.port, { host: connection.ip, port: connection.port, ppid: Number.MAX_VALUE });
 		}
 	}
 
@@ -264,7 +266,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		this._candidateFindingEnabled = enable;
 		// Regularly scan to see if the candidate ports have changed.
 		let movingAverage = new MovingAverage();
-		let oldPorts: { host: string, port: number, detail: string }[] | undefined = undefined;
+		let oldPorts: { host: string, port: number, detail?: string }[] | undefined = undefined;
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
 			const newPorts = await this.findCandidatePorts();
@@ -349,7 +351,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $applyCandidateFilter(candidates: CandidatePort[]): Promise<CandidatePort[]> {
-		const filter = await Promise.all(candidates.map(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail)));
+		const filter = await Promise.all(candidates.map(candidate => this._showCandidatePort(candidate.host, candidate.port, candidate.detail ?? '')));
 		const result = candidates.filter((candidate, index) => filter[index]);
 		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) filtered from ${candidates.map(port => port.port).join(', ')} to ${result.map(port => port.port).join(', ')}`);
 		return result;

@@ -1573,8 +1573,8 @@ declare module 'vscode' {
 		readonly token: CancellationToken;
 
 		clearOutput(cellIndex?: number): Thenable<void>;
-		appendOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
-		replaceOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
 		appendOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
 		replaceOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
 	}
@@ -2326,6 +2326,11 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri: Uri;
+
+		/**
 		 * A set of children this item has. You can add new children to it, which
 		 * will propagate to the editor UI.
 		 */
@@ -2342,10 +2347,10 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Location of the test in the workspace. This is used to show line
-		 * decorations and code lenses for the test.
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
 		 */
-		location?: Location;
+		range?: Range;
 
 		/**
 		 * Whether this test item can be run individually, defaults to `true`.
@@ -2374,10 +2379,11 @@ declare module 'vscode' {
 		 * Creates a new TestItem instance.
 		 * @param id Value of the "id" property
 		 * @param label Value of the "label" property.
+		 * @param uri Value of the "uri" property.
 		 * @param parent Parent of this item. This should only be defined for the
 		 * test root.
 		 */
-		constructor(id: string, label: string, expandable: boolean);
+		constructor(id: string, label: string, uri: Uri, expandable: boolean);
 
 		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
@@ -2550,6 +2556,11 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri: Uri;
+
+		/**
 		 * Display name describing the test case.
 		 */
 		readonly label: string;
@@ -2560,10 +2571,10 @@ declare module 'vscode' {
 		readonly description?: string;
 
 		/**
-		 * Location of the test in the workspace. This is used to show line
-		 * decorations and code lenses for the test.
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
 		 */
-		readonly location?: Location;
+		readonly range?: Range;
 
 		/**
 		 * Current result of the test.
@@ -2792,7 +2803,7 @@ declare module 'vscode' {
 	/**
 	 * The object describing the properties of the workspace trust request
 	 */
-	export interface WorkspaceTrustRequest {
+	export interface WorkspaceTrustRequestOptions {
 		/**
 		 * When true, a modal dialog will be used to request workspace trust.
 		 * When false, a badge will be displayed on the Setting activity bar item
@@ -2808,10 +2819,10 @@ declare module 'vscode' {
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
-		 * @param request Optional object describing the properties of the
+		 * @param options Optional object describing the properties of the
 		 * workspace trust request
 		 */
-		export function requireWorkspaceTrust(request?: WorkspaceTrustRequest): Thenable<WorkspaceTrustState>;
+		export function requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes

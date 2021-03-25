@@ -68,9 +68,9 @@ const kernel1 = new class implements vscode.NotebookKernel {
 			}
 
 			task.start();
-			await task.replaceOutput([new vscode.NotebookCellOutput([
+			await task.replaceOutput(new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
-			])]);
+			]));
 			task.end({ success: true });
 			return;
 		}

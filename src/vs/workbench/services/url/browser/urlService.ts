@@ -9,8 +9,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractURLService } from 'vs/platform/url/common/urlService';
 import { Event } from 'vs/base/common/event';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface IURLCallbackProvider {
 
@@ -45,29 +43,13 @@ export class BrowserURLService extends AbstractURLService {
 	private provider: IURLCallbackProvider | undefined;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService openerService: IOpenerService,
-		@IProductService productService: IProductService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
 		this.provider = environmentService.options?.urlCallbackProvider;
+
 		this.registerListeners();
-
-		const that = this;
-		this._register(openerService.registerOpener({
-			async open(resource: URI | string) {
-				if (!matchesScheme(resource, productService.urlProtocol)) {
-					return false;
-				}
-
-				if (typeof resource === 'string') {
-					resource = URI.parse(resource);
-				}
-
-				return that.open(resource);
-			}
-		}));
 	}
 
 	private registerListeners(): void {

@@ -184,6 +184,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 		}));
 
+		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
 			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
 		}));
@@ -539,11 +540,16 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor) {
+		const gettingStartedService = accessor.get(IGettingStartedService);
 		const memento = new Memento('gettingStartedService', accessor.get(IStorageService));
 		const record = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 		for (const key in record) {
 			if (Object.prototype.hasOwnProperty.call(record, key)) {
-				delete record[key];
+				try {
+					gettingStartedService.deprogressTask(key);
+				} catch (e) {
+					console.error(e);
+				}
 			}
 		}
 		memento.saveMemento();

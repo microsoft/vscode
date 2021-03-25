@@ -1164,23 +1164,25 @@ class NotebookCellExecutionTask extends Disposable {
 				return this.replaceOutput([], cellIndex);
 			},
 
-			async appendOutput(outputs: vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
+			async appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
 				that.verifyStateForOutput();
 				const handle = that.cellIndexToHandle(cellIndex);
 				if (typeof handle !== 'number') {
 					return;
 				}
 
+				outputs = Array.isArray(outputs) ? outputs : [outputs];
 				return that.applyEdits([{ editType: CellEditType.Output, handle, append: true, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
 			},
 
-			async replaceOutput(outputs: vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
+			async replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
 				that.verifyStateForOutput();
 				const handle = that.cellIndexToHandle(cellIndex);
 				if (typeof handle !== 'number') {
 					return;
 				}
 
+				outputs = Array.isArray(outputs) ? outputs : [outputs];
 				return that.applyEdits([{ editType: CellEditType.Output, handle, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
 			},
 

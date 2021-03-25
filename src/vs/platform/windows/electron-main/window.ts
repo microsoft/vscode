@@ -89,8 +89,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	private showTimeoutHandle: NodeJS.Timeout | undefined;
-	private _lastFocusTime = -1;
-	private _readyState = ReadyState.NONE;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
@@ -347,6 +345,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.focus();
 	}
 
+	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
 	get backupPath(): string | undefined { return this.currentConfig?.backupPath; }
@@ -355,8 +354,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get remoteAuthority(): string | undefined { return this.currentConfig?.remoteAuthority; }
 
+	private readyState = ReadyState.NONE;
+
 	setReady(): void {
-		this._readyState = ReadyState.READY;
+		this.readyState = ReadyState.READY;
 
 		// inform all waiting promises that we are ready now
 		while (this.whenReadyCallbacks.length) {
@@ -379,7 +380,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	get isReady(): boolean {
-		return this._readyState === ReadyState.READY;
+		return this.readyState === ReadyState.READY;
 	}
 
 	get whenClosedOrLoaded(): Promise<void> {
@@ -411,13 +412,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.dispose();
 		});
 
+		// Block all SVG requests from unsupported origins
 		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
+
 			// Prevent loading of remote svgs
-			if (uri && uri.path.endsWith('.svg')) {
-				const safeScheme = svgFileSchemes.has(uri.scheme) ||
-					uri.path.includes(Schemas.vscodeRemoteResource);
+			if (uri.path.endsWith('.svg')) {
+				const safeScheme = svgFileSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
 				if (!safeScheme) {
 					return callback({ cancel: true });
 				}
@@ -426,25 +428,27 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return callback({ cancel: false });
 		});
 
+		// Configure SVG header content type properly
 		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
 			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
-			const contentType = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
+			const contentTypes = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 
-			if (contentType && Array.isArray(contentType)) {
+			if (contentTypes && Array.isArray(contentTypes)) {
 				const uri = URI.parse(details.url);
+
 				// https://github.com/microsoft/vscode/issues/97564
 				// ensure local svg files have Content-Type image/svg+xml
-				if (uri && uri.path.endsWith('.svg')) {
+				if (uri.path.endsWith('.svg')) {
 					if (svgFileSchemes.has(uri.scheme)) {
 						responseHeaders['Content-Type'] = ['image/svg+xml'];
+
 						return callback({ cancel: false, responseHeaders });
 					}
 				}
 
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
-				if (!uri.path.includes(Schemas.vscodeRemoteResource) &&
-					contentType.some(x => x.toLowerCase().includes('image/svg'))) {
+				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
 					return callback({ cancel: true });
 				}
 			}
@@ -454,7 +458,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
-			this._readyState = ReadyState.LOADING;
+			this.readyState = ReadyState.LOADING;
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -699,7 +703,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
-		if (this._readyState === ReadyState.NONE) {
+		if (this.readyState === ReadyState.NONE) {
 			this.currentConfig = config;
 		}
 
@@ -709,7 +713,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// the window load event has fired.
 		else {
 			this.pendingLoadConfig = config;
-			this._readyState = ReadyState.NAVIGATING;
+			this.readyState = ReadyState.NAVIGATING;
 		}
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or

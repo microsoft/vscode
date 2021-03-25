@@ -14,7 +14,7 @@ import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, ICellEditOperation, ICellRange, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, ICellRange, ISelectionState, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as platform from 'vs/base/common/platform';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -104,33 +104,45 @@ class NotebookClipboardContribution extends Disposable {
 					return false;
 				}
 
+				const originalState: ISelectionState = {
+					kind: SelectionStateType.Index,
+					focus: viewModel.getFocus(),
+					selections: viewModel.getSelections()
+				};
+
 				if (activeCell) {
 					const currCellIndex = viewModel.getCellIndex(activeCell);
-
-					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => cloneNotebookCellTextModel(cell)).forEach(pasteCell => {
-						const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-						topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
-					});
-
-					if (topPastedCell) {
-						editor.focusNotebookCell(topPastedCell, 'container');
-					}
+					const newFocusIndex = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
+					viewModel.notebookDocument.applyEdits([
+						{
+							editType: CellEditType.Replace,
+							index: newFocusIndex,
+							count: 0,
+							cells: pasteCells.items.map(cell => cloneNotebookCellTextModel(cell))
+						}
+					], true, originalState, () => ({
+						kind: SelectionStateType.Index,
+						focus: { start: newFocusIndex, end: newFocusIndex + 1 },
+						selections: [{ start: newFocusIndex, end: newFocusIndex + pasteCells.items.length }]
+					}), undefined);
 				} else {
 					if (viewModel.length !== 0) {
 						return false;
 					}
 
-					let topPastedCell: CellViewModel | undefined = undefined;
-					pasteCells.items.reverse().map(cell => cloneNotebookCellTextModel(cell)).forEach(pasteCell => {
-						topPastedCell = viewModel.createCell(0, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
-					});
-
-					if (topPastedCell) {
-						editor.focusNotebookCell(topPastedCell, 'container');
-					}
+					viewModel.notebookDocument.applyEdits([
+						{
+							editType: CellEditType.Replace,
+							index: 0,
+							count: 0,
+							cells: pasteCells.items.map(cell => cloneNotebookCellTextModel(cell))
+						}
+					], true, originalState, () => ({
+						kind: SelectionStateType.Index,
+						focus: { start: 0, end: 1 },
+						selections: [{ start: 1, end: pasteCells.items.length + 1 }]
+					}), undefined);
 				}
-
 
 				return true;
 			});
@@ -172,9 +184,9 @@ class NotebookClipboardContribution extends Disposable {
 				 * and cells 1, 2 are selected, and then we delete cells 1 and 2
 				 * the new focused cell should still be at index 1
 				 */
-				const newFocusedCellIndex = firstSelectIndex < viewModel.notebookDocument.cells.length
+				const newFocusedCellIndex = firstSelectIndex < viewModel.notebookDocument.cells.length - 1
 					? firstSelectIndex
-					: viewModel.notebookDocument.cells.length - 1;
+					: Math.max(viewModel.notebookDocument.cells.length - 2, 0);
 
 				viewModel.notebookDocument.applyEdits(edits, true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: selectionRanges }, () => {
 					return {
