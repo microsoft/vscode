@@ -885,15 +885,25 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this._localStore.add(this._list.onDidChangeFocus(() => {
-			const focused = this._list.getFocusedElements()[0];
-			if (focused) {
-				if (!this._cellContextKeyManager) {
-					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, textModel, focused as CellViewModel));
-				}
-
-				this._cellContextKeyManager.updateForElement(focused as CellViewModel);
-			}
+			this.updateContextKeysOnFocusChange();
 		}));
+
+		this.updateContextKeysOnFocusChange();
+	}
+
+	private updateContextKeysOnFocusChange() {
+		if (!this.viewModel) {
+			return;
+		}
+
+		const focused = this._list.getFocusedElements()[0];
+		if (focused) {
+			if (!this._cellContextKeyManager) {
+				this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, this.viewModel.notebookDocument, focused as CellViewModel));
+			}
+
+			this._cellContextKeyManager.updateForElement(focused as CellViewModel);
+		}
 	}
 
 	async setOptions(options: NotebookEditorOptions | undefined) {
