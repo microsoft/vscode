@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { URI } from 'vs/base/common/uri';
@@ -29,8 +29,7 @@ const SKIP_SURVEY_KEY = 'ces/skipSurvey';
 const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
 
 class CESContribution extends Disposable implements IWorkbenchContribution {
-
-	private _delayer = this._register(new ThrottledDelayer<void>(WAIT_TIME_TO_SHOW_SURVEY));
+	private promptDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -51,45 +50,10 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		this._scheduleSurvey();
+		this.schedulePrompt();
 	}
 
-	private async _scheduleSurvey(): Promise<void> {
-		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
-		if (!isCandidate) {
-			this._skipSurvey();
-			return;
-		}
-
-		let waitTimeToShowSurvey = 0;
-		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.GLOBAL, '');
-		if (remindLaterDate) {
-			const timeToRemind = new Date(remindLaterDate).getTime() + REMIND_LATER_DELAY - Date.now();
-			if (timeToRemind > 0) {
-				waitTimeToShowSurvey = timeToRemind;
-			}
-		} else {
-			const info = await this.telemetryService.getTelemetryInfo();
-			const timeFromInstall = Date.now() - new Date(info.firstSessionDate).getTime();
-			const isNewInstall = !isNaN(timeFromInstall) && timeFromInstall < MAX_INSTALL_AGE;
-
-			// Installation is older than MAX_INSTALL_AGE
-			if (!isNewInstall) {
-				this._skipSurvey();
-				return;
-			}
-			if (timeFromInstall < WAIT_TIME_TO_SHOW_SURVEY) {
-				waitTimeToShowSurvey = WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall;
-			}
-		}
-		/* __GDPR__
-		"cesSurvey:schedule" : { }
-		*/
-		this.telemetryService.publicLog('cesSurvey:schedule');
-		this._delayer.trigger(() => this._promptUser(), Math.max(waitTimeToShowSurvey, MIN_WAIT_TIME_TO_SHOW_SURVEY));
-	}
-
-	private async _promptUser(): Promise<void> {
+	private async promptUser() {
 		const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
 			/* __GDPR__
 			"cesSurvey:popup" : {
@@ -111,7 +75,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 					sendTelemetry('accept');
 					this.telemetryService.getTelemetryInfo().then(info => {
 						this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
-						this._skipSurvey();
+						this.skipSurvey();
 					});
 				}
 			}, {
@@ -119,15 +83,14 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 				run: () => {
 					sendTelemetry('remindLater');
 					this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
-					this._scheduleSurvey();
+					this.schedulePrompt();
 				}
 			}],
 			{
 				sticky: true,
-				neverShowAgain: { id: 'cesSurvey:prompt', isSecondary: true, scope: NeverShowAgainScope.GLOBAL },
 				onCancel: () => {
 					sendTelemetry('cancelled');
-					this._skipSurvey();
+					this.skipSurvey();
 				}
 			}
 		);
@@ -135,7 +98,45 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		await Event.toPromise(notification.onDidClose);
 	}
 
-	private _skipSurvey(): void {
+	private async schedulePrompt(): Promise<void> {
+		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
+		if (!isCandidate) {
+			this.skipSurvey();
+			return;
+		}
+
+		let waitTimeToShowSurvey = 0;
+		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.GLOBAL, '');
+		if (remindLaterDate) {
+			const timeToRemind = new Date(remindLaterDate).getTime() + REMIND_LATER_DELAY - Date.now();
+			if (timeToRemind > 0) {
+				waitTimeToShowSurvey = timeToRemind;
+			}
+		} else {
+			const info = await this.telemetryService.getTelemetryInfo();
+			const timeFromInstall = Date.now() - new Date(info.firstSessionDate).getTime();
+			const isNewInstall = !isNaN(timeFromInstall) && timeFromInstall < MAX_INSTALL_AGE;
+
+			// Installation is older than MAX_INSTALL_AGE
+			if (!isNewInstall) {
+				this.skipSurvey();
+				return;
+			}
+			if (timeFromInstall < WAIT_TIME_TO_SHOW_SURVEY) {
+				waitTimeToShowSurvey = WAIT_TIME_TO_SHOW_SURVEY - timeFromInstall;
+			}
+		}
+		/* __GDPR__
+		"cesSurvey:schedule" : { }
+		*/
+		this.telemetryService.publicLog('cesSurvey:schedule');
+
+		this.promptDelayer.trigger(async () => {
+			await this.promptUser();
+		}, Math.max(waitTimeToShowSurvey, MIN_WAIT_TIME_TO_SHOW_SURVEY));
+	}
+
+	private skipSurvey(): void {
 		this.storageService.store(SKIP_SURVEY_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
 	}
 }
