@@ -2419,13 +2419,13 @@ declare module 'vscode' {
 	/**
 	 * Information about where a symbol is defined.
 	 *
-	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
+	 * Provides additional metadata over normal {@link Location location} definitions, including the range of
 	 * the defining symbol
 	 */
 	export type DefinitionLink = LocationLink;
 
 	/**
-	 * The definition of a symbol represented as one or many [locations](#Location).
+	 * The definition of a symbol represented as one or many {@link Location locations}.
 	 * For most programming languages there is only one location at which a symbol is
 	 * defined.
 	 */
