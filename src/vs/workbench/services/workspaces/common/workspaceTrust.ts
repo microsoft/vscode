@@ -377,16 +377,36 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 		// Model changes impact the current workspace
 		if (this.currentTrustState !== newTrustState) {
-			// Resolve any pending workspace trust requests
-			if (this._modalTrustRequestPromise || this._trustRequestPromise) {
-				this.resolvePromises(newTrustState);
+			// Resolve any pending soft requests for workspace trust
+			if (this._inFlightResolver) {
+				this._inFlightResolver(newTrustState);
+
+				this._inFlightResolver = undefined;
+				this._trustRequestPromise = undefined;
+			}
+
+			// Update context if there are no pending requests
+			if (!this._modalTrustRequestPromise && !this._trustRequestPromise) {
+				this._ctxWorkspaceTrustPendingRequest.set(false);
 			}
 		}
 		this.currentTrustState = newTrustState;
 	}
 
 	private onTrustRequestCompleted(trustState?: WorkspaceTrustState): void {
-		this.resolvePromises(trustState);
+		if (this._modalTrustRequestResolver) {
+			this._modalTrustRequestResolver(trustState === undefined ? this.currentTrustState : trustState);
+
+			this._modalTrustRequestResolver = undefined;
+			this._modalTrustRequestRejecter = undefined;
+			this._modalTrustRequestPromise = undefined;
+		}
+		if (this._inFlightResolver) {
+			this._inFlightResolver(trustState === undefined ? this.currentTrustState : trustState);
+
+			this._inFlightResolver = undefined;
+			this._trustRequestPromise = undefined;
+		}
 
 		if (trustState === undefined) {
 			return;
@@ -395,38 +415,22 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		this._workspace.folders.forEach(folder => {
 			this.dataModel.setFolderTrustState(folder.uri, trustState);
 		});
+
+		this._ctxWorkspaceTrustPendingRequest.set(false);
 	}
 
 	private onTrustRequestCancelled(): void {
 		if (this._modalTrustRequestRejecter) {
 			this._modalTrustRequestRejecter(canceled());
-		}
 
-		this._modalTrustRequestResolver = undefined;
-		this._modalTrustRequestRejecter = undefined;
-		this._modalTrustRequestPromise = undefined;
+			this._modalTrustRequestResolver = undefined;
+			this._modalTrustRequestRejecter = undefined;
+			this._modalTrustRequestPromise = undefined;
+		}
 	}
 
 	private onWorkspaceFoldersChanged(): void {
 		this.currentTrustState = this.calculateWorkspaceTrustState();
-	}
-
-	private resolvePromises(trustState?: WorkspaceTrustState): void {
-		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(trustState === undefined ? this.currentTrustState : trustState);
-		}
-		if (this._inFlightResolver) {
-			this._inFlightResolver(trustState === undefined ? this.currentTrustState : trustState);
-		}
-
-		this._inFlightResolver = undefined;
-		this._trustRequestPromise = undefined;
-
-		this._modalTrustRequestResolver = undefined;
-		this._modalTrustRequestRejecter = undefined;
-		this._modalTrustRequestPromise = undefined;
-
-		this._ctxWorkspaceTrustPendingRequest.set(false);
 	}
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
