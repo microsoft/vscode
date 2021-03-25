@@ -1413,7 +1413,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
 		DOM.size(this._body, dimension.width, dimension.height - (this._useGlobalToolbar ? /** Toolbar height */ 26 : 0));
-		this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : 0 });
+		this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : SCROLLABLE_ELEMENT_PADDING_TOP });
 		this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
 
 		this._overlayContainer.style.visibility = 'visible';
