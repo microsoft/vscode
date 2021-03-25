@@ -17,10 +17,10 @@ tas-client-umd@0.1.4:
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.4.tgz#49db4130dd63a8342fabf77185a740fc6a7bea80"
   integrity sha512-1hFqJeLD3ryNikniIaO7TItlXhS5vx7bJ+wbPDf8o+IifgwwOWK2ARisdEM9SnJd0ccfcwNPG6Po+RiKn5L2hg==
 
-vscode-oniguruma@1.5.0:
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.5.0.tgz#d2235868efe933c5796fdc687cfcd644407259b1"
-  integrity sha512-5MgXSXvwy2GBy8BRi1Pegk+60LAHiY184cW93Fe1SmA9oPu8fRV3G9Yurbhkh/0hrb0E0/VK4JPieBX66gkftQ==
+vscode-oniguruma@1.5.1:
+  version "1.5.1"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.5.1.tgz#9ca10cd3ada128bd6380344ea28844243d11f695"
+  integrity sha512-JrBZH8DCC262TEYcYdeyZusiETu0Vli0xFgdRwNJjDcObcRjbmJP+IFcA3ScBwIXwgFHYKbAgfxtM/Cl+3Spjw==
 
 vscode-textmate@5.3.1:
   version "5.3.1"
