@@ -669,6 +669,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
+			const notificationService = accessor.get(INotificationService);
 			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
 			const remoteTerms = await offProcTerminalService.listProcesses();
 			const unattachedTerms = remoteTerms.filter(term => !terminalService.isAttachedToTerminal(term));
@@ -681,6 +682,10 @@ export function registerTerminalActions() {
 					term
 				};
 			});
+			if (items.length === 0) {
+				notificationService.info(localize('noUnattachedTerminals', 'There are no unattached terminals to attach to'));
+				return;
+			}
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
 				const instance = terminalService.createTerminal({ attachPersistentProcess: selected.term });
@@ -1473,7 +1478,7 @@ export function registerTerminalActions() {
 				if (launchConfig) {
 					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
 					if (workspaceShellAllowed) {
-						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args, name: launchConfig.overrideName });
+						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args, name: launchConfig.overrideName ? launchConfig.profileName : undefined });
 						terminalService.setActiveInstance(instance);
 					}
 				} else {

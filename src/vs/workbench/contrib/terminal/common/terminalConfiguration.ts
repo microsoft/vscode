@@ -29,8 +29,8 @@ const terminalProfileSchema: IJSONSchema = {
 			}
 		},
 		overrideName: {
-			description: localize('terminalProfile.overrideName', 'An optional name for the terminal which will override the detected one.'),
-			type: 'string'
+			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+			type: 'boolean'
 		}
 	}
 };
@@ -141,11 +141,12 @@ export const terminalConfiguration: IConfigurationNode = {
 								enum: ['PowerShell', 'Git Bash']
 							},
 							overrideName: {
-								description: localize('terminalProfile.overrideName', 'An optional name for the terminal which will override the detected one.'),
-								type: 'string'
+								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+								type: 'boolean'
 							}
 						}
 					},
+					{ type: 'null' },
 					terminalProfileSchema
 				]
 			}
@@ -173,7 +174,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'tmux'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
 		'terminal.integrated.profiles.linux': {
 			markdownDescription: localize(
@@ -198,7 +204,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'tmux'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
 		'terminal.integrated.showQuickLaunchWslProfiles': {
 			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),

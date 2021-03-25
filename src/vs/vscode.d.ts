@@ -7800,6 +7800,13 @@ declare module 'vscode' {
 		 * from the user's workspace.
 		 */
 		readonly backupId?: string;
+
+		/**
+		 * If the URI is an untitled file, this will be populated with the byte data of that file
+		 *
+		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
+		 */
+		readonly untitledDocumentData?: Uint8Array;
 	}
 
 	/**
