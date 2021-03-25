@@ -228,7 +228,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 	}
 }
 
-async function validateProfilePaths(profileName: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string, overrideName?: string, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
