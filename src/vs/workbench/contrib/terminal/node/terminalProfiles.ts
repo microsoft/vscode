@@ -220,7 +220,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 		return;
 	}
 	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if (value === null) {
+		if (value === null || (!('path' in value) && !('source' in value))) {
 			profilesMap.delete(profileName);
 		} else {
 			profilesMap.set(profileName, value);

@@ -250,14 +250,12 @@ export interface ITerminalExecutable {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: string;
-	displayOrder?: number;
 }
 
 export interface ITerminalProfileSource {
 	source: ProfileSource;
 	isAutoDetected?: boolean;
 	overrideName?: string;
-	displayOrder?: number;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
