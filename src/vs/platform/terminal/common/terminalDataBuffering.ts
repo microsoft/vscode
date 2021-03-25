@@ -34,13 +34,13 @@ export class TerminalDataBufferer implements IDisposable {
 				return;
 			}
 
-			const timeoutId = setTimeout(() => this._flushBuffer(id), throttleBy);
+			const timeoutId = setTimeout(() => this.flushBuffer(id), throttleBy);
 			buffer = {
 				data: [data],
 				timeoutId: timeoutId,
 				dispose: () => {
 					clearTimeout(timeoutId);
-					this._flushBuffer(id);
+					this.flushBuffer(id);
 					disposable.dispose();
 				}
 			};
@@ -56,7 +56,7 @@ export class TerminalDataBufferer implements IDisposable {
 		}
 	}
 
-	private _flushBuffer(id: number): void {
+	flushBuffer(id: number): void {
 		const buffer = this._terminalBufferMap.get(id);
 		if (buffer) {
 			this._terminalBufferMap.delete(id);
