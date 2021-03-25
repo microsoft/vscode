@@ -172,6 +172,9 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
 				}
 			},
 			additionalProperties: {
@@ -202,6 +205,9 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
 				}
 			},
 			additionalProperties: {
