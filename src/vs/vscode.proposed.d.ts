@@ -1573,8 +1573,8 @@ declare module 'vscode' {
 		readonly token: CancellationToken;
 
 		clearOutput(cellIndex?: number): Thenable<void>;
-		appendOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
-		replaceOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
 		appendOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
 		replaceOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
 	}
