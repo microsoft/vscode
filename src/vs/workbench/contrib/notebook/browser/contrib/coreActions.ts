@@ -634,7 +634,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -645,7 +645,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
 });
 
 registerAction2(class extends NotebookCellAction {
@@ -1521,7 +1521,7 @@ registerAction2(class extends NotebookAction {
 			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
 			menu: {
 				id: MenuId.EditorTitle,
-				// when: NOTEBOOK_IS_ACTIVE_EDITOR,
+				when: NOTEBOOK_IS_ACTIVE_EDITOR,
 				group: 'navigation',
 				order: 0
 			},
