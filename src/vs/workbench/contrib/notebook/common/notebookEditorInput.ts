@@ -47,6 +47,12 @@ export class NotebookEditorInput extends EditorInput {
 		this._name = labelService.getUriBasenameLabel(resource);
 	}
 
+	dispose() {
+		this._editorModelReference?.dispose();
+		this._editorModelReference = null;
+		super.dispose();
+	}
+
 	getTypeId(): string {
 		return NotebookEditorInput.ID;
 	}
@@ -122,11 +128,7 @@ ${patterns}
 `);
 		}
 
-		if (!await this._editorModelReference.object.saveAs(target)) {
-			return undefined;
-		}
-
-		return this._move(group, target)?.editor;
+		return await this._editorModelReference.object.saveAs(target);
 	}
 
 	private async _suggestName(suggestedFilename: string) {
@@ -187,9 +189,5 @@ ${patterns}
 		return false;
 	}
 
-	dispose() {
-		this._editorModelReference?.dispose();
-		this._editorModelReference = null;
-		super.dispose();
-	}
+
 }
