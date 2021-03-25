@@ -80,6 +80,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	public get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+	private readonly _onResize = this._register(new Emitter<void>());
+	public get onResize(): Event<void> { return this._onResize.event; }
 
 	constructor(
 		private readonly _shellLaunchConfig: IShellLaunchConfig,
@@ -370,6 +372,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._logService.trace('IPty#resize', cols, rows);
 			try {
 				this._ptyProcess.resize(cols, rows);
+				this._onResize.fire();
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('IPty#resize exception ' + e.message);
