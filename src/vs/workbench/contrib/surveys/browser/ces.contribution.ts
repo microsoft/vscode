@@ -12,12 +12,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService, INotificationHandle, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 
@@ -29,8 +29,8 @@ const SKIP_SURVEY_KEY = 'ces/skipSurvey';
 const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
 
 class CESContribution extends Disposable implements IWorkbenchContribution {
-	private _promptScheduler!: RunOnceScheduler;
-	private _notification?: INotificationHandle | null;
+
+	private _delayer = this._register(new ThrottledDelayer<void>(WAIT_TIME_TO_SHOW_SURVEY));
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -50,60 +50,11 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		if (skipSurvey) {
 			return;
 		}
-		this._promptScheduler = this._register(new RunOnceScheduler(async () => {
-			if (this._notification) {
-				return;
-			}
-			const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
-				/* __GDPR__
-				"cesSurvey:popup" : {
-					"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-				*/
-				this.telemetryService.publicLog('cesSurvey:popup', { userReaction });
-			};
 
-			const message = await this.tasExperimentService?.getTreatment<string>('CESSurveyMessage') ?? nls.localize('cesSurveyQuestion', 'Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.');
-			const button = await this.tasExperimentService?.getTreatment<string>('CESSurveyButton') ?? nls.localize('giveFeedback', "Give Feedback");
-
-			this._notification = this.notificationService.prompt(
-				Severity.Info,
-				message,
-				[{
-					label: button,
-					run: () => {
-						sendTelemetry('accept');
-						this.telemetryService.getTelemetryInfo().then(info => {
-							this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
-							this._skipSurvey();
-						});
-					}
-				}, {
-					label: nls.localize('remindLater', "Remind Me later"),
-					run: () => {
-						sendTelemetry('remindLater');
-						this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
-						this._prepareSurvey();
-					}
-				}],
-				{
-					sticky: true,
-					neverShowAgain: { id: 'cesSurvey:prompt', isSecondary: true, scope: NeverShowAgainScope.GLOBAL },
-					onCancel: () => {
-						sendTelemetry('cancelled');
-						this._skipSurvey();
-					}
-				}
-			);
-
-			await Event.toPromise(this._notification.onDidClose);
-			this._notification = null;
-		}, WAIT_TIME_TO_SHOW_SURVEY));
-
-		this._prepareSurvey();
+		this._scheduleSurvey();
 	}
 
-	private async _prepareSurvey(): Promise<void> {
+	private async _scheduleSurvey(): Promise<void> {
 		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
 		if (!isCandidate) {
 			this._skipSurvey();
@@ -135,14 +86,58 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		"cesSurvey:schedule" : { }
 		*/
 		this.telemetryService.publicLog('cesSurvey:schedule');
-		this._promptScheduler.schedule(Math.max(waitTimeToShowSurvey, MIN_WAIT_TIME_TO_SHOW_SURVEY));
+		this._delayer.trigger(() => this._promptUser(), Math.max(waitTimeToShowSurvey, MIN_WAIT_TIME_TO_SHOW_SURVEY));
+	}
+
+	private async _promptUser(): Promise<void> {
+		const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
+			/* __GDPR__
+			"cesSurvey:popup" : {
+				"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+			*/
+			this.telemetryService.publicLog('cesSurvey:popup', { userReaction });
+		};
+
+		const message = await this.tasExperimentService?.getTreatment<string>('CESSurveyMessage') ?? nls.localize('cesSurveyQuestion', 'Got a moment to help the VS Code team? Please tell us about your experience with VS Code so far.');
+		const button = await this.tasExperimentService?.getTreatment<string>('CESSurveyButton') ?? nls.localize('giveFeedback', "Give Feedback");
+
+		const notification = this.notificationService.prompt(
+			Severity.Info,
+			message,
+			[{
+				label: button,
+				run: () => {
+					sendTelemetry('accept');
+					this.telemetryService.getTelemetryInfo().then(info => {
+						this.openerService.open(URI.parse(`${this.productService.cesSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(this.productService.version)}&m=${encodeURIComponent(info.machineId)}}`));
+						this._skipSurvey();
+					});
+				}
+			}, {
+				label: nls.localize('remindLater', "Remind Me later"),
+				run: () => {
+					sendTelemetry('remindLater');
+					this.storageService.store(REMIND_LATER_DATE_KEY, new Date().toUTCString(), StorageScope.GLOBAL, StorageTarget.USER);
+					this._scheduleSurvey();
+				}
+			}],
+			{
+				sticky: true,
+				neverShowAgain: { id: 'cesSurvey:prompt', isSecondary: true, scope: NeverShowAgainScope.GLOBAL },
+				onCancel: () => {
+					sendTelemetry('cancelled');
+					this._skipSurvey();
+				}
+			}
+		);
+
+		await Event.toPromise(notification.onDidClose);
 	}
 
 	private _skipSurvey(): void {
 		this.storageService.store(SKIP_SURVEY_KEY, this.productService.version, StorageScope.GLOBAL, StorageTarget.USER);
 	}
-
-
 }
 
 if (language === 'en') {
