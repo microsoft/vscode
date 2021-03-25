@@ -132,13 +132,18 @@ function convertLinkTags(
 		switch (part.kind) {
 			case 'link':
 				if (currentLink) {
+					const text = currentLink.text ?? currentLink.name;
 					if (currentLink.target) {
 						const link = filePathConverter.toResource(currentLink.target.file)
 							.with({
 								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
 							});
 
-						out.push(`[${currentLink.text ?? currentLink.name}](${link.toString(true)})`);
+						out.push(`[${text}](${link.toString(true)})`);
+					} else {
+						if (text) {
+							out.push(text);
+						}
 					}
 					currentLink = undefined;
 				} else {
