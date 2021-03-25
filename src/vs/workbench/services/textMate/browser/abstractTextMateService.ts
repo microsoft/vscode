@@ -234,7 +234,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 
 		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([import('vscode-textmate'), this._getVSCodeOniguruma()]);
 		const onigLib: Promise<IOnigLib> = Promise.resolve({
-			createOnigScanner: (sources: string[]) => <any>vscodeOniguruma.createOnigScanner(sources),
+			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
 			createOnigString: (str: string) => vscodeOniguruma.createOnigString(str)
 		});
 
