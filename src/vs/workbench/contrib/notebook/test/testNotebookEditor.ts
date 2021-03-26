@@ -33,10 +33,8 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { mock } from 'vs/base/test/common/mock';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -138,14 +136,11 @@ export function setupInstantiationService() {
 	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
 	instantiationService.stub(IClipboardService, new BrowserClipboardService());
-	instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-		setToCopy() { }
-	});
 
 	return instantiationService;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: ServicesAccessor) => Promise<R> | R): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
 	const instantiationService = setupInstantiationService();
 	const viewType = 'notebook';
 	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
