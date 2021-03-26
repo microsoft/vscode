@@ -52,7 +52,7 @@ export const enum ProgressLocation {
 export interface IProgressOptions {
 	readonly location: ProgressLocation | string;
 	readonly title?: string;
-	readonly source?: string;
+	readonly source?: string | { label: string; id: string; };
 	readonly total?: number;
 	readonly cancellable?: boolean;
 	readonly buttons?: string[];

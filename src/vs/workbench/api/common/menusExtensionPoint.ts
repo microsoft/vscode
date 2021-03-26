@@ -114,17 +114,17 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
-		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
+		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
 	},
 	{
 		key: 'scm/resourceFolder/context',
 		id: MenuId.SCMResourceFolderContext,
-		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
+		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
 	},
 	{
 		key: 'scm/resourceGroup/context',
 		id: MenuId.SCMResourceGroupContext,
-		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
+		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
 	},
 	{
 		key: 'scm/change/title',
@@ -169,6 +169,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentActions,
 		description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'notebook/toolbar',
+		id: MenuId.NotebookToolbar,
+		description: localize('notebook.toolbar', "The contributed notebook toolbar menu"),
+		proposed: true
 	},
 	{
 		key: 'notebook/cell/title',

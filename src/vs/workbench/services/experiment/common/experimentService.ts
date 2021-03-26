@@ -184,6 +184,7 @@ export class ExperimentService implements ITASExperimentService {
 	private tasClient: Promise<TASClient> | undefined;
 	private telemetry: ExperimentServiceTelemetry | undefined;
 	private static MEMENTO_ID = 'experiment.service.memento';
+	private networkInitialized = false;
 
 	private overrideInitDelay: Promise<void>;
 
@@ -202,15 +203,20 @@ export class ExperimentService implements ITASExperimentService {
 			this.tasClient = this.setupTASClient();
 		}
 
-		const overrideDelay = this.configurationService.getValue<number>('tasTreatmentOverrideDelay') ?? 2000;
+		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
+		const overrideDelay = this.configurationService.getValue<number>('experiments.overrideDelay') ?? 0;
 		this.overrideInitDelay = new Promise(resolve => setTimeout(resolve, overrideDelay));
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
-		const override = this.configurationService.getValue('tasTreatmentOverrides.' + name);
+		// For development purposes, allow overriding tas assignments to test variants locally.
+		await this.overrideInitDelay;
+		const override = this.configurationService.getValue<T>('experiments.override.' + name);
 		if (override !== undefined) {
-			await this.overrideInitDelay;
-			return override as T;
+			type TAASClientOverrideTreatmentData = { treatmentName: string; };
+			type TAASClientOverrideTreatmentClassification = { treatmentName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', }; };
+			this.telemetryService.publicLog2<TAASClientOverrideTreatmentData, TAASClientOverrideTreatmentClassification>('tasClientOverrideTreatment', { treatmentName: name, });
+			return override;
 		}
 
 		const startSetup = Date.now();
@@ -223,7 +229,13 @@ export class ExperimentService implements ITASExperimentService {
 			return undefined;
 		}
 
-		const result = (await this.tasClient).getTreatmentVariable<T>('vscode', name);
+		let result: T | undefined;
+		const client = await this.tasClient;
+		if (this.networkInitialized) {
+			result = client.getTreatmentVariable<T>('vscode', name);
+		} else {
+			result = await client.getTreatmentVariableAsync<T>('vscode', name, true);
+		}
 
 		type TAASClientReadTreatmentData = {
 			treatmentName: string;
@@ -237,7 +249,7 @@ export class ExperimentService implements ITASExperimentService {
 			readTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<TAASClientReadTreatmentData, TAASClientReadTreatmentCalssification>('tasClientReadTreatmentComplete',
-			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(JSON.stringify(result)) });
+			{ readTime: Date.now() - startSetup, treatmentName: name, treatmentValue: JSON.stringify(result) });
 
 		return result;
 	}
@@ -286,7 +298,8 @@ export class ExperimentService implements ITASExperimentService {
 		});
 
 		await tasClient.initializePromise;
-		await tasClient.getTreatmentVariableAsync('vscode', 'initialize');
+
+		tasClient.initialFetch.then(() => this.networkInitialized = true);
 
 		type TAASClientSetupData = { setupTime: number; };
 		type TAASClientSetupCalssification = { setupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true }; };

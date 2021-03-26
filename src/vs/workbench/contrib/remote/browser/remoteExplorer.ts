@@ -543,6 +543,10 @@ class ProcAutomaticPortForwarding extends Disposable {
 	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {
 		const attributes = await this.remoteExplorerService.tunnelModel.getAttributes(this.remoteExplorerService.tunnelModel.candidates.map(candidate => candidate.port));
 		const allTunnels = <RemoteTunnel[]>(await Promise.all(this.remoteExplorerService.tunnelModel.candidates.map(async (value) => {
+			if (!value.detail) {
+				return undefined;
+			}
+
 			const address = makeAddress(value.host, value.port);
 			if (this.initialCandidates.has(address)) {
 				return undefined;

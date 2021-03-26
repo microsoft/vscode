@@ -982,6 +982,7 @@
 						"allowed": [
 							"FileSystemProvider",
 							"TreeDataProvider",
+							"TestProvider",
 							"CustomEditorProvider",
 							"CustomReadonlyEditorProvider",
 							"TerminalLinkProvider",
@@ -1015,6 +1016,7 @@
 							"override",
 							"receive",
 							"register",
+							"remove",
 							"rename",
 							"save",
 							"send",

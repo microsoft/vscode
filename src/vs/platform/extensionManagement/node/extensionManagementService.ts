@@ -318,7 +318,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			}
 
 			if (existingExtension && semver.neq(existingExtension.manifest.version, extension.version)) {
-				await this.setUninstalled(existingExtension);
+				await this.extensionsScanner.setUninstalled(existingExtension);
 			}
 
 			this.logService.info(`Extensions installed successfully:`, extension.identifier.id);
@@ -362,7 +362,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			throw new Error(nls.localize('Not a Marketplace extension', "Only Marketplace Extensions can be reinstalled"));
 		}
 
-		await this.setUninstalled(extension);
+		await this.extensionsScanner.setUninstalled(extension);
 		try {
 			await this.extensionsScanner.removeUninstalledExtension(extension);
 		} catch (e) {
@@ -430,11 +430,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 		this.logService.trace('Removing the extension from uninstalled list:', identifierWithVersion.id);
 		// If the same version of extension is marked as uninstalled, remove it from there and return the local.
-		await this.unsetUninstalled(identifierWithVersion);
+		const local = await this.extensionsScanner.setInstalled(identifierWithVersion);
 		this.logService.info('Removed the extension from uninstalled list:', identifierWithVersion.id);
 
-		const installed = await this.getInstalled(ExtensionType.User);
-		return installed.find(i => new ExtensionIdentifierWithVersion(i.identifier, i.manifest.version).equals(identifierWithVersion)) || null;
+		return local;
 	}
 
 	private async extractAndInstall({ zipPath, identifierWithVersion, metadata }: InstallableExtension, token: CancellationToken): Promise<ILocalExtension> {
@@ -654,7 +653,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			// Set all versions of the extension as uninstalled
 			promise = createCancelablePromise(async () => {
 				const userExtensions = await this.extensionsScanner.scanUserExtensions(false);
-				await this.setUninstalled(...userExtensions.filter(u => areSameExtensions(u.identifier, local.identifier)));
+				await this.extensionsScanner.setUninstalled(...userExtensions.filter(u => areSameExtensions(u.identifier, local.identifier)));
 			});
 			this.uninstallingExtensions.set(local.identifier.id, promise);
 			promise.finally(() => this.uninstallingExtensions.delete(local.identifier.id));
@@ -692,28 +691,15 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return uninstalled.length === 1;
 	}
 
-	private filterUninstalled(...identifiers: ExtensionIdentifierWithVersion[]): Promise<string[]> {
-		return this.extensionsScanner.withUninstalledExtensions(allUninstalled => {
-			const uninstalled: string[] = [];
-			for (const identifier of identifiers) {
-				if (!!allUninstalled[identifier.key()]) {
-					uninstalled.push(identifier.key());
-				}
+	private async filterUninstalled(...identifiers: ExtensionIdentifierWithVersion[]): Promise<string[]> {
+		const uninstalled: string[] = [];
+		const allUninstalled = await this.extensionsScanner.getUninstalledExtensions();
+		for (const identifier of identifiers) {
+			if (!!allUninstalled[identifier.key()]) {
+				uninstalled.push(identifier.key());
 			}
-			return uninstalled;
-		});
-	}
-
-	private setUninstalled(...extensions: ILocalExtension[]): Promise<{ [id: string]: boolean }> {
-		const ids: ExtensionIdentifierWithVersion[] = extensions.map(e => new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version));
-		return this.extensionsScanner.withUninstalledExtensions(uninstalled => {
-			ids.forEach(id => uninstalled[id.key()] = true);
-			return uninstalled;
-		});
-	}
-
-	private unsetUninstalled(extensionIdentifier: ExtensionIdentifierWithVersion): Promise<void> {
-		return this.extensionsScanner.withUninstalledExtensions<void>(uninstalled => delete uninstalled[extensionIdentifier.key()]);
+		}
+		return uninstalled;
 	}
 
 	getExtensionsReport(): Promise<IReportedExtension[]> {

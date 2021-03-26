@@ -166,11 +166,29 @@ export class ExtensionsScanner extends Disposable {
 		return local;
 	}
 
-	getUninstalledExtensions(): Promise<{ [id: string]: boolean; }> {
-		return this.withUninstalledExtensions(uninstalled => uninstalled);
+	getUninstalledExtensions(): Promise<IStringDictionary<boolean>> {
+		return this.withUninstalledExtensions();
 	}
 
-	async withUninstalledExtensions<T>(fn: (uninstalled: IStringDictionary<boolean>) => T): Promise<T> {
+	async setUninstalled(...extensions: ILocalExtension[]): Promise<void> {
+		const ids: ExtensionIdentifierWithVersion[] = extensions.map(e => new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version));
+		await this.withUninstalledExtensions(uninstalled => {
+			ids.forEach(id => uninstalled[id.key()] = true);
+		});
+	}
+
+	async setInstalled(identifierWithVersion: ExtensionIdentifierWithVersion): Promise<ILocalExtension | null> {
+		await this.withUninstalledExtensions(uninstalled => delete uninstalled[identifierWithVersion.key()]);
+		const installed = await this.scanExtensions(ExtensionType.User);
+		const localExtension = installed.find(i => new ExtensionIdentifierWithVersion(i.identifier, i.manifest.version).equals(identifierWithVersion)) || null;
+		if (!localExtension) {
+			return null;
+		}
+		await this.storeMetadata(localExtension, { installedTimestamp: Date.now() });
+		return this.scanExtension(localExtension.location, ExtensionType.User);
+	}
+
+	private async withUninstalledExtensions(updateFn?: (uninstalled: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {
 		return this.uninstalledFileLimiter.queue(async () => {
 			let raw: string | undefined;
 			try {
@@ -188,15 +206,16 @@ export class ExtensionsScanner extends Disposable {
 				} catch (e) { /* ignore */ }
 			}
 
-			const result = fn(uninstalled);
-
-			if (Object.keys(uninstalled).length) {
-				await pfs.writeFile(this.uninstalledPath, JSON.stringify(uninstalled));
-			} else {
-				await pfs.rimraf(this.uninstalledPath);
+			if (updateFn) {
+				updateFn(uninstalled);
+				if (Object.keys(uninstalled).length) {
+					await pfs.writeFile(this.uninstalledPath, JSON.stringify(uninstalled));
+				} else {
+					await pfs.rimraf(this.uninstalledPath);
+				}
 			}
 
-			return result;
+			return uninstalled;
 		});
 	}
 

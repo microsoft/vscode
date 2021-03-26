@@ -130,6 +130,7 @@ export interface IWalkthrough {
 	readonly title: string;
 	readonly description: string;
 	readonly tasks: IWalkthroughTask[];
+	readonly primary?: boolean;
 	readonly when?: string;
 }
 
@@ -145,6 +146,7 @@ export interface IExtensionContributions {
 	snippets?: ISnippet[];
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
+	productIconThemes?: ITheme[];
 	viewsContainers?: { [location: string]: IViewContainer[] };
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];

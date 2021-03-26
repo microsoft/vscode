@@ -102,7 +102,7 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: ITerminalProfiles;
-	quickLaunchWslProfiles: boolean;
+	displayDetectedWslProfiles: boolean;
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -164,7 +164,13 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
+	/**
+	 * Checks and returns whether it's safe to launch the process. If the user has not yet been
+	 * asked, ask for future calls and return false.
+	 * @param osOverride Use a custom OS (eg. remote).
+	 * @param profile The profile if this is launching with a profile.
+	 */
+	checkIsProcessLaunchSafe(osOverride?: OperatingSystem, profile?: ITerminalProfile): boolean;
 	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
@@ -228,8 +234,10 @@ export interface IBeforeProcessDataEvent {
 export interface ITerminalProfile {
 	profileName: string;
 	path: string;
+	isAutoDetected?: boolean;
 	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
+	overrideName?: boolean;
 }
 
 export const enum ProfileSource {
@@ -238,21 +246,23 @@ export const enum ProfileSource {
 }
 
 export interface ITerminalExecutable {
-	pathOrPaths: string | string[];
+	path: string | string[];
 	args?: string | string[] | undefined;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
 }
 
 export interface ITerminalProfileSource {
 	source: ProfileSource;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
 }
-
-export type ProfileName = string;
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
 
 export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;
-	quickLaunchOnly: boolean;
+	configuredProfilesOnly: boolean;
 }
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;

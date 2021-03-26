@@ -17,7 +17,7 @@ import { NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/browser/not
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, INotebookKernel, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellRange, INotebookKernel, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -29,13 +29,15 @@ suite('NotebookEditorKernelManager', () => {
 	instantiationService.stub(IQuickInputService, new TestQuickInputService());
 
 	const loadKernelPreloads = async () => { };
+	const onDidChangeViewModel = () => { };
+	const testDelegate = { loadKernelPreloads, onDidChangeViewModel };
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
 		return _withTestNotebook(cells, (editor) => callback(editor.viewModel, editor.viewModel.notebookDocument));
 	}
 
 	test('ctor', () => {
-		instantiationService.createInstance(NotebookEditorKernelManager, {});
+		instantiationService.createInstance(NotebookEditorKernelManager, testDelegate);
 		const contextKeyService = instantiationService.get(IContextKeyService);
 
 		assert.strictEqual(contextKeyService.getContextKeyValue(NOTEBOOK_KERNEL_COUNT.key), 0);
@@ -45,7 +47,7 @@ suite('NotebookEditorKernelManager', () => {
 		await withTestNotebook(
 			[],
 			async (viewModel) => {
-				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { viewModel, loadKernelPreloads });
+				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { ...testDelegate, ...{ viewModel } });
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
@@ -56,7 +58,7 @@ suite('NotebookEditorKernelManager', () => {
 		await withTestNotebook(
 			[],
 			async (viewModel) => {
-				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { viewModel, loadKernelPreloads });
+				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { ...testDelegate, ...{ viewModel } });
 				kernelManager.activeKernel = new TestNotebookKernel({ languages: ['testlang'] });
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
@@ -68,10 +70,10 @@ suite('NotebookEditorKernelManager', () => {
 		await withTestNotebook(
 			[],
 			async (viewModel) => {
-				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { viewModel, loadKernelPreloads });
+				const kernelManager: NotebookEditorKernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { ...testDelegate, ...{ viewModel } });
 				const kernel = new TestNotebookKernel({ languages: ['javascript'] });
 				const executeSpy = sinon.spy();
-				kernel.executeNotebookCell = executeSpy;
+				kernel.executeNotebookCellsRequest = executeSpy;
 				kernelManager.activeKernel = kernel;
 
 				const cell = viewModel.createCell(0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
@@ -94,10 +96,10 @@ class TestNotebookKernel implements INotebookKernel {
 	preloads?: URI[] | undefined;
 	supportedLanguages?: string[] | undefined;
 	async resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void> { }
-	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void> {
+	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void> {
+	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 

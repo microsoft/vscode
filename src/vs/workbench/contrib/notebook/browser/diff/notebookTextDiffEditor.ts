@@ -25,14 +25,11 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { CellUri, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { IDiffChange } from 'vs/base/common/diff/diff';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -91,8 +88,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: FileService,
-
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 	) {
@@ -304,42 +299,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._revealFirst = true;
 
-		this._modifiedResourceDisposableStore.add(this._fileService.watch(this._model.modified.resource));
-		this._modifiedResourceDisposableStore.add(this._fileService.onDidFilesChange(async e => {
-			if (this._model === null) {
-				return;
-			}
-
-			if (e.contains(this._model.modified.resource)) {
-				if (this._model.modified.isDirty()) {
-					return;
-				}
-
-				const modified = this._model.modified;
-				const lastResolvedFileStat = modified.lastResolvedFileStat;
-				const currFileStat = await this._resolveStats(modified.resource);
-
-				if (lastResolvedFileStat && currFileStat && currFileStat.mtime > lastResolvedFileStat.mtime) {
-					await this._model.resolveModifiedFromDisk();
-					await this.updateLayout();
-					return;
-				}
-			}
-
-			if (e.contains(this._model.original.resource)) {
-				if (this._model.original.isDirty()) {
-					return;
-				}
-
-				const original = this._model.original;
-				const lastResolvedFileStat = original.lastResolvedFileStat;
-				const currFileStat = await this._resolveStats(original.resource);
-
-				if (lastResolvedFileStat && currFileStat && currFileStat.mtime > lastResolvedFileStat.mtime) {
-					await this._model.resolveOriginalFromDisk();
-					await this.updateLayout();
-					return;
-				}
+		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
+			if (this._model !== null) {
+				this.updateLayout();
 			}
 		}));
 
@@ -417,19 +379,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		await this._originalWebview.createWebview();
 		this._originalWebview.element.style.width = `calc(50% - 16px)`;
 		this._originalWebview.element.style.left = `16px`;
-	}
-
-	private async _resolveStats(resource: URI) {
-		if (resource.scheme === Schemas.untitled) {
-			return undefined;
-		}
-
-		try {
-			const newStats = await this._fileService.resolve(resource, { resolveMetadata: true });
-			return newStats;
-		} catch (e) {
-			return undefined;
-		}
 	}
 
 	async updateLayout() {

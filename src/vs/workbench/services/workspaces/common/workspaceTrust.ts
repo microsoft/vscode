@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustModel, WorkspaceTrustRequest, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, IWorkspaceTrustFolderInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustModel, WorkspaceTrustRequestOptions, IWorkspaceTrustRequestModel, IWorkspaceTrustService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, IWorkspaceTrustFolderInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -184,7 +184,7 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 }
 
 export class WorkspaceTrustRequestModel extends Disposable implements IWorkspaceTrustRequestModel {
-	trustRequest: WorkspaceTrustRequest | undefined;
+	trustRequestOptions: WorkspaceTrustRequestOptions | undefined;
 
 	private readonly _onDidInitiateRequest = this._register(new Emitter<void>());
 	readonly onDidInitiateRequest: Event<void> = this._onDidInitiateRequest.event;
@@ -195,22 +195,22 @@ export class WorkspaceTrustRequestModel extends Disposable implements IWorkspace
 	private readonly _onDidCancelRequest = this._register(new Emitter<void>());
 	readonly onDidCancelRequest = this._onDidCancelRequest.event;
 
-	initiateRequest(request: WorkspaceTrustRequest): void {
-		if (this.trustRequest && (!request.modal || this.trustRequest.modal)) {
+	initiateRequest(options: WorkspaceTrustRequestOptions): void {
+		if (this.trustRequestOptions && (!options.modal || this.trustRequestOptions.modal)) {
 			return;
 		}
 
-		this.trustRequest = request;
+		this.trustRequestOptions = options;
 		this._onDidInitiateRequest.fire();
 	}
 
 	completeRequest(trustState?: WorkspaceTrustState): void {
-		this.trustRequest = undefined;
+		this.trustRequestOptions = undefined;
 		this._onDidCompleteRequest.fire(trustState);
 	}
 
 	cancelRequest(): void {
-		this.trustRequest = undefined;
+		this.trustRequestOptions = undefined;
 		this._onDidCancelRequest.fire();
 	}
 }
@@ -253,10 +253,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 		this.logInitialWorkspaceTrustInfo();
 
-		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
-		this._register(this.dataModel.onDidChangeTrustState(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
-		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
+		this._register(this.dataModel.onDidChangeTrustState(() => this.onTrustStateChanged()));
 		this._register(this.requestModel.onDidCancelRequest(() => this.onTrustRequestCancelled()));
+		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.TrustState.bindTo(contextKeyService);
 		this._ctxWorkspaceTrustPendingRequest = WorkspaceTrustContext.PendingRequest.bindTo(contextKeyService);
@@ -271,6 +271,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		if (this._currentTrustState === trustState) { return; }
 		const previousState = this._currentTrustState;
 		this._currentTrustState = trustState;
+		this._ctxWorkspaceTrustState.set(trustState);
 
 		this._onDidChangeTrustState.fire({ previousTrustState: previousState, currentTrustState: this._currentTrustState });
 	}
@@ -371,20 +372,41 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		return state ?? WorkspaceTrustState.Unknown;
 	}
 
+	private onTrustStateChanged(): void {
+		const newTrustState = this.calculateWorkspaceTrustState();
+
+		// Model changes impact the current workspace
+		if (this.currentTrustState !== newTrustState) {
+			// Resolve any pending soft requests for workspace trust
+			if (this._inFlightResolver) {
+				this._inFlightResolver(newTrustState);
+
+				this._inFlightResolver = undefined;
+				this._trustRequestPromise = undefined;
+			}
+
+			// Update context if there are no pending requests
+			if (!this._modalTrustRequestPromise && !this._trustRequestPromise) {
+				this._ctxWorkspaceTrustPendingRequest.set(false);
+			}
+		}
+		this.currentTrustState = newTrustState;
+	}
+
 	private onTrustRequestCompleted(trustState?: WorkspaceTrustState): void {
 		if (this._modalTrustRequestResolver) {
 			this._modalTrustRequestResolver(trustState === undefined ? this.currentTrustState : trustState);
+
+			this._modalTrustRequestResolver = undefined;
+			this._modalTrustRequestRejecter = undefined;
+			this._modalTrustRequestPromise = undefined;
 		}
 		if (this._inFlightResolver) {
 			this._inFlightResolver(trustState === undefined ? this.currentTrustState : trustState);
+
+			this._inFlightResolver = undefined;
+			this._trustRequestPromise = undefined;
 		}
-
-		this._inFlightResolver = undefined;
-		this._trustRequestPromise = undefined;
-
-		this._modalTrustRequestResolver = undefined;
-		this._modalTrustRequestRejecter = undefined;
-		this._modalTrustRequestPromise = undefined;
 
 		if (trustState === undefined) {
 			return;
@@ -395,17 +417,20 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		});
 
 		this._ctxWorkspaceTrustPendingRequest.set(false);
-		this._ctxWorkspaceTrustState.set(trustState);
 	}
 
 	private onTrustRequestCancelled(): void {
 		if (this._modalTrustRequestRejecter) {
 			this._modalTrustRequestRejecter(canceled());
-		}
 
-		this._modalTrustRequestResolver = undefined;
-		this._modalTrustRequestRejecter = undefined;
-		this._modalTrustRequestPromise = undefined;
+			this._modalTrustRequestResolver = undefined;
+			this._modalTrustRequestRejecter = undefined;
+			this._modalTrustRequestPromise = undefined;
+		}
+	}
+
+	private onWorkspaceFoldersChanged(): void {
+		this.currentTrustState = this.calculateWorkspaceTrustState();
 	}
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
@@ -416,17 +441,17 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
 	}
 
-	async requireWorkspaceTrust(request: WorkspaceTrustRequest = { modal: true }): Promise<WorkspaceTrustState> {
+	async requireWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<WorkspaceTrustState> {
 		// Trusted workspace
 		if (this.currentTrustState === WorkspaceTrustState.Trusted) {
 			return this.currentTrustState;
 		}
 		// Untrusted workspace - soft request
-		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !request.modal) {
+		if (this.currentTrustState === WorkspaceTrustState.Untrusted && !options.modal) {
 			return this.currentTrustState;
 		}
 
-		if (request.modal) {
+		if (options.modal) {
 			// Modal request
 			if (!this._modalTrustRequestPromise) {
 				// Create promise
@@ -449,10 +474,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 			}
 		}
 
-		this.requestModel.initiateRequest(request);
+		this.requestModel.initiateRequest(options);
 		this._ctxWorkspaceTrustPendingRequest.set(true);
 
-		return request.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
+		return options.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
 	}
 }
 

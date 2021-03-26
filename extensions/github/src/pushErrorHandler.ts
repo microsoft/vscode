@@ -32,7 +32,9 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 				}
 			} catch { }
 		} else {
-			// TODO@eamodio Figure out how to get the codespace id when on the desktop
+			// Call into the codespaces extension to get the codespace id
+			const info = await commands.executeCommand<{ name: string } | undefined>('github.codespaces.getCurrentCodespace');
+			codespace = info?.name;
 		}
 
 		if (!codespace) {
@@ -159,12 +161,13 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			return false;
 		}
 
-		if (!remote.pushUrl) {
+		const remoteUrl = remote.pushUrl || (isInCodespaces() ? remote.fetchUrl : undefined);
+		if (!remoteUrl) {
 			return false;
 		}
 
-		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(remote.pushUrl)
-			|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(remote.pushUrl);
+		const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)(?:\.git)?/i.exec(remoteUrl)
+			|| /^git@github\.com:([^/]+)\/([^/]+)(?:\.git)?/i.exec(remoteUrl);
 
 		if (!match) {
 			return false;

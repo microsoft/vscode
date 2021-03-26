@@ -72,7 +72,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private registerListeners(): void {
 		this._register(this.requestModel.onDidInitiateRequest(async () => {
-			if (this.requestModel.trustRequest) {
+			if (this.requestModel.trustRequestOptions) {
 				this.toggleRequestBadge(true);
 
 				type WorkspaceTrustRequestedEventClassification = {
@@ -88,18 +88,18 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				};
 
 				this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-					modal: this.requestModel.trustRequest.modal,
+					modal: this.requestModel.trustRequestOptions.modal,
 					workspaceId: this.workspaceContextService.getWorkspace().id,
 					extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
 				});
 
-				if (this.requestModel.trustRequest.modal) {
+				if (this.requestModel.trustRequestOptions.modal) {
 					// Message
 					const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
-					const message = this.requestModel.trustRequest.message ?? defaultMessage;
+					const message = this.requestModel.trustRequestOptions.message ?? defaultMessage;
 
 					// Buttons
-					const buttons = this.requestModel.trustRequest.buttons ?? [
+					const buttons = this.requestModel.trustRequestOptions.buttons ?? [
 						{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
 						{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
 					];
@@ -145,10 +145,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
-		this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => {
-			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
-				this.toggleRequestBadge(false);
-			}
+		this._register(this.workspaceTrustService.onDidChangeTrustState(async (trustState) => {
+			type WorkspaceTrustStateChangedEvent = {
+				workspaceId: string,
+				previousState: WorkspaceTrustState,
+				newState: WorkspaceTrustState
+			};
 
 			type WorkspaceTrustStateChangedEventClassification = {
 				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -156,17 +158,21 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				newState: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			};
 
-			type WorkspaceTrustStateChangedEvent = {
-				workspaceId: string,
-				previousState: WorkspaceTrustState,
-				newState: WorkspaceTrustState
-			};
-
 			this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
 				workspaceId: this.workspaceContextService.getWorkspace().id,
 				previousState: trustState.previousTrustState,
 				newState: trustState.currentTrustState
 			});
+
+			// Transition from Trusted -> Untrusted/Unknown
+			if (trustState.previousTrustState === WorkspaceTrustState.Trusted && trustState.currentTrustState !== WorkspaceTrustState.Trusted) {
+				this.hostService.reload();
+			}
+
+			// Hide soft request badge
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+				this.toggleRequestBadge(false);
+			}
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

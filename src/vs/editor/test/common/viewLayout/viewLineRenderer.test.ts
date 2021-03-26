@@ -2106,6 +2106,38 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepStrictEqual(actual.html, expected);
 	});
 
+	test('issue #119416: Delete Control Character (U+007F / &#127;) displayed as space', () => {
+		const actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			'[' + String.fromCharCode(127) + '] [' + String.fromCharCode(0) + ']',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(7, 3)]),
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			true,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtk3">[\u2421]\u00a0[\u2400]</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
 
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(

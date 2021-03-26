@@ -95,8 +95,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 		);
 		this._onPtyHostStart.fire();
 
+		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
 		const heartbeatService = ProxyChannel.toService<IHeartbeatService>(client.getChannel(TerminalIpcChannels.Heartbeat));
 		heartbeatService.onBeat(() => this._handleHeartbeat());
+		this._handleHeartbeat();
 
 		// Handle exit
 		this._register(client.onDidProcessExit(e => {

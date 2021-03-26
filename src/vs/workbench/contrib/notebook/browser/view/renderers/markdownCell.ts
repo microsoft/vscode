@@ -202,6 +202,8 @@ export class StatefulMarkdownCell extends Disposable {
 			// Update for selection
 			this._register(this.notebookEditor.onDidChangeSelection(() => {
 				const selectedCells = this.notebookEditor.getSelectionViewModels();
+
+				// Only show selection if there are more than one cells selected
 				const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === viewCell);
 				this.notebookEditor.updateMarkdownPreviewSelectionState(viewCell, isSelected);
 			}));

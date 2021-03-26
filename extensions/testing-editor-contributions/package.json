@@ -20,23 +20,6 @@
   "dependencies": {
     "vscode-nls": "^5.0.0"
   },
-  "contributes": {
-    "configuration": {
-      "title": "Testing",
-      "properties": {
-        "testing.enableCodeLens": {
-          "description": "%config.enableCodeLens%",
-          "type": "boolean",
-          "default": true
-        },
-        "testing.enableProblemDiagnostics": {
-          "description": "%config.enableProblemDiagnostics%",
-          "type": "boolean",
-          "default": false
-        }
-      }
-    }
-  },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:testing-editor-contributions ./tsconfig.json"
   },

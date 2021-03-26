@@ -19,9 +19,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, SelectionStateType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -67,7 +67,7 @@ const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
 
-const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellContent';
+const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
 const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
 const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
 
@@ -185,6 +185,8 @@ export abstract class NotebookAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: any): Promise<void> {
+		const isFromUI = !!context;
+		const from = isFromUI ? (this.isNotebookActionContext(context) ? 'notebookToolbar' : 'editorToolbar') : undefined;
 		if (!this.isNotebookActionContext(context)) {
 			context = this.getEditorContextFromArgsOrActive(accessor, context);
 			if (!context) {
@@ -192,8 +194,10 @@ export abstract class NotebookAction extends Action2 {
 			}
 		}
 
-		const telemetryService = accessor.get(ITelemetryService);
-		telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'ui' });
+		if (from !== undefined) {
+			const telemetryService = accessor.get(ITelemetryService);
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+		}
 
 		this.runWithContext(accessor, context);
 	}
@@ -220,6 +224,9 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 
 	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
+			const telemetryService = accessor.get(ITelemetryService);
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellToolbar' });
+
 			return this.runWithContext(accessor, context);
 		}
 
@@ -240,7 +247,11 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 
 const executeCellCondition = ContextKeyExpr.or(
 	ContextKeyExpr.and(
-		ContextKeyExpr.notEquals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellRunState[NotebookCellRunState.Running]),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'idle'),
+			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'succeeded'),
+			ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'failed'),
+		),
 		ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.key, 0)),
 	NOTEBOOK_CELL_TYPE.isEqualTo('markdown'));
 
@@ -344,16 +355,21 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 	}
 });
 
+const cellCancelCondition = ContextKeyExpr.or(
+	ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'executing'),
+	ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'pending'),
+);
+
 registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 	constructor() {
 		super({
 			id: CANCEL_CELL_COMMAND_ID,
-			precondition: ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellRunState[NotebookCellRunState.Running]),
+			precondition: cellCancelCondition,
 			title: localize('notebookActions.cancel', "Stop Cell Execution"),
 			icon: icons.stopIcon,
 			menu: {
 				id: MenuId.NotebookCellExecute,
-				when: ContextKeyExpr.equals(NOTEBOOK_CELL_RUN_STATE.key, NotebookCellRunState[NotebookCellRunState.Running]),
+				when: cellCancelCondition,
 				group: 'inline'
 			},
 			description: {
@@ -618,7 +634,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.toNegated(), executeNotebookCondition)
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -629,7 +645,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK)
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
 });
 
 registerAction2(class extends NotebookCellAction {
@@ -681,7 +697,7 @@ registerAction2(class extends NotebookCellAction {
 });
 
 async function runCell(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-	if (context.cell.metadata?.runState === NotebookCellRunState.Running) {
+	if (context.cell.metadata?.runState === NotebookCellExecutionState.Executing) {
 		return;
 	}
 
@@ -708,8 +724,18 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
+	if (!notebookEditor.viewModel.metadata.editable) {
+		return null;
+	}
+
 	const text = cell.getText();
 	const idx = notebookEditor.viewModel.getCellIndex(cell);
+
+	if (language === undefined) {
+		const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
+		language = availableLanguages[0] ?? 'plaintext';
+	}
+
 	notebookEditor.viewModel.notebookDocument.applyEdits([
 		{
 			editType: CellEditType.Replace,
@@ -1300,11 +1326,11 @@ registerAction2(class extends NotebookCellAction {
 
 		editor.viewModel.notebookDocument.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
+		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
 				editType: CellEditType.Metadata, index, metadata: {
 					...context.cell.metadata,
-					runState: NotebookCellRunState.Idle,
+					runState: NotebookCellExecutionState.Idle,
 					runStartTime: undefined,
 					lastRunDuration: undefined,
 					statusMessage: undefined,
@@ -1515,11 +1541,11 @@ registerAction2(class extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.viewModel.notebookDocument.cells.map((cell, index) => {
-			if (cell.metadata && cell.metadata?.runState !== NotebookCellRunState.Running) {
+			if (cell.metadata && cell.metadata?.runState !== NotebookCellExecutionState.Executing) {
 				return {
 					editType: CellEditType.Metadata, index, metadata: {
 						...cell.metadata,
-						runState: NotebookCellRunState.Idle,
+						runState: NotebookCellExecutionState.Idle,
 						runStartTime: undefined,
 						lastRunDuration: undefined,
 						statusMessage: undefined,
@@ -1603,8 +1629,8 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 registerAction2(class extends ChangeNotebookCellMetadataAction {
 	constructor() {
 		super({
-			id: EXPAND_CELL_CONTENT_COMMAND_ID,
-			title: localize('notebookActions.expandCellContent', "Expand Cell Content"),
+			id: EXPAND_CELL_INPUT_COMMAND_ID,
+			title: localize('notebookActions.expandCellInput', "Expand Cell Input"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
