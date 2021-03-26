@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions, IOutputDto, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions, IOutputDto, ICellOutput, CellMetadataChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
@@ -23,8 +23,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	private _onDidChangeMetadata = new Emitter<void>();
-	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+	private _onDidChangeMetadata = new Emitter<CellMetadataChangedEvent>();
+	onDidChangeMetadata: Event<CellMetadataChangedEvent> = this._onDidChangeMetadata.event;
 
 	private _onDidChangeLanguage = new Emitter<string>();
 	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
@@ -42,9 +42,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set metadata(newMetadata: NotebookCellMetadata) {
+		const runStateChanged = this._metadata.runState !== newMetadata.runState;
 		this._metadata = newMetadata;
 		this._hash = null;
-		this._onDidChangeMetadata.fire();
+		this._onDidChangeMetadata.fire({ runStateChanged });
 	}
 
 	get language() {
