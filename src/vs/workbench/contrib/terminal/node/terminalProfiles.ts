@@ -18,10 +18,10 @@ import * as pfs from 'vs/base/node/pfs';
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, statProvider, logService, config?.displayDetectedWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(statProvider, logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
+	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, statProvider, logService, config?.useWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(statProvider, logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProvider?: IStatProvider, logService?: ILogService, displayDetectedWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProvider?: IStatProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -63,8 +63,8 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), logService, statProvider, variableResolver, workspaceFolder);
 
-	if (!quickLaunchOnly || (quickLaunchOnly && displayDetectedWslProfiles)) {
-		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, displayDetectedWslProfiles));
+	if (!quickLaunchOnly || (quickLaunchOnly && useWslProfiles)) {
+		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, useWslProfiles));
 	}
 
 	return resultProfiles;
@@ -145,9 +145,9 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(wslPath: string, displayDetectedWslProfiles?: boolean): Promise<ITerminalProfile[]> {
+async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promise<ITerminalProfile[]> {
 	const profiles: ITerminalProfile[] = [];
-	if (displayDetectedWslProfiles) {
+	if (useWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
 			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
 			cp.exec('wsl.exe -l', { encoding: 'utf16le' }, (err, stdout) => {
