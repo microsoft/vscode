@@ -29,7 +29,9 @@ const SKIP_SURVEY_KEY = 'ces/skipSurvey';
 const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
 
 class CESContribution extends Disposable implements IWorkbenchContribution {
+
 	private promptDelayer = this._register(new ThrottledDelayer<void>(0));
+	private readonly tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -37,9 +39,11 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@optional(ITASExperimentService) private readonly tasExperimentService: ITASExperimentService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
+
+		this.tasExperimentService = tasExperimentService;
 
 		if (!productService.cesSurveyUrl) {
 			return;
