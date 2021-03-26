@@ -144,6 +144,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private tasExperimentService?: ITASExperimentService;
 	private sessionInstalledExtensions = new Set<string>();
 
+	private overrideShortcircuit: Promise<void>;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -188,6 +190,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
 			if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('sync-enabled'); }
 		}));
+		this.overrideShortcircuit = new Promise(resolve => setTimeout(resolve, 300));
 
 		content.forEach(async (category, index) => {
 			category = await this.getCategoryOverrides(category);
@@ -221,7 +224,11 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		return new Promise(async (resolve) => {
 			if (!this.tasExperimentService) { resolve(category); return; }
 			let resolved = false;
-			setTimeout(() => { resolve(category); resolved = true; }, 500);
+
+			this.overrideShortcircuit.then(() => {
+				resolve(category);
+				resolved = true;
+			});
 
 			const [title, description] = await Promise.all([
 				this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideCategory.${category.id}.title`),
@@ -247,7 +254,11 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		return new Promise(async (resolve) => {
 			if (!this.tasExperimentService) { resolve(item); return; }
 			let resolved = false;
-			setTimeout(() => { resolve(item); resolved = true; }, 500);
+
+			this.overrideShortcircuit.then(() => {
+				resolve(item);
+				resolved = true;
+			});
 
 			const [title, description, media] = await Promise.all([
 				this.tasExperimentService.getTreatment<string>(`gettingStarted.overrideTask.${item.id}.title`),

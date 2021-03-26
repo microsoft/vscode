@@ -81,6 +81,7 @@ export class GettingStartedPage extends EditorPane {
 	private previousSelection?: string;
 	private recentlyOpened: Promise<IRecentlyOpened>;
 	private selectedTaskElement?: HTMLDivElement;
+	private hasScrolledToFirstCategory = false;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -478,20 +479,26 @@ export class GettingStartedPage extends EditorPane {
 		}
 
 		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
-		if (!someItemsComplete) {
+		if (!someItemsComplete && !this.hasScrolledToFirstCategory) {
 			const fistContentBehaviour = await Promise.race([
 				this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
 				new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
 			]);
 
-			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
-				if (first) {
-					this.currentCategory = first;
-					this.editorInput.selectedCategory = this.currentCategory?.id;
-					this.buildCategorySlide(this.editorInput.selectedCategory);
-					this.setSlide('details');
-					return;
+			if (this.gettingStartedCategories.some(category => category.content.type === 'items' && category.content.stepsComplete)) {
+				this.setSlide('categories');
+				return;
+			} else {
+				if (fistContentBehaviour === 'openToFirstCategory') {
+					const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
+					this.hasScrolledToFirstCategory = true;
+					if (first) {
+						this.currentCategory = first;
+						this.editorInput.selectedCategory = this.currentCategory?.id;
+						this.buildCategorySlide(this.editorInput.selectedCategory);
+						this.setSlide('details');
+						return;
+					}
 				}
 			}
 		}
@@ -621,8 +628,8 @@ export class GettingStartedPage extends EditorPane {
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
 			if (category.content.type !== 'items') { throw Error('Category with ID ' + categoryID + ' is not of items type'); }
-			const numDone = category.content.items.filter(task => task.done).length;
-			const numTotal = category.content.items.length;
+			const numDone = category.content.stepsComplete = category.content.items.filter(task => task.done).length;
+			const numTotal = category.content.stepsTotal = category.content.items.length;
 
 			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
 			bar.setAttribute('aria-valuemin', '0');
