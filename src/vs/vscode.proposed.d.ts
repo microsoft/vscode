@@ -1067,12 +1067,23 @@ declare module 'vscode' {
 
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
-		readonly cells: ReadonlyArray<NotebookCell>;
 
 		readonly metadata: NotebookDocumentMetadata;
 
 		// todo@API should we really expose this?
 		readonly viewType: string;
+
+		/** @deprecated Use `getCells(<...>) instead */
+		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * Get the cells of this notebook. A subset can be retrieved by providing
+		 * a range. The range will be adjuset to the notebook.
+		 *
+		 * @param range A notebook range.
+		 * @returns The cells contained by the range or all cells.
+		 */
+		getCells(range?: NotebookCellRange): ReadonlyArray<NotebookCell>;
 
 		/**
 		 * Save the document. The saving will be handled by the corresponding content provider
@@ -1084,6 +1095,7 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 	}
 
+	// todo@API RENAME to NotebookRange
 	// todo@API maybe have a NotebookCellPosition sibling
 	export class NotebookCellRange {
 		readonly start: number;
@@ -1095,6 +1107,8 @@ declare module 'vscode' {
 		readonly isEmpty: boolean;
 
 		constructor(start: number, end: number);
+
+		with(change: { start?: number, end?: number }): NotebookCellRange;
 	}
 
 	export enum NotebookEditorRevealType {
