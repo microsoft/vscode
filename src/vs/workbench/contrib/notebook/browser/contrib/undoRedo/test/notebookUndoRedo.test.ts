@@ -97,7 +97,7 @@ suite('Notebook Undo/Redo', () => {
 		);
 	});
 
-	test.skip('Invalid replace count should not throw', async function () {
+	test('Invalid replace count should not affect undo/redo', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
@@ -118,8 +118,8 @@ suite('Notebook Undo/Redo', () => {
 
 				assert.deepStrictEqual(viewModel.length, 1);
 
-				viewModel.undo();
-				viewModel.undo();
+				await viewModel.undo();
+				await viewModel.undo();
 
 				assert.deepStrictEqual(viewModel.length, 2);
 				viewModel.notebookDocument.applyEdits([{
