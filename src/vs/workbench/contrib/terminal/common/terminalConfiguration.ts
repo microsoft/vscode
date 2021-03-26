@@ -217,8 +217,8 @@ export const terminalConfiguration: IConfigurationNode = {
 				]
 			}
 		},
-		'terminal.integrated.displayDetectedWslProfiles': {
-			description: localize('terminal.integrated.displayDetectedWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
+		'terminal.integrated.useWslProfiles': {
+			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
 			default: true
 		},
