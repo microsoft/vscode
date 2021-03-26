@@ -296,9 +296,6 @@ export class PersistentTerminalProcess extends Disposable {
 		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
 		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
 
-		// Buffered events should flush when a resize occurs
-		this._register(this._terminalProcess.onResize(() => this._bufferer.flushBuffer(this._persistentProcessId)));
-
 		// Data recording for reconnect
 		this._register(this.onProcessData(e => this._recorder.recordData(e.data)));
 	}
@@ -344,6 +341,7 @@ export class PersistentTerminalProcess extends Disposable {
 		if (this._inReplay) {
 			return;
 		}
+		this._bufferer.flushBuffer(this._persistentProcessId);
 		this._recorder.recordResize(cols, rows);
 		return this._terminalProcess.resize(cols, rows);
 	}
