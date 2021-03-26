@@ -34,6 +34,9 @@ import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/not
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { mock } from 'vs/base/test/common/mock';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -134,6 +137,10 @@ export function setupInstantiationService() {
 	instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 	instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 	instantiationService.stub(IListService, instantiationService.createInstance(ListService));
+	instantiationService.stub(IClipboardService, new BrowserClipboardService());
+	instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
+		setToCopy() { }
+	});
 
 	return instantiationService;
 }
@@ -172,6 +179,18 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 		revealCellRangeInView() { }
 		setHiddenAreas(_ranges: ICellRange[]): boolean {
 			return cellList.setHiddenAreas(_ranges, true);
+		}
+		getActiveCell() {
+			const elements = cellList.getFocusedElements();
+
+			if (elements && elements.length) {
+				return elements[0];
+			}
+
+			return undefined;
+		}
+		hasOutputTextSelection() {
+			return false;
 		}
 	};
 
