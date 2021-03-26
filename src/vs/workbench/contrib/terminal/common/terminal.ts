@@ -256,6 +256,7 @@ export interface ITerminalProfileSource {
 	source: ProfileSource;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
+	args?: string | string[] | undefined;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;

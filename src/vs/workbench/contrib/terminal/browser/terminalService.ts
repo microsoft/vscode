@@ -338,7 +338,10 @@ export class TerminalService implements ITerminalService {
 		} else if ((one as ITerminalProfileSource).source && (two as ITerminalProfileSource).source) {
 			const oneSource = (one as ITerminalProfileSource);
 			const twoSource = (two as ITerminalProfileSource);
-			return oneSource.source === twoSource.source;
+			return oneSource.source === twoSource.source
+				&& ((Array.isArray(oneSource.args) && Array.isArray(twoSource.args) && oneSource.args?.every((a, index) => a === twoSource.args?.[index])) ||
+					(oneSource.args === twoSource.args)
+				);
 		}
 		return false;
 	}
