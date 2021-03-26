@@ -104,6 +104,7 @@ flakySuite('Storage Library', function () {
 		strictEqual(deletePromiseResolved, true);
 
 		await storage.close();
+		await storage.close(); // it is ok to call this multiple times
 	});
 
 	test('external changes', async () => {

@@ -26,6 +26,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -262,6 +263,11 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 			if (workspaceConfiguration && isEqual(workspaceConfiguration, model.uri)) {
 				return false; // already inside workspace
 			}
+		}
+
+		if (editor.getOption(EditorOption.inDiffEditor)) {
+			// in diff editor
+			return false;
 		}
 
 		return true;

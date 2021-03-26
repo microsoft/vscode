@@ -5,7 +5,9 @@
   "publisher": "vscode",
   "license": "MIT",
   "enableProposedApi": true,
-  "requiresWorkspaceTrust": "onDemand",
+  "workspaceTrust": {
+    "required": "onDemand"
+  },
   "private": true,
   "activationEvents": [],
   "main": "./out/extension",
@@ -113,6 +115,27 @@
             "request": "launch",
             "name": "Debug file.md",
             "program": "${workspaceFolder}/file.md"
+          }
+        ]
+      }
+    ],
+    "notebookProvider": [
+      {
+        "viewType": "notebookCoreTest",
+        "displayName": "Notebook Core Test",
+        "selector": [
+          {
+            "filenamePattern": "*.vsctestnb",
+            "excludeFileNamePattern": ""
+          }
+        ]
+      },
+      {
+        "viewType": "notebook.nbdtest",
+        "displayName": "notebook.nbdtest",
+        "selector": [
+          {
+            "filenamePattern": "**/*.nbdtest"
           }
         ]
       }

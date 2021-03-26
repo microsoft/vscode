@@ -56,6 +56,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -88,6 +89,7 @@ suite('KeybindingsEditing', () => {
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
 		instantiationService.stub(IEnvironmentService, environmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IPathService, new TestPathService());
 		instantiationService.stub(IConfigurationService, configService);
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());

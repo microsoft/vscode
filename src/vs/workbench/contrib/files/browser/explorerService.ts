@@ -170,6 +170,12 @@ export class ExplorerService implements IExplorerService {
 		return this.model.findClosest(resource);
 	}
 
+	findClosestRoot(resource: URI): ExplorerItem | null {
+		const parentRoots = this.model.roots.filter(r => this.uriIdentityService.extUri.isEqualOrParent(resource, r.resource))
+			.sort((first, second) => second.resource.path.length - first.resource.path.length);
+		return parentRoots.length ? parentRoots[0] : null;
+	}
+
 	async setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void> {
 		if (!this.view) {
 			return;
@@ -221,16 +227,13 @@ export class ExplorerService implements IExplorerService {
 
 		// Stat needs to be resolved first and then revealed
 		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === SortOrder.Modified };
-		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
-		if (workspaceFolder === null) {
-			return Promise.resolve(undefined);
+		const root = this.findClosestRoot(resource);
+		if (!root) {
+			return undefined;
 		}
-		const rootUri = workspaceFolder.uri;
-
-		const root = this.roots.find(r => this.uriIdentityService.extUri.isEqual(r.resource, rootUri))!;
 
 		try {
-			const stat = await this.fileService.resolve(rootUri, options);
+			const stat = await this.fileService.resolve(root.resource, options);
 
 			// Convert to model
 			const modelStat = ExplorerItem.create(this.fileService, stat, undefined, options.resolveTo);
@@ -273,7 +276,7 @@ export class ExplorerService implements IExplorerService {
 			if (parents.length) {
 
 				// Add the new file to its parent (Model)
-				parents.forEach(async p => {
+				await Promise.all(parents.map(async p => {
 					// We have to check if the parent is resolved #29177
 					const resolveMetadata = this.sortOrder === `modified`;
 					if (!p.isDirectoryResolved) {
@@ -290,7 +293,7 @@ export class ExplorerService implements IExplorerService {
 					p.addChild(childElement);
 					// Refresh the Parent (View)
 					await this.view?.refresh(false, p);
-				});
+				}));
 			}
 		}
 
@@ -318,12 +321,12 @@ export class ExplorerService implements IExplorerService {
 
 				if (newParents.length && modelElements.length) {
 					// Move in Model
-					modelElements.forEach(async (modelElement, index) => {
+					await Promise.all(modelElements.map(async (modelElement, index) => {
 						const oldParent = modelElement.parent;
 						modelElement.move(newParents[index]);
 						await this.view?.refresh(false, oldParent);
 						await this.view?.refresh(false, newParents[index]);
-					});
+					}));
 				}
 			}
 		}
@@ -331,7 +334,7 @@ export class ExplorerService implements IExplorerService {
 		// Delete
 		else if (e.isOperation(FileOperation.DELETE)) {
 			const modelElements = this.model.findAll(e.resource);
-			modelElements.forEach(async element => {
+			await Promise.all(modelElements.map(async element => {
 				if (element.parent) {
 					const parent = element.parent;
 					// Remove Element from Parent (Model)
@@ -340,7 +343,7 @@ export class ExplorerService implements IExplorerService {
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}
-			});
+			}));
 		}
 	}
 

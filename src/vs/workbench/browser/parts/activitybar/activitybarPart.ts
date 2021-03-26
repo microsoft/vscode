@@ -32,7 +32,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { isNative, isWeb } from 'vs/base/common/platform';
+import { isNative } from 'vs/base/common/platform';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon } from 'vs/base/common/codicons';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
@@ -166,7 +166,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 				// Menu
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService);
-				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
+				if (menuBarVisibility === 'compact' || menuBarVisibility === 'hidden' || menuBarVisibility === 'toggle') {
 					topActions.push({
 						id: 'toggleMenuVisibility',
 						label: localize('menu', "Menu"),
@@ -174,7 +174,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 						tooltip: localize('menu', "Menu"),
 						checked: menuBarVisibility === 'compact',
 						enabled: true,
-						run: async () => this.layoutService.toggleMenuBar(),
+						run: async () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact'),
 						dispose: () => { }
 					});
 				}
@@ -534,8 +534,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			ariaLabel: localize('manage', "Manage"),
 			animated: false,
-			preventLoopNavigation: true,
-			ignoreOrientationForPreviousAndNextKey: true
+			preventLoopNavigation: true
 		}));
 
 		this.globalActivityAction = this._register(new ActivityAction({

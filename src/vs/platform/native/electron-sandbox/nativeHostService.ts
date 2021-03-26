@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 
 // @ts-ignore: interface is implemented via proxy

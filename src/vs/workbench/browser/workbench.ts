@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/workbench/browser/style';
-
 import { localize } from 'vs/nls';
-import { Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
+import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel, isFirefox, isSafari, isChrome, getPixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
@@ -27,6 +26,7 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
 import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/notificationsAlerts';
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
+import { NotificationsTelemetry } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
@@ -342,8 +342,7 @@ export class Workbench extends Layout {
 		// Create Parts
 		[
 			{ id: Parts.TITLEBAR_PART, role: 'contentinfo', classes: ['titlebar'] },
-			// Use role 'none' for some parts to make screen readers less chatty #114892
-			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
+			{ id: Parts.ACTIVITYBAR_PART, role: 'none', classes: ['activitybar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] }, // Use role 'none' for some parts to make screen readers less chatty #114892
 			{ id: Parts.SIDEBAR_PART, role: 'none', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
 			{ id: Parts.PANEL_PART, role: 'none', classes: ['panel', positionToString(this.state.panel.position)] },
@@ -380,6 +379,7 @@ export class Workbench extends Layout {
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.container, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
+		this._register(instantiationService.createInstance(NotificationsTelemetry));
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {
@@ -392,7 +392,12 @@ export class Workbench extends Layout {
 		}));
 
 		// Register Commands
-		registerNotificationCommands(notificationsCenter, notificationsToasts);
+		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
+
+		// Register with Layout
+		this.registerNotifications({
+			onDidChangeNotificationsVisibility: Event.map(Event.any(notificationsToasts.onDidChangeVisibility, notificationsCenter.onDidChangeVisibility), () => notificationsToasts.isVisible || notificationsCenter.isVisible)
+		});
 	}
 
 	private async restoreWorkbench(

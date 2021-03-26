@@ -71,10 +71,8 @@ export interface IIPCOptions {
 	debugBrk?: number;
 
 	/**
-	 * See https://github.com/microsoft/vscode/issues/27665
-	 * Allows to pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
-	 * e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
-	 * results in the forked process inheriting `--inspect-brk=xxx`.
+	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent proces are inherited,
+	 * except --inspect= and --inspect-brk= which are filtered as they would result in a port conflict.
 	 */
 	freshExecArgv?: boolean;
 
@@ -196,6 +194,12 @@ export class Client implements IChannelClient, IDisposable {
 
 			if (this.options && typeof this.options.debugBrk === 'number') {
 				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
+			}
+
+			if (forkOpts.execArgv === undefined) {
+				// if not set, the forked process inherits the execArgv of the parent process
+				// --inspect and --inspect-brk can not be inherited as the port would conflict
+				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
 			}
 
 			if (isMacintosh && forkOpts.env) {

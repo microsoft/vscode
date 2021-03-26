@@ -180,7 +180,7 @@
 	}
 
 	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').IPartialNodeProcess | NodeJS.Process}
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process}
 	 */
 	function safeProcess() {
 		if (typeof process !== 'undefined') {

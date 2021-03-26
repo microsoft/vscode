@@ -10,7 +10,6 @@ import { IMatch } from 'vs/base/common/filters';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/base/common/range';
 import { equals } from 'vs/base/common/objects';
-import { isMacintosh } from 'vs/base/common/platform';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -218,9 +217,6 @@ export class IconLabel extends Disposable {
 		htmlElement.removeAttribute('title');
 		let tooltip = this.getTooltipForCustom(markdownTooltip);
 
-		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
-		// On Mac, the delay is 1500.
-		const hoverDelay = isMacintosh ? 1500 : 500;
 		let hoverOptions: IHoverDelegateOptions | undefined;
 		let mouseX: number | undefined;
 		let isHovering = false;
@@ -232,9 +228,12 @@ export class IconLabel extends Disposable {
 			}
 			tokenSource = new CancellationTokenSource();
 			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
-				if ((e.type === dom.EventType.MOUSE_DOWN) || (<any>e).fromElement === htmlElement) {
+				const isMouseDown = e.type === dom.EventType.MOUSE_DOWN;
+				if (isMouseDown) {
 					hoverDisposable?.dispose();
 					hoverDisposable = undefined;
+				}
+				if (isMouseDown || (<any>e).fromElement === htmlElement) {
 					isHovering = false;
 					hoverOptions = undefined;
 					tokenSource.dispose(true);
@@ -282,7 +281,7 @@ export class IconLabel extends Disposable {
 
 				}
 				mouseMoveDisposable.dispose();
-			}, hoverDelay);
+			}, hoverDelegate.delay);
 		}
 		const mouseOverDisposable = this._register(domEvent(htmlElement, dom.EventType.MOUSE_OVER, true)(mouseOver.bind(htmlElement)));
 		this.customHovers.set(htmlElement, mouseOverDisposable);

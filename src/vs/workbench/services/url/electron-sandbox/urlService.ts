@@ -5,7 +5,7 @@
 
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -27,9 +27,9 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IProductService private readonly productService: IProductService
+		@IProductService productService: IProductService
 	) {
-		super();
+		super(productService);
 
 		this.urlService = ProxyChannel.toService<IURLService>(mainProcessService.getChannel('url'));
 

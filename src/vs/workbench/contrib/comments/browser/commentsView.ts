@@ -167,7 +167,7 @@ export class CommentsPanel extends ViewPane {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, {
 			overrideStyles: { listBackground: this.getBackgroundColor() },
-			openOnFocus: true,
+			selectionNavigation: true,
 			accessibilityProvider: {
 				getAriaLabel(element: any): string {
 					if (element instanceof CommentsModel) {

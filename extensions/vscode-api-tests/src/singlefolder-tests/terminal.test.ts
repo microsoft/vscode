@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions, Terminal } from 'vscode';
-import { doesNotThrow, equal, deepEqual, throws } from 'assert';
+import { doesNotThrow, equal, deepEqual, throws, strictEqual } from 'assert';
 import { assertNoRpc } from '../utils';
 
 // Disable terminal tests:
 // - Web https://github.com/microsoft/vscode/issues/92826
-// - Remote https://github.com/microsoft/vscode/issues/96057
-((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
+(env.uiKind === UIKind.Web ? suite.skip : suite)('vscode API - terminal', () => {
 	let extensionContext: ExtensionContext;
 
 	suiteSetup(async () => {
@@ -25,6 +24,8 @@ import { assertNoRpc } from '../utils';
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container
 		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
+		// Disable env var relaunch for tests to prevent terminals relaunching themselves
+		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {
@@ -57,48 +58,44 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
-			disposables.push(window.onDidOpenTerminal(term => {
-				try {
-					equal(terminal, term);
-				} catch (e) {
-					done(e);
-					return;
-				}
-				let data = '';
-				const dataDisposable = window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
-						return;
+		test('echo works in the default shell', async () => {
+			const terminal = await new Promise<Terminal>(r => {
+				disposables.push(window.onDidOpenTerminal(t => {
+					if (t === terminal) {
+						r(terminal);
 					}
-					data += e.data;
-					if (data.indexOf(expected) !== 0) {
-						dataDisposable.dispose();
-						terminal.dispose();
-						disposables.push(window.onDidCloseTerminal(() => {
-							done();
-						}));
-					}
+				}));
+				// Use a single character to avoid winpty/conpty issues with injected sequences
+				const terminal = window.createTerminal({
+					env: { TEST: '`' }
 				});
-				disposables.push(dataDisposable);
-			}));
-			// Use a single character to avoid winpty/conpty issues with injected sequences
-			const expected = '`';
-			const terminal = window.createTerminal({
-				env: {
-					TEST: '`'
-				}
+				terminal.show();
 			});
-			terminal.show();
-			doesNotThrow(() => {
+
+			let data = '';
+			await new Promise<void>(r => {
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (e.terminal === terminal) {
+						data += e.data;
+						if (data.indexOf('`') !== 0) {
+							r();
+						}
+					}
+				}));
 				// Print an environment variable value so the echo statement doesn't get matched
 				if (process.platform === 'win32') {
 					terminal.sendText(`$env:TEST`);
 				} else {
 					terminal.sendText(`echo $TEST`);
 				}
+			});
+
+			await new Promise<void>(r => {
+				terminal.dispose();
+				disposables.push(window.onDidCloseTerminal(t => {
+					strictEqual(terminal, t);
+					r();
+				}));
 			});
 		});
 
@@ -637,7 +634,7 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('environmentVariableCollection', () => {
-			test('should have collection variables apply to terminals immediately after setting', (done) => {
+			test.skip('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
 					'~a2~',
@@ -645,10 +642,7 @@ import { assertNoRpc } from '../utils';
 					'~c2~c1'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event
@@ -691,10 +685,7 @@ import { assertNoRpc } from '../utils';
 					'~c2~'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event
@@ -736,10 +727,7 @@ import { assertNoRpc } from '../utils';
 					'~b1~'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event
@@ -778,10 +766,7 @@ import { assertNoRpc } from '../utils';
 					'~b2~'
 				];
 				disposables.push(window.onDidWriteTerminalData(e => {
-					try {
-						equal(terminal, e.terminal);
-					} catch (e) {
-						done(e);
+					if (terminal !== e.terminal) {
 						return;
 					}
 					// Multiple expected could show up in the same data event

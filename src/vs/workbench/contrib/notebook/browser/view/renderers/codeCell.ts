@@ -10,16 +10,15 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ClickTargetType, getExecuteCellPlaceholder } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 export class CodeCell extends Disposable {
@@ -31,8 +30,7 @@ export class CodeCell extends Disposable {
 		private notebookEditor: IActiveNotebookEditor,
 		private viewCell: CodeCellViewModel,
 		private templateData: CodeCellRenderTemplate,
-		@INotebookService notebookService: INotebookService,
-		@IQuickInputService quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@ITextFileService readonly textFileService: ITextFileService,
@@ -78,7 +76,11 @@ export class CodeCell extends Disposable {
 		});
 
 		const updateForFocusMode = () => {
-			if (viewCell.focusMode === CellFocusMode.Editor) {
+			if (this.notebookEditor.getFocus().start !== this.notebookEditor.viewModel.getCellIndex(viewCell)) {
+				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+			}
+
+			if (viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
 				templateData.editor?.focus();
 			}
 
@@ -202,7 +204,13 @@ export class CodeCell extends Disposable {
 		}));
 
 		// Focus Mode
-		const updateFocusMode = () => viewCell.focusMode = templateData.editor.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		const updateFocusMode = () => {
+			viewCell.focusMode =
+				(templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
+					? CellFocusMode.Editor
+					: CellFocusMode.Container;
+		};
+
 		this._register(templateData.editor.onDidFocusEditorWidget(() => {
 			updateFocusMode();
 		}));
@@ -210,7 +218,7 @@ export class CodeCell extends Disposable {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
-			if (document.activeElement?.contains(this.templateData.container)) {
+			if (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)) {
 				setTimeout(() => {
 					updateFocusMode();
 				}, 300);
@@ -221,7 +229,7 @@ export class CodeCell extends Disposable {
 		updateFocusMode();
 
 		// Render Outputs
-		this._outputContainerRenderer = new CellOutputContainer(notebookEditor, viewCell, templateData, notebookService, quickInputService, openerService, textFileService);
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData);
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
 		updateForCollapseState();
@@ -229,7 +237,6 @@ export class CodeCell extends Disposable {
 		const updatePlaceholder = () => {
 			if (this.notebookEditor.viewModel
 				&& this.notebookEditor.getActiveCell() === this.viewCell
-				&& viewCell.getEvaluatedMetadata(this.notebookEditor.viewModel.metadata).runnable
 				&& viewCell.metadata.runState === undefined
 				&& viewCell.metadata.lastRunDuration === undefined
 			) {
@@ -255,35 +262,13 @@ export class CodeCell extends Disposable {
 			updatePlaceholder();
 		}));
 
-		// const updateUntrustedStatus = () => {
-		// 	if (this.notebookEditor.viewModel
-		// 		&& this.notebookEditor.viewModel.metadata.trusted) {
-		// 		this._untrustedStatusItem?.dispose();
-		// 		this._untrustedStatusItem = null;
-		// 	} else {
-		// 		if (this._untrustedStatusItem === null) {
-		// 			this._untrustedStatusItem = this.notebookCellStatusBarService.addEntry({
-		// 				alignment: CellStatusbarAlignment.LEFT,
-		// 				priority: -1,
-		// 				cellResource: viewCell.uri,
-		// 				command: TRUST_NOTEBOOK_COMMAND_ID,
-		// 				text: 'Untrusted',
-		// 				tooltip: 'Untrusted notebook',
-		// 				visible: true,
-		// 			});
-		// 		}
-		// 	}
-		// };
-
 		this._register(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {
 			if (e.rawEvents.find(event => event.kind === NotebookCellsChangeType.ChangeDocumentMetadata)) {
 				updatePlaceholder();
-				// updateUntrustedStatus();
 			}
 		}));
 
 		updatePlaceholder();
-		// updateUntrustedStatus();
 	}
 
 	private viewUpdate(): void {
@@ -354,16 +339,12 @@ export class CodeCell extends Disposable {
 		const realContentHeight = this.templateData.editor.getContentHeight();
 		this.viewCell.editorHeight = realContentHeight;
 		this.relayoutCell();
-
 		this.layoutEditor(
 			{
 				width: this.viewCell.layoutInfo.editorWidth,
 				height: realContentHeight
 			}
 		);
-
-		// for contents for which we don't observe for dynamic height, update them manually
-		this._outputContainerRenderer.onCellWidthChange();
 	}
 
 	private onCellHeightChange(newHeight: number): void {
@@ -379,24 +360,7 @@ export class CodeCell extends Disposable {
 	}
 
 	relayoutCell() {
-		if (this._timer !== null) {
-			clearTimeout(this._timer);
-		}
-
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
-	}
-
-	private _timer: number | null = null;
-
-	relayoutCellDebounced() {
-		if (this._timer !== null) {
-			clearTimeout(this._timer);
-		}
-
-		this._timer = setTimeout(() => {
-			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
-			this._timer = null;
-		}, 200) as unknown as number | null;
 	}
 
 	dispose() {

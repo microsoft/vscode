@@ -13,7 +13,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -46,6 +46,7 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { cwd } from 'vs/base/common/process';
 
 class CliMain extends Disposable {
 
@@ -94,9 +95,12 @@ class CliMain extends Disposable {
 	private async initServices(): Promise<[IInstantiationService, AppInsightsAppender[]]> {
 		const services = new ServiceCollection();
 
+		// Product
+		const productService = { _serviceBrand: undefined, ...product };
+		services.set(IProductService, productService);
+
 		// Environment
-		const environmentService = new NativeEnvironmentService(this.argv);
-		services.set(IEnvironmentService, environmentService);
+		const environmentService = new NativeEnvironmentService(this.argv, productService);
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
@@ -131,9 +135,6 @@ class CliMain extends Disposable {
 		const stateService = new StateService(environmentService, logService);
 		services.set(IStateService, stateService);
 
-		// Product
-		services.set(IProductService, { _serviceBrand: undefined, ...product });
-
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
 
 		// Request
@@ -149,15 +150,15 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		const appenders: AppInsightsAppender[] = [];
-		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
-			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender('monacoworkbench', null, product.aiConfig.asimovKey));
+		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && productService.enableTelemetry) {
+			if (productService.aiConfig && productService.aiConfig.asimovKey) {
+				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(fileService, release(), process.arch, product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), process.arch, productService.commit, productService.version, stateService.getItem('telemetry.machineId'), productService.msftInternalDomains, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
@@ -217,7 +218,7 @@ class CliMain extends Disposable {
 	}
 
 	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
-		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(process.cwd(), input)) : input);
+		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 	}
 
 	private async setInstallSource(environmentService: INativeEnvironmentService, fileService: IFileService, installSource: string): Promise<void> {

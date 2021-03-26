@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstInSorted } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
+import { Lazy } from 'vs/base/common/lazy';
+import { equals } from 'vs/base/common/objects';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { Range } from 'vs/editor/common/core/range';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IncrementalTestCollectionItem, ITestState, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, ISerializedTestResults, ITestState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
@@ -20,7 +26,19 @@ import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/t
 /**
  * Count of the number of tests in each run state.
  */
-export type TestStateCount = { [K in TestRunState]: number };
+export type TestStateCount = { [K in TestResult]: number };
+
+export const enum TestResultItemChangeReason {
+	Retired,
+	ParentRetired,
+	ComputedStateChange,
+	OwnStateChange,
+}
+
+export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
+	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
+	| { reason: TestResultItemChangeReason.OwnStateChange; previous: ITestState }
+);
 
 export interface ITestResult {
 	/**
@@ -34,23 +52,34 @@ export interface ITestResult {
 	readonly id: string;
 
 	/**
-	 * Gets whether the test run has finished.
+	 * If the test is completed, the unix milliseconds time at which it was
+	 * completed. If undefined, the test is still running.
 	 */
-	readonly isComplete: boolean;
+	readonly completedAt: number | undefined;
+
+	/**
+	 * Whether this test result is triggered from an auto run.
+	 */
+	readonly isAutoRun?: boolean;
+
+	/**
+	 * Gets all tests involved in the run.
+	 */
+	tests: IterableIterator<TestResultItem>;
 
 	/**
 	 * Gets the state of the test by its extension-assigned ID.
 	 */
-	getStateByExtId(testExtId: string): TestResultItem | undefined;
+	getStateById(testExtId: string): TestResultItem | undefined;
 
 	/**
 	 * Serializes the test result. Used to save and restore results
 	 * in the workspace.
 	 */
-	toJSON(): ISerializedResults;
+	toJSON(): ISerializedTestResults | undefined;
 }
 
-const makeEmptyCounts = () => {
+export const makeEmptyCounts = () => {
 	const o: Partial<TestStateCount> = {};
 	for (const state of statesInOrder) {
 		o[state] = 0;
@@ -73,30 +102,30 @@ export const sumCounts = (counts: Iterable<TestStateCount>) => {
 const queuedState: ITestState = {
 	duration: undefined,
 	messages: [],
-	state: TestRunState.Queued
+	state: TestResult.Queued
 };
 
 const unsetState: ITestState = {
 	duration: undefined,
 	messages: [],
-	state: TestRunState.Unset
+	state: TestResult.Unset
 };
 
 const itemToNode = (
 	item: IncrementalTestCollectionItem,
 	byExtId: Map<string, TestResultItem>,
-	byInternalId: Map<string, TestResultItem>,
 ): TestResultItem => {
 	const n: TestResultItem = {
 		...item,
 		// shallow-clone the test to take a 'snapshot' of it at the point in time where tests run
 		item: { ...item.item },
+		children: new Set(item.children),
 		state: unsetState,
-		computedState: TestRunState.Unset,
+		computedState: TestResult.Unset,
+		retired: false,
 	};
 
 	byExtId.set(n.item.extId, n);
-	byInternalId.set(n.id, n);
 
 	return n;
 };
@@ -105,56 +134,49 @@ const makeParents = (
 	collection: IMainThreadTestCollection,
 	child: IncrementalTestCollectionItem,
 	byExtId: Map<string, TestResultItem>,
-	byInternalId: Map<string, TestResultItem>,
 ) => {
 	const parent = child.parent && collection.getNodeById(child.parent);
 	if (!parent) {
 		return;
 	}
 
-	let parentResultItem = byInternalId.get(parent.id);
+	let parentResultItem = byExtId.get(parent.item.extId);
 	if (parentResultItem) {
-		parentResultItem.children.add(child.id);
+		parentResultItem.children.add(child.item.extId);
 		return; // no need to recurse, all parents already in result
 	}
 
-	parentResultItem = itemToNode(parent, byExtId, byInternalId);
-	parentResultItem.children = new Set([child.id]);
-	makeParents(collection, parent, byExtId, byInternalId);
+	parentResultItem = itemToNode(parent, byExtId);
+	parentResultItem.children = new Set([child.item.extId]);
+	makeParents(collection, parent, byExtId);
 };
 
 const makeNodeAndChildren = (
 	collection: IMainThreadTestCollection,
 	test: IncrementalTestCollectionItem,
+	excluded: ReadonlySet<string>,
 	byExtId: Map<string, TestResultItem>,
-	byInternalId: Map<string, TestResultItem>,
+	isExecutedDirectly = true,
 ): TestResultItem => {
-	const existing = byInternalId.get(test.id);
+	const existing = byExtId.get(test.item.extId);
 	if (existing) {
 		return existing;
 	}
 
-	const mapped = itemToNode(test, byExtId, byInternalId);
+	const mapped = itemToNode(test, byExtId);
+	if (isExecutedDirectly) {
+		mapped.direct = true;
+	}
+
 	for (const childId of test.children) {
 		const child = collection.getNodeById(childId);
-		if (child) {
-			makeNodeAndChildren(collection, child, byExtId, byInternalId);
+		if (child && !excluded.has(childId)) {
+			makeNodeAndChildren(collection, child, excluded, byExtId, false);
 		}
 	}
 
 	return mapped;
 };
-
-interface ISerializedResults {
-	id: string;
-	counts: TestStateCount;
-	items: Iterable<[extId: string, item: TestResultItem]>;
-}
-
-interface TestResultItem extends IncrementalTestCollectionItem {
-	state: ITestState;
-	computedState: TestRunState;
-}
 
 /**
  * Results of a test. These are created when the test initially started running
@@ -167,28 +189,28 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public static from(
 		collections: ReadonlyArray<IMainThreadTestCollection>,
-		tests: ReadonlyArray<TestIdWithProvider>,
+		req: RunTestsRequest,
 	) {
 		const testByExtId = new Map<string, TestResultItem>();
-		const testByInternalId = new Map<string, TestResultItem>();
-		for (const test of tests) {
+		const excludeSet = new Set<string>(req.exclude);
+		for (const test of req.tests) {
 			for (const collection of collections) {
 				const node = collection.getNodeById(test.testId);
 				if (!node) {
 					continue;
 				}
 
-				makeNodeAndChildren(collection, node, testByExtId, testByInternalId);
-				makeParents(collection, node, testByExtId, testByInternalId);
+				makeNodeAndChildren(collection, node, excludeSet, testByExtId);
+				makeParents(collection, node, testByExtId);
 			}
 		}
 
-		return new LiveTestResult(collections, testByExtId, testByInternalId);
+		return new LiveTestResult(collections, testByExtId, excludeSet, !!req.isAutoRun);
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
-	private readonly changeEmitter = new Emitter<TestResultItem>();
-	private _complete = false;
+	private readonly changeEmitter = new Emitter<TestResultItemChange>();
+	private _completedAt?: number;
 
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
@@ -201,20 +223,20 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public get isComplete() {
-		return this._complete;
+	public get completedAt() {
+		return this._completedAt;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts: { [K in TestRunState]: number } = makeEmptyCounts();
+	public readonly counts: { [K in TestResult]: number } = makeEmptyCounts();
 
 	/**
-	 * Gets all tests involved in the run by ID.
+	 * @inheritdoc
 	 */
 	public get tests() {
-		return this.testByInternalId.values();
+		return this.testById.values();
 	}
 
 	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItem> = {
@@ -222,10 +244,10 @@ export class LiveTestResult implements ITestResult {
 		getCurrentComputedState: i => i.computedState,
 		setComputedState: (i, s) => i.computedState = s,
 		getChildren: i => {
-			const { testByInternalId } = this;
+			const { testById: testByExtId } = this;
 			return (function* () {
 				for (const childId of i.children) {
-					const child = testByInternalId.get(childId);
+					const child = testByExtId.get(childId);
 					if (child) {
 						yield child;
 					}
@@ -233,10 +255,10 @@ export class LiveTestResult implements ITestResult {
 			})();
 		},
 		getParents: i => {
-			const { testByInternalId } = this;
+			const { testById: testByExtId } = this;
 			return (function* () {
 				for (let parentId = i.parent; parentId;) {
-					const parent = testByInternalId.get(parentId);
+					const parent = testByExtId.get(parentId);
 					if (!parent) {
 						break;
 					}
@@ -250,29 +272,27 @@ export class LiveTestResult implements ITestResult {
 
 	constructor(
 		private readonly collections: ReadonlyArray<IMainThreadTestCollection>,
-		private readonly testByExtId: Map<string, TestResultItem>,
-		private readonly testByInternalId: Map<string, TestResultItem>,
+		private readonly testById: Map<string, TestResultItem>,
+		private readonly excluded: ReadonlySet<string>,
+		public readonly isAutoRun: boolean,
 	) {
-		this.counts[TestRunState.Unset] = testByInternalId.size;
+		this.counts[TestResult.Unset] = testById.size;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public getStateByExtId(extTestId: string) {
-		return this.testByExtId.get(extTestId);
+	public getStateById(extTestId: string) {
+		return this.testById.get(extTestId);
 	}
 
 	/**
 	 * Updates all tests in the collection to the given state.
 	 */
 	public setAllToState(state: ITestState, when: (_t: TestResultItem) => boolean) {
-		for (const test of this.testByInternalId.values()) {
+		for (const test of this.testById.values()) {
 			if (when(test)) {
-				this.counts[state.state]--;
-				test.state = state;
-				this.counts[state.state]++;
-				refreshComputedState(this.computedStateAccessor, test, t => this.changeEmitter.fire(t));
+				this.fireUpdateAndRefresh(test, state);
 			}
 		}
 	}
@@ -281,7 +301,7 @@ export class LiveTestResult implements ITestResult {
 	 * Updates the state of the test by its internal ID.
 	 */
 	public updateState(testId: string, state: ITestState) {
-		let entry = this.testByInternalId.get(testId);
+		let entry = this.testById.get(testId);
 		if (!entry) {
 			entry = this.addTestToRun(testId);
 		}
@@ -289,14 +309,49 @@ export class LiveTestResult implements ITestResult {
 			return;
 		}
 
-		if (state.state === entry.state.state) {
-			entry.state = state;
-			this.changeEmitter.fire(entry);
-		} else {
-			this.counts[entry.state.state]--;
-			entry.state = state;
-			this.counts[entry.state.state]++;
-			refreshComputedState(this.computedStateAccessor, entry, t => this.changeEmitter.fire(t));
+		this.fireUpdateAndRefresh(entry, state);
+	}
+
+	private fireUpdateAndRefresh(entry: TestResultItem, newState: ITestState) {
+		const previous = entry.state;
+		entry.state = newState;
+
+		if (newState.state !== previous.state) {
+			this.counts[previous.state]--;
+			this.counts[newState.state]++;
+			refreshComputedState(this.computedStateAccessor, entry, t => (
+				t !== entry && this.changeEmitter.fire({ item: t, result: this, reason: TestResultItemChangeReason.ComputedStateChange })
+			));
+		}
+
+		this.changeEmitter.fire({ item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous });
+	}
+
+	/**
+	 * Marks a test as retired. This can trigger it to be re-run in live mode.
+	 */
+	public retire(testId: string) {
+		const root = this.testById.get(testId);
+		if (!root || root.retired) {
+			return;
+		}
+
+		const queue: Iterable<string>[] = [[root.item.extId]];
+		while (queue.length) {
+			for (const id of queue.pop()!) {
+				const entry = this.testById.get(id);
+				if (entry && !entry.retired) {
+					entry.retired = true;
+					queue.push(entry.children);
+					this.changeEmitter.fire({
+						result: this,
+						item: entry,
+						reason: entry === root
+							? TestResultItemChangeReason.Retired
+							: TestResultItemChangeReason.ParentRetired
+					});
+				}
+			}
 		}
 	}
 
@@ -309,7 +364,11 @@ export class LiveTestResult implements ITestResult {
 		for (const collection of this.collections) {
 			let test = collection.getNodeById(testId);
 			if (test) {
-				return makeNodeAndChildren(collection, test, this.testByExtId, this.testByInternalId);
+				const originalSize = this.testById.size;
+				makeParents(collection, test, this.testById);
+				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById, false);
+				this.counts[TestResult.Unset] += this.testById.size - originalSize;
+				return node;
 			}
 		}
 
@@ -320,75 +379,101 @@ export class LiveTestResult implements ITestResult {
 	 * Notifies the service that all tests are complete.
 	 */
 	public markComplete() {
-		if (this._complete) {
+		if (this._completedAt !== undefined) {
 			throw new Error('cannot complete a test result multiple times');
 		}
 
 		// un-queue any tests that weren't explicitly updated
-		this.setAllToState(unsetState, t => t.state.state === TestRunState.Queued);
-		this._complete = true;
+		this.setAllToState(unsetState, t => t.state.state === TestResult.Queued);
+		this._completedAt = Date.now();
 		this.completeEmitter.fire();
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public toJSON(): ISerializedResults {
-		return { id: this.id, counts: this.counts, items: [...this.testByExtId.entries()] };
+	public toJSON(): ISerializedTestResults | undefined {
+		return this.completedAt ? this.doSerialize.getValue() : undefined;
 	}
+
+	private readonly doSerialize = new Lazy((): ISerializedTestResults => ({
+		id: this.id,
+		completedAt: this.completedAt!,
+		items: [...this.testById.values()].map(entry => ({
+			...entry,
+			retired: undefined,
+			children: [...entry.children],
+		})),
+	}));
 }
 
 /**
  * Test results hydrated from a previously-serialized test run.
  */
-class HydratedTestResult implements ITestResult {
+export class HydratedTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts = this.serialized.counts;
-
-	/**
-	 * @inheritdoc
-	 */
-	public readonly id = this.serialized.id;
+	public readonly counts = makeEmptyCounts();
 
 	/**
 	 * @inheritdoc
 	 */
-	public readonly isComplete = true;
+	public readonly id: string;
 
-	private readonly map = new Map<string, TestResultItem>();
+	/**
+	 * @inheritdoc
+	 */
+	public readonly completedAt: number;
 
-	constructor(private readonly serialized: ISerializedResults) {
-		for (const [key, value] of serialized.items) {
-			this.map.set(key, value);
+	/**
+	 * @inheritdoc
+	 */
+	public get tests() {
+		return this.testById.values();
+	}
 
-			for (const message of value.state.messages) {
+	private readonly testById = new Map<string, TestResultItem>();
+
+	constructor(private readonly serialized: ISerializedTestResults, private readonly persist = true) {
+		this.id = serialized.id;
+		this.completedAt = serialized.completedAt;
+
+		for (const item of serialized.items) {
+			const cast: TestResultItem = { ...item, retired: true, children: new Set(item.children) };
+			cast.item.uri = URI.revive(cast.item.uri);
+
+			for (const message of cast.state.messages) {
 				if (message.location) {
 					message.location.uri = URI.revive(message.location.uri);
+					message.location.range = Range.lift(message.location.range);
 				}
 			}
+
+			this.counts[item.state.state]++;
+			this.testById.set(item.item.extId, cast);
 		}
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public getStateByExtId(extTestId: string) {
-		return this.map.get(extTestId);
+	public getStateById(extTestId: string) {
+		return this.testById.get(extTestId);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public toJSON(): ISerializedResults {
-		return this.serialized;
+	public toJSON(): ISerializedTestResults | undefined {
+		return this.persist ? this.serialized : undefined;
 	}
 }
 
 export type ResultChangeEvent =
 	| { completed: LiveTestResult }
 	| { started: LiveTestResult }
+	| { inserted: ITestResult }
 	| { removed: ITestResult[] };
 
 export interface ITestResultService {
@@ -401,7 +486,7 @@ export interface ITestResultService {
 	/**
 	 * Fired when a test changed it state, or its computed state is updated.
 	 */
-	readonly onTestChanged: Event<[results: ITestResult, item: TestResultItem]>;
+	readonly onTestChanged: Event<TestResultItemChange>;
 
 	/**
 	 * List of known test results.
@@ -416,7 +501,7 @@ export interface ITestResultService {
 	/**
 	 * Adds a new test result to the collection.
 	 */
-	push(result: LiveTestResult): LiveTestResult;
+	push<T extends ITestResult>(result: T): T;
 
 	/**
 	 * Looks up a set of test results by ID.
@@ -426,17 +511,25 @@ export interface ITestResultService {
 	/**
 	 * Looks up a test's most recent state, by its extension-assigned ID.
 	 */
-	getStateByExtId(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
+	getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
 }
 
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
 const RETAIN_LAST_RESULTS = 64;
 
+/**
+ * Returns if the tests in the results are exactly equal. Check the counts
+ * first as a cheap check before starting to iterate.
+ */
+const resultsEqual = (a: ITestResult, b: ITestResult) =>
+	a.completedAt === b.completedAt && equals(a.counts, b.counts) && Iterable.equals(a.tests, b.tests,
+		(at, bt) => equals(at.state, bt.state) && equals(at.item, bt.item));
+
 export class TestResultService implements ITestResultService {
 	declare _serviceBrand: undefined;
 	private changeResultEmitter = new Emitter<ResultChangeEvent>();
-	private testChangeEmitter = new Emitter<[results: ITestResult, item: TestResultItem]>();
+	private testChangeEmitter = new Emitter<TestResultItemChange>();
 
 	/**
 	 * @inheritdoc
@@ -454,9 +547,12 @@ export class TestResultService implements ITestResultService {
 	public readonly onTestChanged = this.testChangeEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
-	private readonly serializedResults: StoredValue<ISerializedResults[]>;
+	private readonly serializedResults: StoredValue<ISerializedTestResults[]>;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService, @IStorageService storage: IStorageService) {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService storage: IStorageService,
+	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 		this.serializedResults = new StoredValue({
 			key: 'testResults',
@@ -464,18 +560,25 @@ export class TestResultService implements ITestResultService {
 			target: StorageTarget.MACHINE
 		}, storage);
 
-		for (const value of this.serializedResults.get([])) {
-			this.results.push(new HydratedTestResult(value));
+		try {
+			for (const value of this.serializedResults.get([])) {
+				// todo@connor4312: temp to migrate old insiders
+				if (value.completedAt) {
+					this.results.push(new HydratedTestResult(value));
+				}
+			}
+		} catch (e) {
+			// outdated structure
 		}
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public getStateByExtId(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
+	public getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
 		for (const result of this.results) {
-			const lookup = result.getStateByExtId(extId);
-			if (lookup && lookup.computedState !== TestRunState.Unset) {
+			const lookup = result.getStateById(extId);
+			if (lookup && lookup.computedState !== TestResult.Unset) {
 				return [result, lookup];
 			}
 		}
@@ -486,17 +589,47 @@ export class TestResultService implements ITestResultService {
 	/**
 	 * @inheritdoc
 	 */
-	public push(result: LiveTestResult): LiveTestResult {
-		this.results.unshift(result);
+	public push<T extends ITestResult>(result: T): T {
+		if (result.completedAt === undefined) {
+			this.results.unshift(result);
+		} else {
+			const index = findFirstInSorted(this.results, r => r.completedAt !== undefined && r.completedAt <= result.completedAt!);
+			const prev = this.results[index];
+			if (prev && resultsEqual(result, prev)) {
+				return result;
+			}
+
+			this.results.splice(index, 0, result);
+			this.persist();
+		}
+
 		if (this.results.length > RETAIN_LAST_RESULTS) {
 			this.results.pop();
 		}
 
-		result.onComplete(() => this.onComplete(result));
-		result.onChange(t => this.testChangeEmitter.fire([result, t]), this.testChangeEmitter);
-		this.isRunning.set(true);
-		this.changeResultEmitter.fire({ started: result });
-		result.setAllToState(queuedState, () => true);
+		if (result instanceof LiveTestResult) {
+			result.onComplete(() => this.onComplete(result));
+			result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
+			this.isRunning.set(true);
+			this.changeResultEmitter.fire({ started: result });
+			result.setAllToState(queuedState, () => true);
+		} else {
+			this.changeResultEmitter.fire({ inserted: result });
+			// If this is not a new result, go through each of its tests. For each
+			// test for which the new result is the most recently inserted, fir
+			// a change event so that UI updates.
+			for (const item of result.tests) {
+				for (const otherResult of this.results) {
+					if (otherResult === result) {
+						this.testChangeEmitter.fire({ item, result, reason: TestResultItemChangeReason.ComputedStateChange });
+						break;
+					} else if (otherResult.getStateById(item.item.extId) !== undefined) {
+						break;
+					}
+				}
+			}
+		}
+
 		return result;
 	}
 
@@ -514,7 +647,7 @@ export class TestResultService implements ITestResultService {
 		const keep: ITestResult[] = [];
 		const removed: ITestResult[] = [];
 		for (const result of this.results) {
-			if (result.isComplete) {
+			if (result.completedAt !== undefined) {
 				removed.push(result);
 			} else {
 				keep.push(result);
@@ -522,20 +655,26 @@ export class TestResultService implements ITestResultService {
 		}
 
 		this.results = keep;
-		this.serializedResults.store(this.results.map(r => r.toJSON()));
+		this.persist();
 		this.changeResultEmitter.fire({ removed });
 	}
 
 	private onComplete(result: LiveTestResult) {
-		// move the complete test run down behind any still-running ones
-		for (let i = 0; i < this.results.length - 2; i++) {
-			if (this.results[i].isComplete && !this.results[i + 1].isComplete) {
-				[this.results[i], this.results[i + 1]] = [this.results[i + 1], this.results[i]];
-			}
-		}
-
-		this.isRunning.set(!this.results[0]?.isComplete);
-		this.serializedResults.store(this.results.map(r => r.toJSON()));
+		this.resort();
+		this.updateIsRunning();
+		this.persist();
 		this.changeResultEmitter.fire({ completed: result });
+	}
+
+	private resort() {
+		this.results.sort((a, b) => (b.completedAt ?? Number.MAX_SAFE_INTEGER) - (a.completedAt ?? Number.MAX_SAFE_INTEGER));
+	}
+
+	private updateIsRunning() {
+		this.isRunning.set(this.results.length > 0 && this.results[0].completedAt === undefined);
+	}
+
+	private persist() {
+		this.serializedResults.store(this.results.map(r => r.toJSON()).filter(isDefined));
 	}
 }

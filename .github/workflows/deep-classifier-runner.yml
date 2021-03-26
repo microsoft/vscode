@@ -38,7 +38,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade numpy scipy scikit-learn joblib nltk simpletransformers torch torchvision
+          pip install --upgrade numpy==1.20.0 scipy==1.6.0 scikit-learn==0.24.1 joblib==1.0.0 nltk==3.5 simpletransformers==0.51.16 torch==1.7.1 torchvision==0.8.2
       - name: "Run Classifier: Generator"
         run: python ./actions/classifier-deep/apply/generate-labels/main.py
       - name: "Run Classifier: Labeler"

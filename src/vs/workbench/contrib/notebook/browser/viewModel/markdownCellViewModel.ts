@@ -9,9 +9,9 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
+import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, MARKDOWN_CELL_BOTTOM_MARGIN, MARKDOWN_CELL_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellFindMatch, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { NotebookCellStateChangedEvent, NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
@@ -23,13 +23,17 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
 
+	private _version = 0;
+
 	get layoutInfo() {
 		return this._layoutInfo;
 	}
 
 	set renderedMarkdownHeight(newHeight: number) {
-		const newTotalHeight = newHeight + BOTTOM_CELL_TOOLBAR_GAP;
-		this.totalHeight = newTotalHeight;
+		if (this.editState === CellEditState.Preview) {
+			const newTotalHeight = newHeight + BOTTOM_CELL_TOOLBAR_GAP;
+			this.totalHeight = newTotalHeight;
+		}
 	}
 
 	private set totalHeight(newHeight: number) {
@@ -46,7 +50,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	set editorHeight(newHeight: number) {
 		this._editorHeight = newHeight;
 
-		this.totalHeight = this._editorHeight + CELL_TOP_MARGIN + CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_GAP + this.getEditorStatusbarHeight();
+		this.totalHeight = this._editorHeight + MARKDOWN_CELL_TOP_MARGIN + MARKDOWN_CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_GAP + this.getEditorStatusbarHeight();
 	}
 
 	get editorHeight() {
@@ -67,6 +71,20 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	public set outputIsHovered(v: boolean) {
 		this._hoveringOutput = v;
+	}
+
+	private _hoveringCell = false;
+	public get cellIsHovered(): boolean {
+		return this._hoveringCell;
+	}
+
+	public set cellIsHovered(v: boolean) {
+		this._hoveringCell = v;
+		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
+	}
+
+	public get version(): number {
+		return this._version;
 	}
 
 	constructor(
@@ -129,7 +147,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			};
 		} else {
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
-			const totalHeight = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + BOTTOM_CELL_TOOLBAR_GAP + CELL_BOTTOM_MARGIN;
+			const totalHeight = MARKDOWN_CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + BOTTOM_CELL_TOOLBAR_GAP + MARKDOWN_CELL_BOTTOM_MARGIN;
 			state.totalHeight = totalHeight;
 
 			this._layoutInfo = {
@@ -146,7 +164,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
-		if (totalHeight !== undefined) {
+		// we might already warmup the viewport so the cell has a total height computed
+		if (totalHeight !== undefined && this._layoutInfo.totalHeight === 0) {
 			this._layoutInfo = {
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
@@ -200,9 +219,14 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		if (!this.textModel) {
 			const ref = await this.model.resolveTextModelRef();
 			this.textModel = ref.object.textEditorModel;
+			this._version = this.textModel.getVersionId();
+
 			this._register(ref);
 			this._register(this.textModel.onDidChangeContent(() => {
 				this._html = null;
+				if (this.textModel) {
+					this._version = this.textModel.getVersionId();
+				}
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}

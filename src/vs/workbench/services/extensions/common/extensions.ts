@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
@@ -224,7 +224,7 @@ export interface IExtensionService {
 	/**
 	 * Read all contributions to an extension point.
 	 */
-	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
+	readExtensionPointContributions<T extends IExtensionContributions[keyof IExtensionContributions]>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
 
 	/**
 	 * Get information about extensions status.
@@ -253,7 +253,6 @@ export interface IExtensionService {
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
-	_onExtensionHostExit(code: number): void;
 }
 
 export interface ProfileSession {
@@ -271,13 +270,13 @@ export function throwProposedApiError(extension: IExtensionDescription): never {
 }
 
 export function checkRequiresWorkspaceTrust(extension: IExtensionDescription): void {
-	if (!extension.requiresWorkspaceTrust) {
+	if (!extension.workspaceTrust?.required) {
 		throwRequiresWorkspaceTrustError(extension);
 	}
 }
 
 export function throwRequiresWorkspaceTrustError(extension: IExtensionDescription): void {
-	throw new Error(`[${extension.identifier.value}]: This API is only available when the "requiresWorkspaceTrust" is set to "onStart" or "onDemand" in the extension's package.json.`);
+	throw new Error(`[${extension.identifier.value}]: This API is only available when the "workspaceTrust.require" is set to "onStart" or "onDemand" in the extension's package.json.`);
 }
 
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {

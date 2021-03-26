@@ -6,18 +6,7 @@
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client as IPCElectronClient } from 'vs/base/parts/ipc/electron-sandbox/ipc.electron';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
-
-export interface IMainProcessService {
-
-	readonly _serviceBrand: undefined;
-
-	getChannel(channelName: string): IChannel;
-
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
-}
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 
 /**
  * An implementation of `IMainProcessService` that leverages Electron's IPC.

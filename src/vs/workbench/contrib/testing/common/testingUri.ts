@@ -15,7 +15,7 @@ export const enum TestUriType {
 
 interface IResultTestUri {
 	resultId: string;
-	testId: string;
+	testExtId: string;
 }
 
 interface IResultTestMessageReference extends IResultTestUri {
@@ -43,19 +43,20 @@ const enum TestUriParts {
 
 export const parseTestUri = (uri: URI): ParsedTestUri | undefined => {
 	const type = uri.authority;
-	const [locationId, testId, ...request] = uri.path.slice(1).split('/');
+	const [locationId, ...request] = uri.path.slice(1).split('/');
 
 	if (request[0] === TestUriParts.Messages) {
 		const index = Number(request[1]);
 		const part = request[2];
+		const testExtId = uri.query;
 		if (type === TestUriParts.Results) {
 			switch (part) {
 				case TestUriParts.Text:
-					return { resultId: locationId, testId, messageIndex: index, type: TestUriType.ResultMessage };
+					return { resultId: locationId, testExtId, messageIndex: index, type: TestUriType.ResultMessage };
 				case TestUriParts.ActualOutput:
-					return { resultId: locationId, testId, messageIndex: index, type: TestUriType.ResultActualOutput };
+					return { resultId: locationId, testExtId, messageIndex: index, type: TestUriType.ResultActualOutput };
 				case TestUriParts.ExpectedOutput:
-					return { resultId: locationId, testId, messageIndex: index, type: TestUriType.ResultExpectedOutput };
+					return { resultId: locationId, testExtId, messageIndex: index, type: TestUriType.ResultExpectedOutput };
 			}
 		}
 	}
@@ -71,7 +72,8 @@ export const buildTestUri = (parsed: ParsedTestUri): URI => {
 	const msgRef = (locationId: string, index: number, ...remaining: string[]) =>
 		URI.from({
 			...uriParts,
-			path: ['', locationId, parsed.testId, TestUriParts.Messages, index, ...remaining].join('/'),
+			query: parsed.testExtId,
+			path: ['', locationId, TestUriParts.Messages, index, ...remaining].join('/'),
 		});
 
 	switch (parsed.type) {

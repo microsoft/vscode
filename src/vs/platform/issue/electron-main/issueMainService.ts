@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import * as os from 'os';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
@@ -38,12 +38,13 @@ export class IssueMainService implements ICommonIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.registerListeners();
 	}
@@ -271,7 +272,7 @@ export class IssueMainService implements ICommonIssueService {
 				this._processExplorerWindow.setMenuBarVisibility(false);
 
 				const windowConfiguration = {
-					appRoot: this.environmentService.appRoot,
+					appRoot: this.environmentMainService.appRoot,
 					windowId: this._processExplorerWindow.id,
 					userEnv: this.userEnv,
 					machineId: this.machineId,
@@ -397,24 +398,25 @@ export class IssueMainService implements ICommonIssueService {
 		}
 
 		const windowConfiguration = {
-			appRoot: this.environmentService.appRoot,
+			appRoot: this.environmentMainService.appRoot,
 			windowId: this._issueWindow.id,
 			machineId: this.machineId,
 			userEnv: this.userEnv,
 			data,
 			features,
-			disableExtensions: this.environmentService.disableExtensions,
+			disableExtensions: this.environmentMainService.disableExtensions,
 			os: {
 				type: os.type(),
 				arch: os.arch(),
 				release: os.release(),
 			},
 			product: {
-				nameShort: product.nameShort,
-				version: !!product.darwinUniversalAssetId ? `${product.version} (Universal)` : product.version,
-				commit: product.commit,
-				date: product.date,
-				reportIssueUrl: product.reportIssueUrl
+				nameShort: this.productService.nameShort,
+				version: !!this.productService.darwinUniversalAssetId ? `${this.productService.version} (Universal)` : this.productService.version,
+				commit: this.productService.commit,
+				date: this.productService.date,
+				reportIssueUrl: this.productService.reportIssueUrl,
+				reportMarketplaceIssueUrl: this.productService.reportMarketplaceIssueUrl
 			}
 		};
 

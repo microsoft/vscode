@@ -8,7 +8,6 @@ import { URI } from 'vs/base/common/uri';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { CommandsRegistry, ICommandService, NullCommandService } from 'vs/platform/commands/common/commands';
-import { NullLogService } from 'vs/platform/log/common/log';
 import { matchesScheme } from 'vs/platform/opener/common/opener';
 
 suite('OpenerService', function () {
@@ -31,13 +30,13 @@ suite('OpenerService', function () {
 	});
 
 	test('delegate to editorService, scheme:///fff', async function () {
-		const openerService = new OpenerService(editorService, NullCommandService, new NullLogService());
+		const openerService = new OpenerService(editorService, NullCommandService);
 		await openerService.open(URI.parse('another:///somepath'));
 		assert.equal(editorService.lastInput!.options!.selection, undefined);
 	});
 
 	test('delegate to editorService, scheme:///fff#L123', async function () {
-		const openerService = new OpenerService(editorService, NullCommandService, new NullLogService());
+		const openerService = new OpenerService(editorService, NullCommandService);
 
 		await openerService.open(URI.parse('file:///somepath#L23'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
@@ -59,7 +58,7 @@ suite('OpenerService', function () {
 	});
 
 	test('delegate to editorService, scheme:///fff#123,123', async function () {
-		const openerService = new OpenerService(editorService, NullCommandService, new NullLogService());
+		const openerService = new OpenerService(editorService, NullCommandService);
 
 		await openerService.open(URI.parse('file:///somepath#23'));
 		assert.equal(editorService.lastInput!.options!.selection!.startLineNumber, 23);
@@ -77,7 +76,7 @@ suite('OpenerService', function () {
 	});
 
 	test('delegate to commandsService, command:someid', async function () {
-		const openerService = new OpenerService(editorService, commandService, new NullLogService());
+		const openerService = new OpenerService(editorService, commandService);
 
 		const id = `aCommand${Math.random()}`;
 		CommandsRegistry.registerCommand(id, function () { });
@@ -99,7 +98,7 @@ suite('OpenerService', function () {
 	});
 
 	test('links are protected by validators', async function () {
-		const openerService = new OpenerService(editorService, commandService, new NullLogService());
+		const openerService = new OpenerService(editorService, commandService);
 
 		openerService.registerValidator({ shouldOpen: () => Promise.resolve(false) });
 
@@ -110,7 +109,7 @@ suite('OpenerService', function () {
 	});
 
 	test('links validated by validators go to openers', async function () {
-		const openerService = new OpenerService(editorService, commandService, new NullLogService());
+		const openerService = new OpenerService(editorService, commandService);
 
 		openerService.registerValidator({ shouldOpen: () => Promise.resolve(true) });
 
@@ -128,8 +127,22 @@ suite('OpenerService', function () {
 		assert.equal(openCount, 2);
 	});
 
+	test('links aren\'t manipulated before being passed to validator: PR #118226', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+
+		openerService.registerValidator({
+			shouldOpen: (resource) => {
+				// We don't want it to convert strings into URIs
+				assert.strictEqual(resource instanceof URI, false);
+				return Promise.resolve(false);
+			}
+		});
+		await openerService.open('https://wwww.microsoft.com');
+		await openerService.open('https://www.microsoft.com??params=CountryCode%3DUSA%26Name%3Dvscode"');
+	});
+
 	test('links validated by multiple validators', async function () {
-		const openerService = new OpenerService(editorService, commandService, new NullLogService());
+		const openerService = new OpenerService(editorService, commandService);
 
 		let v1 = 0;
 		openerService.registerValidator({
@@ -166,7 +179,7 @@ suite('OpenerService', function () {
 	});
 
 	test('links invalidated by first validator do not continue validating', async function () {
-		const openerService = new OpenerService(editorService, commandService, new NullLogService());
+		const openerService = new OpenerService(editorService, commandService);
 
 		let v1 = 0;
 		openerService.registerValidator({

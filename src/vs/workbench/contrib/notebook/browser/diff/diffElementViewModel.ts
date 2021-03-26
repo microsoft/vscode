@@ -72,6 +72,14 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		throw new Error('Use Cell.layoutInfo.editorMargin');
 	}
 
+	set metadataStatusHeight(height: number) {
+		this._layout({ metadataStatusHeight: height });
+	}
+
+	get metadataStatusHeight() {
+		throw new Error('Use Cell.layoutInfo.outputStatusHeight');
+	}
+
 	set metadataHeight(height: number) {
 		this._layout({ metadataHeight: height });
 	}
@@ -316,7 +324,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkIfOutputsModified() {
-		return !this.mainDocumentTextModel.transientOptions.transientOutputs && hash(this.original?.outputs ?? []) !== hash(this.modified?.outputs ?? []);
+		return !this.mainDocumentTextModel.transientOptions.transientOutputs && hash(this.original?.outputs.map(op => op.outputs) ?? []) !== hash(this.modified?.outputs.map(op => op.outputs) ?? []);
 	}
 
 	checkMetadataIfModified(): boolean {
@@ -370,7 +378,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
-		throw new Error('Method not implemented.');
+		return diffSide === DiffSide.Original ? this.original : this.modified;
 	}
 
 	getCellByUri(cellUri: URI): IGenericCellViewModel {

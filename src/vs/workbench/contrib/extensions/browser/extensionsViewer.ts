@@ -22,29 +22,34 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { Renderer, Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
+export interface IExtensionsGridViewVirtualDelegate extends IListVirtualDelegate<IExtension> {
+	getWidth?(element: IExtension): number;
+}
+
 export class ExtensionsGridView extends Disposable {
 
 	readonly element: HTMLElement;
 	private readonly renderer: Renderer;
-	private readonly delegate: Delegate;
+	private readonly delegate: IExtensionsGridViewVirtualDelegate;
 	private readonly disposableStore: DisposableStore;
 
 	constructor(
 		parent: HTMLElement,
+		delegate: IExtensionsGridViewVirtualDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.element = dom.append(parent, dom.$('.extensions-grid-view'));
 		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None });
-		this.delegate = new Delegate();
-		this.disposableStore = new DisposableStore();
+		this.delegate = delegate;
+		this.disposableStore = this._register(new DisposableStore());
 	}
 
 	setExtensions(extensions: IExtension[]): void {
@@ -54,8 +59,10 @@ export class ExtensionsGridView extends Disposable {
 
 	private renderExtension(extension: IExtension, index: number): void {
 		const extensionContainer = dom.append(this.element, dom.$('.extension-container'));
-		extensionContainer.style.height = `${this.delegate.getHeight()}px`;
-		extensionContainer.style.width = `275px`;
+		extensionContainer.style.height = `${this.delegate.getHeight(extension)}px`;
+		if (this.delegate.getWidth) {
+			extensionContainer.style.width = `${this.delegate.getWidth(extension)}px`;
+		}
 		extensionContainer.setAttribute('tabindex', '0');
 
 		const template = this.renderer.renderTemplate(extensionContainer);
@@ -272,7 +279,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
 					getAriaLabel(extensionData: IExtensionData): string {
 						const extension = extensionData.extension;
-						return localize('extension-arialabel', "{0}, {1}, {2}, press enter for extension details.", extension.displayName, extension.version, extension.publisherDisplayName);
+						return localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description);
 					},
 					getWidgetAriaLabel(): string {
 						return localize('extensions', "Extensions");

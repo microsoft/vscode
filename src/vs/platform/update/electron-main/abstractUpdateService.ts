@@ -7,15 +7,15 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-export function createUpdateURL(platform: string, quality: string): string {
-	return `${product.updateUrl}/api/update/${platform}/${quality}/${product.commit}`;
+export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
+	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
 }
 
 export type UpdateNotAvailableClassification = {
@@ -46,9 +46,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	constructor(
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentMainService private readonly environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
+		@IProductService protected readonly productService: IProductService
 	) { }
 
 	/**
@@ -57,16 +58,16 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
 	initialize(): void {
-		if (!this.environmentService.isBuilt) {
+		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}
 
-		if (this.environmentService.disableUpdates) {
+		if (this.environmentMainService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
 
-		if (!product.updateUrl || !product.commit) {
+		if (!this.productService.updateUrl || !this.productService.commit) {
 			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
@@ -104,7 +105,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	private getProductQuality(updateMode: string): string | undefined {
-		return updateMode === 'none' ? undefined : product.quality;
+		return updateMode === 'none' ? undefined : this.productService.quality;
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {

@@ -11,8 +11,8 @@ import { attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'v
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
-import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -80,16 +80,12 @@ class ViewWelcomeController {
 		return visibleItems.map(v => v.descriptor);
 	}
 
-	private contextKeyService: IContextKeyService;
 	private disposables = new DisposableStore();
 
 	constructor(
 		private id: string,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
-		this.contextKeyService = contextKeyService.createScoped();
-		this.disposables.add(this.contextKeyService);
-
 		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
 		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
 		this.onDidChangeViewWelcomeContent();
@@ -192,7 +188,8 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._titleDescription;
 	}
 
-	private readonly menuActions: ViewMenuActions;
+	readonly menuActions: ViewMenuActions;
+
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
 
@@ -442,6 +439,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected layoutBody(height: number, width: number): void {
 		this.viewWelcomeContainer.style.height = `${height}px`;
 		this.viewWelcomeContainer.style.width = `${width}px`;
+		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
 		this.scrollableElement.scanDomNode();
 	}
 
@@ -478,7 +476,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()));
+			this.toolbar.setActions(prepareActions(this.menuActions.getPrimaryActions()), prepareActions(this.menuActions.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
@@ -494,18 +492,6 @@ export abstract class ViewPane extends Pane implements IView {
 	protected updateActions(): void {
 		this.setActions();
 		this._onDidChangeTitleArea.fire();
-	}
-
-	getActions(): IAction[] {
-		return this.menuActions.getPrimaryActions();
-	}
-
-	getSecondaryActions(): IAction[] {
-		return this.menuActions.getSecondaryActions();
-	}
-
-	getContextMenuActions(): IAction[] {
-		return this.menuActions.getContextMenuActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -561,7 +547,8 @@ export abstract class ViewPane extends Pane implements IView {
 
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
-					const button = new Button(this.viewWelcomeContainer, { title: node.title, supportIcons: true });
+					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
