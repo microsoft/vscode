@@ -243,7 +243,7 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: {
 							dark: 'dark/settingsSync.png',
 							light: 'light/settingsSync.png',
-							hc: 'light/settingsSync.png',
+							hc: 'hc/settingsSync.png',
 						},
 					}
 				},
@@ -326,7 +326,7 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
 							dark: 'dark/commandPalette.png',
 							light: 'light/commandPalette.png',
-							hc: 'light/commandPalette.png',
+							hc: 'hc/commandPalette.png',
 						}
 					},
 				},
@@ -344,7 +344,7 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'Integrated terminal running a few npm commands', path: {
 							dark: 'dark/terminal.png',
 							light: 'light/terminal.png',
-							hc: 'light/terminal.png',
+							hc: 'hc/terminal.png',
 						}
 					},
 				},
@@ -361,7 +361,7 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: {
 							dark: 'dark/extensions.png',
 							light: 'light/extensions.png',
-							hc: 'light/extensions.png',
+							hc: 'hc/extensions.png',
 						}
 					},
 				},
