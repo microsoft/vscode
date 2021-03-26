@@ -13,8 +13,6 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalsLayoutInfoById, ITerminalsLayoutInfo, ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -59,10 +57,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return WebglAddon;
 	}
 
-	public createTerminalProcess(): Promise<ITerminalChildProcess> {
-		throw new Error('Not implemented');
-	}
-
 	public getDefaultShellAndArgs(useAutomationShell: boolean,): Promise<{ shell: string, args: string[] | string | undefined }> {
 		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
 			useAutomationShell,
@@ -72,22 +66,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 
 	public async getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return {};
-	}
-
-	getWorkspaceId(): string {
-		return '';
-	}
-	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById, id?: string): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
-	getTerminalLayoutInfo(args?: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		throw new Error('Method not implemented.');
-	}
-	getTerminalLayouts(): Map<string, ITerminalsLayoutInfo> {
-		return new Map<string, ITerminalsLayoutInfo>();
-	}
-	attachToProcess(id: number): Promise<ITerminalChildProcess> {
-		throw new Error('Method not implemented.');
 	}
 }
 
