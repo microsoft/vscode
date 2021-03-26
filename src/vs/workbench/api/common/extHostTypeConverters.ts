@@ -1612,6 +1612,24 @@ export namespace NotebookDecorationRenderOptions {
 	}
 }
 
+export namespace NotebookDocumentContentOptions {
+	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
+		return {
+			transientOutputs: options ? options.transientOutputs : false,
+			transientMetadata: {
+				...(options?.transientMetadata ?? {}),
+				...{
+					executionOrder: true,
+					lastRunDuration: true,
+					runState: true,
+					runStartTime: true,
+					lastRunSuccess: true
+				}
+			}
+		};
+	}
+}
+
 export namespace TestState {
 	export function from(item: vscode.TestState): ITestState {
 		return {

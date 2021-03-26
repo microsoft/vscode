@@ -327,7 +327,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		let listener: IDisposable | undefined;
 		if (provider.onDidChangeNotebookContentOptions) {
 			listener = provider.onDidChangeNotebookContentOptions(() => {
-				this._proxy.$updateNotebookProviderOptions(viewType, provider.options);
+				const internalOptions = typeConverters.NotebookDocumentContentOptions.from(provider.options);
+				this._proxy.$updateNotebookProviderOptions(viewType, internalOptions);
 			});
 		}
 
@@ -339,9 +340,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			console.warn(`Notebook content provider view options file name pattern is invalid ${options?.viewOptions?.filenamePattern}`);
 		}
 
+		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, {
-			transientOutputs: options?.transientOutputs || false,
-			transientMetadata: options?.transientMetadata || {},
+			transientOutputs: internalOptions.transientOutputs,
+			transientMetadata: internalOptions.transientMetadata,
 			viewOptions: options?.viewOptions && viewOptionsFilenamePattern ? { displayName: options.viewOptions.displayName, filenamePattern: viewOptionsFilenamePattern, exclusive: options.viewOptions.exclusive || false } : undefined
 		});
 
@@ -480,14 +482,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private _handlePool = 0;
 	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
 
-	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: TransientOptions): vscode.Disposable {
+	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions): vscode.Disposable {
 		const handle = this._handlePool++;
 		this._notebookSerializer.set(handle, serializer);
+		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
 		this._proxy.$registerNotebookSerializer(
 			handle,
 			{ id: extension.identifier, location: extension.extensionLocation, description: extension.description },
 			viewType,
-			options ?? { transientOutputs: false, transientMetadata: {} }
+			internalOptions
 		);
 		return toDisposable(() => {
 			this._proxy.$unregisterNotebookSerializer(handle);
