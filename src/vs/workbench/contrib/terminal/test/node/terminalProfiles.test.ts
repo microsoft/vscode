@@ -54,7 +54,7 @@ suite('Workbench - TerminalProfiles', () => {
 							linux: {},
 							osx: {}
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: [], isAutoDetected: undefined, overrideName: undefined }];
