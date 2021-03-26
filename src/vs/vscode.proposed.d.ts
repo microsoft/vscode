@@ -1062,11 +1062,18 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly version: number;
 
+		/** @deprecated Use `uri` instead */
 		// todo@API don't have this...
 		readonly fileName: string;
 
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
+
+		/**
+		 * `true` if the notebook has been closed. A closed notebook isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
 
 		readonly metadata: NotebookDocumentMetadata;
 
