@@ -17,13 +17,13 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -92,7 +92,7 @@ export class GettingStartedPage extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private storageService: IStorageService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -480,10 +480,14 @@ export class GettingStartedPage extends EditorPane {
 
 		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
 		if (!someItemsComplete && !this.hasScrolledToFirstCategory) {
-			const fistContentBehaviour = await Promise.race([
-				this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
-				new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
-			]);
+
+			const fistContentBehaviour =
+				!this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL) // isNewUser ?
+					? 'openToFirstCtegory'
+					: await Promise.race([
+						this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
+						new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
+					]);
 
 			if (this.gettingStartedCategories.some(category => category.content.type === 'items' && category.content.stepsComplete)) {
 				this.setSlide('categories');
