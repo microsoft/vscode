@@ -410,7 +410,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setSelectedLaunchName(nameToSet);
 		}
 
-		if (!config && this.selectedName) {
+		if (!config && launch && this.selectedName) {
 			config = launch.getConfiguration(this.selectedName);
 			type = config?.type;
 		}
