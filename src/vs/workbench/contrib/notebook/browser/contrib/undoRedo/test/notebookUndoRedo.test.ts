@@ -54,7 +54,7 @@ suite('Notebook Undo/Redo', () => {
 		);
 	});
 
-	test.skip('Invalid replace count should not throw', async function () {
+	test('Invalid replace count should not throw', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
@@ -78,20 +78,20 @@ suite('Notebook Undo/Redo', () => {
 		);
 	});
 
-	test.skip('Replace beyond length', async function () {
+	test('Replace beyond length', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markdown, [], {}],
 				['body', 'markdown', CellKind.Markdown, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 1, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
 
 				assert.deepStrictEqual(viewModel.length, 1);
-				viewModel.undo();
+				await viewModel.undo();
 				assert.deepStrictEqual(viewModel.length, 2);
 			}
 		);

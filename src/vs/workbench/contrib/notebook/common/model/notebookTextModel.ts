@@ -442,7 +442,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const oldMap = new Map(this._mapping);
 
 		// prepare remove
-		for (let i = index; i < index + count; i++) {
+		for (let i = index; i < Math.min(index + count, this._cells.length); i++) {
 			const cell = this._cells[i];
 			this._cellListeners.get(cell.handle)?.dispose();
 			this._cellListeners.delete(cell.handle);
