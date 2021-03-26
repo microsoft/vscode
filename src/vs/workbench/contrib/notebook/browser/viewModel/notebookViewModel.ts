@@ -559,6 +559,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook.versionId;
 	}
 
+	getAlternativeId() {
+		return this._notebook.alternativeVersionId;
+	}
+
 	getTrackedRange(id: string): ICellRange | null {
 		return this._getDecorationRange(id);
 	}
