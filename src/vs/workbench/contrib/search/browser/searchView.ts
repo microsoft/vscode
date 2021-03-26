@@ -313,7 +313,7 @@ export class SearchView extends ViewPane {
 
 		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
 			ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
-			placeholder: nls.localize('placeholder.includes', "(e.g. *.ts, src/**/include)"),
+			tooltip: nls.localize('placeholder.includes', "(e.g. *.ts, src/**/include)"),
 			history: patternIncludesHistory,
 		}));
 
@@ -331,7 +331,7 @@ export class SearchView extends ViewPane {
 		dom.append(excludesList, $('h4', undefined, excludesTitle));
 		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
 			ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns'),
-			placeholder: nls.localize('placeholder.excludes', "(e.g. *.ts, src/**/exclude)"),
+			tooltip: nls.localize('placeholder.excludes', "(e.g. *.ts, src/**/exclude)"),
 			history: patternExclusionsHistory,
 		}));
 
@@ -834,7 +834,9 @@ export class SearchView extends ViewPane {
 			if (next === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false, false));
+			const event = getSelectionKeyboardEvent(undefined, false, false);
+			this.tree.setFocus([next], event);
+			this.tree.setSelection([next], event);
 			this.tree.reveal(next);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
 			if (ariaLabel) { aria.alert(ariaLabel); }
@@ -875,7 +877,9 @@ export class SearchView extends ViewPane {
 			if (prev === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false, false));
+			const event = getSelectionKeyboardEvent(undefined, false, false);
+			this.tree.setFocus([prev], event);
+			this.tree.setSelection([prev], event);
 			this.tree.reveal(prev);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
 			if (ariaLabel) { aria.alert(ariaLabel); }
@@ -1102,7 +1106,9 @@ export class SearchView extends ViewPane {
 			this.tree.domFocus();
 			const selection = this.tree.getSelection();
 			if (selection.length === 0) {
-				this.tree.focusNext(undefined, undefined, getSelectionKeyboardEvent());
+				const event = getSelectionKeyboardEvent();
+				this.tree.focusNext(undefined, undefined, event);
+				this.tree.setSelection(this.tree.getFocus(), event);
 			}
 		}
 	}

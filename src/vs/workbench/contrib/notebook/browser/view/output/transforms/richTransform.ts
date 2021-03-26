@@ -51,7 +51,8 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 			dimension: {
 				width: 0,
 				height: 0
-			}
+			},
+			automaticLayout: true,
 		}, {
 			isSimpleWidget: true
 		});

@@ -10,7 +10,7 @@ import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -119,7 +119,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 			return Promise.resolve();
 		}
 
-		const extensions = (await this.galleryService.query({ names: toGet, pageSize: toGet.length }, token)).firstPage;
+		const extensions = coalesce(await Promises.settled(toGet.map(id => this.galleryService.getCompatibleExtension({ id }))));
 		const manifests = await Promise.all(extensions.map(e => this.galleryService.getManifest(e, token)));
 		const extensionsManifests: IExtensionManifest[] = [];
 		for (let idx = 0; idx < extensions.length; idx++) {

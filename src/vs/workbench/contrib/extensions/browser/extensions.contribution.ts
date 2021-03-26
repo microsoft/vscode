@@ -156,7 +156,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.confirmedUriHandlerExtensionIds': {
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
-				default: []
+				default: [],
+				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.webWorker': {
 				type: 'boolean',
@@ -286,7 +287,7 @@ CommandsRegistry.registerCommand({
 });
 
 function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
-	command?.addImplementation(105, (accessor) => {
+	command?.addImplementation(105, 'extensions-editor', (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
 		if (editor instanceof ExtensionEditor) {

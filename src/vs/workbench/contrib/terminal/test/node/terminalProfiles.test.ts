@@ -4,63 +4,125 @@
  *--------------------------------------------------------------------------------------------*/
 
 // import * as assert from 'assert';
-import { isWindows } from 'vs/base/common/platform';
-import { ITerminalProfiles } from 'vs/workbench/contrib/terminal/common/terminal';
-// import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
-
-export interface ITestTerminalConfig {
-	profiles: ITerminalProfiles;
-	detectWslProfiles: boolean
-}
+import assert = require('assert');
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ITerminalConfiguration, ITerminalProfiles, ProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 
 suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			suite('detectAvailableWindowsProfiles', async () => {
-				// test('should detect cmd prompt', async () => {
-				// 	const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
-				// 	let config: ITestTerminalConfig = {
-				// 		profiles: {
-				// 			windows: {
-				// 				'Command Prompt': { path: _paths }
-				// 			}
-				// 		},
-				// 		detectWslProfiles: false
-				// 	};
-				// 	const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
-				// 	const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
-				// 	assert.deepStrictEqual(expected, profiles);
-				// });
 				test('should detect Git Bash and provide login args', async () => {
-					// const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
-					// let config: ITestTerminalConfig = {
-					// 	profiles: {
-					// 		windows: {
-					// 			'Git Bash': {
-					// 				source: ProfileSource['Git Bash']
-					// 			},
-					// 		},
-					// 		linux: {},
-					// 		osx: {}
-					// 	},
-					// 	detectWslProfiles: false
-					// };
-					// const profiles = await detectAvailableProfiles(true, undefined, config, undefined, undefined, createStatProvider(_paths));
-					// const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'] }];
-					// assert.deepStrictEqual(profiles, expected);
+					const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {
+								'Git Bash': { source: ProfileSource.GitBash }
+							},
+							linux: {},
+							osx: {}
+						},
+						displayDetectedWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'], isAutoDetected: undefined, overrideName: undefined }];
+					assert.deepStrictEqual(profiles, expected);
 				});
-			});
+				test.skip('should detect cmd prompt', async () => {
+					const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {
+								'Command Prompt': { path: _paths }
+							},
+							linux: {},
+							osx: {},
+						},
+						displayDetectedWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
+					assert.deepStrictEqual(expected, profiles);
+				});
+			}
+			);
+		} else if (isMacintosh) {
+			suite.skip('detectAvailableOsxProfiles', async () => {
+				test('should detect bash, zsh, tmux, fish', async () => {
+					const _paths = ['bash', 'zsh', 'tmux', 'fish'];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {},
+							osx: {
+								'bash': {
+									path: 'bash'
+								},
+								'zsh': {
+									path: 'zsh'
+								},
+								'fish': {
+									path: 'fish'
+								},
+								'tmux': {
+									path: 'tmux'
+								}
+							},
+							linux: {}
+						},
+						displayDetectedWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
+					assert.deepStrictEqual(profiles, expected);
+				});
+			}
+			);
+		} else if (isLinux) {
+			suite.skip('detectAvailableLinuxProfiles', async () => {
+				test('should detect bash, zsh, tmux, fish', async () => {
+					const _paths = ['bash', 'zsh', 'tmux', 'fish'];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {},
+							linux: {
+								'bash': {
+									path: 'bash'
+								},
+								'zsh': {
+									path: 'zsh'
+								},
+								'fish': {
+									path: 'fish'
+								},
+								'tmux': {
+									path: 'tmux'
+								}
+							},
+							osx: {}
+						},
+						displayDetectedWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
+					assert.deepStrictEqual(profiles, expected);
+				});
+			}
+			);
 		}
 	});
+
+	function createStatProvider(expectedPaths: string[]): IStatProvider {
+		const provider = {
+			async existsFile(path: string): Promise<boolean> {
+				return expectedPaths.includes(path);
+			}
+		};
+		return provider;
+	}
 });
-// function createStatProvider(expectedPaths: string[]): IStatProvider {
-// 	const provider = {
-// 		stat(path: string) {
-// 			return expectedPaths.includes(path);
-// 		},
-// 		lstat(path: string) {
-// 			return expectedPaths.includes(path);
-// 		}
-// 	};
-// 	return provider;
-// }
+
+export interface ITestTerminalConfig {
+	profiles: ITerminalProfiles;
+	displayDetectedWslProfiles: boolean
+}

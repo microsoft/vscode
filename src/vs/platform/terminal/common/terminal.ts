@@ -395,15 +395,15 @@ export interface ITerminalDimensions {
 	/**
 	 * The columns of the terminal.
 	 */
-	readonly cols: number;
+	cols: number;
 
 	/**
 	 * The rows of the terminal.
 	 */
-	readonly rows: number;
+	rows: number;
 }
 
-export interface ITerminalDimensionsOverride extends ITerminalDimensions {
+export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
 	/**
 	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
 	 */

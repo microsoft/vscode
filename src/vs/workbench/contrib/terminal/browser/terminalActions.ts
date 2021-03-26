@@ -21,7 +21,7 @@ import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/com
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
@@ -669,6 +669,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
+			const notificationService = accessor.get(INotificationService);
 			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
 			const remoteTerms = await offProcTerminalService.listProcesses();
 			const unattachedTerms = remoteTerms.filter(term => !terminalService.isAttachedToTerminal(term));
@@ -681,6 +682,10 @@ export function registerTerminalActions() {
 					term
 				};
 			});
+			if (items.length === 0) {
+				notificationService.info(localize('noUnattachedTerminals', 'There are no unattached terminals to attach to'));
+				return;
+			}
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
 				const instance = terminalService.createTerminal({ attachPersistentProcess: selected.term });
@@ -1438,7 +1443,6 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor, item?: string) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalContributionService = accessor.get(ITerminalContributionService);
-			const notificationService = accessor.get(INotificationService);
 			const commandService = accessor.get(ICommandService);
 			if (!item || !item.split) {
 				return Promise.resolve(null);
@@ -1460,41 +1464,27 @@ export function registerTerminalActions() {
 				terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
-			const detectedProfiles = await terminalService.getAvailableProfiles();
+			const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
+			if (customType) {
+				return commandService.executeCommand(customType.command);
+			}
+
+			const quickSelectProfiles = await terminalService.getAvailableProfiles();
 
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
-
-			if (detectedProfiles) {
-				let launchConfig = detectedProfiles?.find((profile: { profileName: string; }) => profile.profileName === profileSelection);
-				if (launchConfig && !launchConfig.isWorkspaceProfile) {
-					const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args });
-					terminalService.setActiveInstance(instance);
-				} else if (launchConfig && launchConfig.isWorkspaceProfile) {
-					notificationService.prompt(Severity.Info, `Do you allow this workspace to modify your terminal profile? ${item}`,
-						[{
-							label: 'Allow',
-							run: () => {
-								const instance = terminalService.createTerminal({ executable: launchConfig?.path, args: launchConfig?.args });
-								terminalService.setActiveInstance(instance);
-							}
-						},
-						{
-							label: 'Disallow',
-							run: () => {
-								const activeInstance = terminalService.getActiveInstance();
-								if (activeInstance) {
-									terminalService.setActiveInstance(activeInstance);
-								}
-							}
-						}]
-					);
+			if (quickSelectProfiles) {
+				const launchConfig = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
+				if (launchConfig) {
+					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
+					if (workspaceShellAllowed) {
+						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args, name: launchConfig.overrideName ? launchConfig.profileName : undefined });
+						terminalService.setActiveInstance(instance);
+					}
+				} else {
+					console.warn(`No profile with name "${profileSelection}"`);
 				}
 			} else {
-				const customType = terminalContributionService.terminalTypes.find(t => t.title === item);
-				if (customType) {
-					return commandService.executeCommand(customType.command);
-				}
 				console.warn(`Unmatched terminal item: "${item}"`);
 			}
 			return Promise.resolve();

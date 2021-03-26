@@ -189,7 +189,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				errorMessage: localize('remote.portsAttributes.patternError', "Must be a port number, range of port numbers, or regular expression."),
 				additionalProperties: false
 			},
-			'remote.unconfiguredPortsAttributes': {
+			'remote.otherPortsAttributes': {
 				type: 'object',
 				properties: {
 					'onAutoForward': {

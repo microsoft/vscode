@@ -78,7 +78,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			// Attach pty host listeners
 			if (channel.onPtyHostExit) {
 				this._register(channel.onPtyHostExit(() => {
-					notificationService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
+					this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
 				}));
 			}
 			let unresponsiveNotification: INotificationHandle | undefined;
@@ -138,7 +138,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env
 		};
-		const isWorkspaceShellAllowed = configHelper.checkWorkspaceShellPermissions(remoteEnv.os);
+		const isWorkspaceShellAllowed = configHelper.checkIsProcessLaunchSafe(remoteEnv.os);
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
 			activeWorkspaceRootUri,

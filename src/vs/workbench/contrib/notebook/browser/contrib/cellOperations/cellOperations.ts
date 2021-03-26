@@ -173,6 +173,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 12
 				}
 			});
 	}
@@ -192,9 +198,18 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
-	const selections = context.notebookEditor.getSelections();
-	const modelRanges = expandCellRangesWithHiddenCells(context.notebookEditor, context.notebookEditor.viewModel!, selections);
-	const range = modelRanges[0];
+	let range: ICellRange | undefined = undefined;
+
+	if (context.ui) {
+		let targetCell = context.cell;
+		const targetCellIndex = viewModel.getCellIndex(targetCell);
+		range = { start: targetCellIndex, end: targetCellIndex + 1 };
+	} else {
+		const selections = context.notebookEditor.getSelections();
+		const modelRanges = expandCellRangesWithHiddenCells(context.notebookEditor, context.notebookEditor.viewModel!, selections);
+		range = modelRanges[0];
+	}
+
 	if (!range || range.start === range.end) {
 		return;
 	}
@@ -225,8 +240,8 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		const selections = viewModel.getSelections();
 		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model));
 		const countDelta = newCells.length;
-		const newFocus = { start: focus.start + countDelta, end: focus.end + countDelta };
-		const newSelections = [{ start: range.start + countDelta, end: range.end + countDelta }];
+		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
+		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
 		viewModel.notebookDocument.applyEdits([
 			{
 				editType: CellEditType.Replace,

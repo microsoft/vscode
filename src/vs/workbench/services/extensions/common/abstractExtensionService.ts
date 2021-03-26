@@ -536,6 +536,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this._stopExtensionHosts();
+		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
+			for (let i = 0; i < this._extensionHostManagers.length; i++) {
+				if (this._extensionHostManagers[i] === extensionHost) {
+					this._extensionHostManagers[i].dispose();
+					this._extensionHostManagers.splice(i, 1);
+					break;
+				}
+			}
 		}
 	}
 

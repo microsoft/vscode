@@ -450,6 +450,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable {
 		const remove = insert(this.workingCopyProviders, provider);
+
 		return toDisposable(remove);
 	}
 
@@ -462,6 +463,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				}
 			}
 		}
+
 		return Array.from(dirtyWorkingCopies);
 	}
 

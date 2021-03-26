@@ -13,12 +13,14 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { isLinux, isPreferringBrowserCodeLoad } from 'vs/base/common/platform';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
+import { extname } from 'vs/base/common/resources';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
 export class FileProtocolHandler extends Disposable {
 
 	private readonly validRoots = TernarySearchTree.forUris<boolean>(() => !isLinux);
+	private readonly validExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
@@ -85,14 +87,23 @@ export class FileProtocolHandler extends Disposable {
 		const fileUri = URI.parse(request.url);
 
 		// isPreferringBrowserCodeLoad: false
-		// => ensure the file path is in our expected roots
 		if (!isPreferringBrowserCodeLoad) {
+
+			// first check by validRoots
 			if (this.validRoots.findSubstr(fileUri)) {
 				return callback({
 					path: fileUri.fsPath
 				});
 			}
 
+			// then check by validExtensions
+			if (this.validExtensions.has(extname(fileUri))) {
+				return callback({
+					path: fileUri.fsPath
+				});
+			}
+
+			// finally block to load the resource
 			this.logService.error(`${Schemas.file}: Refused to load resource ${fileUri.fsPath} from ${Schemas.file}: protocol (original URL: ${request.url})`);
 
 			return callback({ error: -3 /* ABORTED */ });
@@ -114,14 +125,24 @@ export class FileProtocolHandler extends Disposable {
 		// ensure the root is valid and properly tell Chrome where the
 		// resource is at.
 		const fileUri = FileAccess.asFileUri(uri);
+
+		// first check by validRoots
 		if (this.validRoots.findSubstr(fileUri)) {
 			return callback({
 				path: fileUri.fsPath
 			});
-		} else {
-			this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
-
-			return callback({ error: -3 /* ABORTED */ });
 		}
+
+		// then check by validExtensions
+		if (this.validExtensions.has(extname(fileUri))) {
+			return callback({
+				path: fileUri.fsPath
+			});
+		}
+
+		// finally block to load the resource
+		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
+
+		return callback({ error: -3 /* ABORTED */ });
 	}
 }

@@ -89,7 +89,7 @@
 					],
 					"additionalProperties": false
 				},
-				"unconfiguredPortsAttributes": {
+				"otherPortsAttributes": {
 					"type": "object",
 					"properties": {
 						"onAutoForward": {
