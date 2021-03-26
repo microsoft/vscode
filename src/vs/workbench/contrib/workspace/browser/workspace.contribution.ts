@@ -145,10 +145,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
-		this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => {
-			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
-				this.toggleRequestBadge(false);
-			}
+		this._register(this.workspaceTrustService.onDidChangeTrustState(async (trustState) => {
+			type WorkspaceTrustStateChangedEvent = {
+				workspaceId: string,
+				previousState: WorkspaceTrustState,
+				newState: WorkspaceTrustState
+			};
 
 			type WorkspaceTrustStateChangedEventClassification = {
 				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -156,17 +158,21 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				newState: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			};
 
-			type WorkspaceTrustStateChangedEvent = {
-				workspaceId: string,
-				previousState: WorkspaceTrustState,
-				newState: WorkspaceTrustState
-			};
-
 			this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
 				workspaceId: this.workspaceContextService.getWorkspace().id,
 				previousState: trustState.previousTrustState,
 				newState: trustState.currentTrustState
 			});
+
+			// Transition from Trusted -> Untrusted/Unknown
+			if (trustState.previousTrustState === WorkspaceTrustState.Trusted && trustState.currentTrustState !== WorkspaceTrustState.Trusted) {
+				this.hostService.reload();
+			}
+
+			// Hide soft request badge
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+				this.toggleRequestBadge(false);
+			}
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
