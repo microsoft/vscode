@@ -128,7 +128,7 @@ export class OutputElement extends Disposable {
 
 
 
-		const clientHeight = Math.ceil(outputItemDiv.clientHeight);
+		let clientHeight = Math.ceil(outputItemDiv.clientHeight);
 		const elementSizeObserver = getResizesObserver(outputItemDiv, undefined, () => {
 			if (this._outputContainer && document.body.contains(this._outputContainer)) {
 				const height = Math.ceil(elementSizeObserver.getHeight());
@@ -136,6 +136,8 @@ export class OutputElement extends Disposable {
 				if (clientHeight === height) {
 					return;
 				}
+
+				clientHeight = height;
 
 				const currIndex = this.getCellOutputCurrentIndex();
 				if (currIndex < 0) {

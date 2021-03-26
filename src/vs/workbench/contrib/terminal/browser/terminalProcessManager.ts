@@ -325,6 +325,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._onPtyReconnect.fire();
 		}
 
+		// Clear data written flag to re-enable seamless relaunch if this relaunch was manually
+		// triggered
+		this._hasWrittenData = false;
+
 		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
 	}
 
@@ -333,7 +337,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
-		const isWorkspaceShellAllowed = this._configHelper.checkWorkspaceShellPermissions();
+		const isWorkspaceShellAllowed = this._configHelper.checkIsProcessLaunchSafe();
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
 		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService);

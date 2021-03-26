@@ -6,26 +6,25 @@
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
+import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
@@ -38,49 +37,15 @@ import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { coalesce } from 'vs/base/common/arrays';
 import { isMacintosh } from 'vs/base/common/platform';
+import { Throttler } from 'vs/base/common/async';
+import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
 const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
-export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
-
 export const inGettingStartedContext = new RawContextKey('inGettingStarted', false);
-
-export class GettingStartedInput extends EditorInput {
-
-	get resource(): URI | undefined {
-		return URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
-	}
-	getTypeId(): string {
-		return GettingStartedInput.ID;
-	}
-
-	matches(other: unknown) {
-		if (other instanceof GettingStartedInput) {
-			return true;
-		}
-		return false;
-	}
-
-	static readonly ID = gettingStartedInputTypeId;
-
-	constructor(
-		options: { selectedCategory?: string, selectedTask?: string }
-	) {
-		super();
-		this.selectedCategory = options.selectedCategory;
-		this.selectedTask = options.selectedTask;
-	}
-
-	getName() {
-		return localize('gettingStarted', "Getting Started");
-	}
-
-	selectedCategory: string | undefined;
-	selectedTask: string | undefined;
-}
 
 type GettingStartedActionClassification = {
 	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -107,6 +72,7 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesScrollbar: DomScrollableElement | undefined;
 	private detailsScrollbar: DomScrollableElement | undefined;
 	private detailImageScrollbar: DomScrollableElement | undefined;
+	private buildSlideThrottle: Throttler = new Throttler();
 
 	private container: HTMLElement;
 
@@ -115,6 +81,7 @@ export class GettingStartedPage extends EditorPane {
 	private previousSelection?: string;
 	private recentlyOpened: Promise<IRecentlyOpened>;
 	private selectedTaskElement?: HTMLDivElement;
+	private hasScrolledToFirstCategory = false;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -125,7 +92,7 @@ export class GettingStartedPage extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private storageService: IStorageService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -150,22 +117,17 @@ export class GettingStartedPage extends EditorPane {
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
+		this.buildSlideThrottle = new Throttler();
 		this._register(this.gettingStartedService.onDidAddTask(task => {
 			this.gettingStartedCategories = this.gettingStartedService.getCategories();
-			this.buildCategoriesSlide();
+			this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
 		}));
 
 		this._register(this.gettingStartedService.onDidChangeTask(task => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === task.category);
-			if (!ourCategory || ourCategory.content.type === 'startEntry') {
-				console.error('Attempting to modify category that does not exist or is invalid type', task);
-				return;
-			}
+			if (!ourCategory || ourCategory.content.type === 'startEntry') { return; }
 			const ourTask = ourCategory.content.items.find(item => item.id === task.id);
-			if (!ourTask) {
-				console.error('Attempting to modify task that cannot be found', task);
-				return;
-			}
+			if (!ourTask) { return; }
 			ourTask.title = task.title;
 			ourTask.description = task.description;
 			ourTask.media.path = task.media.path;
@@ -173,10 +135,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this._register(this.gettingStartedService.onDidChangeCategory(category => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === category.id);
-			if (!ourCategory) {
-				console.error('Attempting to modify category that does not exist or is invalid type', category);
-				return;
-			}
+			if (!ourCategory) { return; }
 
 			ourCategory.title = category.title;
 			ourCategory.description = category.description;
@@ -220,6 +179,18 @@ export class GettingStartedPage extends EditorPane {
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
 	}
 
+	makeCategoryVisibleWhenAvailable(categoryID: string) {
+		this.gettingStartedCategories = this.gettingStartedService.getCategories();
+		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
+		if (!ourCategory) {
+			throw Error('Could not find category with ID: ' + categoryID);
+		}
+		if (ourCategory.content.type !== 'items') {
+			throw Error('internaal error: category is not items');
+		}
+		this.scrollToCategory(categoryID);
+	}
+
 	private registerDispatchListeners() {
 		this.dispatchListeners.clear();
 
@@ -242,6 +213,10 @@ export class GettingStartedPage extends EditorPane {
 						}
 						case 'showMoreRecents': {
 							this.commandService.executeCommand('workbench.action.openRecent');
+							break;
+						}
+						case 'configureVisibility': {
+							this.commandService.executeCommand('workbench.action.openSettings', hiddenEntriesConfigurationKey);
 							break;
 						}
 						case 'openFolder': {
@@ -433,6 +408,13 @@ export class GettingStartedPage extends EditorPane {
 			categoriesContainer.appendChild(element);
 		});
 
+		categoriesContainer.appendChild(
+			$('.no-categories', {},
+				localize('no categories', "No remaining walkthroughs."),
+				$('button.button-link', { 'x-dispatch': 'configureVisibility' }, localize('configure visiblity', "Configure visibility?")))
+		);
+
+
 		categoryScrollContainer.appendChild(categoriesContainer);
 
 		if (this.categoriesScrollbar) { this.categoriesScrollbar.dispose(); }
@@ -497,20 +479,30 @@ export class GettingStartedPage extends EditorPane {
 		}
 
 		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
-		if (!someItemsComplete) {
-			const fistContentBehaviour = await Promise.race([
-				this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
-				new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
-			]);
+		if (!someItemsComplete && !this.hasScrolledToFirstCategory) {
 
-			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
-				if (first) {
-					this.currentCategory = first;
-					this.editorInput.selectedCategory = this.currentCategory?.id;
-					this.buildCategorySlide(this.editorInput.selectedCategory);
-					this.setSlide('details');
-					return;
+			const fistContentBehaviour =
+				!this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL) // isNewUser ?
+					? 'openToFirstCategory'
+					: await Promise.race([
+						this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
+						new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
+					]);
+
+			if (this.gettingStartedCategories.some(category => category.content.type === 'items' && category.content.stepsComplete)) {
+				this.setSlide('categories');
+				return;
+			} else {
+				if (fistContentBehaviour === 'openToFirstCategory') {
+					const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
+					this.hasScrolledToFirstCategory = true;
+					if (first) {
+						this.currentCategory = first;
+						this.editorInput.selectedCategory = this.currentCategory?.id;
+						this.buildCategorySlide(this.editorInput.selectedCategory);
+						this.setSlide('details');
+						return;
+					}
 				}
 			}
 		}
@@ -532,21 +524,20 @@ export class GettingStartedPage extends EditorPane {
 
 			const { name, parentPath } = splitName(fullPath);
 
-			const li = document.createElement('li');
-			const a = document.createElement('a');
+			const li = $('li');
+			const link = $('button.button-link');
 
-			a.innerText = name;
-			a.title = fullPath;
-			a.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
-			a.href = 'javascript:void(0)';
-			a.addEventListener('click', e => {
+			link.innerText = name;
+			link.title = fullPath;
+			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
+			link.addEventListener('click', e => {
 				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
 				e.preventDefault();
 				e.stopPropagation();
 			});
-			li.appendChild(a);
+			li.appendChild(link);
 
-			const span = document.createElement('span');
+			const span = $('span');
 			span.classList.add('path');
 			span.classList.add('detail');
 			span.innerText = parentPath;
@@ -641,8 +632,8 @@ export class GettingStartedPage extends EditorPane {
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
 			if (category.content.type !== 'items') { throw Error('Category with ID ' + categoryID + ' is not of items type'); }
-			const numDone = category.content.items.filter(task => task.done).length;
-			const numTotal = category.content.items.length;
+			const numDone = category.content.stepsComplete = category.content.items.filter(task => task.done).length;
+			const numTotal = category.content.stepsTotal = category.content.items.length;
 
 			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
 			bar.setAttribute('aria-valuemin', '0');
@@ -825,12 +816,14 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.add('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = false);
+			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('input').forEach(button => button.disabled = false);
 			this.container.focus();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('button').forEach(button => button.disabled = true);
+			this.container.querySelector('.gettingStartedSlideCategory')!.querySelectorAll('input').forEach(button => button.disabled = true);
 		}
 	}
 }
@@ -881,6 +874,11 @@ registerThemingParticipant((theme, collector) => {
 	const buttonColor = theme.getColor(welcomePageTileBackground);
 	if (buttonColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button { background: ${buttonColor}; }`);
+	}
+
+	const shadowColor = theme.getColor(welcomePageTileShadow);
+	if (shadowColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-category { filter: drop-shadow(2px 2px 2px ${buttonColor}); }`);
 	}
 
 	const buttonHoverColor = theme.getColor(welcomePageTileHoverBackground);

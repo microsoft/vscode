@@ -34,12 +34,7 @@ export class TestFileWorkingCopyModel extends Disposable implements IFileWorking
 	}
 
 	updateContents(newContents: string): void {
-		this.contents = newContents;
-
-		this.versionId++;
-		this.alternateVersionId++;
-
-		this._onDidChangeContent.fire({ isRedoing: false, isUndoing: false });
+		this.doUpdate(newContents);
 	}
 
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
@@ -50,10 +45,17 @@ export class TestFileWorkingCopyModel extends Disposable implements IFileWorking
 	}
 
 	async update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void> {
-		this.contents = (await streamToBuffer(contents)).toString();
+		this.doUpdate((await streamToBuffer(contents)).toString());
 	}
 
-	versionId = 0;
+	private doUpdate(newContents: string): void {
+		this.contents = newContents;
+
+		this.alternateVersionId++;
+
+		this._onDidChangeContent.fire({ isRedoing: false, isUndoing: false });
+	}
+
 	alternateVersionId = 0;
 
 	getAlternativeVersionId(): number {
@@ -156,7 +158,7 @@ suite('FileWorkingCopy', function () {
 		// Dirty from: Initial contents
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello dirty stream')) });
 
-		assert.strictEqual(contentChangeCounter, 1); // content of model did not change
+		assert.strictEqual(contentChangeCounter, 2); // content of model did not change
 		assert.strictEqual(workingCopy.isDirty(), true);
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.DIRTY), true);
 		assert.strictEqual(changeDirtyCounter, 3);

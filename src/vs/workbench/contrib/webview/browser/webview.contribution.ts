@@ -11,7 +11,7 @@ import { IWebviewService, Webview } from 'vs/workbench/contrib/webview/browser/w
 const PRIORITY = 100;
 
 function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
-	command?.addImplementation(PRIORITY, accessor => {
+	command?.addImplementation(PRIORITY, 'webview', accessor => {
 		const webviewService = accessor.get(IWebviewService);
 		const webview = webviewService.activeWebview;
 		if (webview?.isFocused) {

@@ -377,6 +377,11 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		if (!helper.isAbbreviationValid(syntax, abbreviation)) {
 			return;
 		}
+		if (isStyleSheet(syntax) && abbreviation.endsWith(':')) {
+			// Fix for https://github.com/Microsoft/vscode/issues/1623
+			return;
+		}
+
 		const offset = editor.document.offsetAt(position);
 		let currentNode = getFlatNode(getRootNode(), offset, true);
 		let validateLocation = true;

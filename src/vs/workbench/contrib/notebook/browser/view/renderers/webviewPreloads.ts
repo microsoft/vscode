@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IFocusMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -561,6 +561,7 @@ function webviewPreloads() {
 
 					postNotebookMessage<IDimensionMessage>('dimension', {
 						id: outputId,
+						isOutput: true,
 						init: true,
 						data: {
 							height: outputNode.clientHeight
@@ -642,6 +643,7 @@ function webviewPreloads() {
 
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: outputId,
+							isOutput: true,
 							data: {
 								height: output.clientHeight
 							}
@@ -712,8 +714,14 @@ function webviewPreloads() {
 			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.addEventListener('click', () => {
-			postNotebookMessage<IFocusMarkdownPreviewMessage>('focusMarkdownPreview', { cellId });
+		previewContainerNode.addEventListener('click', e => {
+			postNotebookMessage<IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
+				cellId,
+				altKey: e.altKey,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				shiftKey: e.shiftKey,
+			});
 		});
 
 		previewContainerNode.addEventListener('mouseenter', () => {

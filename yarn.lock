@@ -9320,10 +9320,10 @@ tar@^6.0.1, tar@^6.0.2:
     mkdirp "^1.0.3"
     yallist "^4.0.0"
 
-tas-client-umd@0.1.2:
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.2.tgz#fe93ae085f65424292ac79feff4f1add3e50e624"
-  integrity sha512-rT9BdDCejckqOTQL2ShX67QtTiAUGbmPm5ZTC8giXobBvZC6JuvBVy5G32hoGZ3Q0dpTvMfgpf3iVFNN2F7wzg==
+tas-client-umd@0.1.4:
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.4.tgz#49db4130dd63a8342fabf77185a740fc6a7bea80"
+  integrity sha512-1hFqJeLD3ryNikniIaO7TItlXhS5vx7bJ+wbPDf8o+IifgwwOWK2ARisdEM9SnJd0ccfcwNPG6Po+RiKn5L2hg==
 
 temp@^0.8.3:
   version "0.8.4"
@@ -10068,10 +10068,10 @@ vm-browserify@^1.0.1:
   resolved "https://registry.yarnpkg.com/vm-browserify/-/vm-browserify-1.1.2.tgz#78641c488b8e6ca91a75f511e7a3b32a86e5dda0"
   integrity sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==
 
-vscode-debugprotocol@1.45.0:
-  version "1.45.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.45.0.tgz#8419583fa3ad7f25350b98bd994485027cf52e2d"
-  integrity sha512-xU6XtdKJ0waWIt79Zt4WVyIQ3oDkhilku9Shbv7Vc4KXEr/npsf8dhinyIZXSIlH2lzJiE3imp1xbYpyRTIrhg==
+vscode-debugprotocol@1.46.0:
+  version "1.46.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.46.0.tgz#1f6d0420fb91c158babba2eeb988a4b00d062815"
+  integrity sha512-V10u1L679DJZfOtQXhKylJPMqNbhazav4mRxPrBE8/Jpznow1b1j1EGDDvJ4prQ623CLAnvpFfVkVQ+CX3xdtg==
 
 vscode-nls-dev@^3.3.1:
   version "3.3.1"
@@ -10475,10 +10475,10 @@ xterm-addon-webgl@0.10.0:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.10.0.tgz#e99366fdc4cbd46b798a5e2fc114ecc19f9fd4b7"
   integrity sha512-MJzyWie5yw+PH6p//fXlXzmsULLtpBo992EWEKl2uv5M5Zj9etTwfuutCUK7o98mr6itDl+vS/CYIMP68jCf8w==
 
-xterm@4.12.0-beta.3:
-  version "4.12.0-beta.3"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.12.0-beta.3.tgz#a8bdf9210c1dba24cbf47a13a0301cd2707cb5d8"
-  integrity sha512-2yrVnXsYGFKATwanOfM9YRJYx2qhudzCmMrmXWdMnQp7Z/YLCHh6UsS3+u7SV6SizgKYcsnv7x0VaT+dqXtiFg==
+xterm@4.12.0-beta.7:
+  version "4.12.0-beta.7"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.12.0-beta.7.tgz#8ee0a6e180dc57ea63a59682f2ccaf41e2cefd1f"
+  integrity sha512-qUKJg/aOVy2pOORiwuxd2Qp0MHJyQ/gcK7OMyjMEFLdS5L+KBbUkXtpOO9LWbW+B1DvS4b1k1MzvB4GF+qXXtg==
 
 y18n@^3.2.1:
   version "3.2.2"

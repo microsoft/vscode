@@ -942,37 +942,11 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Provide a way for custom editors to process untitled files without relying on textDocument https://github.com/microsoft/vscode/issues/115631
-	/**
-	 * Additional information about the opening custom document.
-	 */
-	interface CustomDocumentOpenContext {
-		/**
-		 * If the URI is an untitled file, this will be populated with the byte data of that file
-		 *
-		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
-		 */
-		readonly untitledDocumentData?: Uint8Array;
-	}
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum NotebookCellKind {
 		Markdown = 1,
 		Code = 2
-	}
-
-	export enum NotebookCellRunState {
-		Running = 1,
-		Idle = 2,
-		Success = 3,
-		Error = 4
-	}
-
-	export enum NotebookRunState {
-		Running = 1,
-		Idle = 2
 	}
 
 	export class NotebookCellMetadata {
@@ -1003,14 +977,16 @@ declare module 'vscode' {
 
 		// run related API, will be removed
 		readonly hasExecutionOrder?: boolean;
-		readonly executionOrder?: number;
-		readonly runState?: NotebookCellRunState;
-		readonly runStartTime?: number;
-		readonly lastRunDuration?: number;
 
-		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, executionOrder?: number, runState?: NotebookCellRunState, runStartTime?: number, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
+		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
-		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, executionOrder?: number | null, runState?: NotebookCellRunState | null, runStartTime?: number | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+	}
+
+	export interface NotebookCellExecutionSummary {
+		executionOrder?: number;
+		success?: boolean;
+		duration?: number;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1021,6 +997,7 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 		readonly metadata: NotebookCellMetadata
 		readonly outputs: ReadonlyArray<NotebookCellOutput>;
+		readonly latestExecutionSummary: NotebookCellExecutionSummary | undefined;
 	}
 
 	export class NotebookDocumentMetadata {
@@ -1048,12 +1025,9 @@ declare module 'vscode' {
 		// todo@API is this a kernel property?
 		readonly cellHasExecutionOrder: boolean;
 
-		// todo@API remove
-		readonly runState: NotebookRunState;
+		constructor(editable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
 
-		constructor(editable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, runState?: NotebookRunState, trusted?: boolean);
-
-		with(change: { editable?: boolean | null, cellEditable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, runState?: NotebookRunState | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, cellEditable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1227,6 +1201,12 @@ declare module 'vscode' {
 		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
+	export interface NotebookCellExecutionStateChangeEvent {
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+		readonly executionState: NotebookCellExecutionState;
+	}
+
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
 		kind: NotebookCellKind;
@@ -1236,7 +1216,8 @@ declare module 'vscode' {
 		language: string;
 		outputs?: NotebookCellOutput[];
 		metadata?: NotebookCellMetadata;
-		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata)
+		latestExecutionSummary?: NotebookCellExecutionSummary;
+		constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: NotebookCellExecutionSummary);
 	}
 
 	export class NotebookData {
@@ -1496,27 +1477,6 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
-	// todo@API use the NotebookCellExecution-object as a container to model and enforce
-	// the flow of a cell execution
-
-	// kernel -> execute_info
-	// ext -> createNotebookCellExecution(cell)
-	// kernel -> done
-	// exec.dispose();
-
-	// export interface NotebookCellExecution {
-	// 	dispose(): void;
-	// 	clearOutput(): void;
-	// 	appendOutput(out: NotebookCellOutput): void;
-	// 	replaceOutput(out: NotebookCellOutput): void;
-	//  appendOutputItems(output:string, items: NotebookCellOutputItem[]):void;
-	//  replaceOutputItems(output:string, items: NotebookCellOutputItem[]):void;
-	// }
-
-	// export function createNotebookCellExecution(cell: NotebookCell, startTime?: number): NotebookCellExecution;
-	// export const onDidStartNotebookCellExecution: Event<any>;
-	// export const onDidStopNotebookCellExecution: Event<any>;
-
 	export interface NotebookKernel {
 
 		// todo@API make this mandatory?
@@ -1541,14 +1501,86 @@ declare module 'vscode' {
 		// fired when properties like the supported languages etc change
 		// onDidChangeProperties?: Event<void>
 
-		// @roblourens
-		// todo@API change to `executeCells(document: NotebookDocument, cells: NotebookCellRange[], context:{isWholeNotebooke: boolean}, token: CancelationToken): void;`
-		// todo@API interrupt vs cancellation, https://github.com/microsoft/vscode/issues/106741
-		// interrupt?():void;
-		executeCell(document: NotebookDocument, cell: NotebookCell): void;
-		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
-		executeAllCells(document: NotebookDocument): void;
-		cancelAllCellsExecution(document: NotebookDocument): void;
+		/**
+		 * A kernel can optionally implement this which will be called when any "cancel" button is clicked in the document.
+		 */
+		interrupt?(document: NotebookDocument): void;
+
+		/**
+		 * Called when the user triggers execution of a cell by clicking the run button for a cell, multiple cells,
+		 * or full notebook. The cell will be put into the Pending state when this method is called. If
+		 * createNotebookCellExecutionTask has not been called by the time the promise returned by this method is
+		 * resolved, the cell will be put back into the Idle state.
+		 */
+		executeCellsRequest(document: NotebookDocument, ranges: NotebookCellRange[]): Thenable<void>;
+	}
+
+	export interface NotebookCellExecuteStartContext {
+		// TODO@roblou are we concerned about clock issues with this absolute time?
+		/**
+		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
+		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
+		 */
+		startTime?: number;
+	}
+
+	export interface NotebookCellExecuteEndContext {
+		/**
+		 * If true, a green check is shown on the cell status bar.
+		 * If false, a red X is shown.
+		 */
+		success?: boolean;
+
+		/**
+		 * The total execution time in milliseconds.
+		 */
+		duration?: number;
+	}
+
+	/**
+	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
+	 * [`createNotebookCellExecutionTask`](#notebook.createNotebookCellExecutionTask) is called, the cell
+	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
+	 * `end()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
+	 * modified with the methods on the run task.
+	 *
+	 * All outputs methods operate on this NotebookCellExecutionTask's cell by default. They optionally take
+	 * a cellIndex parameter that allows them to modify the outputs of other cells. `appendOutputItems` and
+	 * `replaceOutputItems` operate on the output with the given ID, which can be an output on any cell. They
+	 * all resolve once the output edit has been applied.
+	 */
+	export interface NotebookCellExecutionTask {
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+
+		start(context?: NotebookCellExecuteStartContext): void;
+		executionOrder: number | undefined;
+		end(result?: NotebookCellExecuteEndContext): void;
+		readonly token: CancellationToken;
+
+		clearOutput(cellIndex?: number): Thenable<void>;
+		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
+	}
+
+	export enum NotebookCellExecutionState {
+		Idle = 1,
+		Pending = 2,
+		Executing = 3,
+	}
+
+	export namespace notebook {
+		/**
+		 * Creates a [`NotebookCellExecutionTask`](#NotebookCellExecutionTask). Should only be called by a kernel. Returns undefined unless requested by the active kernel.
+		 * @param uri The [uri](#Uri) of the notebook document.
+		 * @param index The index of the cell.
+		 * @param kernelId The id of the kernel requesting this run task. If this kernel is not the current active kernel, `undefined` is returned.
+		 */
+		export function createNotebookCellExecutionTask(uri: Uri, index: number, kernelId: string): NotebookCellExecutionTask | undefined;
+
+		export const onDidChangeCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
 
 	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern; };
@@ -2139,33 +2171,6 @@ declare module 'vscode' {
 		 * in {@link onDidChangeTest} when a test is added or removed.
 		 */
 		readonly root: T;
-
-		/**
-		 * An event that fires when an existing test `root` changes.  This can be
-		 * a result of a property update, or an update to its children. Changes
-		 * made to tests will not be visible to {@link TestObserver} instances
-		 * until this event is fired.
-		 *
-		 * When a change is signalled, VS Code will check for any new or removed
-		 * direct children of the changed ite, For example, firing the event with
-		 * the {@link testRoot} will detect any new children in `root.children`.
-		 */
-		readonly onDidChangeTest: Event<T>;
-
-		/**
-		 * Promise that should be resolved when all tests that are initially
-		 * defined have been discovered. The provider should continue to watch for
-		 * changes and fire `onDidChangeTest` until the hierarchy is disposed.
-		 */
-		readonly discoveredInitialTests?: Thenable<unknown>;
-
-		/**
-		 * An event that fires when a test becomes outdated, as a result of
-		 * file changes, for example. In "auto run" mode, tests that are outdated
-		 * will be automatically re-run after a short delay. Firing a test
-		 * with children will mark the entire subtree as outdated.
-		 */
-		readonly onDidInvalidateTest?: Event<T>;
 	}
 
 	/**
@@ -2187,8 +2192,9 @@ declare module 'vscode' {
 		 *
 		 * @param workspace The workspace in which to observe tests
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @returns the root test item for the workspace
 		 */
-		provideWorkspaceTestHierarchy(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
+		provideWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<T>;
 
 		/**
 		 * Requests that tests be provided for the given document. This will be
@@ -2200,18 +2206,21 @@ declare module 'vscode' {
 		 * saved, if possible.
 		 *
 		 * If the test system is not able to provide or estimate for tests on a
-		 * per-file basis, this method may not be implemented. In that case, VS
-		 * Code will request and use the information from the workspace hierarchy.
+		 * per-file basis, this method may not be implemented. In that case, the
+		 * editor will request and use the information from the workspace tree.
 		 *
 		 * @param document The document in which to observe tests
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @returns the root test item for the workspace
 		 */
-		provideDocumentTestHierarchy?(document: TextDocument, token: CancellationToken): ProviderResult<TestHierarchy<T>>;
+		provideDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<T>;
 
 		/**
+		 * @todo this will move out of the provider soon
+		 * @todo this will eventually need to be able to return a summary report, coverage for example.
+		 *
 		 * Starts a test run. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run.
-		 * @todo this will eventually need to be able to return a summary report, coverage for example.
 		 * @param options Options for this test run
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
@@ -2259,17 +2268,59 @@ declare module 'vscode' {
 		setState(test: T, state: TestState): void;
 	}
 
+	export interface TestChildrenCollection<T> extends Iterable<T> {
+		/**
+		 * Gets the number of children in the collection.
+		 */
+		readonly size: number;
+
+		/**
+		 * Gets an existing TestItem by its ID, if it exists.
+		 * @param id ID of the test.
+		 * @returns the TestItem instance if it exists.
+		 */
+		get(id: string): T | undefined;
+
+		/**
+		 * Adds a new child test item. No-ops if the test was already a child.
+		 * @param child The test item to add.
+		 */
+		add(child: T): void;
+
+		/**
+		 * Removes the child test item by reference or ID from the collection.
+		 * @param child Child ID or instance to remove.
+		 */
+		delete(child: T | string): void;
+
+		/**
+		 * Removes all children from the collection.
+		 */
+		clear(): void;
+	}
+
 	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export class TestItem {
+	export class TestItem<TChildren = any> {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
 		 * (test explorer). This must not change for the lifetime of the TestItem.
 		 */
 		readonly id: string;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * A set of children this item has. You can add new children to it, which
+		 * will propagate to the editor UI.
+		 */
+		readonly children: TestChildrenCollection<TChildren>;
 
 		/**
 		 * Display name describing the test case.
@@ -2280,6 +2331,12 @@ declare module 'vscode' {
 		 * Optional description that appears next to the label.
 		 */
 		description?: string;
+
+		/**
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
+		 */
+		range?: Range;
 
 		/**
 		 * Whether this test item can be run individually, defaults to `true`.
@@ -2298,22 +2355,54 @@ declare module 'vscode' {
 		debuggable: boolean;
 
 		/**
-		 * Location of the test in the workspace. This is used to show line
-		 * decorations and code lenses for the test.
+		 * Whether this test item can be expanded in the tree view, implying it
+		 * has (or may have) children. If this is given, the item may be
+		 * passed to the {@link TestHierarchy.getChildren} method.
 		 */
-		location?: Location;
-
-		/**
-		 * Optional list of nested tests for this item.
-		 */
-		children: TestItem[];
+		expandable: boolean;
 
 		/**
 		 * Creates a new TestItem instance.
 		 * @param id Value of the "id" property
 		 * @param label Value of the "label" property.
+		 * @param uri Value of the "uri" property.
+		 * @param parent Parent of this item. This should only be defined for the
+		 * test root.
 		 */
-		constructor(id: string, label: string);
+		constructor(id: string, label: string, uri: Uri, expandable: boolean);
+
+		/**
+		 * Marks the test as outdated. This can happen as a result of file changes,
+		 * for example. In "auto run" mode, tests that are outdated will be
+		 * automatically re-run after a short delay. Invoking this on a
+		 * test with children will mark the entire subtree as outdated.
+		 *
+		 * Extensions should generally not override this method.
+		 */
+		invalidate(): void;
+
+		/**
+		 * Requests the children of the test item. Extensions should override this
+		 * method for any test that can discover children.
+		 *
+		 * When called, the item should discover tests and update its's `children`.
+		 * The provider will be marked as 'busy' when this method is called, and
+		 * the provider should report `{ busy: false }` to {@link Progress.report}
+		 * once discovery is complete.
+		 *
+		 * The item should continue watching for changes to the children and
+		 * firing updates until the token is cancelled. The process of watching
+		 * the tests may involve creating a file watcher, for example.
+		 *
+		 * The editor will only call this method when it's interested in refreshing
+		 * the children of the item, and will not call it again while there's an
+		 * existing, uncancelled discovery for an item.
+		 *
+		 * @param token Cancellation for the request. Cancellation will be
+		 * requested if the test changes before the previous call completes.
+		 * @returns a provider result of child test items
+		 */
+		discoverChildren(progress: Progress<{ busy: boolean }>, token: CancellationToken): void;
 	}
 
 	/**
@@ -2437,23 +2526,51 @@ declare module 'vscode' {
 		 * List of test results. The items in this array are the items that
 		 * were passed in the {@link test.runTests} method.
 		 */
-		results: ReadonlyArray<Readonly<TestItemWithResults>>;
+		results: ReadonlyArray<Readonly<TestResultSnapshot>>;
 	}
 
 	/**
-	 * A {@link TestItem} with an associated result, which appear or can be
-	 * provided in {@link TestResult} interfaces.
+	 * A {@link TestItem}-like interface with an associated result, which appear
+	 * or can be provided in {@link TestResult} interfaces.
 	 */
-	export interface TestItemWithResults extends TestItem {
+	export interface TestResultSnapshot {
+		/**
+		 * Unique identifier that matches that of the associated TestItem.
+		 * This is used to correlate test results and tests in the document with
+		 * those in the workspace (test explorer).
+		 */
+		readonly id: string;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Display name describing the test case.
+		 */
+		readonly label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		readonly description?: string;
+
+		/**
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
+		 */
+		readonly range?: Range;
+
 		/**
 		 * Current result of the test.
 		 */
-		result: TestState;
+		readonly result: TestState;
 
 		/**
 		 * Optional list of nested tests for this item.
 		 */
-		children: Readonly<TestItemWithResults>[];
+		readonly children: Readonly<TestResultSnapshot>[];
 	}
 
 	//#endregion
@@ -2672,7 +2789,7 @@ declare module 'vscode' {
 	/**
 	 * The object describing the properties of the workspace trust request
 	 */
-	export interface WorkspaceTrustRequest {
+	export interface WorkspaceTrustRequestOptions {
 		/**
 		 * When true, a modal dialog will be used to request workspace trust.
 		 * When false, a badge will be displayed on the Setting activity bar item
@@ -2688,10 +2805,10 @@ declare module 'vscode' {
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
-		 * @param request Optional object describing the properties of the
+		 * @param options Optional object describing the properties of the
 		 * workspace trust request
 		 */
-		export function requireWorkspaceTrust(request?: WorkspaceTrustRequest): Thenable<WorkspaceTrustState>;
+		export function requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes

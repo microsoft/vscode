@@ -149,6 +149,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					}
 				}));
 			}
+		} else {
+			this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.updateRemoteStatusIndicator()));
 		}
 	}
 
@@ -199,7 +201,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private updateRemoteStatusIndicator(): void {
 
-		// Remote indicator: show if provided via options
+		// Remote Indicator: show if provided via options
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
@@ -224,29 +226,32 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 			return;
 		}
-		// workspace with label
+
+		// Workspace with label: indicate editing source
 		const workspaceLabel = this.getWorkspaceLabel();
 		if (workspaceLabel) {
 			this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, nls.localize('workspace.tooltip', "Editing on {0}", workspaceLabel));
 			return;
 		}
 
+		// Remote actions: offer menu
 		if (this.remoteMenu.getActions().length > 0) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+			return;
 		}
+
 		// No Remote Extensions: hide status indicator
-		else {
-			dispose(this.remoteStatusEntry);
-			this.remoteStatusEntry = undefined;
-		}
+		dispose(this.remoteStatusEntry);
+		this.remoteStatusEntry = undefined;
 	}
 
 	private getWorkspaceLabel() {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const loc = workspace.configuration || workspace.folders.length === 1 ? workspace.folders[0].uri : undefined;
-		if (loc) {
-			return this.labelService.getHostLabel(loc.scheme, loc.authority);
+		const workspaceLocation = workspace.configuration || (workspace.folders.length === 1 ? workspace.folders[0].uri : undefined);
+		if (workspaceLocation) {
+			return this.labelService.getHostLabel(workspaceLocation.scheme, workspaceLocation.authority);
 		}
+
 		return undefined;
 	}
 

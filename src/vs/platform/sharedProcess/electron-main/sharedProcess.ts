@@ -251,4 +251,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			this.window.webContents.openDevTools();
 		}
 	}
+
+	isVisible(): boolean {
+		return this.window?.isVisible() ?? false;
+	}
 }

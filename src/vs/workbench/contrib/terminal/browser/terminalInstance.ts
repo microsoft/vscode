@@ -32,7 +32,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -404,6 +404,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+		let xtermRendererType: RendererType;
+		if (config.rendererType === 'auto') {
+			// Set the builtin renderer to canvas, even when webgl is being used since it's an addon
+			const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+			xtermRendererType = suggestedRendererType === 'dom' ? 'dom' : 'canvas';
+		} else {
+			xtermRendererType = config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType;
+		}
 
 		const xterm = new Terminal({
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
@@ -424,7 +432,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: (config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl') ? 'canvas' : config.rendererType,
+			rendererType: xtermRendererType,
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -529,7 +537,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
-		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
+
+		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+		if (this._configHelper.config.rendererType === 'auto' && (suggestedRendererType === 'auto' || suggestedRendererType === undefined) || this._configHelper.config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		}
 
@@ -672,33 +682,37 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const frameTimes: number[] = [];
 		const textRenderLayer = this._xtermCore!._renderService._renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
-
 		const evaluateCanvasRenderer = () => {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
 
 			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
-				const promptChoices: IPromptChoice[] = [
-					{
-						label: nls.localize('yes', "Yes"),
-						run: () => this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER)
-					} as IPromptChoice,
-					{
-						label: nls.localize('no', "No"),
-						run: () => { }
-					} as IPromptChoice,
-					{
-						label: nls.localize('dontShowAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
-					} as IPromptChoice
-				];
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
-					promptChoices
-				);
+				if (this._configHelper.config.rendererType === 'auto') {
+					this._storageService.store(SUGGESTED_RENDERER_TYPE, 'dom', StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.updateConfig();
+				} else {
+					const promptChoices: IPromptChoice[] = [
+						{
+							label: nls.localize('yes', "Yes"),
+							run: () => this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER)
+						} as IPromptChoice,
+						{
+							label: nls.localize('no', "No"),
+							run: () => { }
+						} as IPromptChoice,
+						{
+							label: nls.localize('dontShowAgain', "Don't Show Again"),
+							isSecondary: true,
+							run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
+						} as IPromptChoice
+					];
+					this._notificationService.prompt(
+						Severity.Warning,
+						nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
+						promptChoices
+					);
+				}
 			}
 		};
 
@@ -988,7 +1002,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onProcessData(ev: IProcessDataEvent): void {
 		if (ev.sync) {
-			this._xtermCore?.writeSync(ev.data);
+			this._xtermCore?.writeSync(ev.data, 0);
 		} else {
 			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {
@@ -1255,11 +1269,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-		if ((suggestedRendererType === 'auto' && config.rendererType === 'auto') || config.rendererType === 'experimentalWebgl') {
+		if ((config.rendererType === 'auto' && suggestedRendererType === undefined) || config.rendererType === 'experimentalWebgl') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
+			this._safeSetOption('rendererType', (config.rendererType === 'auto' && suggestedRendererType === 'dom') ? 'dom' : (config.rendererType === 'dom' ? 'dom' : 'canvas'));
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
@@ -1287,7 +1301,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _disposeOfWebglRenderer(): void {
-		this._webglAddon?.dispose();
+		try {
+			this._webglAddon?.dispose();
+		} catch {
+			// ignore
+		}
 		this._webglAddon = undefined;
 	}
 

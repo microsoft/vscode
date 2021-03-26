@@ -169,7 +169,7 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 	}
 
 	// 1. handle case when focus is in editor.
-	target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+	target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
@@ -186,7 +186,7 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 	});
 
 	// 2. (default) handle case when focus is somewhere else.
-	target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+	target.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
 		document.execCommand(browserCommand);
 		return true;
 	});
@@ -197,7 +197,7 @@ registerExecCommandImpl(CopyAction, 'copy');
 
 if (PasteAction) {
 	// 1. Paste: handle case when focus is in editor.
-	PasteAction.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+	PasteAction.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: any) => {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const clipboardService = accessor.get(IClipboardService);
 
@@ -235,7 +235,7 @@ if (PasteAction) {
 	});
 
 	// 2. Paste: (default) handle case when focus is somewhere else.
-	PasteAction.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+	PasteAction.addImplementation(0, 'generic-dom', (accessor: ServicesAccessor, args: any) => {
 		document.execCommand('paste');
 		return true;
 	});

@@ -24,6 +24,7 @@ import type * as vscode from 'vscode';
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _variableResolver: ExtHostVariableResolverService | undefined;
+	private _variableResolverPromise: Promise<ExtHostVariableResolverService>;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
 	// TODO: Pull this from main side
@@ -45,7 +46,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		getSystemShell(platform.platform, process.env as platform.IProcessEnvironment).then(s => this._defaultShell = s);
 
 		this._updateLastActiveWorkspace();
-		this._updateVariableResolver();
+		this._variableResolverPromise = this._updateVariableResolver();
 		this._registerListeners();
 	}
 
@@ -116,7 +117,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _registerListeners(): void {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this._updateLastActiveWorkspace());
-		this._extHostWorkspace.onDidChangeWorkspace(() => this._updateVariableResolver());
+		this._extHostWorkspace.onDidChangeWorkspace(() => {
+			this._variableResolverPromise = this._updateVariableResolver();
+		});
 	}
 
 	private _updateLastActiveWorkspace(): void {
@@ -126,15 +129,16 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		}
 	}
 
-	private async _updateVariableResolver(): Promise<void> {
+	private async _updateVariableResolver(): Promise<ExtHostVariableResolverService> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
 		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
+		return this._variableResolver;
 	}
 
 	public async $getAvailableProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
 		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
-		return detectAvailableProfiles(quickLaunchOnly, this._logService, config as ITerminalConfiguration, this._variableResolver, this._lastActiveWorkspace);
+		return detectAvailableProfiles(quickLaunchOnly, this._logService, config as ITerminalConfiguration, await this._variableResolverPromise, this._lastActiveWorkspace);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {

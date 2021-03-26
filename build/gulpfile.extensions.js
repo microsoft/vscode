@@ -206,6 +206,7 @@ const mediaCompilations = [
 	'markdown-language-features/webpack.config.js',
 	'markdown-language-features/webpack.notebook.js',
 	'notebook-markdown-extensions/webpack.notebook.js',
+	'simple-browser/webpack.config.js',
 ];
 
 const compileExtensionMediaTask = task.define('compile-extension-media', () => buildExtensionMedia(false));
