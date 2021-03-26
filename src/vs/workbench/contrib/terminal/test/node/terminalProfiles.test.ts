@@ -23,7 +23,7 @@ suite('Workbench - TerminalProfiles', () => {
 							linux: {},
 							osx: {}
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'], isAutoDetected: undefined, overrideName: undefined }];
@@ -38,7 +38,7 @@ suite('Workbench - TerminalProfiles', () => {
 							linux: {},
 							osx: {},
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, undefined);
 					const expected = [{ profileName: 'PowerShell NoProfile', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, isAutoDetected: undefined, args: ['-NoProfile'] }];
@@ -84,7 +84,7 @@ suite('Workbench - TerminalProfiles', () => {
 							},
 							linux: {}
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
@@ -115,7 +115,7 @@ suite('Workbench - TerminalProfiles', () => {
 							},
 							osx: {}
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
@@ -138,5 +138,5 @@ suite('Workbench - TerminalProfiles', () => {
 
 export interface ITestTerminalConfig {
 	profiles: ITerminalProfiles;
-	displayDetectedWslProfiles: boolean
+	useWslProfiles: boolean
 }
