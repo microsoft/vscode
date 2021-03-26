@@ -166,7 +166,6 @@ export class CLIServerBase {
 	}
 
 	private async manageExtensions(data: ExtensionManagementPipeArgs, res: http.ServerResponse) {
-		console.log('server: manageExtensions');
 		try {
 			const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
 			const commandArgs = {
@@ -175,12 +174,16 @@ export class CLIServerBase {
 				uninstall: toExtOrVSIX(data.uninstall),
 				force: data.force
 			};
-			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs, { allowTunneling: true });
+			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs);
 			res.writeHead(200);
 			res.write(output);
-		} catch (e) {
+		} catch (err) {
 			res.writeHead(500);
-			res.write(String(e));
+			res.write(String(err), err => {
+				if (err) {
+					this.logService.error(err);
+				}
+			});
 		}
 		res.end();
 	}

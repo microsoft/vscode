@@ -1002,7 +1002,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onProcessData(ev: IProcessDataEvent): void {
 		if (ev.sync) {
-			this._xtermCore?.writeSync(ev.data);
+			this._xtermCore?.writeSync(ev.data, 0);
 		} else {
 			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {

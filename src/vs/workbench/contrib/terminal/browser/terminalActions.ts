@@ -683,7 +683,7 @@ export function registerTerminalActions() {
 				};
 			});
 			if (items.length === 0) {
-				notificationService.info('There are no terminals to attach to');
+				notificationService.info(localize('noUnattachedTerminals', 'There are no unattached terminals to attach to'));
 				return;
 			}
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });

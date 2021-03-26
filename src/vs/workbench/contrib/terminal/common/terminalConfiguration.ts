@@ -172,6 +172,9 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
 				}
 			},
 			additionalProperties: {
@@ -202,6 +205,9 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
 				}
 			},
 			additionalProperties: {
@@ -211,8 +217,8 @@ export const terminalConfiguration: IConfigurationNode = {
 				]
 			}
 		},
-		'terminal.integrated.showQuickLaunchWslProfiles': {
-			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
+		'terminal.integrated.useWslProfiles': {
+			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
 			default: true
 		},

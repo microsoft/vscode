@@ -17,11 +17,11 @@ import * as pfs from 'vs/base/node/pfs';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
-export function detectAvailableProfiles(quickLaunchOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(quickLaunchOnly, statProvider, logService, config?.showQuickLaunchWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(statProvider, logService, quickLaunchOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
+export function detectAvailableProfiles(configuredProfilesOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
+	return platform.isWindows ? detectAvailableWindowsProfiles(configuredProfilesOnly, statProvider, logService, config?.useWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(statProvider, logService, configuredProfilesOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
 }
 
-async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProvider?: IStatProvider, logService?: ILogService, showQuickLaunchWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, statProvider?: IStatProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -40,7 +40,7 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add auto detected profiles
-	if (!quickLaunchOnly) {
+	if (!configuredProfilesOnly) {
 		detectedProfiles.set('PowerShell', { source: ProfileSource.Pwsh, isAutoDetected: true });
 		detectedProfiles.set('Git Bash', { source: ProfileSource.GitBash, isAutoDetected: true });
 		detectedProfiles.set('Cygwin', {
@@ -63,8 +63,8 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), logService, statProvider, variableResolver, workspaceFolder);
 
-	if (!quickLaunchOnly || (quickLaunchOnly && showQuickLaunchWslProfiles)) {
-		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, showQuickLaunchWslProfiles));
+	if (!configuredProfilesOnly || (configuredProfilesOnly && useWslProfiles)) {
+		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, useWslProfiles));
 	}
 
 	return resultProfiles;
@@ -145,9 +145,9 @@ async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
 	return profiles;
 }
 
-async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: boolean): Promise<ITerminalProfile[]> {
+async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promise<ITerminalProfile[]> {
 	const profiles: ITerminalProfile[] = [];
-	if (showQuickLaunchWslProfiles) {
+	if (useWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
 			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
 			cp.exec('wsl.exe -l', { encoding: 'utf16le' }, (err, stdout) => {
@@ -190,11 +190,11 @@ async function getWslProfiles(wslPath: string, showQuickLaunchWslProfiles?: bool
 	return [];
 }
 
-async function detectAvailableUnixProfiles(statProvider?: IStatProvider, logService?: ILogService, quickLaunchOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(statProvider?: IStatProvider, logService?: ILogService, configuredProfilesOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add non-quick launch profiles
-	if (!quickLaunchOnly) {
+	if (!configuredProfilesOnly) {
 		const contents = await fs.promises.readFile('/etc/shells', 'utf8');
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();

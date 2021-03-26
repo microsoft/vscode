@@ -10091,10 +10091,10 @@ vscode-nls-dev@^3.3.1:
     xml2js "^0.4.19"
     yargs "^13.2.4"
 
-vscode-oniguruma@1.5.0:
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.5.0.tgz#d2235868efe933c5796fdc687cfcd644407259b1"
-  integrity sha512-5MgXSXvwy2GBy8BRi1Pegk+60LAHiY184cW93Fe1SmA9oPu8fRV3G9Yurbhkh/0hrb0E0/VK4JPieBX66gkftQ==
+vscode-oniguruma@1.3.1:
+  version "1.3.1"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.3.1.tgz#e2383879c3485b19f533ec34efea9d7a2b14be8f"
+  integrity sha512-gz6ZBofA7UXafVA+m2Yt2zHKgXC2qedArprIsHAPKByTkwq9l5y/izAGckqxYml7mSbYxTRTfdRwsFq3cwF4LQ==
 
 vscode-proxy-agent@^0.8.1:
   version "0.8.1"
@@ -10135,10 +10135,10 @@ vscode-telemetry-extractor@^1.6.0:
     ts-morph "^3.1.3"
     vscode-ripgrep "^1.6.2"
 
-vscode-textmate@5.3.1:
-  version "5.3.1"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.3.1.tgz#7ce578a4841a1b114485388ef734cc9e23b45a02"
-  integrity sha512-X4E7iPJzmMsL9AY4MyZrxUt0Dm/kGWreJEGdQgAHXHQrRGDdlwAu9X1LCsQ0VKUCg5wjwSS1LPpy1BOfxIw4Tw==
+vscode-textmate@5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.2.0.tgz#01f01760a391e8222fe4f33fbccbd1ad71aed74e"
+  integrity sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ==
 
 vscode-windows-ca-certs@^0.3.0:
   version "0.3.0"
@@ -10475,10 +10475,10 @@ xterm-addon-webgl@0.10.0:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.10.0.tgz#e99366fdc4cbd46b798a5e2fc114ecc19f9fd4b7"
   integrity sha512-MJzyWie5yw+PH6p//fXlXzmsULLtpBo992EWEKl2uv5M5Zj9etTwfuutCUK7o98mr6itDl+vS/CYIMP68jCf8w==
 
-xterm@4.12.0-beta.3:
-  version "4.12.0-beta.3"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.12.0-beta.3.tgz#a8bdf9210c1dba24cbf47a13a0301cd2707cb5d8"
-  integrity sha512-2yrVnXsYGFKATwanOfM9YRJYx2qhudzCmMrmXWdMnQp7Z/YLCHh6UsS3+u7SV6SizgKYcsnv7x0VaT+dqXtiFg==
+xterm@4.12.0-beta.7:
+  version "4.12.0-beta.7"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.12.0-beta.7.tgz#8ee0a6e180dc57ea63a59682f2ccaf41e2cefd1f"
+  integrity sha512-qUKJg/aOVy2pOORiwuxd2Qp0MHJyQ/gcK7OMyjMEFLdS5L+KBbUkXtpOO9LWbW+B1DvS4b1k1MzvB4GF+qXXtg==
 
 y18n@^3.2.1:
   version "3.2.2"

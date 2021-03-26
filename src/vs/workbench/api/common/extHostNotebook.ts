@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, TransientOptions, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -327,7 +327,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		let listener: IDisposable | undefined;
 		if (provider.onDidChangeNotebookContentOptions) {
 			listener = provider.onDidChangeNotebookContentOptions(() => {
-				this._proxy.$updateNotebookProviderOptions(viewType, provider.options);
+				const internalOptions = typeConverters.NotebookDocumentContentOptions.from(provider.options);
+				this._proxy.$updateNotebookProviderOptions(viewType, internalOptions);
 			});
 		}
 
@@ -339,9 +340,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			console.warn(`Notebook content provider view options file name pattern is invalid ${options?.viewOptions?.filenamePattern}`);
 		}
 
+		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, {
-			transientOutputs: options?.transientOutputs || false,
-			transientMetadata: options?.transientMetadata || {},
+			transientOutputs: internalOptions.transientOutputs,
+			transientMetadata: internalOptions.transientMetadata,
 			viewOptions: options?.viewOptions && viewOptionsFilenamePattern ? { displayName: options.viewOptions.displayName, filenamePattern: viewOptionsFilenamePattern, exclusive: options.viewOptions.exclusive || false } : undefined
 		});
 
@@ -480,14 +482,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private _handlePool = 0;
 	private readonly _notebookSerializer = new Map<number, vscode.NotebookSerializer>();
 
-	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: TransientOptions): vscode.Disposable {
+	registerNotebookSerializer(extension: IExtensionDescription, viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions): vscode.Disposable {
 		const handle = this._handlePool++;
 		this._notebookSerializer.set(handle, serializer);
+		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
 		this._proxy.$registerNotebookSerializer(
 			handle,
 			{ id: extension.identifier, location: extension.extensionLocation, description: extension.description },
 			viewType,
-			options ?? { transientOutputs: false, transientMetadata: {} }
+			internalOptions
 		);
 		return toDisposable(() => {
 			this._proxy.$unregisterNotebookSerializer(handle);
@@ -1186,13 +1189,15 @@ class NotebookCellExecutionTask extends Disposable {
 				return that.applyEdits([{ editType: CellEditType.Output, handle, outputs: outputs.map(typeConverters.NotebookCellOutput.from) }]);
 			},
 
-			async appendOutputItems(items: vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
+			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
+				items = Array.isArray(items) ? items : [items];
 				return that.applyEdits([{ editType: CellEditType.OutputItems, append: true, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
 			},
 
-			async replaceOutputItems(items: vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
+			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
+				items = Array.isArray(items) ? items : [items];
 				return that.applyEdits([{ editType: CellEditType.OutputItems, items: items.map(typeConverters.NotebookCellOutputItem.from), outputId }]);
 			},
 

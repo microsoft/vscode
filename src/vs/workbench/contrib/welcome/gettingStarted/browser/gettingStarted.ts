@@ -17,13 +17,13 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -81,6 +81,7 @@ export class GettingStartedPage extends EditorPane {
 	private previousSelection?: string;
 	private recentlyOpened: Promise<IRecentlyOpened>;
 	private selectedTaskElement?: HTMLDivElement;
+	private hasScrolledToFirstCategory = false;
 
 	constructor(
 		@ICommandService private readonly commandService: ICommandService,
@@ -91,7 +92,7 @@ export class GettingStartedPage extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private storageService: IStorageService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -478,20 +479,30 @@ export class GettingStartedPage extends EditorPane {
 		}
 
 		const someItemsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'items' && categry.content.stepsComplete);
-		if (!someItemsComplete) {
-			const fistContentBehaviour = await Promise.race([
-				this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
-				new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
-			]);
+		if (!someItemsComplete && !this.hasScrolledToFirstCategory) {
 
-			if (fistContentBehaviour === 'openToFirstCategory') {
-				const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
-				if (first) {
-					this.currentCategory = first;
-					this.editorInput.selectedCategory = this.currentCategory?.id;
-					this.buildCategorySlide(this.editorInput.selectedCategory);
-					this.setSlide('details');
-					return;
+			const fistContentBehaviour =
+				!this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL) // isNewUser ?
+					? 'openToFirstCategory'
+					: await Promise.race([
+						this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
+						new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
+					]);
+
+			if (this.gettingStartedCategories.some(category => category.content.type === 'items' && category.content.stepsComplete)) {
+				this.setSlide('categories');
+				return;
+			} else {
+				if (fistContentBehaviour === 'openToFirstCategory') {
+					const first = this.gettingStartedCategories.find(category => category.content.type === 'items');
+					this.hasScrolledToFirstCategory = true;
+					if (first) {
+						this.currentCategory = first;
+						this.editorInput.selectedCategory = this.currentCategory?.id;
+						this.buildCategorySlide(this.editorInput.selectedCategory);
+						this.setSlide('details');
+						return;
+					}
 				}
 			}
 		}
@@ -621,8 +632,8 @@ export class GettingStartedPage extends EditorPane {
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
 			if (category.content.type !== 'items') { throw Error('Category with ID ' + categoryID + ' is not of items type'); }
-			const numDone = category.content.items.filter(task => task.done).length;
-			const numTotal = category.content.items.length;
+			const numDone = category.content.stepsComplete = category.content.items.filter(task => task.done).length;
+			const numTotal = category.content.stepsTotal = category.content.items.length;
 
 			const bar = assertIsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
 			bar.setAttribute('aria-valuemin', '0');
