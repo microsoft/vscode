@@ -483,7 +483,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const fistContentBehaviour =
 				!this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL) // isNewUser ?
-					? 'openToFirstCtegory'
+					? 'openToFirstCategory'
 					: await Promise.race([
 						this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
 						new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
