@@ -16,7 +16,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
+import { ExtensionWorkspaceTrustRequirement, getExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -248,7 +248,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private async getExtensionsByTrustRequirement(extensions: IExtensionStatus[], trustRequirement: ExtensionWorkspaceTrustRequirement): Promise<IExtension[]> {
-		const filtered = extensions.filter(ext => ext.local.manifest.workspaceTrust?.required === trustRequirement);
+		const filtered = extensions.filter(ext => getExtensionWorkspaceTrustRequirement(ext.local.manifest) === trustRequirement);
 		const ids = filtered.map(ext => ext.identifier.id);
 
 		return getExtensions(ids, this.extensionWorkbenchService);

@@ -12,7 +12,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { getExtensionWorkspaceTrustRequirement, IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -281,18 +281,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private _isDisabledByTrustRequirement(extension: IExtension): boolean {
 		const workspaceTrustState = this.workspaceTrustService.getWorkspaceTrustState();
 
-		if (this._requiresWorkspaceTrust(extension)) {
+		if (getExtensionWorkspaceTrustRequirement(extension.manifest) === 'onStart') {
 			if (workspaceTrustState !== WorkspaceTrustState.Trusted) {
 				this._addToWorkspaceDisabledExtensionsByTrustRequirement(extension);
 			}
 			return workspaceTrustState !== WorkspaceTrustState.Trusted;
 		}
 		return false;
-	}
-
-	private _requiresWorkspaceTrust(extension: IExtension): boolean {
-		return extension.manifest.workspaceTrust?.required === 'onStart' ||
-			(extension.manifest.workspaceTrust?.required === undefined && extension.manifest.main !== undefined);
 	}
 
 	private _getEnablementState(identifier: IExtensionIdentifier): EnablementState {
