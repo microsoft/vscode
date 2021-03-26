@@ -47,7 +47,7 @@ export const content: GettingStartedContent = [
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'explorer.newFile',
+			command: 'workbench.action.files.newUntitledFile',
 		}
 	},
 	{
