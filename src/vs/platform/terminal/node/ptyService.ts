@@ -343,6 +343,9 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 		this._bufferer.flushBuffer(this._persistentProcessId);
 		this._recorder.recordResize(cols, rows);
+
+		// Buffered events should flush when a resize occurs
+		this._bufferer.flushBuffer(this._persistentProcessId);
 		return this._terminalProcess.resize(cols, rows);
 	}
 	acknowledgeDataEvent(charCount: number): void {
