@@ -9,9 +9,8 @@ import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { TERMINAL_ACTION_CATEGORY, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Action } from 'vs/base/common/actions';
-import { URI } from 'vs/base/common/uri';
-import { homedir } from 'os';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export function registerRemoteContributions() {
 	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -24,13 +23,14 @@ export class CreateNewLocalTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService
 	) {
 		super(id, label);
 	}
 
 	public run(): Promise<any> {
-		const instance = this.terminalService.createTerminal({ cwd: URI.file(homedir()) });
+		const instance = this._terminalService.createTerminal({ cwd: this._nativeEnvironmentService.userHome });
 		if (!instance) {
 			return Promise.resolve(undefined);
 		}
@@ -43,7 +43,7 @@ export class CreateNewLocalTerminalAction extends Action {
 			}
 		});
 
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
+		this._terminalService.setActiveInstance(instance);
+		return this._terminalService.showPanel(true);
 	}
 }
