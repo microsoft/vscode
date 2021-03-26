@@ -136,9 +136,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return this._variableResolver;
 	}
 
-	public async $getAvailableProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
+	public async $getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
 		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
-		return detectAvailableProfiles(quickLaunchOnly, this._logService, config as ITerminalConfiguration, await this._variableResolverPromise, this._lastActiveWorkspace);
+		return detectAvailableProfiles(configuredProfilesOnly, this._logService, config as ITerminalConfiguration, await this._variableResolverPromise, this._lastActiveWorkspace);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
