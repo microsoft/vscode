@@ -12,6 +12,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IActiveNotebookEditor, INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
 suite('Notebook Clipboard', () => {
 	const createEditorService = (editor: IActiveNotebookEditor) => {
@@ -33,6 +35,101 @@ suite('Notebook Clipboard', () => {
 		return editorService;
 	};
 
+	test('Cut multiple selected cells', async function () {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+			],
+			async (editor, accessor) => {
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					setToCopy() { }
+				});
+
+				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
+
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 2 }, selections: [{ start: 0, end: 2 }] }, 'model');
+				assert.ok(clipboardContrib.runCutAction(accessor));
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.strictEqual(viewModel.length, 1);
+				assert.strictEqual(viewModel.viewCells[0].getText(), 'paragraph 2');
+			});
+	});
+
+	test('Cut should take folding info into account', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3', 'javascript', CellKind.Markdown, [], {}],
+				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 4;', 'javascript', CellKind.Code, [], {}],
+			],
+			async (editor, accessor) => {
+				const viewModel = editor.viewModel;
+				const foldingModel = new FoldingModel();
+				foldingModel.attachViewModel(viewModel);
+
+				updateFoldingStateAtIndex(foldingModel, 0, true);
+				updateFoldingStateAtIndex(foldingModel, 2, true);
+				viewModel.updateFoldingRanges(foldingModel.regions);
+				editor.setHiddenAreas(viewModel.getHiddenRanges());
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
+
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					setToCopy() { }
+				});
+
+				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
+				clipboardContrib.runCutAction(accessor);
+				assert.strictEqual(viewModel.length, 5);
+				await viewModel.undo();
+				assert.strictEqual(viewModel.length, 7);
+			});
+	});
+
+	test('Copy should take folding info into account', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3', 'javascript', CellKind.Markdown, [], {}],
+				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 4;', 'javascript', CellKind.Code, [], {}],
+			],
+			async (editor, accessor) => {
+				const viewModel = editor.viewModel;
+				const foldingModel = new FoldingModel();
+				foldingModel.attachViewModel(viewModel);
+
+				updateFoldingStateAtIndex(foldingModel, 0, true);
+				updateFoldingStateAtIndex(foldingModel, 2, true);
+				viewModel.updateFoldingRanges(foldingModel.regions);
+				editor.setHiddenAreas(viewModel.getHiddenRanges());
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
+
+				let _cells: NotebookCellTextModel[] = [];
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					setToCopy(cells: NotebookCellTextModel[]) { _cells = cells; }
+					getToCopy() { return { items: _cells, isCopy: true }; }
+				});
+
+				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
+				clipboardContrib.runCopyAction(accessor);
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 6, end: 7 }, selections: [{ start: 6, end: 7 }] }, 'model');
+				clipboardContrib.runPasteAction(accessor);
+
+				assert.strictEqual(viewModel.length, 9);
+				assert.strictEqual(viewModel.viewCells[8].getText(), 'var b = 1;');
+			});
+	});
+
 	test('#119773, cut last item should not focus on the top first cell', async function () {
 		await withTestNotebook(
 			[
@@ -48,10 +145,10 @@ suite('Notebook Clipboard', () => {
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
 				const viewModel = editor.viewModel;
-				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 3 }] }, 'view');
-				assert.deepStrictEqual(clipboardContrib.runCutAction(accessor), true);
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 3 }] }, 'model');
+				assert.strictEqual(clipboardContrib.runCutAction(accessor), true);
 				// it should be the last cell, other than the first one.
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.strictEqual(viewModel.getFocus(), { start: 1, end: 2 });
 			});
 	});
 
@@ -79,13 +176,13 @@ suite('Notebook Clipboard', () => {
 
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 3 }] }, 'model');
-				assert.deepStrictEqual(clipboardContrib.runPasteAction(accessor), true);
+				assert.ok(clipboardContrib.runPasteAction(accessor));
 
-				assert.deepStrictEqual(viewModel.length, 4);
+				assert.strictEqual(viewModel.length, 4);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 3, end: 4 });
-				assert.deepStrictEqual(viewModel.viewCells[3].getText(), '# header 1');
+				assert.strictEqual(viewModel.viewCells[3].getText(), '# header 1');
 				await viewModel.undo();
-				assert.deepStrictEqual(viewModel.length, 3);
+				assert.strictEqual(viewModel.length, 3);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
 			});
 	});
