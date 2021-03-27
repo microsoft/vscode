@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as arrays from 'vs/base/common/arrays';
-import { test } from 'vscode';
 
 suite('Arrays', () => {
 	test('findFirst', () => {
