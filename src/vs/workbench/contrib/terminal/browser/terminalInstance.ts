@@ -50,11 +50,21 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { AutoOpenBarrier } from 'vs/base/common/async';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
+
+const enum Constants {
+	/**
+	 * The maximum amount of milliseconds to wait for a container before starting to create the
+	 * terminal process. This period helps ensure the terminal has good initial dimensions to work
+	 * with if it's going to be a foreground terminal.
+	 */
+	WaitForContainerThreshold = 100
+}
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
 
@@ -106,6 +116,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
+	private _containerReadyBarrier: AutoOpenBarrier;
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
@@ -232,8 +243,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcessManager();
 
+		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._xtermReadyPromise = this._createXterm();
-		this._xtermReadyPromise.then(() => {
+		this._xtermReadyPromise.then(async () => {
+			// Wait for a period to allow a container to be ready
+			await this._containerReadyBarrier.wait();
+
 			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 			if (_container) {
 				this._attachToElement(_container);
@@ -1402,6 +1417,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._resize();
+
+		// Signal the container is ready
+		this._containerReadyBarrier.open();
 	}
 
 	@debounce(50)
