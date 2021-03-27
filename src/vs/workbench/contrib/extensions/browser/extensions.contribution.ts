@@ -523,7 +523,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyAndExpr.create([CONTEXT_HAS_GALLERY, ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER])])
 			}, {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate()]), // TODO: here
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyOrExpr.create([ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'enabled'), ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'none'), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate()])]),
 				group: '1_updates',
 				order: 2
 			}],
