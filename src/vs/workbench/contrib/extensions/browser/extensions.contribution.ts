@@ -498,6 +498,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}
 		});
 
+		const CONTEXT_AUTOUPDATE_NO_EXTENSIONS = ContextKeyOrExpr.create([ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'none'), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate()]);
+		const CONTEXT_AUTOUPDATE_ENABLED_EXTENSIONS = ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'enabled');
+		const CONTEXT_AUTOUPDATE_ALL_EXTENSIONS = ContextKeyOrExpr.create([CONTEXT_AUTOUPDATE_ENABLED_EXTENSIONS, CONTEXT_AUTOUPDATE_NO_EXTENSIONS])?.negate();
+
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
 			title: { value: localize('disableAutoUpdate', "Disable Auto Updating Extensions"), original: 'Disable Auto Updating Extensions' },
@@ -506,11 +510,11 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 			}, {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`)]), // TODO: here
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_AUTOUPDATE_NO_EXTENSIONS?.negate()]),
 				group: '1_updates',
-				order: 2
+				order: 5
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'none')
 		});
 
 		this.registerExtensionAction({
@@ -523,7 +527,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyAndExpr.create([CONTEXT_HAS_GALLERY, ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER])])
 			}, {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyOrExpr.create([ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'enabled'), ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'none'), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate()])]),
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_AUTOUPDATE_ALL_EXTENSIONS?.negate()]),
 				group: '1_updates',
 				order: 2
 			}],
@@ -540,17 +544,32 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: { value: localize('enableAutoUpdate', "Enable Auto Updating Extensions"), original: 'Enable Auto Updating Extensions' },
+			title: { value: localize('enableAutoUpdate', "Enable Auto Updating All Extensions"), original: 'Enable Auto Updating All Extensions' },
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
 			}, {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate()]), // TODO: here
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_AUTOUPDATE_ALL_EXTENSIONS?.negate()]),
 				group: '1_updates',
 				order: 3
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'all')
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.enableAutoUpdateEnabled',
+			title: { value: localize('enableAutoUpdateEnabled', "Auto Update only Enabled Extensions"), original: 'Auto Update only Enabled Extensions' },
+			category: ExtensionsLocalizedLabel,
+			menu: [{
+				id: MenuId.CommandPalette,
+			}, {
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_AUTOUPDATE_ENABLED_EXTENSIONS.negate()]),
+				group: '1_updates',
+				order: 4
+			}],
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'enabled')
 		});
 
 		this.registerExtensionAction({
