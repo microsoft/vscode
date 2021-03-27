@@ -361,7 +361,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
-		if (getExtensionWorkspaceTrustRequirement(manifest)) {
+		if (getExtensionWorkspaceTrustRequirement(manifest) === 'onStart') {
 			const trustState = await this.workspaceTrustService.requireWorkspaceTrust();
 			return trustState === WorkspaceTrustState.Trusted ? Promise.resolve() : Promise.reject(canceled());
 		}
