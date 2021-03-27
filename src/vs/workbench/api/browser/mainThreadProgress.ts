@@ -73,7 +73,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 
 	private _createTask(handle: number) {
 		return (progress: IProgress<IProgressStep>) => {
-			return new Promise<void>(resolve => {
+			return new Promise<any>(resolve => {
 				this._progress.set(handle, { resolve, progress });
 			});
 		};

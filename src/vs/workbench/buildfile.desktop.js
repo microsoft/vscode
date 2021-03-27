@@ -28,8 +28,6 @@ exports.collectModules = function () {
 		createModuleDescription('vs/platform/files/node/watcher/unix/watcherApp', []),
 		createModuleDescription('vs/platform/files/node/watcher/nsfw/watcherApp', []),
 
-		createModuleDescription('vs/platform/terminal/node/ptyHostMain', []),
-
 		createModuleDescription('vs/workbench/services/extensions/node/extensionHostProcess', []),
 	];
 };

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import BaseErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
+import BaseErrorTelemetry from '../common/errorTelemetry';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
 	protected installErrorListeners(): void {

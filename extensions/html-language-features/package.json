@@ -15,11 +15,11 @@
     "onLanguage:html",
     "onLanguage:handlebars"
   ],
-  "main": "./client/out/node/htmlClientMain",
-  "browser": "./client/dist/browser/htmlClientMain",
+  "main": "./client/out/htmlMain",
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
+    "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
   "categories": [
@@ -137,27 +137,6 @@
           ],
           "description": "%html.format.wrapAttributes.desc%"
         },
-        "html.format.wrapAttributesIndentSize": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "scope": "resource",
-          "default": null,
-          "description": "%html.format.wrapAttributesIndentSize.desc%"
-        },
-        "html.format.templating": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.format.templating.desc%"
-        },
-        "html.format.unformattedContentDelimiter": {
-          "type": "string",
-          "scope": "resource",
-          "default": "",
-          "markdownDescription": "%html.format.unformattedContentDelimiter.desc%"
-        },
         "html.suggest.html5": {
           "type": "boolean",
           "scope": "resource",
@@ -182,24 +161,11 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
-        "html.hover.documentation": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.hover.documentation%"
-        },
-        "html.hover.references": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%html.hover.references%"
-        },
         "html.mirrorCursorOnMatchingTag": {
           "type": "boolean",
           "scope": "resource",
-          "default": false,
-          "description": "%html.mirrorCursorOnMatchingTag%",
-          "deprecationMessage": "%html.mirrorCursorOnMatchingTagDeprecationMessage%"
+          "default": true,
+          "description": "%html.mirrorCursorOnMatchingTag%"
         },
         "html.trace.server": {
           "type": "string",
@@ -225,7 +191,7 @@
     "jsonValidation": [
       {
         "fileMatch": "*.html-data.json",
-        "url": "https://raw.githubusercontent.com/microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+        "url": "https://raw.githubusercontent.com/Microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
       },
       {
         "fileMatch": "package.json",
@@ -235,14 +201,10 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^7.0.0",
-    "vscode-nls": "^5.0.0"
+    "vscode-languageclient": "^6.0.0-next.3",
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/microsoft/vscode.git"
+    "@types/node": "^12.11.7"
   }
 }

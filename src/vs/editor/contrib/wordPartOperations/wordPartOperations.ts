@@ -5,10 +5,11 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { DeleteWordContext, WordNavigationType, WordPartOperations } from 'vs/editor/common/controller/cursorWordOperations';
+import { WordNavigationType, WordPartOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { DeleteWordCommand, MoveWordCommand } from 'vs/editor/contrib/wordOperations/wordOperations';
@@ -31,8 +32,8 @@ export class DeleteWordPartLeft extends DeleteWordCommand {
 		});
 	}
 
-	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartLeft(ctx);
+	protected _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+		let r = WordPartOperations.deleteWordPartLeft(wordSeparators, model, selection, whitespaceHeuristics);
 		if (r) {
 			return r;
 		}
@@ -56,13 +57,13 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 		});
 	}
 
-	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartRight(ctx);
+	protected _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
+		let r = WordPartOperations.deleteWordPartRight(wordSeparators, model, selection, whitespaceHeuristics);
 		if (r) {
 			return r;
 		}
-		const lineCount = ctx.model.getLineCount();
-		const maxColumn = ctx.model.getLineMaxColumn(lineCount);
+		const lineCount = model.getLineCount();
+		const maxColumn = model.getLineMaxColumn(lineCount);
 		return new Range(lineCount, maxColumn, lineCount, maxColumn);
 	}
 }

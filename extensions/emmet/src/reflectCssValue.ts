@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, TextEditor } from 'vscode';
-import { getCssPropertyFromRule, getCssPropertyFromDocument, offsetRangeToVsRange } from './util';
-import { Property, Rule } from 'EmmetFlatNode';
+import { Range, window, TextEditor } from 'vscode';
+import { getCssPropertyFromRule, getCssPropertyFromDocument } from './util';
+import { Property, Rule } from 'EmmetNode';
 
 const vendorPrefixes = ['-webkit-', '-moz-', '-ms-', '-o-', ''];
 
 export function reflectCssValue(): Thenable<boolean> | undefined {
-	const editor = window.activeTextEditor;
+	let editor = window.activeTextEditor;
 	if (!editor) {
 		window.showInformationMessage('No editor is active.');
 		return;
 	}
 
-	const node = getCssPropertyFromDocument(editor, editor.selection.active);
+	let node = getCssPropertyFromDocument(editor, editor.selection.active);
 	if (!node) {
 		return;
 	}
@@ -45,10 +45,9 @@ function updateCSSNode(editor: TextEditor, property: Property): Thenable<boolean
 			if (prefix === currentPrefix) {
 				return;
 			}
-			const vendorProperty = getCssPropertyFromRule(rule, prefix + propertyName);
+			let vendorProperty = getCssPropertyFromRule(rule, prefix + propertyName);
 			if (vendorProperty) {
-				const rangeToReplace = offsetRangeToVsRange(editor.document, vendorProperty.valueToken.start, vendorProperty.valueToken.end);
-				builder.replace(rangeToReplace, propertyValue);
+				builder.replace(new Range(vendorProperty.valueToken.start, vendorProperty.valueToken.end), propertyValue);
 			}
 		});
 	});

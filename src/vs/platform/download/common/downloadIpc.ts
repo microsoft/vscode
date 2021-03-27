@@ -27,7 +27,7 @@ export class DownloadServiceChannel implements IServerChannel {
 
 export class DownloadServiceChannelClient implements IDownloadService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	constructor(private channel: IChannel, private getUriTransformer: () => IURITransformer | null) { }
 

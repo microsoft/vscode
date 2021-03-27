@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { dirname, basename } from 'vs/base/common/path';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,42 +18,23 @@ import { LOG_SCHEME } from 'vs/workbench/contrib/output/common/output';
 import { IFileOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class LogViewerInput extends ResourceEditorInput {
 
-	static readonly ID = 'workbench.editorinputs.output';
+	public static readonly ID = 'workbench.editorinputs.output';
 
-	constructor(
-		outputChannelDescriptor: IFileOutputChannelDescriptor,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+	constructor(private readonly outputChannelDescriptor: IFileOutputChannelDescriptor,
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(
-			URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }),
-			basename(outputChannelDescriptor.file.path),
-			dirname(outputChannelDescriptor.file.path),
-			undefined,
-			textModelResolverService,
-			textFileService,
-			editorService,
-			editorGroupService,
-			fileService,
-			labelService,
-			filesConfigurationService
-		);
+		super(basename(outputChannelDescriptor.file.path), dirname(outputChannelDescriptor.file.path), URI.from({ scheme: LOG_SCHEME, path: outputChannelDescriptor.id }), undefined, textModelResolverService);
 	}
 
-	getTypeId(): string {
+	public getTypeId(): string {
 		return LogViewerInput.ID;
+	}
+
+	public getResource(): URI {
+		return this.outputChannelDescriptor.file;
 	}
 }
 
@@ -79,11 +59,6 @@ export class LogViewer extends AbstractTextResourceEditor {
 		options.wordWrap = 'off'; // all log viewers do not wrap
 		options.folding = false;
 		options.scrollBeyondLastLine = false;
-		options.renderValidationDecorations = 'editable';
 		return options;
-	}
-
-	protected getAriaLabel(): string {
-		return localize('logViewerAriaLabel', "Log viewer");
 	}
 }

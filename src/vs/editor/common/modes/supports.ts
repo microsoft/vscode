@@ -62,11 +62,6 @@ export class ScopedLineTokens {
 		return actualLineContent.substring(this.firstCharOffset, this._lastCharOffset);
 	}
 
-	public getActualLineContentBefore(offset: number): string {
-		const actualLineContent = this._actual.getLineContent();
-		return actualLineContent.substring(0, this.firstCharOffset + offset);
-	}
-
 	public getTokenCount(): number {
 		return this._lastTokenIndex - this._firstTokenIndex;
 	}

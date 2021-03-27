@@ -3,68 +3,59 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SettingsEditor2Input, KeybindingsEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
+import { SettingsEditor2Input, KeybindingsEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import { IViewsService } from 'vs/workbench/common/views';
-import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { isWeb } from 'vs/base/common/platform';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 
-export class UserDataSyncTrigger extends Disposable implements IWorkbenchContribution {
+export class UserDataSyncTrigger extends Disposable {
+
+	private readonly _onDidTriggerSync: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidTriggerSync: Event<void> = this._onDidTriggerSync.event;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IViewsService viewsService: IViewsService,
-		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
-		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IViewletService viewletService: IViewletService,
 	) {
 		super();
-		const event = Event.filter(
-			Event.any<string | undefined>(
-				Event.map(editorService.onDidActiveEditorChange, () => this.getUserDataEditorInputSource(editorService.activeEditor)),
-				Event.map(Event.filter(viewsService.onDidChangeViewContainerVisibility, e => e.id === VIEWLET_ID && e.visible), e => e.id)
-			), source => source !== undefined);
-		if (isWeb) {
-			this._register(Event.debounce<string, string[]>(
-				Event.any<string>(
-					Event.map(hostService.onDidChangeFocus, () => 'windowFocus'),
-					Event.map(event, source => source!),
-				), (last, source) => last ? [...last, source] : [source], 1000)
-				(sources => userDataAutoSyncService.triggerSync(sources, true, false)));
-		} else {
-			this._register(event(source => userDataAutoSyncService.triggerSync([source!], true, false)));
-		}
+		this._register(Event.debounce(Event.any<any>(
+			Event.filter(editorService.onDidActiveEditorChange, () => this.isUserDataEditorInput(editorService.activeEditor)),
+			Event.filter(viewletService.onDidViewletOpen, viewlet => this.isUserDataViewlet(viewlet))
+		), () => undefined, 500)(() => this._onDidTriggerSync.fire()));
 	}
 
-	private getUserDataEditorInputSource(editorInput: IEditorInput | undefined): string | undefined {
+	private isUserDataViewlet(viewlet: IViewlet): boolean {
+		return viewlet.getId() === VIEWLET_ID;
+	}
+
+	private isUserDataEditorInput(editorInput: IEditorInput | undefined): boolean {
 		if (!editorInput) {
-			return undefined;
+			return false;
 		}
 		if (editorInput instanceof SettingsEditor2Input) {
-			return 'settingsEditor';
+			return true;
 		}
 		if (editorInput instanceof PreferencesEditorInput) {
-			return 'settingsEditor';
+			return true;
 		}
 		if (editorInput instanceof KeybindingsEditorInput) {
-			return 'keybindingsEditor';
+			return true;
 		}
-		const resource = editorInput.resource;
-		if (isEqual(resource, this.environmentService.settingsResource)) {
-			return 'settingsEditor';
+		const resource = editorInput.getResource();
+		if (isEqual(resource, this.workbenchEnvironmentService.settingsResource)) {
+			return true;
 		}
-		if (isEqual(resource, this.environmentService.keybindingsResource)) {
-			return 'keybindingsEditor';
+		if (isEqual(resource, this.workbenchEnvironmentService.keybindingsResource)) {
+			return true;
 		}
-		return undefined;
+		return false;
 	}
 }
 

@@ -13,7 +13,7 @@ export const IViewletService = createDecorator<IViewletService>('viewletService'
 
 export interface IViewletService {
 
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	readonly onDidViewletRegister: Event<ViewletDescriptor>;
 	readonly onDidViewletDeregister: Event<ViewletDescriptor>;
@@ -29,6 +29,11 @@ export interface IViewletService {
 	 * Returns the current active viewlet if any.
 	 */
 	getActiveViewlet(): IViewlet | undefined;
+
+	/**
+	 * Returns the id of the default viewlet.
+	 */
+	getDefaultViewletId(): string;
 
 	/**
 	 * Returns the viewlet by id.

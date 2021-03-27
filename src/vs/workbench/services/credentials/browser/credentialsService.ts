@@ -3,24 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService, ICredentialsProvider, ICredentialsChangeEvent } from 'vs/workbench/services/credentials/common/credentials';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { find } from 'vs/base/common/arrays';
 
-export class BrowserCredentialsService extends Disposable implements ICredentialsService {
+export interface ICredentialsProvider {
+	getPassword(service: string, account: string): Promise<string | null>;
+	setPassword(service: string, account: string, password: string): Promise<void>;
 
-	declare readonly _serviceBrand: undefined;
+	deletePassword(service: string, account: string): Promise<boolean>;
 
-	private _onDidChangePassword = this._register(new Emitter<ICredentialsChangeEvent>());
-	readonly onDidChangePassword = this._onDidChangePassword.event;
+	findPassword(service: string): Promise<string | null>;
+	findCredentials(service: string): Promise<Array<{ account: string, password: string; }>>;
+}
+
+export class BrowserCredentialsService implements ICredentialsService {
+
+	_serviceBrand: undefined;
 
 	private credentialsProvider: ICredentialsProvider;
 
 	constructor(@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService) {
-		super();
-
 		if (environmentService.options && environmentService.options.credentialsProvider) {
 			this.credentialsProvider = environmentService.options.credentialsProvider;
 		} else {
@@ -32,17 +36,12 @@ export class BrowserCredentialsService extends Disposable implements ICredential
 		return this.credentialsProvider.getPassword(service, account);
 	}
 
-	async setPassword(service: string, account: string, password: string): Promise<void> {
-		await this.credentialsProvider.setPassword(service, account, password);
-
-		this._onDidChangePassword.fire({ service, account });
+	setPassword(service: string, account: string, password: string): Promise<void> {
+		return this.credentialsProvider.setPassword(service, account, password);
 	}
 
 	deletePassword(service: string, account: string): Promise<boolean> {
-		const didDelete = this.credentialsProvider.deletePassword(service, account);
-		this._onDidChangePassword.fire({ service, account });
-
-		return didDelete;
+		return this.credentialsProvider.deletePassword(service, account);
 	}
 
 	findPassword(service: string): Promise<string | null> {
@@ -91,7 +90,7 @@ class InMemoryCredentialsProvider implements ICredentialsProvider {
 	}
 
 	private doFindPassword(service: string, account?: string): ICredential | undefined {
-		return this.credentials.find(credential =>
+		return find(this.credentials, credential =>
 			credential.service === service && (typeof account !== 'string' || credential.account === account));
 	}
 

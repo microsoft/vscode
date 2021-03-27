@@ -5,7 +5,7 @@
 
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { SymlinkSupport } from 'vs/base/node/pfs';
+import { statLink } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { watchFolder, watchFile, CHANGE_BUFFER_DELAY } from 'vs/base/node/watcher';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -20,7 +20,7 @@ export class FileWatcher extends Disposable {
 
 	constructor(
 		private path: string,
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private onFileChanges: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
@@ -35,22 +35,18 @@ export class FileWatcher extends Disposable {
 
 	private async startWatching(): Promise<void> {
 		try {
-			const { stat, symbolicLink } = await SymlinkSupport.stat(this.path);
+			const { stat, isSymbolicLink } = await statLink(this.path);
 
 			if (this.isDisposed) {
 				return;
 			}
 
 			let pathToWatch = this.path;
-			if (symbolicLink) {
+			if (isSymbolicLink) {
 				try {
 					pathToWatch = await realpath(pathToWatch);
 				} catch (error) {
 					this.onError(error);
-
-					if (symbolicLink.dangling) {
-						return; // give up if symbolic link is dangling
-					}
 				}
 			}
 
@@ -74,9 +70,7 @@ export class FileWatcher extends Disposable {
 				}, error => this.onError(error)));
 			}
 		} catch (error) {
-			if (error.code !== 'ENOENT') {
-				this.onError(error);
-			}
+			this.onError(error);
 		}
 	}
 
@@ -91,7 +85,7 @@ export class FileWatcher extends Disposable {
 		}
 
 		// Handle emit through delayer to accommodate for bulk changes and thus reduce spam
-		this.fileChangesDelayer.trigger(async () => {
+		this.fileChangesDelayer.trigger(() => {
 			const fileChanges = this.fileChangesBuffer;
 			this.fileChangesBuffer = [];
 
@@ -107,8 +101,10 @@ export class FileWatcher extends Disposable {
 
 			// Fire
 			if (normalizedFileChanges.length > 0) {
-				this.onDidFilesChange(normalizedFileChanges);
+				this.onFileChanges(normalizedFileChanges);
 			}
+
+			return Promise.resolve();
 		});
 	}
 

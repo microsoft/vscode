@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainContext, MainThreadOutputServiceShape, ExtHostOutputServiceShape } from './extHost.protocol';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CharCode } from 'vs/base/common/charCode';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { DefaultEndOfLine, ITextBuffer, ITextBufferBuilder, ITextBufferFactory } from 'vs/editor/common/model';
 import { StringBuffer, createLineStarts, createLineStartsFast } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
@@ -19,7 +18,6 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		private readonly _lf: number,
 		private readonly _crlf: number,
 		private readonly _containsRTL: boolean,
-		private readonly _containsUnusualLineTerminators: boolean,
 		private readonly _isBasicASCII: boolean,
 		private readonly _normalizeEOL: boolean
 	) { }
@@ -39,7 +37,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 		return '\n';
 	}
 
-	public create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; } {
+	public create(defaultEOL: DefaultEndOfLine): ITextBuffer {
 		const eol = this._getEOL(defaultEOL);
 		let chunks = this._chunks;
 
@@ -55,8 +53,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 			}
 		}
 
-		const textBuffer = new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._containsUnusualLineTerminators, this._isBasicASCII, this._normalizeEOL);
-		return { textBuffer: textBuffer, disposable: textBuffer };
+		return new PieceTreeTextBuffer(chunks, this._bom, eol, this._containsRTL, this._isBasicASCII, this._normalizeEOL);
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
@@ -76,7 +73,6 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 	private lf: number;
 	private crlf: number;
 	private containsRTL: boolean;
-	private containsUnusualLineTerminators: boolean;
 	private isBasicASCII: boolean;
 
 	constructor() {
@@ -91,7 +87,6 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		this.lf = 0;
 		this.crlf = 0;
 		this.containsRTL = false;
-		this.containsUnusualLineTerminators = false;
 		this.isBasicASCII = true;
 	}
 
@@ -145,12 +140,8 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 			this.isBasicASCII = lineStarts.isBasicASCII;
 		}
 		if (!this.isBasicASCII && !this.containsRTL) {
-			// No need to check if it is basic ASCII
+			// No need to check if is basic ASCII
 			this.containsRTL = strings.containsRTL(chunk);
-		}
-		if (!this.isBasicASCII && !this.containsUnusualLineTerminators) {
-			// No need to check if it is basic ASCII
-			this.containsUnusualLineTerminators = strings.containsUnusualLineTerminators(chunk);
 		}
 	}
 
@@ -163,7 +154,6 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 			this.lf,
 			this.crlf,
 			this.containsRTL,
-			this.containsUnusualLineTerminators,
 			this.isBasicASCII,
 			normalizeEOL
 		);

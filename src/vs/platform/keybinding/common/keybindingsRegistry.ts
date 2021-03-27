@@ -6,18 +6,16 @@
 import { KeyCode, Keybinding, SimpleKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IKeybindingItem {
 	keybinding: Keybinding;
 	command: string;
 	commandArgs?: any;
-	when: ContextKeyExpression | null | undefined;
+	when: ContextKeyExpr | null | undefined;
 	weight1: number;
 	weight2: number;
-	extensionId: string | null;
-	isBuiltinExtension: boolean;
 }
 
 export interface IKeybindings {
@@ -41,7 +39,7 @@ export interface IKeybindingRule extends IKeybindings {
 	id: string;
 	weight: number;
 	args?: any;
-	when?: ContextKeyExpression | null | undefined;
+	when: ContextKeyExpr | null | undefined;
 }
 
 export interface IKeybindingRule2 {
@@ -52,9 +50,7 @@ export interface IKeybindingRule2 {
 	id: string;
 	args?: any;
 	weight: number;
-	when: ContextKeyExpression | undefined;
-	extensionId?: string;
-	isBuiltinExtension?: boolean;
+	when: ContextKeyExpr | undefined;
 }
 
 export const enum KeybindingWeight {
@@ -165,9 +161,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 					commandArgs: rule.args,
 					when: rule.when,
 					weight1: rule.weight,
-					weight2: 0,
-					extensionId: rule.extensionId || null,
-					isBuiltinExtension: rule.isBuiltinExtension || false
+					weight2: 0
 				};
 			}
 		}
@@ -215,7 +209,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpr | null | undefined): void {
 		if (OS === OperatingSystem.Windows) {
 			this._assertNoCtrlAlt(keybinding.parts[0], commandId);
 		}
@@ -225,9 +219,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			commandArgs: commandArgs,
 			when: when,
 			weight1: weight1,
-			weight2: weight2,
-			extensionId: null,
-			isBuiltinExtension: false
+			weight2: weight2
 		});
 		this._cachedMergedKeybindings = null;
 	}

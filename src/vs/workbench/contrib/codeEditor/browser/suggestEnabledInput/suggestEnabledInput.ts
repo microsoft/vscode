@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./suggestEnabledInput';
-import { $, Dimension, append } from 'vs/base/browser/dom';
+import { $, Dimension, addClass, append, removeClass } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -34,7 +34,6 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IThemable } from 'vs/base/common/styler';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 
 interface SuggestResultsProvider {
 	/**
@@ -152,11 +151,11 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		this._register((this.inputWidget.onDidFocusEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(true); }
-			this.stylingContainer.classList.add('synthetic-focus');
+			addClass(this.stylingContainer, 'synthetic-focus');
 		})));
 		this._register((this.inputWidget.onDidBlurEditorText(() => {
 			if (options.focusContextKey) { options.focusContextKey.set(false); }
-			this.stylingContainer.classList.remove('synthetic-focus');
+			removeClass(this.stylingContainer, 'synthetic-focus');
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
@@ -188,15 +187,11 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
 
-				const zeroIndexedColumn = position.column - 1;
-
-				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
+				let alreadyTypedCount = position.column - wordStart - 1;
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
-					return { suggestions: [] };
-				}
+				if (alreadyTypedCount > 0 && (validatedSuggestProvider.triggerCharacters).indexOf(query[wordStart]) === -1) { return { suggestions: [] }; }
 
 				return {
 					suggestions: suggestionProvider.provideResults(query).map(result => {
@@ -211,10 +206,6 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				};
 			}
 		}));
-	}
-
-	public updateAriaLabel(label: string): void {
-		this.inputWidget.updateOptions({ ariaLabel: label });
 	}
 
 	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
@@ -233,9 +224,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
+		this.placeholderText.style.backgroundColor =
+			this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
@@ -299,6 +291,7 @@ registerThemingParticipant((theme, collector) => {
 	const backgroundColor = theme.getColor(inputBackground);
 	if (backgroundColor) {
 		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+		collector.addRule(`.suggest-input-container .monaco-editor { background-color: ${backgroundColor}; } `);
 	}
 });
 
@@ -312,8 +305,9 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		roundedSelection: false,
 		renderIndentGuides: false,
 		cursorWidth: 1,
-		fontFamily: DEFAULT_FONT_FAMILY,
+		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 		ariaLabel: ariaLabel || '',
+
 		snippetSuggestions: 'none',
 		suggest: { filterGraceful: false, showIcons: false },
 		autoClosingBrackets: 'never'

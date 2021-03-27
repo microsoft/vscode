@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentContext } from 'vscode-css-languageservice';
+import { DocumentContext, WorkspaceFolder } from '../modes/languageModes';
 import { endsWith, startsWith } from '../utils/strings';
-import { WorkspaceFolder } from 'vscode-languageserver';
-import { resolvePath } from '../requests';
+import * as url from 'url';
 
 export function getDocumentContext(documentUri: string, workspaceFolders: WorkspaceFolder[]): DocumentContext {
 	function getRootFolder(): string | undefined {
@@ -23,15 +22,20 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 	}
 
 	return {
-		resolveReference: (ref: string, base = documentUri) => {
+		resolveReference: (ref, base = documentUri) => {
 			if (ref[0] === '/') { // resolve absolute path against the current workspace folder
-				let folderUri = getRootFolder();
-				if (folderUri) {
-					return folderUri + ref.substr(1);
+				if (startsWith(base, 'file://')) {
+					let folderUri = getRootFolder();
+					if (folderUri) {
+						return folderUri + ref.substr(1);
+					}
 				}
 			}
-			base = base.substr(0, base.lastIndexOf('/') + 1);
-			return resolvePath(base, ref);
+			try {
+				return url.resolve(base, ref);
+			} catch {
+				return '';
+			}
 		},
 	};
 }

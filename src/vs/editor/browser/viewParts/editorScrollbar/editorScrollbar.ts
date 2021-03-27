@@ -9,7 +9,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IOverviewRulerLayoutInfo, SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -34,7 +34,6 @@ export class EditorScrollbar extends ViewPart {
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
 		const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
-		const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
 
 		const scrollbarOptions: ScrollableElementCreationOptions = {
 			listenOnDomNode: viewDomNode.domNode,
@@ -55,11 +54,9 @@ export class EditorScrollbar extends ViewPart {
 			arrowSize: scrollbar.arrowSize,
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 			fastScrollSensitivity: fastScrollSensitivity,
-			scrollPredominantAxis: scrollPredominantAxis,
-			scrollByPage: scrollbar.scrollByPage,
 		};
 
-		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.getScrollable()));
+		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
@@ -89,7 +86,7 @@ export class EditorScrollbar extends ViewPart {
 				}
 			}
 
-			this._context.model.setScrollPosition(newScrollPosition, ScrollType.Immediate);
+			this._context.viewLayout.setScrollPositionNow(newScrollPosition);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
@@ -112,11 +109,11 @@ export class EditorScrollbar extends ViewPart {
 		const minimap = options.get(EditorOption.minimap);
 		const side = minimap.side;
 		if (side === 'right') {
-			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimap.minimapWidth);
+			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
 		} else {
 			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
 		}
-		this.scrollbarDomNode.setHeight(layoutInfo.height);
+		this.scrollbarDomNode.setHeight(layoutInfo.contentHeight);
 	}
 
 	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
@@ -143,12 +140,10 @@ export class EditorScrollbar extends ViewPart {
 			const scrollbar = options.get(EditorOption.scrollbar);
 			const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
 			const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
-			const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
 			const newOpts: ScrollableElementChangeOptions = {
 				handleMouseWheel: scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-				fastScrollSensitivity: fastScrollSensitivity,
-				scrollPredominantAxis: scrollPredominantAxis
+				fastScrollSensitivity: fastScrollSensitivity
 			};
 			this.scrollbar.updateOptions(newOpts);
 		}

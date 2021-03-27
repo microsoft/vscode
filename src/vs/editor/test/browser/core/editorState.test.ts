@@ -29,7 +29,7 @@ suite('Editor Core - Editor State', () => {
 
 	test('empty editor state should be valid', () => {
 		let result = validate({}, {});
-		assert.strictEqual(result, true);
+		assert.equal(result, true);
 	});
 
 	test('different model URIs should be invalid', () => {
@@ -38,7 +38,7 @@ suite('Editor Core - Editor State', () => {
 			{ model: { uri: URI.parse('http://test2') } }
 		);
 
-		assert.strictEqual(result, false);
+		assert.equal(result, false);
 	});
 
 	test('different model versions should be invalid', () => {
@@ -47,7 +47,7 @@ suite('Editor Core - Editor State', () => {
 			{ model: { version: 2 } }
 		);
 
-		assert.strictEqual(result, false);
+		assert.equal(result, false);
 	});
 
 	test('different positions should be invalid', () => {
@@ -56,7 +56,7 @@ suite('Editor Core - Editor State', () => {
 			{ position: new Position(2, 3) }
 		);
 
-		assert.strictEqual(result, false);
+		assert.equal(result, false);
 	});
 
 	test('different selections should be invalid', () => {
@@ -65,7 +65,7 @@ suite('Editor Core - Editor State', () => {
 			{ selection: new Selection(5, 2, 3, 4) }
 		);
 
-		assert.strictEqual(result, false);
+		assert.equal(result, false);
 	});
 
 	test('different scroll positions should be invalid', () => {
@@ -74,7 +74,7 @@ suite('Editor Core - Editor State', () => {
 			{ scroll: { left: 3, top: 2 } }
 		);
 
-		assert.strictEqual(result, false);
+		assert.equal(result, false);
 	});
 
 

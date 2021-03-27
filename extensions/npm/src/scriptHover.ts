@@ -3,24 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { dirname } from 'path';
 import {
-	CancellationToken, commands, ExtensionContext,
-	Hover, HoverProvider, MarkdownString, Position, ProviderResult,
-	tasks, TextDocument,
-	Uri, workspace
+	ExtensionContext, TextDocument, commands, ProviderResult, CancellationToken,
+	workspace, tasks, Range, HoverProvider, Hover, Position, MarkdownString, Uri
 } from 'vscode';
-import * as nls from 'vscode-nls';
-import { INpmScriptInfo, readScripts } from './readScripts';
 import {
-	createTask,
-	getPackageManager, startDebugging
+	createTask, startDebugging, findAllScriptRanges, extractDebugArgFromScript
 } from './tasks';
+import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
 let cachedDocument: Uri | undefined = undefined;
-let cachedScripts: INpmScriptInfo | undefined = undefined;
+let cachedScriptsMap: Map<string, [number, number, string]> | undefined = undefined;
 
 export function invalidateHoverScriptsCache(document?: TextDocument) {
 	if (!document) {
@@ -34,28 +29,33 @@ export function invalidateHoverScriptsCache(document?: TextDocument) {
 
 export class NpmScriptHoverProvider implements HoverProvider {
 
-	constructor(private context: ExtensionContext) {
+	constructor(context: ExtensionContext) {
 		context.subscriptions.push(commands.registerCommand('npm.runScriptFromHover', this.runScriptFromHover, this));
 		context.subscriptions.push(commands.registerCommand('npm.debugScriptFromHover', this.debugScriptFromHover, this));
-		context.subscriptions.push(workspace.onDidChangeTextDocument((e) => {
-			invalidateHoverScriptsCache(e.document);
-		}));
 	}
 
 	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<Hover> {
 		let hover: Hover | undefined = undefined;
 
 		if (!cachedDocument || cachedDocument.fsPath !== document.uri.fsPath) {
-			cachedScripts = readScripts(document);
+			cachedScriptsMap = findAllScriptRanges(document.getText());
 			cachedDocument = document.uri;
 		}
 
-		cachedScripts?.scripts.forEach(({ name, nameRange }) => {
-			if (nameRange.contains(position)) {
+		cachedScriptsMap!.forEach((value, key) => {
+			let start = document.positionAt(value[0]);
+			let end = document.positionAt(value[0] + value[1]);
+			let range = new Range(start, end);
+
+			if (range.contains(position)) {
 				let contents: MarkdownString = new MarkdownString();
 				contents.isTrusted = true;
-				contents.appendMarkdown(this.createRunScriptMarkdown(name, document.uri));
-				contents.appendMarkdown(this.createDebugScriptMarkdown(name, document.uri));
+				contents.appendMarkdown(this.createRunScriptMarkdown(key, document.uri));
+
+				let debugArgs = extractDebugArgFromScript(value[2]);
+				if (debugArgs) {
+					contents.appendMarkdown(this.createDebugScriptMarkdown(key, document.uri, debugArgs[0], debugArgs[1]));
+				}
 				hover = new Hover(contents);
 			}
 		});
@@ -75,10 +75,12 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		);
 	}
 
-	private createDebugScriptMarkdown(script: string, documentUri: Uri): string {
-		const args = {
+	private createDebugScriptMarkdown(script: string, documentUri: Uri, protocol: string, port: number): string {
+		let args = {
 			documentUri: documentUri,
 			script: script,
+			protocol: protocol,
+			port: port
 		};
 		return this.createMarkdownLink(
 			localize('debugScript', 'Debug Script'),
@@ -98,22 +100,24 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		return `${prefix}[${label}](command:${cmd}?${encodedArgs} "${tooltip}")`;
 	}
 
-	public async runScriptFromHover(args: any) {
+	public runScriptFromHover(args: any) {
 		let script = args.script;
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			let task = await createTask(await getPackageManager(this.context, folder.uri), script, ['run', script], folder, documentUri);
-			await tasks.executeTask(task);
+			let task = createTask(script, `run ${script}`, folder, documentUri);
+			tasks.executeTask(task);
 		}
 	}
 
-	public debugScriptFromHover(args: { script: string; documentUri: Uri }) {
+	public debugScriptFromHover(args: any) {
 		let script = args.script;
 		let documentUri = args.documentUri;
+		let protocol = args.protocol;
+		let port = args.port;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			startDebugging(this.context, script, dirname(documentUri.fsPath), folder);
+			startDebugging(script, protocol, port, folder);
 		}
 	}
 }

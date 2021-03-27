@@ -91,7 +91,6 @@
 	padding: .5em;
 	width: 22px;
 	height: 22px;
-	line-height: 22px;
 	border: none;
 	cursor: pointer;
 }
@@ -115,10 +114,13 @@
 }
 
 /* Theming */
-.monaco-workbench.vs .feedback-form .feedback-alias,
-.monaco-workbench.vs .feedback-form .feedback-description {
+.vs .monaco-workbench .feedback-form .feedback-alias, .vs .monaco-workbench .feedback-form .feedback-description {
 	font-family: inherit;
 	border: 1px solid transparent;
+}
+
+.vs .monaco-workbench .feedback-form .cancel {
+	background: url('close.svg') center center no-repeat;
 }
 
 .monaco-workbench .feedback-form .form-buttons {
@@ -136,17 +138,13 @@
 
 .monaco-workbench .feedback-form .form-buttons .send {
 	width: auto;
-	padding: 8px 12px;
+	background-image: url('twitter.svg');
+	background-position: 12px center;
+	background-size: 20px;
+	background-repeat: no-repeat;
+	padding: 8px 12px 8px 38px;
 	margin-left: auto;
-	display: flex;
-	align-items: center;
 	transition: width 200ms ease-out;
-}
-
-.monaco-workbench .feedback-form .form-buttons .send .codicon {
-	color: currentColor;
-	font-size: 20px;
-	padding-right: 8px;
 }
 
 .monaco-workbench .feedback-form .form-buttons .send.in-progress,
@@ -168,18 +166,22 @@
 	background-color: #E51400;
 }
 
-.monaco-workbench.vs-dark .feedback-form h3 {
+.vs-dark .monaco-workbench .feedback-form h3 {
 	font-weight: normal;
 	font-size: 1.2em;
 }
 
-.monaco-workbench.vs-dark .feedback-form .sentiment:hover {
+.vs-dark .monaco-workbench .feedback-form .sentiment:hover {
 	background-color: rgba(30,30,30,0.8);
 }
 
-.monaco-workbench.vs-dark .feedback-form .feedback-alias,
-.monaco-workbench.vs-dark .feedback-form .feedback-description {
+.vs-dark .monaco-workbench .feedback-form .feedback-alias, .vs-dark .monaco-workbench .feedback-form .feedback-description {
 	font-family: inherit;
+}
+
+.vs-dark .monaco-workbench .feedback-form .cancel,
+.hc-black .monaco-workbench .feedback-form .cancel {
+	background: url('close-dark.svg') center center no-repeat;
 }
 
 .monaco-workbench .feedback-form .sentiment.smile {
@@ -194,30 +196,54 @@
 	background-repeat: no-repeat;
 }
 
+.monaco-workbench .feedback-form .infotip {
+	background-image: url('info.svg');
+	background-position: center;
+	background-repeat: no-repeat;
+
+	height: 16px;
+	width: 16px;
+	display: inline-block;
+	vertical-align: text-bottom;
+	box-sizing:	border-box;
+	margin-left: 5px;
+}
+
 /* High Contrast Theming */
-.monaco-workbench.hc-black .feedback-form {
+.hc-black .monaco-workbench .feedback-form {
 	outline: 2px solid #6fc3df;
 	outline-offset: -2px;
 }
 
-.monaco-workbench.hc-black .feedback-form .feedback-alias,
-.monaco-workbench.hc-black .feedback-form .feedback-description {
+.hc-black .monaco-workbench .feedback-form .feedback-alias, .hc-black .monaco-workbench .feedback-form .feedback-description {
 	font-family: inherit;
 }
 
-.monaco-workbench.hc-black .feedback-form .content .contactus {
+.hc-black .monaco-workbench .feedback-form .content .contactus {
 	padding: 10px;
 	float: right;
 }
 
-.monaco-workbench.hc-black .feedback-form .form-buttons .send,
-.monaco-workbench.hc-black .feedback-form .form-buttons .send.in-progress,
-.monaco-workbench.hc-black .feedback-form .form-buttons .send.success {
+.hc-black .monaco-workbench .feedback-form .form-buttons .send,
+.hc-black .monaco-workbench .feedback-form .form-buttons .send.in-progress,
+.hc-black .monaco-workbench .feedback-form .form-buttons .send.success {
 	background-color: #0C141F;
 	color: #D4D4D4;
 	border: 1px solid #6FC3DF;
 }
 
-.monaco-workbench.hc-black .feedback-form .form-buttons .send:hover {
+.hc-black .monaco-workbench .feedback-form .form-buttons .send:hover {
 	background-color: #0C141F;
+}
+
+
+.monaco-workbench .feedback-form .infotip {
+	background: none;
+}
+
+.monaco-workbench .feedback-form .infotip:before {
+	content: url('info.svg');
+	height: 16px;
+	width: 16px;
+	display: inline-block;
 }

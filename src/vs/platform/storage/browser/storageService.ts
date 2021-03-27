@@ -3,21 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { StorageScope, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Event, Emitter } from 'vs/base/common/event';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
-import { Promises } from 'vs/base/common/async';
+import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
+import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
-export class BrowserStorageService extends AbstractStorageService {
+export class BrowserStorageService extends Disposable implements IStorageService {
 
-	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
+	_serviceBrand: undefined;
+
+	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
+
+	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	private globalStorage: IStorage | undefined;
 	private workspaceStorage: IStorage | undefined;
@@ -28,83 +36,135 @@ export class BrowserStorageService extends AbstractStorageService {
 	private globalStorageFile: URI | undefined;
 	private workspaceStorageFile: URI | undefined;
 
-	get hasPendingUpdate(): boolean {
-		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
-	}
+	private initializePromise: Promise<void> | undefined;
+
+	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 5000 /* every 5s */));
+	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
-		private readonly payload: IWorkspaceInitializationPayload,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
+		super();
 	}
 
-	protected async doInitialize(): Promise<void> {
+	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize(payload);
+		}
+
+		return this.initializePromise;
+	}
+
+	private async doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
 
 		// Ensure state folder exists
 		const stateRoot = joinPath(this.environmentService.userRoamingDataHome, 'state');
 		await this.fileService.createFolder(stateRoot);
 
 		// Workspace Storage
-		this.workspaceStorageFile = joinPath(stateRoot, `${this.payload.id}.json`);
-
+		this.workspaceStorageFile = joinPath(stateRoot, `${payload.id}.json`);
 		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
-		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
+		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
 
 		// Global Storage
 		this.globalStorageFile = joinPath(stateRoot, 'global.json');
 		this.globalStorageDatabase = this._register(new FileStorageDatabase(this.globalStorageFile, true /* watch for external changes */, this.fileService));
 		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
-		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
+		this._register(this.globalStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL })));
 
 		// Init both
-		await Promises.settled([
+		await Promise.all([
 			this.workspaceStorage.init(),
 			this.globalStorage.init()
 		]);
 
-		// Check to see if this is the first time we are "opening" the application
-		const firstOpen = this.globalStorage.getBoolean(IS_NEW_KEY);
-		if (firstOpen === undefined) {
-			this.globalStorage.set(IS_NEW_KEY, true);
-		} else if (firstOpen) {
-			this.globalStorage.set(IS_NEW_KEY, false);
-		}
-
-		// Check to see if this is the first time we are "opening" this workspace
-		const firstWorkspaceOpen = this.workspaceStorage.getBoolean(IS_NEW_KEY);
-		if (firstWorkspaceOpen === undefined) {
-			this.workspaceStorage.set(IS_NEW_KEY, true);
-		} else if (firstWorkspaceOpen) {
-			this.workspaceStorage.set(IS_NEW_KEY, false);
-		}
+		// In the browser we do not have support for long running unload sequences. As such,
+		// we cannot ask for saving state in that moment, because that would result in a
+		// long running operation.
+		// Instead, periodically ask customers to save save. The library will be clever enough
+		// to only save state that has actually changed.
+		this.periodicFlushScheduler.schedule();
 	}
 
-	protected getStorage(scope: StorageScope): IStorage | undefined {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+	get(key: string, scope: StorageScope, fallbackValue: string): string;
+	get(key: string, scope: StorageScope): string | undefined;
+	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
+		return this.getStorage(scope).get(key, fallbackValue);
 	}
 
-	protected getLogDetails(scope: StorageScope): string | undefined {
-		return scope === StorageScope.GLOBAL ? this.globalStorageFile?.toString() : this.workspaceStorageFile?.toString();
+	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: StorageScope): boolean | undefined;
+	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
+		return this.getStorage(scope).getBoolean(key, fallbackValue);
+	}
+
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope): number | undefined;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+		return this.getStorage(scope).getNumber(key, fallbackValue);
+	}
+
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
+		this.getStorage(scope).set(key, value);
+	}
+
+	remove(key: string, scope: StorageScope): void {
+		this.getStorage(scope).delete(key);
+	}
+
+	private getStorage(scope: StorageScope): IStorage {
+		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
+	}
+
+	async logStorage(): Promise<void> {
+		const [globalStorage, workspaceStorage, globalStorageFile, workspaceStorageFile] = assertAllDefined(this.globalStorage, this.workspaceStorage, this.globalStorageFile, this.workspaceStorageFile);
+
+		const result = await Promise.all([
+			globalStorage.items,
+			workspaceStorage.items
+		]);
+
+		return logStorage(result[0], result[1], globalStorageFile.toString(), workspaceStorageFile.toString());
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
-	protected shouldFlushWhenIdle(): boolean {
-		// this flush() will potentially cause new state to be stored
-		// since new state will only be created while the document
-		// has focus, one optimization is to not run this when the
-		// document has no focus, assuming that state has not changed
-		//
-		// another optimization is to not collect more state if we
-		// have a pending update already running which indicates
-		// that the connection is either slow or disconnected and
-		// thus unhealthy.
-		return document.hasFocus() && !this.hasPendingUpdate;
+	private doFlushWhenIdle(): void {
+
+		// Dispose any previous idle runner
+		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+
+		// Run when idle
+		this.runWhenIdleDisposable = runWhenIdle(() => {
+
+			// this event will potentially cause new state to be stored
+			// since new state will only be created while the document
+			// has focus, one optimization is to not run this when the
+			// document has no focus, assuming that state has not changed
+			//
+			// another optimization is to not collect more state if we
+			// have a pending update already running which indicates
+			// that the connection is either slow or disconnected and
+			// thus unhealthy.
+			if (document.hasFocus() && !this.hasPendingUpdate) {
+				this.flush();
+			}
+
+			// repeat
+			this.periodicFlushScheduler.schedule();
+		});
+	}
+
+	get hasPendingUpdate(): boolean {
+		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
+	}
+
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
 	}
 
 	close(): void {
@@ -118,12 +178,18 @@ export class BrowserStorageService extends AbstractStorageService {
 		// get triggered in this phase.
 		this.dispose();
 	}
+
+	dispose(): void {
+		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+
+		super.dispose();
+	}
 }
 
 export class FileStorageDatabase extends Disposable implements IStorageDatabase {
 
-	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
 
 	private cache: Map<string, string> | undefined;
 
@@ -157,7 +223,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 		this.isWatching = true;
 
 		this._register(this.fileService.watch(this.file));
-		this._register(this.fileService.onDidFilesChange(e => {
+		this._register(this.fileService.onFileChanges(e => {
 			if (document.hasFocus()) {
 				return; // optimization: ignore changes from ourselves by checking for focus
 			}
@@ -173,36 +239,9 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 	private async onDidStorageChangeExternal(): Promise<void> {
 		const items = await this.doGetItemsFromFile();
 
-		// pervious cache, diff for changes
-		let changed = new Map<string, string>();
-		let deleted = new Set<string>();
-		if (this.cache) {
-			items.forEach((value, key) => {
-				const existingValue = this.cache?.get(key);
-				if (existingValue !== value) {
-					changed.set(key, value);
-				}
-			});
-
-			this.cache.forEach((_, key) => {
-				if (!items.has(key)) {
-					deleted.add(key);
-				}
-			});
-		}
-
-		// no previous cache, consider all as changed
-		else {
-			changed = items;
-		}
-
-		// Update cache
 		this.cache = items;
 
-		// Emit as event as needed
-		if (changed.size > 0 || deleted.size > 0) {
-			this._onDidChangeItemsExternal.fire({ changed, deleted });
-		}
+		this._onDidChangeItemsExternal.fire({ items });
 	}
 
 	async getItems(): Promise<Map<string, string>> {
@@ -224,7 +263,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 
 		this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 
-		return new Map(JSON.parse(itemsRaw.value.toString()));
+		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
@@ -244,7 +283,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 			try {
 				this._hasPendingUpdate = true;
 
-				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(Array.from(items.entries()))));
+				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items))));
 
 				this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 			} finally {

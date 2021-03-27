@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import type * as vscode from 'vscode';
+import { IMainContext, MainContext, MainThreadClipboardShape } from 'vs/workbench/api/common/extHost.protocol';
+import * as vscode from 'vscode';
 
-export class ExtHostClipboard {
+export class ExtHostClipboard implements vscode.Clipboard {
 
-	readonly value: vscode.Clipboard;
+	private readonly _proxy: MainThreadClipboardShape;
 
 	constructor(mainContext: IMainContext) {
-		const proxy = mainContext.getProxy(MainContext.MainThreadClipboard);
-		this.value = Object.freeze({
-			readText() {
-				return proxy.$readText();
-			},
-			writeText(value: string) {
-				return proxy.$writeText(value);
-			}
-		});
+		this._proxy = mainContext.getProxy(MainContext.MainThreadClipboard);
+	}
+
+	readText(): Promise<string> {
+		return this._proxy.$readText();
+	}
+
+	writeText(value: string): Promise<void> {
+		return this._proxy.$writeText(value);
 	}
 }

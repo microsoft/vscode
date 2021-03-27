@@ -9,6 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const IExtHostInitDataService = createDecorator<IExtHostInitDataService>('IExtHostInitDataService');
 
 export interface IExtHostInitDataService extends Readonly<IInitData> {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 }
 

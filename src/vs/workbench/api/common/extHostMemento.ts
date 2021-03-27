@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtensionMemento implements vscode.Memento {
 
-	protected readonly _id: string;
+	private readonly _id: string;
 	private readonly _shared: boolean;
-	protected readonly _storage: ExtHostStorage;
+	private readonly _storage: ExtHostStorage;
 
 	private readonly _init: Promise<ExtensionMemento>;
 	private _value?: { [n: string]: any; };
@@ -57,19 +56,4 @@ export class ExtensionMemento implements vscode.Memento {
 	dispose(): void {
 		this._storageListener.dispose();
 	}
-}
-
-export class ExtensionGlobalMemento extends ExtensionMemento {
-
-	private readonly _extension: IExtensionDescription;
-
-	setKeysForSync(keys: string[]): void {
-		this._storage.registerExtensionStorageKeysToSync({ id: this._id, version: this._extension.version }, keys);
-	}
-
-	constructor(extensionDescription: IExtensionDescription, storage: ExtHostStorage) {
-		super(extensionDescription.identifier.value, true, storage);
-		this._extension = extensionDescription;
-	}
-
 }

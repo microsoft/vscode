@@ -12,23 +12,36 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
  */
 export class DiffEditorModel extends EditorModel {
 
-	protected readonly _originalModel: IEditorModel | undefined;
-	get originalModel(): IEditorModel | undefined { return this._originalModel; }
+	protected readonly _originalModel: IEditorModel | null;
+	protected readonly _modifiedModel: IEditorModel | null;
 
-	protected readonly _modifiedModel: IEditorModel | undefined;
-	get modifiedModel(): IEditorModel | undefined { return this._modifiedModel; }
-
-	constructor(originalModel: IEditorModel | undefined, modifiedModel: IEditorModel | undefined) {
+	constructor(originalModel: IEditorModel | null, modifiedModel: IEditorModel | null) {
 		super();
 
 		this._originalModel = originalModel;
 		this._modifiedModel = modifiedModel;
 	}
 
+	get originalModel(): IEditorModel | null {
+		if (!this._originalModel) {
+			return null;
+		}
+
+		return this._originalModel;
+	}
+
+	get modifiedModel(): IEditorModel | null {
+		if (!this._modifiedModel) {
+			return null;
+		}
+
+		return this._modifiedModel;
+	}
+
 	async load(): Promise<EditorModel> {
 		await Promise.all([
-			this._originalModel?.load(),
-			this._modifiedModel?.load()
+			this._originalModel ? this._originalModel.load() : Promise.resolve(undefined),
+			this._modifiedModel ? this._modifiedModel.load() : Promise.resolve(undefined),
 		]);
 
 		return this;

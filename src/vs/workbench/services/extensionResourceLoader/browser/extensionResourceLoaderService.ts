@@ -7,18 +7,19 @@ import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import * as dom from 'vs/base/browser/dom';
+import { Schemas } from 'vs/base/common/network';
 
 class ExtensionResourceLoaderService implements IExtensionResourceLoaderService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService
 	) { }
 
 	async readExtensionResource(uri: URI): Promise<string> {
-		uri = FileAccess.asBrowserUri(uri);
+		uri = dom.asDomUri(uri);
 
 		if (uri.scheme !== Schemas.http && uri.scheme !== Schemas.https) {
 			const result = await this._fileService.readFile(uri);

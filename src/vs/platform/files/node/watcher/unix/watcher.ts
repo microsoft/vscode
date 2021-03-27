@@ -13,19 +13,13 @@ export interface IWatcherRequest {
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
-	usePolling?: boolean | string[]; // boolean or a set of glob patterns matching folders that need polling
-	verboseLogging?: boolean;
+	usePolling?: boolean;
 }
 
 export interface IWatcherService {
-
-	readonly onDidChangeFile: Event<IDiskFileChange[]>;
-	readonly onDidLogMessage: Event<ILogMessage>;
-
-	init(options: IWatcherOptions): Promise<void>;
-
+	watch(options: IWatcherOptions): Event<IDiskFileChange[]>;
 	setRoots(roots: IWatcherRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;
-
+	onLogMessage: Event<ILogMessage>;
 	stop(): Promise<void>;
 }

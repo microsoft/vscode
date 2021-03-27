@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { $ } from 'vs/base/browser/dom';
 import { Action, IAction } from 'vs/base/common/actions';
 import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
@@ -546,8 +547,8 @@ export class CommentController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): IAction[] {
-		const actions: IAction[] = [];
+	private getContextMenuActions(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): (IAction | ContextSubMenu)[] {
+		const actions: (IAction | ContextSubMenu)[] = [];
 
 		commentInfos.forEach(commentInfo => {
 			const { ownerId, extensionId, label } = commentInfo;
@@ -738,21 +739,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 export function getActiveEditor(accessor: ServicesAccessor): IActiveCodeEditor | null {
-	let activeTextEditorControl = accessor.get(IEditorService).activeTextEditorControl;
+	let activeTextEditorWidget = accessor.get(IEditorService).activeTextEditorWidget;
 
-	if (isDiffEditor(activeTextEditorControl)) {
-		if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
-			activeTextEditorControl = activeTextEditorControl.getOriginalEditor();
+	if (isDiffEditor(activeTextEditorWidget)) {
+		if (activeTextEditorWidget.getOriginalEditor().hasTextFocus()) {
+			activeTextEditorWidget = activeTextEditorWidget.getOriginalEditor();
 		} else {
-			activeTextEditorControl = activeTextEditorControl.getModifiedEditor();
+			activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
 		}
 	}
 
-	if (!isCodeEditor(activeTextEditorControl) || !activeTextEditorControl.hasModel()) {
+	if (!isCodeEditor(activeTextEditorWidget) || !activeTextEditorWidget.hasModel()) {
 		return null;
 	}
 
-	return activeTextEditorControl;
+	return activeTextEditorWidget;
 }
 
 registerThemingParticipant((theme, collector) => {

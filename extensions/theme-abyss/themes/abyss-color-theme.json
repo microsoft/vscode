@@ -172,14 +172,14 @@
 			"scope": "invalid",
 			"settings": {
 				"fontStyle": "",
-				"foreground": "#A22D44"
+				"foreground": "#F8F8F0"
 			}
 		},
 		{
 			"name": "Invalid deprecated",
 			"scope": "invalid.deprecated",
 			"settings": {
-				"foreground": "#A22D44"
+				"foreground": "#F8F8F0"
 			}
 		},
 		{
@@ -234,20 +234,6 @@
 			}
 		},
 		{
-			"name": "Markup: Strong",
-			"scope": "markup.bold",
-			"settings": {
-				"fontStyle": "bold"
-			}
-		},
-		{
-			"name": "Markup: Emphasis",
-			"scope": "markup.italic",
-			"settings": {
-				"fontStyle": "italic"
-			}
-		},
-		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
@@ -256,14 +242,11 @@
 			}
 		},
 		{
-			"name": "Markup Headings",
-			"scope": [
-				"markup.heading",
-				"markup.heading.setext"
-			],
+			"name": "Markup Setext Header",
+			"scope": "markup.heading.setext",
 			"settings": {
-				"fontStyle": "bold",
-				"foreground": "#6688cc"
+				"fontStyle": "",
+				"foreground": "#ddbb88"
 			}
 		}
 	],
@@ -303,7 +286,7 @@
 
 		"list.activeSelectionBackground": "#08286b",
 		// "list.activeSelectionForeground": "",
-		"quickInput.list.focusBackground": "#08286b",
+		"list.focusBackground": "#08286b",
 		"list.hoverBackground": "#061940",
 		"list.inactiveSelectionBackground": "#152037",
 		"list.dropBackground": "#041D52",
@@ -390,13 +373,13 @@
 		"tab.inactiveBackground": "#10192c",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
-		"tab.lastPinnedBorder": "#2b3c5d",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#051336",
 		// "activityBar.foreground": "",
 		// "activityBarBadge.background": "",
 		// "activityBarBadge.foreground": "",
+		// "activityBar.dropBackground": "",
 
 		// Workbench: Panel
 		// "panel.background": "",
@@ -451,6 +434,5 @@
 		"terminal.ansiBrightMagenta": "#d778ff",
 		"terminal.ansiBrightCyan": "#78ffff",
 		"terminal.ansiBrightWhite": "#ffffff"
-	},
-	"semanticHighlighting": true
+	}
 }

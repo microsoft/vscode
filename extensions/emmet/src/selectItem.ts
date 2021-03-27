@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate, isStyleSheet } from './util';
+import { validate, parseDocument, isStyleSheet } from './util';
 import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
-import { HtmlNode, CssNode } from 'EmmetFlatNode';
-import { getRootNode } from './parseDocument';
+import { HtmlNode, CssNode } from 'EmmetNode';
 
 export function fetchSelectItem(direction: string): void {
 	if (!validate() || !vscode.window.activeTextEditor) {
 		return;
 	}
 	const editor = vscode.window.activeTextEditor;
-	const document = editor.document;
-	const rootNode = getRootNode(document, true);
+	let rootNode = parseDocument(editor.document);
 	if (!rootNode) {
 		return;
 	}
@@ -28,13 +26,9 @@ export function fetchSelectItem(direction: string): void {
 
 		let updatedSelection;
 		if (isStyleSheet(editor.document.languageId)) {
-			updatedSelection = direction === 'next' ?
-				nextItemStylesheet(document, selectionStart, selectionEnd, <CssNode>rootNode) :
-				prevItemStylesheet(document, selectionStart, selectionEnd, <CssNode>rootNode);
+			updatedSelection = direction === 'next' ? nextItemStylesheet(selectionStart, selectionEnd, <CssNode>rootNode!) : prevItemStylesheet(selectionStart, selectionEnd, <CssNode>rootNode!);
 		} else {
-			updatedSelection = direction === 'next' ?
-				nextItemHTML(document, selectionStart, selectionEnd, <HtmlNode>rootNode) :
-				prevItemHTML(document, selectionStart, selectionEnd, <HtmlNode>rootNode);
+			updatedSelection = direction === 'next' ? nextItemHTML(selectionStart, selectionEnd, editor, <HtmlNode>rootNode!) : prevItemHTML(selectionStart, selectionEnd, editor, <HtmlNode>rootNode!);
 		}
 		newSelections.push(updatedSelection ? updatedSelection : selection);
 	});

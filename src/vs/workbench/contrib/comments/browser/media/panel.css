@@ -48,7 +48,10 @@
 .comments-panel .comments-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;
-	height: inherit;
+}
+
+.comments-panel .comments-panel-container .message-box-container span:focus {
+	outline: none;
 }
 
 .comments-panel .comments-panel-container .tree-container .count-badge-wrapper {

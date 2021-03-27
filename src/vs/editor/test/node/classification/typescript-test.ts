@@ -1,5 +1,5 @@
 ///
-/* eslint-disable */
+/* tslint:disable */
 const x01 = "string";
 ///         ^^^^^^^^ string
 

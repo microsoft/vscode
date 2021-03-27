@@ -143,7 +143,9 @@ export class HoverOperation<Result> {
 	}
 
 	private _onComplete(value: Result): void {
-		this._completeCallback(value);
+		if (this._completeCallback) {
+			this._completeCallback(value);
+		}
 	}
 
 	private _onError(error: any): void {
@@ -155,7 +157,9 @@ export class HoverOperation<Result> {
 	}
 
 	private _onProgress(value: Result): void {
-		this._progressCallback(value);
+		if (this._progressCallback) {
+			this._progressCallback(value);
+		}
 	}
 
 	public start(mode: HoverStartMode): void {

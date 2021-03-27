@@ -5,8 +5,7 @@
 
 import { equals } from 'vs/base/common/arrays';
 import { UriComponents } from 'vs/base/common/uri';
-import { escapeIcons } from 'vs/base/common/iconLabels';
-import { illegalArgument } from 'vs/base/common/errors';
+import { escapeCodicons } from 'vs/base/common/codicons';
 
 export interface IMarkdownString {
 	readonly value: string;
@@ -15,56 +14,50 @@ export interface IMarkdownString {
 	uris?: { [href: string]: UriComponents };
 }
 
-export const enum MarkdownStringTextNewlineStyle {
-	Paragraph = 0,
-	Break = 1,
-}
-
 export class MarkdownString implements IMarkdownString {
-
-	public value: string;
-	public isTrusted?: boolean;
-	public supportThemeIcons?: boolean;
+	private readonly _isTrusted: boolean;
+	private readonly _supportThemeIcons: boolean;
 
 	constructor(
-		value: string = '',
+		private _value: string = '',
 		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean } = false,
 	) {
-		this.value = value;
-		if (typeof this.value !== 'string') {
-			throw illegalArgument('value');
-		}
-
 		if (typeof isTrustedOrOptions === 'boolean') {
-			this.isTrusted = isTrustedOrOptions;
-			this.supportThemeIcons = false;
+			this._isTrusted = isTrustedOrOptions;
+			this._supportThemeIcons = false;
 		}
 		else {
-			this.isTrusted = isTrustedOrOptions.isTrusted ?? undefined;
-			this.supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
+			this._isTrusted = isTrustedOrOptions.isTrusted ?? false;
+			this._supportThemeIcons = isTrustedOrOptions.supportThemeIcons ?? false;
 		}
+
 	}
 
-	appendText(value: string, newlineStyle: MarkdownStringTextNewlineStyle = MarkdownStringTextNewlineStyle.Paragraph): MarkdownString {
-		this.value += escapeMarkdownSyntaxTokens(this.supportThemeIcons ? escapeIcons(value) : value)
-			.replace(/([ \t]+)/g, (_match, g1) => '&nbsp;'.repeat(g1.length))
-			.replace(/^>/gm, '\\>')
-			.replace(/\n/g, newlineStyle === MarkdownStringTextNewlineStyle.Break ? '\\\n' : '\n\n');
+	get value() { return this._value; }
+	get isTrusted() { return this._isTrusted; }
+	get supportThemeIcons() { return this._supportThemeIcons; }
+
+	appendText(value: string): MarkdownString {
+		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+		this._value += (this._supportThemeIcons ? escapeCodicons(value) : value)
+			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
+			.replace('\n', '\n\n');
 
 		return this;
 	}
 
 	appendMarkdown(value: string): MarkdownString {
-		this.value += value;
+		this._value += value;
+
 		return this;
 	}
 
 	appendCodeblock(langId: string, code: string): MarkdownString {
-		this.value += '\n```';
-		this.value += langId;
-		this.value += '\n';
-		this.value += code;
-		this.value += '\n```\n';
+		this._value += '\n```';
+		this._value += langId;
+		this._value += '\n';
+		this._value += code;
+		this._value += '\n```\n';
 		return this;
 	}
 }
@@ -112,11 +105,6 @@ function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
 	} else {
 		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
 	}
-}
-
-export function escapeMarkdownSyntaxTokens(text: string): string {
-	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');
 }
 
 export function removeMarkdownEscapes(text: string): string {

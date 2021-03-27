@@ -4,30 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/style';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+
+import { registerThemingParticipant, ITheme, ICssStyleCollector, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
-import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isWeb, isIOS } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
-registerThemingParticipant((theme, collector) => {
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Icon defaults
+	const iconForegroundColor = theme.getColor(iconForeground);
+	if (iconForegroundColor) {
+		collector.addRule(`.monaco-workbench .codicon { color: ${iconForegroundColor}; }`);
+	}
 
 	// Foreground
 	const windowForeground = theme.getColor(foreground);
 	if (windowForeground) {
 		collector.addRule(`.monaco-workbench { color: ${windowForeground}; }`);
-	}
-
-	// Background (We need to set the workbench background color so that on Windows we get subpixel-antialiasing)
-	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
-	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
-
-	// Icon defaults
-	const iconForegroundColor = theme.getColor(iconForeground);
-	if (iconForegroundColor) {
-		collector.addRule(`.codicon { color: ${iconForegroundColor}; }`);
 	}
 
 	// Selection
@@ -55,11 +51,16 @@ registerThemingParticipant((theme, collector) => {
 	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
 	if (listHighlightForegroundColor) {
 		collector.addRule(`
+			.monaco-workbench .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
 			.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
 				color: ${listHighlightForegroundColor};
 			}
 		`);
 	}
+
+	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
+	const workbenchBackground = WORKBENCH_BACKGROUND(theme);
+	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	// Scrollbars
 	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
@@ -114,6 +115,7 @@ registerThemingParticipant((theme, collector) => {
 		.monaco-workbench [tabindex="-1"]:focus,
 		.monaco-workbench .synthetic-focus,
 		.monaco-workbench select:focus,
+		.monaco-workbench .monaco-tree.focused.no-focused-item:focus:before,
 		.monaco-workbench .monaco-list:not(.element-focused):focus:before,
 		.monaco-workbench input[type="button"]:focus,
 		.monaco-workbench input[type="text"]:focus,
@@ -127,7 +129,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// High Contrast theme overwrites for outline
-	if (theme.type === ColorScheme.HIGH_CONTRAST) {
+	if (theme.type === HIGH_CONTRAST) {
 		collector.addRule(`
 		.hc-black [tabindex="0"]:focus,
 		.hc-black [tabindex="-1"]:focus,
@@ -139,6 +141,11 @@ registerThemingParticipant((theme, collector) => {
 		.hc-black input[type="checkbox"]:focus {
 			outline-style: solid;
 			outline-width: 1px;
+		}
+
+		.hc-black .monaco-tree.focused.no-focused-item:focus:before {
+			outline-width: 1px;
+			outline-offset: -2px;
 		}
 
 		.hc-black .synthetic-focus input {
@@ -183,13 +190,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
 	}
 });
-
-/**
- * The best font-family to be used in CSS based on the platform:
- * - Windows: Segoe preferred, fallback to sans-serif
- * - macOS: standard system font, fallback to sans-serif
- * - Linux: standard system font preferred, fallback to Ubuntu fonts
- *
- * Note: this currently does not adjust for different locales.
- */
-export const DEFAULT_FONT_FAMILY = isWindows ? '"Segoe WPC", "Segoe UI", sans-serif' : isMacintosh ? '-apple-system, BlinkMacSystemFont, sans-serif' : 'system-ui, "Ubuntu", "Droid Sans", sans-serif';

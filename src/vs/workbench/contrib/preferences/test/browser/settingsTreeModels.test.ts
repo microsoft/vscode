@@ -147,9 +147,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				query: ''
 			});
 
 		testParseQuery(
@@ -157,9 +155,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				query: ''
 			});
 
 		testParseQuery(
@@ -167,9 +163,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo'],
 				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				query: ''
 			});
 
 		testParseQuery(
@@ -177,9 +171,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: 'foo',
-				featureFilters: [],
-				idFilters: []
+				query: 'foo'
 			});
 
 		testParseQuery(
@@ -187,9 +179,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
 				extensionFilters: [],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				query: ''
 			});
 
 		testParseQuery(
@@ -197,9 +187,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['foo', 'modified'],
 				extensionFilters: [],
-				query: 'my query',
-				featureFilters: [],
-				idFilters: []
+				query: 'my query'
 			});
 
 		testParseQuery(
@@ -207,9 +195,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: 'test  query',
-				featureFilters: [],
-				idFilters: []
+				query: 'test  query'
 			});
 
 		testParseQuery(
@@ -217,9 +203,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: ['modified'],
 				extensionFilters: [],
-				query: 'test',
-				featureFilters: [],
-				idFilters: []
+				query: 'test'
 			});
 
 		testParseQuery(
@@ -227,9 +211,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: [],
-				query: 'query has @ for some reason',
-				featureFilters: [],
-				idFilters: []
+				query: 'query has @ for some reason'
 			});
 
 		testParseQuery(
@@ -237,9 +219,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: ['github.vscode-pull-request-github'],
-				query: '',
-				featureFilters: [],
-				idFilters: []
+				query: ''
 			});
 
 		testParseQuery(
@@ -247,47 +227,7 @@ suite('SettingsTree', () => {
 			<IParsedQuery>{
 				tags: [],
 				extensionFilters: ['github.vscode-pull-request-github', 'vscode.git'],
-				query: '',
-				featureFilters: [],
-				idFilters: []
-			});
-		testParseQuery(
-			'@feature:scm',
-			<IParsedQuery>{
-				tags: [],
-				extensionFilters: [],
-				featureFilters: ['scm'],
-				query: '',
-				idFilters: []
-			});
-
-		testParseQuery(
-			'@feature:scm,terminal',
-			<IParsedQuery>{
-				tags: [],
-				extensionFilters: [],
-				featureFilters: ['scm', 'terminal'],
-				query: '',
-				idFilters: []
-			});
-		testParseQuery(
-			'@id:files.autoSave',
-			<IParsedQuery>{
-				tags: [],
-				extensionFilters: [],
-				featureFilters: [],
-				query: '',
-				idFilters: ['files.autoSave']
-			});
-
-		testParseQuery(
-			'@id:files.autoSave,terminal.integrated.commandsToSkipShell',
-			<IParsedQuery>{
-				tags: [],
-				extensionFilters: [],
-				featureFilters: [],
-				query: '',
-				idFilters: ['files.autoSave', 'terminal.integrated.commandsToSkipShell']
+				query: ''
 			});
 	});
 });

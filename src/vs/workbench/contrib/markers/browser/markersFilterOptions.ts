@@ -4,41 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IFilter, matchesFuzzy, matchesFuzzy2 } from 'vs/base/common/filters';
-import { IExpression, splitGlobAware, getEmptyExpression, ParsedExpression, parse } from 'vs/base/common/glob';
+import { IExpression, splitGlobAware, getEmptyExpression } from 'vs/base/common/glob';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { relativePath } from 'vs/base/common/resources';
-import { TernarySearchTree } from 'vs/base/common/map';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-
-export class ResourceGlobMatcher {
-
-	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }>;
-
-	constructor(
-		globalExpression: IExpression,
-		rootExpressions: { root: URI, expression: IExpression }[],
-		uriIdentityService: IUriIdentityService
-	) {
-		this.globalExpression = parse(globalExpression);
-		this.expressionsByRoot = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>(uri => uriIdentityService.extUri.ignorePathCasing(uri));
-		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
-		}
-	}
-
-	matches(resource: URI): boolean {
-		const rootExpression = this.expressionsByRoot.findSubstr(resource);
-		if (rootExpression) {
-			const path = relativePath(rootExpression.root, resource);
-			if (path && !!rootExpression.expression(path)) {
-				return true;
-			}
-		}
-		return !!this.globalExpression(resource.path);
-	}
-}
+import { ResourceGlobMatcher } from 'vs/base/common/resources';
 
 export class FilterOptions {
 
@@ -48,20 +17,11 @@ export class FilterOptions {
 	readonly showWarnings: boolean = false;
 	readonly showErrors: boolean = false;
 	readonly showInfos: boolean = false;
-	readonly textFilter: { readonly text: string, readonly negate: boolean };
+	readonly textFilter: string = '';
 	readonly excludesMatcher: ResourceGlobMatcher;
 	readonly includesMatcher: ResourceGlobMatcher;
 
-	static EMPTY(uriIdentityService: IUriIdentityService) { return new FilterOptions('', [], false, false, false, uriIdentityService); }
-
-	constructor(
-		readonly filter: string,
-		filesExclude: { root: URI, expression: IExpression }[] | IExpression,
-		showWarnings: boolean,
-		showErrors: boolean,
-		showInfos: boolean,
-		uriIdentityService: IUriIdentityService
-	) {
+	constructor(readonly filter: string = '', filesExclude: { root: URI, expression: IExpression }[] | IExpression = [], showWarnings: boolean = false, showErrors: boolean = false, showInfos: boolean = false) {
 		filter = filter.trim();
 		this.showWarnings = showWarnings;
 		this.showErrors = showErrors;
@@ -70,26 +30,22 @@ export class FilterOptions {
 		const filesExcludeByRoot = Array.isArray(filesExclude) ? filesExclude : [];
 		const excludesExpression: IExpression = Array.isArray(filesExclude) ? getEmptyExpression() : filesExclude;
 
-		const negate = filter.startsWith('!');
-		this.textFilter = { text: (negate ? strings.ltrim(filter, '!') : filter).trim(), negate };
 		const includeExpression: IExpression = getEmptyExpression();
-
 		if (filter) {
 			const filters = splitGlobAware(filter, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
-				if (f.startsWith('!')) {
-					const filterText = strings.ltrim(f, '!');
-					if (filterText) {
-						this.setPattern(excludesExpression, filterText);
-					}
+				if (strings.startsWith(f, '!')) {
+					this.setPattern(excludesExpression, strings.ltrim(f, '!'));
 				} else {
 					this.setPattern(includeExpression, f);
+					this.textFilter += ` ${f}`;
 				}
 			}
 		}
 
-		this.excludesMatcher = new ResourceGlobMatcher(excludesExpression, filesExcludeByRoot, uriIdentityService);
-		this.includesMatcher = new ResourceGlobMatcher(includeExpression, [], uriIdentityService);
+		this.excludesMatcher = new ResourceGlobMatcher(excludesExpression, filesExcludeByRoot);
+		this.includesMatcher = new ResourceGlobMatcher(includeExpression, []);
+		this.textFilter = this.textFilter.trim();
 	}
 
 	private setPattern(expression: IExpression, pattern: string) {

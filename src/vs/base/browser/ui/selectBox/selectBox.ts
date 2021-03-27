@@ -29,7 +29,6 @@ export interface ISelectBoxDelegate extends IDisposable {
 	setAriaLabel(label: string): void;
 	focus(): void;
 	blur(): void;
-	setFocusable(focus: boolean): void;
 
 	// Delegated Widget interface
 	render(container: HTMLElement): void;
@@ -41,13 +40,11 @@ export interface ISelectBoxOptions {
 	useCustomDrawn?: boolean;
 	ariaLabel?: string;
 	minBottomMargin?: number;
-	optionsAsChildren?: boolean;
 }
 
 // Utilize optionItem interface to capture all option parameters
 export interface ISelectOptionItem {
 	text: string;
-	detail?: string;
 	decoratorRight?: string;
 	description?: string;
 	descriptionIsMarkdown?: boolean;
@@ -94,43 +91,41 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	// Public SelectBox Methods - routed through delegate interface
 
-	get onDidSelect(): Event<ISelectData> {
+	public get onDidSelect(): Event<ISelectData> {
 		return this.selectBoxDelegate.onDidSelect;
 	}
 
-	setOptions(options: ISelectOptionItem[], selected?: number): void {
+	public setOptions(options: ISelectOptionItem[], selected?: number): void {
 		this.selectBoxDelegate.setOptions(options, selected);
 	}
 
-	select(index: number): void {
+	public select(index: number): void {
 		this.selectBoxDelegate.select(index);
 	}
 
-	setAriaLabel(label: string): void {
+	public setAriaLabel(label: string): void {
 		this.selectBoxDelegate.setAriaLabel(label);
 	}
 
-	focus(): void {
+	public focus(): void {
 		this.selectBoxDelegate.focus();
 	}
 
-	blur(): void {
+	public blur(): void {
 		this.selectBoxDelegate.blur();
 	}
 
-	setFocusable(focusable: boolean): void {
-		this.selectBoxDelegate.setFocusable(focusable);
-	}
+	// Public Widget Methods - routed through delegate interface
 
-	render(container: HTMLElement): void {
+	public render(container: HTMLElement): void {
 		this.selectBoxDelegate.render(container);
 	}
 
-	style(styles: ISelectBoxStyles): void {
+	public style(styles: ISelectBoxStyles): void {
 		this.selectBoxDelegate.style(styles);
 	}
 
-	applyStyles(): void {
+	public applyStyles(): void {
 		this.selectBoxDelegate.applyStyles();
 	}
 }

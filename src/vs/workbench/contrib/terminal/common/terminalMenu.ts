@@ -5,10 +5,21 @@
 
 import * as nls from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function setupTerminalMenu() {
+
+	// View menu
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '4_panels',
+		command: {
+			id: TERMINAL_COMMAND_ID.TOGGLE,
+			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
+		},
+		order: 3
+	});
 
 	// Manage
 	const createGroup = '1_create';
@@ -27,8 +38,7 @@ export function setupTerminalMenu() {
 			title: nls.localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"),
 			precondition: ContextKeyExpr.has('terminalIsOpen')
 		},
-		order: 2,
-		when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+		order: 2
 	});
 
 	// Run
@@ -39,8 +49,7 @@ export function setupTerminalMenu() {
 			id: TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
 			title: nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File")
 		},
-		order: 3,
-		when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+		order: 3
 	});
 	MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 		group: runGroup,
@@ -48,7 +57,6 @@ export function setupTerminalMenu() {
 			id: TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
 			title: nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text")
 		},
-		order: 4,
-		when: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+		order: 4
 	});
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 
@@ -12,7 +12,7 @@ export const IHistoryService = createDecorator<IHistoryService>('historyService'
 
 export interface IHistoryService {
 
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	/**
 	 * Re-opens the last closed editor if any.
@@ -40,6 +40,11 @@ export interface IHistoryService {
 	last(): void;
 
 	/**
+	 * Removes an entry from history.
+	 */
+	remove(input: IEditorInput | IResourceInput): void;
+
+	/**
 	 * Clears all history.
 	 */
 	clear(): void;
@@ -52,12 +57,7 @@ export interface IHistoryService {
 	/**
 	 * Get the entire history of editors that were opened.
 	 */
-	getHistory(): ReadonlyArray<IEditorInput | IResourceEditorInput>;
-
-	/**
-	 * Removes an entry from history.
-	 */
-	removeFromHistory(input: IEditorInput | IResourceEditorInput): void;
+	getHistory(): ReadonlyArray<IEditorInput | IResourceInput>;
 
 	/**
 	 * Looking at the editor history, returns the workspace root of the last file that was

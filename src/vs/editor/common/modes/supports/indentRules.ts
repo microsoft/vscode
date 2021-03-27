@@ -12,14 +12,6 @@ export const enum IndentConsts {
 	UNINDENT_MASK = 0b00001000,
 }
 
-function resetGlobalRegex(reg: RegExp) {
-	if (reg.global) {
-		reg.lastIndex = 0;
-	}
-
-	return true;
-}
-
 export class IndentRulesSupport {
 
 	private readonly _indentationRules: IndentationRule;
@@ -30,7 +22,7 @@ export class IndentRulesSupport {
 
 	public shouldIncrease(text: string): boolean {
 		if (this._indentationRules) {
-			if (this._indentationRules.increaseIndentPattern && resetGlobalRegex(this._indentationRules.increaseIndentPattern) && this._indentationRules.increaseIndentPattern.test(text)) {
+			if (this._indentationRules.increaseIndentPattern && this._indentationRules.increaseIndentPattern.test(text)) {
 				return true;
 			}
 			// if (this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(text)) {
@@ -41,14 +33,14 @@ export class IndentRulesSupport {
 	}
 
 	public shouldDecrease(text: string): boolean {
-		if (this._indentationRules && this._indentationRules.decreaseIndentPattern && resetGlobalRegex(this._indentationRules.decreaseIndentPattern) && this._indentationRules.decreaseIndentPattern.test(text)) {
+		if (this._indentationRules && this._indentationRules.decreaseIndentPattern && this._indentationRules.decreaseIndentPattern.test(text)) {
 			return true;
 		}
 		return false;
 	}
 
 	public shouldIndentNextLine(text: string): boolean {
-		if (this._indentationRules && this._indentationRules.indentNextLinePattern && resetGlobalRegex(this._indentationRules.indentNextLinePattern) && this._indentationRules.indentNextLinePattern.test(text)) {
+		if (this._indentationRules && this._indentationRules.indentNextLinePattern && this._indentationRules.indentNextLinePattern.test(text)) {
 			return true;
 		}
 
@@ -57,7 +49,7 @@ export class IndentRulesSupport {
 
 	public shouldIgnore(text: string): boolean {
 		// the text matches `unIndentedLinePattern`
-		if (this._indentationRules && this._indentationRules.unIndentedLinePattern && resetGlobalRegex(this._indentationRules.unIndentedLinePattern) && this._indentationRules.unIndentedLinePattern.test(text)) {
+		if (this._indentationRules && this._indentationRules.unIndentedLinePattern && this._indentationRules.unIndentedLinePattern.test(text)) {
 			return true;
 		}
 

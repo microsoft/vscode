@@ -10,13 +10,12 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, splitLines } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
-import { generateUuid } from 'vs/base/common/uuid';
+import { URI } from 'vs/base/common/uri';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -42,7 +41,6 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
-	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
@@ -50,7 +48,6 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'WORKSPACE_FOLDER': true,
 	'RANDOM': true,
 	'RANDOM_HEX': true,
-	'UUID': true
 });
 
 export class CompositeSnippetVariableResolver implements VariableResolver {
@@ -74,9 +71,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection,
-		private readonly _selectionIdx: number,
-		private readonly _overtypingCapturer: OvertypingCapturer | undefined
+		private readonly _selection: Selection
 	) {
 		//
 	}
@@ -87,18 +82,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			let isMultiline = this._selection.startLineNumber !== this._selection.endLineNumber;
-
-			// If there was no selected text, try to get last overtyped text
-			if (!value && this._overtypingCapturer) {
-				const info = this._overtypingCapturer.getLastOvertypedInfo(this._selectionIdx);
-				if (info) {
-					value = info.value;
-					isMultiline = info.multiline;
-				}
-			}
-
-			if (value && isMultiline && variable.snippet) {
+			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
@@ -113,7 +97,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 						return false;
 					}
 					if (marker instanceof Text) {
-						varLeadingWhitespace = getLeadingWhitespace(splitLines(marker.value).pop()!);
+						varLeadingWhitespace = getLeadingWhitespace(marker.value.split(/\r\n|\r|\n/).pop()!);
 					}
 					return true;
 				});
@@ -179,8 +163,6 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_FILEPATH' && this._labelService) {
 			return this._labelService.getUriLabel(this._model.uri);
-		} else if (name === 'RELATIVE_FILEPATH' && this._labelService) {
-			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
 		}
 
 		return undefined;
@@ -226,15 +208,14 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 }
 export class CommentBasedVariableResolver implements VariableResolver {
 	constructor(
-		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _model: ITextModel
 	) {
 		//
 	}
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
-		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
-		const config = LanguageConfigurationRegistry.getComments(langId);
+		const language = this._model.getLanguageIdentifier();
+		const config = LanguageConfigurationRegistry.getComments(language.id);
 		if (!config) {
 			return undefined;
 		}
@@ -263,15 +244,15 @@ export class TimeBasedVariableResolver implements VariableResolver {
 		} else if (name === 'CURRENT_YEAR_SHORT') {
 			return String(new Date().getFullYear()).slice(-2);
 		} else if (name === 'CURRENT_MONTH') {
-			return String(new Date().getMonth().valueOf() + 1).padStart(2, '0');
+			return pad((new Date().getMonth().valueOf() + 1), 2);
 		} else if (name === 'CURRENT_DATE') {
-			return String(new Date().getDate().valueOf()).padStart(2, '0');
+			return pad(new Date().getDate().valueOf(), 2);
 		} else if (name === 'CURRENT_HOUR') {
-			return String(new Date().getHours().valueOf()).padStart(2, '0');
+			return pad(new Date().getHours().valueOf(), 2);
 		} else if (name === 'CURRENT_MINUTE') {
-			return String(new Date().getMinutes().valueOf()).padStart(2, '0');
+			return pad(new Date().getMinutes().valueOf(), 2);
 		} else if (name === 'CURRENT_SECOND') {
-			return String(new Date().getSeconds().valueOf()).padStart(2, '0');
+			return pad(new Date().getSeconds().valueOf(), 2);
 		} else if (name === 'CURRENT_DAY_NAME') {
 			return TimeBasedVariableResolver.dayNames[new Date().getDay()];
 		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
@@ -313,25 +294,25 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 		return undefined;
 	}
-	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
+	private _resolveWorkspaceName(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return path.basename(workspaceIdentifier.uri.path);
+			return path.basename(workspaceIdentifier.path);
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
-		if (filename.endsWith(WORKSPACE_EXTENSION)) {
+		if (endsWith(filename, WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 		return filename;
 	}
-	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string | undefined {
+	private _resoveWorkspacePath(workspaceIdentifier: IWorkspaceIdentifier | URI): string | undefined {
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
-			return normalizeDriveLetter(workspaceIdentifier.uri.fsPath);
+			return normalizeDriveLetter(workspaceIdentifier.fsPath);
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
 		let folderpath = workspaceIdentifier.configPath.fsPath;
-		if (folderpath.endsWith(filename)) {
+		if (endsWith(folderpath, filename)) {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
 		}
 		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
@@ -344,10 +325,9 @@ export class RandomBasedVariableResolver implements VariableResolver {
 
 		if (name === 'RANDOM') {
 			return Math.random().toString().slice(-6);
-		} else if (name === 'RANDOM_HEX') {
+		}
+		else if (name === 'RANDOM_HEX') {
 			return Math.random().toString(16).slice(-6);
-		} else if (name === 'UUID') {
-			return generateUuid();
 		}
 
 		return undefined;

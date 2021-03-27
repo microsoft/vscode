@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -17,8 +17,6 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 
 export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution {
 
@@ -35,10 +33,7 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IProductService private readonly productService: IProductService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService
-	) {
-	}
+	) { }
 
 	protected async handleTelemetryOptOut(): Promise<void> {
 		if (this.productService.telemetryOptOutUrl && !this.storageService.get(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, StorageScope.GLOBAL)) {
@@ -50,7 +45,7 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 				return; // return early if meanwhile another window opened (we only show the opt-out once)
 			}
 
-			this.storageService.store(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(AbstractTelemetryOptOut.TELEMETRY_OPT_OUT_SHOWN, true, StorageScope.GLOBAL);
 
 			this.privacyUrl = this.productService.privacyStatementUrl || this.productService.telemetryOptOutUrl;
 
@@ -141,10 +136,10 @@ export abstract class AbstractTelemetryOptOut implements IWorkbenchContribution 
 					},
 					{
 						label: noLabel,
-						run: async () => {
+						run: () => {
 							logTelemetry(true);
 							this.configurationService.updateValue('telemetry.enableTelemetry', false);
-							await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['enable-crash-reporter'], value: false }], true);
+							this.configurationService.updateValue('telemetry.enableCrashReporter', false);
 						}
 					}
 				],
@@ -169,11 +164,9 @@ export class BrowserTelemetryOptOut extends AbstractTelemetryOptOut {
 		@IExperimentService experimentService: IExperimentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
-		@IProductService productService: IProductService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IJSONEditingService jsonEditingService: IJSONEditingService
+		@IProductService productService: IProductService
 	) {
-		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService, environmentService, jsonEditingService);
+		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService);
 
 		this.handleTelemetryOptOut();
 	}

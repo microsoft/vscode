@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,8 +19,6 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
-import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
-import { localize } from 'vs/nls';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -28,7 +27,6 @@ export interface ISnippetInsertOptions {
 	undoStopBefore: boolean;
 	undoStopAfter: boolean;
 	clipboardText: string | undefined;
-	overtypingCapturer: OvertypingCapturer | undefined;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {
@@ -37,8 +35,7 @@ const _defaultOptions: ISnippetInsertOptions = {
 	undoStopBefore: true,
 	undoStopAfter: true,
 	adjustWhitespace: true,
-	clipboardText: undefined,
-	overtypingCapturer: undefined
+	clipboardText: undefined
 };
 
 export class SnippetController2 implements IEditorContribution {
@@ -49,9 +46,9 @@ export class SnippetController2 implements IEditorContribution {
 		return editor.getContribution<SnippetController2>(SnippetController2.ID);
 	}
 
-	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false, localize('inSnippetMode', "Whether the editor in current in snippet mode"));
-	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false, localize('hasNextTabstop', "Whether there is a next tab stop when in snippet mode"));
-	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false, localize('hasPrevTabstop', "Whether there is a previous tab stop when in snippet mode"));
+	static readonly InSnippetMode = new RawContextKey('inSnippetMode', false);
+	static readonly HasNextTabstop = new RawContextKey('hasNextTabstop', false);
+	static readonly HasPrevTabstop = new RawContextKey('hasPrevTabstop', false);
 
 	private readonly _inSnippet: IContextKey<boolean>;
 	private readonly _hasNextTabstop: IContextKey<boolean>;
@@ -76,7 +73,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._inSnippet.reset();
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
-		this._session?.dispose();
+		dispose(this._session);
 		this._snippetListener.dispose();
 	}
 
@@ -194,7 +191,7 @@ export class SnippetController2 implements IEditorContribution {
 					insertText: option.value,
 					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
 					// snippetType: 'textmate',
-					sortText: 'a'.repeat(i + 1),
+					sortText: repeat('a', i + 1),
 					range: Range.fromPositions(this._editor.getPosition()!, this._editor.getPosition()!.delta(0, first.value.length))
 				};
 			}));
@@ -212,7 +209,7 @@ export class SnippetController2 implements IEditorContribution {
 		this._hasPrevTabstop.reset();
 		this._hasNextTabstop.reset();
 		this._snippetListener.clear();
-		this._session?.dispose();
+		dispose(this._session);
 		this._session = undefined;
 		this._modelVersionId = -1;
 		if (resetSelection) {

@@ -8,9 +8,8 @@ import { StandaloneConfigurationModelParser, Configuration } from 'vs/workbench/
 import { ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ResourceMap } from 'vs/base/common/map';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('FolderSettingsModelParser', () => {
 
@@ -32,7 +31,7 @@ suite('FolderSettingsModelParser', () => {
 				'FolderSettingsModelParser.resourceLanguage': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+					scope: ConfigurationScope.RESOURCE_LANGUAGE,
 				},
 				'FolderSettingsModelParser.application': {
 					'type': 'string',
@@ -65,7 +64,7 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('parse resource and resource language settings', () => {
-		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE]);
+		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.RESOURCE_LANGUAGE]);
 
 		testObject.parseContent(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.resourceLanguage': 'resourceLanguage', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }));
 

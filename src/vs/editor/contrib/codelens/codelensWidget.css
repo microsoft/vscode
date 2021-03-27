@@ -7,7 +7,6 @@
 	overflow: hidden;
 	display: inline-block;
 	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .monaco-editor .codelens-decoration > span,
@@ -28,8 +27,9 @@
 }
 
 .monaco-editor .codelens-decoration .codicon {
-	vertical-align: middle;
-	color: currentColor !important;
+	line-height: inherit;
+	font-size: 110%;
+	vertical-align: inherit;
 }
 
 .monaco-editor .codelens-decoration > a:hover .codicon::before {

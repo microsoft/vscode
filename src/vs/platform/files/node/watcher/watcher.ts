@@ -13,7 +13,7 @@ export interface IDiskFileChange {
 }
 
 export interface ILogMessage {
-	type: 'trace' | 'warn' | 'error' | 'info' | 'debug';
+	type: 'trace' | 'warn' | 'error';
 	message: string;
 }
 

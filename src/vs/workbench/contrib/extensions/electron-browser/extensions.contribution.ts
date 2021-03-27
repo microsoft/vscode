@@ -13,20 +13,18 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { RuntimeExtensionsEditor, IExtensionHostProfileService, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
-import { DebugExtensionHostAction } from 'vs/workbench/contrib/extensions/electron-browser/debugExtensionHostAction';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { RuntimeExtensionsEditor, ShowRuntimeExtensionsAction, IExtensionHostProfileService, DebugExtensionHostAction, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, SaveExtensionHostProfileAction, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-browser/extensionProfileService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
+import { URI } from 'vs/base/common/uri';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
-import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
+import { registerAndGetAmdImageURL } from 'vs/base/common/amd';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
 import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
-import { Codicon } from 'vs/base/common/codicons';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
@@ -35,10 +33,15 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(ExtensionsAutoProfiler, LifecyclePhase.Eventually);
 
 // Running Extensions Editor
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
-	EditorDescriptor.create(RuntimeExtensionsEditor, RuntimeExtensionsEditor.ID, localize('runtimeExtension', "Running Extensions")),
-	[new SyncDescriptor(RuntimeExtensionsInput)]
+
+const runtimeExtensionsEditorDescriptor = EditorDescriptor.create(
+	RuntimeExtensionsEditor,
+	RuntimeExtensionsEditor.ID,
+	localize('runtimeExtension', "Running Extensions")
 );
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors)
+	.registerEditor(runtimeExtensionsEditorDescriptor, [new SyncDescriptor(RuntimeExtensionsInput)]);
 
 class RuntimeExtensionsInputFactory implements IEditorInputFactory {
 	canSerialize(editorInput: EditorInput): boolean {
@@ -48,7 +51,7 @@ class RuntimeExtensionsInputFactory implements IEditorInputFactory {
 		return '';
 	}
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		return RuntimeExtensionsInput.instance;
+		return new RuntimeExtensionsInput();
 	}
 }
 
@@ -58,15 +61,17 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 // Global actions
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ShowRuntimeExtensionsAction, ShowRuntimeExtensionsAction.ID, ShowRuntimeExtensionsAction.LABEL), 'Show Running Extensions', localize('developer', "Developer"));
+
 class ExtensionsContributions implements IWorkbenchContribution {
 
 	constructor(
-		@IExtensionRecommendationNotificationService extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService,
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
-		sharedProcessService.registerChannel('extensionRecommendationNotification', new ExtensionRecommendationNotificationServiceChannel(extensionRecommendationNotificationService));
-		const openExtensionsFolderActionDescriptor = SyncActionDescriptor.from(OpenExtensionsFolderAction);
-		actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
+		if (workbenchEnvironmentService.extensionsPath) {
+			const openExtensionsFolderActionDescriptor = SyncActionDescriptor.create(OpenExtensionsFolderAction, OpenExtensionsFolderAction.ID, OpenExtensionsFolderAction.LABEL);
+			actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
+		}
 	}
 }
 
@@ -100,7 +105,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: DebugExtensionHostAction.ID,
 		title: DebugExtensionHostAction.LABEL,
-		icon: Codicon.debugStart
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/start-light.svg`)),
+		}
 	},
 	group: 'navigation',
 	when: ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID)
@@ -110,7 +118,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StartExtensionHostProfileAction.ID,
 		title: StartExtensionHostProfileAction.LABEL,
-		icon: Codicon.circleFilled
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-start-light.svg`)),
+		}
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.notEqualsTo('running'))
@@ -120,7 +131,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: StopExtensionHostProfileAction.ID,
 		title: StopExtensionHostProfileAction.LABEL,
-		icon: Codicon.debugStop
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/profile-stop-light.svg`)),
+		}
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(RuntimeExtensionsEditor.ID), CONTEXT_PROFILE_SESSION_STATE.isEqualTo('running'))
@@ -130,7 +144,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: SaveExtensionHostProfileAction.ID,
 		title: SaveExtensionHostProfileAction.LABEL,
-		icon: Codicon.saveAll,
+		icon: {
+			dark: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-dark.svg`)),
+			light: URI.parse(registerAndGetAmdImageURL(`vs/workbench/contrib/extensions/browser/media/save-light.svg`)),
+		},
 		precondition: CONTEXT_EXTENSION_HOST_PROFILE_RECORDED
 	},
 	group: 'navigation',

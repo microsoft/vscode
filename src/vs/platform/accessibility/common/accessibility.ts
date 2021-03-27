@@ -10,12 +10,11 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 export const IAccessibilityService = createDecorator<IAccessibilityService>('accessibilityService');
 
 export interface IAccessibilityService {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	readonly onDidChangeScreenReaderOptimized: Event<void>;
+	readonly onDidChangeAccessibilitySupport: Event<void>;
 
 	alwaysUnderlineAccessKeys(): Promise<boolean>;
-	isScreenReaderOptimized(): boolean;
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
 }
@@ -32,8 +31,3 @@ export const enum AccessibilitySupport {
 }
 
 export const CONTEXT_ACCESSIBILITY_MODE_ENABLED = new RawContextKey<boolean>('accessibilityModeEnabled', false);
-
-export interface IAccessibilityInformation {
-	label: string;
-	role?: string;
-}

@@ -7,11 +7,8 @@ import 'mocha';
 import * as assert from 'assert';
 import { join } from 'path';
 import { commands, workspace, window, Uri, Range, Position, ViewColumn } from 'vscode';
-import { assertNoRpc } from '../utils';
 
-suite('vscode API - commands', () => {
-
-	teardown(assertNoRpc);
+suite('commands namespace tests', () => {
 
 	test('getCommands', function (done) {
 
@@ -108,7 +105,7 @@ suite('vscode API - commands', () => {
 	});
 
 	test('api-command: vscode.open', function () {
-		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/far.js');
+		let uri = Uri.parse(workspace.workspaceFolders![0].uri.toString() + '/image.png');
 		let a = commands.executeCommand('vscode.open', uri).then(() => assert.ok(true), () => assert.ok(false));
 		let b = commands.executeCommand('vscode.open', uri, ViewColumn.Two).then(() => assert.ok(true), () => assert.ok(false));
 		let c = commands.executeCommand('vscode.open').then(() => assert.ok(false), () => assert.ok(true));

@@ -3,47 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IAccessibilityService, AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AbstractAccessibilityService } from 'vs/platform/accessibility/common/abstractAccessibilityService';
 
-export class AccessibilityService extends Disposable implements IAccessibilityService {
-	declare readonly _serviceBrand: undefined;
+export class BrowserAccessibilityService extends AbstractAccessibilityService implements IAccessibilityService {
 
-	private _accessibilityModeEnabledContext: IContextKey<boolean>;
-	protected _accessibilitySupport = AccessibilitySupport.Unknown;
-	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
+	_serviceBrand: undefined;
+
+	private _accessibilitySupport = AccessibilitySupport.Unknown;
 
 	constructor(
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IConfigurationService readonly configurationService: IConfigurationService,
 	) {
-		super();
-		this._accessibilityModeEnabledContext = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(this._contextKeyService);
-		const updateContextKey = () => this._accessibilityModeEnabledContext.set(this.isScreenReaderOptimized());
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.accessibilitySupport')) {
-				updateContextKey();
-				this._onDidChangeScreenReaderOptimized.fire();
-			}
-		}));
-		updateContextKey();
-		this.onDidChangeScreenReaderOptimized(() => updateContextKey());
-	}
-
-	get onDidChangeScreenReaderOptimized(): Event<void> {
-		return this._onDidChangeScreenReaderOptimized.event;
-	}
-
-	isScreenReaderOptimized(): boolean {
-		const config = this._configurationService.getValue('editor.accessibilitySupport');
-		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
-	}
-
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
+		super(contextKeyService, configurationService);
 	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
@@ -56,6 +31,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		}
 
 		this._accessibilitySupport = accessibilitySupport;
-		this._onDidChangeScreenReaderOptimized.fire();
+		this._onDidChangeAccessibilitySupport.fire();
+	}
+
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
 	}
 }

@@ -4,19 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IThemeService, IColorTheme, IFileIconTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, DARK, IIconTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
-export class TestColorTheme implements IColorTheme {
+export class TestTheme implements ITheme {
 
-	public readonly label = 'test';
-
-	constructor(
-		private colors: { [id: string]: string; } = {},
-		public type = ColorScheme.DARK,
-		public readonly semanticHighlighting = false
-	) { }
+	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
+	}
 
 	getColor(color: string, useDefault?: boolean): Color | undefined {
 		let value = this.colors[color];
@@ -30,7 +24,7 @@ export class TestColorTheme implements IColorTheme {
 		throw new Error('Method not implemented.');
 	}
 
-	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
+	getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
 		return undefined;
 	}
 
@@ -39,7 +33,7 @@ export class TestColorTheme implements IColorTheme {
 	}
 }
 
-export class TestFileIconTheme implements IFileIconTheme {
+export class TestIconTheme implements IIconTheme {
 	hasFileIcons = false;
 	hasFolderIcons = false;
 	hidesExplorerArrows = false;
@@ -47,39 +41,39 @@ export class TestFileIconTheme implements IFileIconTheme {
 
 export class TestThemeService implements IThemeService {
 
-	declare readonly _serviceBrand: undefined;
-	_colorTheme: IColorTheme;
-	_fileIconTheme: IFileIconTheme;
-	_onThemeChange = new Emitter<IColorTheme>();
-	_onFileIconThemeChange = new Emitter<IFileIconTheme>();
+	_serviceBrand: undefined;
+	_theme: ITheme;
+	_iconTheme: IIconTheme;
+	_onThemeChange = new Emitter<ITheme>();
+	_onIconThemeChange = new Emitter<IIconTheme>();
 
-	constructor(theme = new TestColorTheme(), iconTheme = new TestFileIconTheme()) {
-		this._colorTheme = theme;
-		this._fileIconTheme = iconTheme;
+	constructor(theme = new TestTheme(), iconTheme = new TestIconTheme()) {
+		this._theme = theme;
+		this._iconTheme = iconTheme;
 	}
 
-	getColorTheme(): IColorTheme {
-		return this._colorTheme;
+	getTheme(): ITheme {
+		return this._theme;
 	}
 
-	setTheme(theme: IColorTheme) {
-		this._colorTheme = theme;
+	setTheme(theme: ITheme) {
+		this._theme = theme;
 		this.fireThemeChange();
 	}
 
 	fireThemeChange() {
-		this._onThemeChange.fire(this._colorTheme);
+		this._onThemeChange.fire(this._theme);
 	}
 
-	public get onDidColorThemeChange(): Event<IColorTheme> {
+	public get onThemeChange(): Event<ITheme> {
 		return this._onThemeChange.event;
 	}
 
-	getFileIconTheme(): IFileIconTheme {
-		return this._fileIconTheme;
+	getIconTheme(): IIconTheme {
+		return this._iconTheme;
 	}
 
-	public get onDidFileIconThemeChange(): Event<IFileIconTheme> {
-		return this._onFileIconThemeChange.event;
+	public get onIconThemeChange(): Event<IIconTheme> {
+		return this._onIconThemeChange.event;
 	}
 }

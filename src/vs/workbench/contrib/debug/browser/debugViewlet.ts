@@ -6,31 +6,33 @@
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
-import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch, getStateLabel, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
+import * as DOM from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, IDebugConfiguration, REPL_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY } from 'vs/workbench/contrib/debug/common/debug';
+import { StartAction, ConfigureAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
-import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { FOCUS_SESSION_ID, SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ViewPane, ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IMenu, MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { StartView } from 'vs/workbench/contrib/debug/browser/startView';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -38,6 +40,8 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private progressResolve: (() => void) | undefined;
 	private breakpointView: ViewPane | undefined;
 	private paneListeners = new Map<string, IDisposable>();
+	private debugToolBarMenu: IMenu | undefined;
+	private disposeOnTitleUpdate: IDisposable | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -51,15 +55,16 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@INotificationService private readonly notificationService: INotificationService
 	) {
-		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 
-		// When there are potential updates to the docked debug toolbar we need to update it
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
-
+		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([CONTEXT_DEBUG_UX_KEY]))) {
 				this.updateTitleArea();
@@ -76,7 +81,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 	create(parent: HTMLElement): void {
 		super.create(parent);
-		parent.classList.add('debug-viewlet');
+		DOM.addClass(parent, 'debug-viewlet');
 	}
 
 	focus(): void {
@@ -85,19 +90,83 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		if (this.startDebugActionViewItem) {
 			this.startDebugActionViewItem.focus();
 		} else {
-			this.focusView(WelcomeView.ID);
+			this.focusView(StartView.ID);
 		}
 	}
 
+	@memoize
+	private get startAction(): StartAction {
+		return this._register(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
+	}
+
+	@memoize
+	private get configureAction(): ConfigureAction {
+		return this._register(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
+	}
+
+	@memoize
+	private get toggleReplAction(): ToggleReplAction {
+		return this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL));
+	}
+
+	@memoize
+	private get selectAndStartAction(): SelectAndStartAction {
+		return this._register(this.instantiationService.createInstance(SelectAndStartAction, SelectAndStartAction.ID, nls.localize('startAdditionalSession', "Start Additional Session")));
+	}
+
+	getActions(): IAction[] {
+		if (CONTEXT_DEBUG_UX.getValue(this.contextKeyService) === 'simple') {
+			return [];
+		}
+		if (!this.showInitialDebugActions) {
+
+			if (!this.debugToolBarMenu) {
+				this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
+				this._register(this.debugToolBarMenu);
+			}
+
+			const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
+			if (this.disposeOnTitleUpdate) {
+				dispose(this.disposeOnTitleUpdate);
+			}
+			this.disposeOnTitleUpdate = disposable;
+
+			return actions;
+		}
+
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return [this.toggleReplAction];
+		}
+
+		return [this.startAction, this.configureAction, this.toggleReplAction];
+	}
+
+	get showInitialDebugActions(): boolean {
+		const state = this.debugService.state;
+		return state === State.Inactive || this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation !== 'docked';
+	}
+
+	getSecondaryActions(): IAction[] {
+		if (this.showInitialDebugActions) {
+			return [];
+		}
+
+		return [this.selectAndStartAction, this.configureAction, this.toggleReplAction];
+	}
+
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		if (action.id === DEBUG_START_COMMAND_ID) {
+		if (action.id === StartAction.ID) {
 			this.startDebugActionViewItem = this.instantiationService.createInstance(StartDebugActionViewItem, null, action);
 			return this.startDebugActionViewItem;
 		}
-		if (action.id === FOCUS_SESSION_ID) {
-			return new FocusSessionActionViewItem(action, undefined, this.debugService, this.themeService, this.contextViewService, this.configurationService);
+		if (action.id === FocusSessionAction.ID) {
+			return new FocusSessionActionViewItem(action, this.debugService, this.themeService, this.contextViewService, this.configurationService);
 		}
-		return createActionViewItem(this.instantiationService, action);
+		if (action instanceof MenuItemAction) {
+			return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+		}
+
+		return undefined;
 	}
 
 	focusView(id: string): void {
@@ -114,9 +183,17 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 
 		if (state === State.Initializing) {
-			this.progressService.withProgress({ location: VIEWLET_ID, }, _progress => {
-				return new Promise<void>(resolve => this.progressResolve = resolve);
+			this.progressService.withProgress({ location: VIEWLET_ID }, _progress => {
+				return new Promise(resolve => this.progressResolve = resolve);
 			});
+		}
+
+		this.updateToolBar();
+	}
+
+	private updateToolBar(): void {
+		if (this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation === 'docked') {
+			this.updateTitleArea();
 		}
 	}
 
@@ -151,110 +228,14 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	}
 }
 
-MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
-		ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked'))),
-	order: 10,
-	group: 'navigation',
-	command: {
-		precondition: CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing)),
-		id: DEBUG_START_COMMAND_ID,
-		title: DEBUG_START_LABEL
+class ToggleReplAction extends TogglePanelAction {
+	static readonly ID = 'debug.toggleRepl';
+	static readonly LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugConsoleAction' }, 'Debug Console');
+
+	constructor(id: string, label: string,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IPanelService panelService: IPanelService
+	) {
+		super(id, label, REPL_ID, panelService, layoutService, 'debug-action codicon-terminal');
 	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: DEBUG_CONFIGURE_COMMAND_ID,
-			title: {
-				value: DEBUG_CONFIGURE_LABEL,
-				original: 'Open \'launch.json\'',
-				mnemonicTitle: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
-			},
-			f1: true,
-			icon: debugConfigure,
-			precondition: CONTEXT_DEBUG_UX.notEqualsTo('simple'),
-			menu: [{
-				id: MenuId.ViewContainerTitle,
-				group: 'navigation',
-				order: 20,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
-					ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked')))
-			}, {
-				id: MenuId.ViewContainerTitle,
-				order: 20,
-				// Show in debug viewlet secondary actions when debugging and debug toolbar is docked
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
-			}, {
-				id: MenuId.MenubarDebugMenu,
-				group: '2_configuration',
-				order: 1,
-				when: CONTEXT_DEBUGGERS_AVAILABLE
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const debugService = accessor.get(IDebugService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const configurationManager = debugService.getConfigurationManager();
-		let launch: ILaunch | undefined;
-		if (configurationManager.selectedConfiguration.name) {
-			launch = configurationManager.selectedConfiguration.launch;
-		} else {
-			const launches = configurationManager.getLaunches().filter(l => !l.hidden);
-			if (launches.length === 1) {
-				launch = launches[0];
-			} else {
-				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await quickInputService.pick<{ label: string, launch: ILaunch }>(picks, {
-					activeItem: picks[0],
-					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
-				});
-				if (picked) {
-					launch = picked.launch;
-				}
-			}
-		}
-
-		if (launch) {
-			await launch.openConfigFile(false);
-		}
-	}
-});
-
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'debug.toggleReplIgnoreFocus',
-			title: nls.localize('debugPanel', "Debug Console"),
-			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
-			menu: [{
-				id: ViewsSubMenu,
-				group: '3_toggleRepl',
-				order: 30,
-				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		if (viewsService.isViewVisible(REPL_VIEW_ID)) {
-			viewsService.closeView(REPL_VIEW_ID);
-		} else {
-			await viewsService.openView(REPL_VIEW_ID);
-		}
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
-	order: 10,
-	command: {
-		id: SELECT_AND_START_ID,
-		title: nls.localize('startAdditionalSession', "Start Additional Session"),
-	}
-});
+}

@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
@@ -23,8 +23,6 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	extensionLocation: URI.parse('void:location'),
 	isBuiltin: false,
 });
-
-export const webWorkerExtHostConfig = 'extensions.webWorker';
 
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
@@ -86,15 +84,7 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
-export const enum ExtensionHostKind {
-	LocalProcess,
-	LocalWebWorker,
-	Remote
-}
-
-export interface IExtensionHost {
-	readonly kind: ExtensionHostKind;
-	readonly remoteAuthority: string | null;
+export interface IExtensionHostStarter {
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
@@ -140,13 +130,8 @@ export interface IResponsiveStateChangeEvent {
 	isResponsive: boolean;
 }
 
-export const enum ActivationKind {
-	Normal = 0,
-	Immediate = 1
-}
-
 export interface IExtensionService {
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event emitted when extensions are registered after their extension points got handled.
@@ -182,15 +167,8 @@ export interface IExtensionService {
 
 	/**
 	 * Send an activation event and activate interested extensions.
-	 *
-	 * This will wait for the normal startup of the extension host(s).
-	 *
-	 * In extraordinary circumstances, if the activation event needs to activate
-	 * one or more extensions before the normal startup is finished, then you can use
-	 * `ActivationKind.Immediate`. Please do not use this flag unless really necessary
-	 * and you understand all consequences.
 	 */
-	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
+	activateByEvent(activationEvent: string): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after
@@ -224,7 +202,7 @@ export interface IExtensionService {
 	/**
 	 * Read all contributions to an extension point.
 	 */
-	readExtensionPointContributions<T extends IExtensionContributions[keyof IExtensionContributions]>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
+	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]>;
 
 	/**
 	 * Get information about extensions status.
@@ -270,41 +248,18 @@ export function throwProposedApiError(extension: IExtensionDescription): never {
 	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
 }
 
-export function checkRequiresWorkspaceTrust(extension: IExtensionDescription): void {
-	if (!extension.requiresWorkspaceTrust) {
-		throwRequiresWorkspaceTrustError(extension);
-	}
-}
-
-export function throwRequiresWorkspaceTrustError(extension: IExtensionDescription): void {
-	throw new Error(`[${extension.identifier.value}]: This API is only available when the "requiresWorkspaceTrust" is set to "onStart" or "onDemand" in the extension's package.json.`);
-}
-
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {
 	return {
 		type: extensionDescription.isBuiltin ? ExtensionType.System : ExtensionType.User,
-		isBuiltin: extensionDescription.isBuiltin || extensionDescription.isUserBuiltin,
 		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
 	};
 }
 
-export function toExtensionDescription(extension: IExtension): IExtensionDescription {
-	return {
-		identifier: new ExtensionIdentifier(extension.identifier.id),
-		isBuiltin: extension.type === ExtensionType.System,
-		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
-		isUnderDevelopment: false,
-		extensionLocation: extension.location,
-		...extension.manifest,
-		uuid: extension.identifier.uuid
-	};
-}
-
 
 export class NullExtensionService implements IExtensionService {
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions: Event<void> = Event.None;

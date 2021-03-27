@@ -14,8 +14,10 @@ const task = require('./lib/task');
 const vfs = require('vinyl-fs');
 const flatmap = require('gulp-flatmap');
 const gunzip = require('gulp-gunzip');
+const untar = require('gulp-untar');
 const File = require('vinyl');
 const fs = require('fs');
+const remote = require('gulp-remote-retry-src');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
 const cp = require('child_process');
@@ -35,11 +37,19 @@ const BUILD_TARGETS = [
 
 const noop = () => { return Promise.resolve(); };
 
-BUILD_TARGETS.forEach(({ platform, arch }) => {
-	for (const target of ['reh', 'reh-web']) {
-		gulp.task(`vscode-${target}-${platform}${ arch ? `-${arch}` : '' }-min`, noop);
-	}
-});
+gulp.task('vscode-reh-win32-ia32-min', noop);
+gulp.task('vscode-reh-win32-x64-min', noop);
+gulp.task('vscode-reh-darwin-min', noop);
+gulp.task('vscode-reh-linux-x64-min', noop);
+gulp.task('vscode-reh-linux-armhf-min', noop);
+gulp.task('vscode-reh-linux-arm64-min', noop);
+gulp.task('vscode-reh-linux-alpine-min', noop);
+
+gulp.task('vscode-reh-web-win32-ia32-min', noop);
+gulp.task('vscode-reh-web-win32-x64-min', noop);
+gulp.task('vscode-reh-web-darwin-min', noop);
+gulp.task('vscode-reh-web-linux-x64-min', noop);
+gulp.task('vscode-reh-web-linux-alpine-min', noop);
 
 function getNodeVersion() {
 	const yarnrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8');
@@ -68,17 +78,13 @@ BUILD_TARGETS.forEach(({ platform, arch }) => {
 	}));
 });
 
-const arch = process.platform === 'darwin' ? 'x64' : process.arch;
-const defaultNodeTask = gulp.task(`node-${process.platform}-${arch}`);
+const defaultNodeTask = gulp.task(`node-${process.platform}-${process.arch}`);
 
 if (defaultNodeTask) {
 	gulp.task(task.define('node', defaultNodeTask));
 }
 
 function nodejs(platform, arch) {
-	const remote = require('gulp-remote-retry-src');
-	const untar = require('gulp-untar');
-
 	if (arch === 'ia32') {
 		arch = 'x86';
 	}
@@ -112,7 +118,7 @@ function mixinServer(watch) {
 	const packageJSONPath = path.join(path.dirname(__dirname), 'package.json');
 	function exec(cmdLine) {
 		console.log(cmdLine);
-		cp.execSync(cmdLine, { stdio: 'inherit' });
+		cp.execSync(cmdLine, { stdio: "inherit" });
 	}
 	function checkout() {
 		const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString());

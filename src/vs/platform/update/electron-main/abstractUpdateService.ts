@@ -9,7 +9,7 @@ import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/conf
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -24,9 +24,9 @@ export type UpdateNotAvailableClassification = {
 
 export abstract class AbstractUpdateService implements IUpdateService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
-	protected url: string | undefined;
+	protected readonly url: string | undefined;
 
 	private _state: State = State.Uninitialized;
 
@@ -46,22 +46,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	constructor(
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
-	) { }
-
-	/**
-	 * This must be called before any other call. This is a performance
-	 * optimization, to avoid using extra CPU cycles before first window open.
-	 * https://github.com/microsoft/vscode/issues/89784
-	 */
-	initialize(): void {
-		if (!this.environmentMainService.isBuilt) {
-			return; // updates are never enabled when running out of sources
-		}
-
-		if (this.environmentMainService.disableUpdates) {
+	) {
+		if (this.environmentService.disableUpdates) {
 			this.logService.info('update#ctor - updates are disabled by the environment');
 			return;
 		}
@@ -180,7 +169,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		if (!this.url) {
 			return Promise.resolve(undefined);
 		}
-
 		return this.requestService.request({ url: this.url }, CancellationToken.None).then(context => {
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.

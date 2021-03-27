@@ -6,10 +6,10 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 
 export class ToggleRenderControlCharacterAction extends Action {
 
@@ -26,12 +26,12 @@ export class ToggleRenderControlCharacterAction extends Action {
 
 	public run(): Promise<any> {
 		let newRenderControlCharacters = !this._configurationService.getValue<boolean>('editor.renderControlCharacters');
-		return this._configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters);
+		return this._configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters, ConfigurationTarget.USER);
 	}
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleRenderControlCharacterAction), 'View: Toggle Control Characters', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleRenderControlCharacterAction, ToggleRenderControlCharacterAction.ID, ToggleRenderControlCharacterAction.LABEL), 'View: Toggle Control Characters', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',

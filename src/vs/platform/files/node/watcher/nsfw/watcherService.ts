@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProxyChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
+import { WatcherChannelClient } from 'vs/platform/files/node/watcher/nsfw/watcherIpc';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
-import { FileAccess } from 'vs/base/common/network';
+import { IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher extends Disposable {
 
 	private static readonly MAX_RESTARTS = 5;
 
-	private service: IWatcherService | undefined;
+	private service: WatcherChannelClient | undefined;
 	private isDisposed: boolean;
 	private restartCounter: number;
 
 	constructor(
 		private folders: IWatcherRequest[],
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private onFileChanges: (changes: IDiskFileChange[]) => void,
 		private onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 	) {
@@ -34,14 +35,14 @@ export class FileWatcher extends Disposable {
 
 	private startWatching(): void {
 		const client = this._register(new Client(
-			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
+			getPathFromAmdModule(require, 'bootstrap-fork'),
 			{
 				serverName: 'File Watcher (nsfw)',
 				args: ['--type=watcherService'],
 				env: {
-					VSCODE_AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
-					VSCODE_PIPE_LOGGING: 'true',
-					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+					AMD_ENTRYPOINT: 'vs/platform/files/node/watcher/nsfw/watcherApp',
+					PIPE_LOGGING: 'true',
+					VERBOSE_LOGGING: 'true' // transmit console logs from server to client
 				}
 			}
 		));
@@ -61,12 +62,15 @@ export class FileWatcher extends Disposable {
 		}));
 
 		// Initialize watcher
-		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
+		const channel = getNextTickChannel(client.getChannel('watcher'));
+		this.service = new WatcherChannelClient(channel);
 
 		this.service.setVerboseLogging(this.verboseLogging);
 
-		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
-		this._register(this.service.onDidLogMessage(m => this.onLogMessage(m)));
+		const options = {};
+		this._register(this.service.watch(options)(e => !this.isDisposed && this.onFileChanges(e)));
+
+		this._register(this.service.onLogMessage(m => this.onLogMessage(m)));
 
 		// Start watching
 		this.setFolders(this.folders);

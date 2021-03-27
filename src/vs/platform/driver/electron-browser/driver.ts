@@ -6,15 +6,16 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import * as electron from 'electron';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 class WindowDriver extends BaseWindowDriver {
 
 	constructor(
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super();
 	}
@@ -31,15 +32,16 @@ class WindowDriver extends BaseWindowDriver {
 	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
 		const { x, y } = await this._getElementXY(selector, offset);
 
-		await this.nativeHostService.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
+		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 		await timeout(10);
 
-		await this.nativeHostService.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
+		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
 		await timeout(100);
 	}
 
 	async openDevTools(): Promise<void> {
-		await this.nativeHostService.openDevTools({ mode: 'detach' });
+		await this.electronService.openDevTools({ mode: 'detach' });
 	}
 }
 

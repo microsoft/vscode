@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/e03ba9cb9b19412f48c73ea73deb6746d50bbf23",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/1cd3d42a6b2e54276ef2d71fe33bb3fefb1d6cff",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -169,11 +169,19 @@
 					"name": "keyword.operator.arithmetic.r"
 				},
 				{
+					"match": "<=|>=",
+					"name": "keyword.operator.comparison.r"
+				},
+				{
+					"match": "==",
+					"name": "keyword.operator.comarison.r"
+				},
+				{
 					"match": "(:=|<-|<<-|->|->>)",
 					"name": "keyword.operator.assignment.r"
 				},
 				{
-					"match": "(==|<=|>=|!=|<>|<|>|%in%)",
+					"match": "(!=|<>|<|>|%in%)",
 					"name": "keyword.operator.comparison.r"
 				},
 				{
@@ -409,7 +417,7 @@
 			"end": "(\\))",
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.section.parens.end.r"
+					"name": "punctuation.definition.parameters.r"
 				}
 			},
 			"name": "meta.function-call.r",

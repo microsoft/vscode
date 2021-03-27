@@ -8,27 +8,26 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { State, IUpdate, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
+import { shell } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@ILogService logService: ILogService
 	) {
-		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string {
@@ -65,9 +64,9 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		// Use the download URL if available as we don't currently detect the package type that was
 		// installed and the website download page is more useful than the tarball generally.
 		if (product.downloadUrl && product.downloadUrl.length > 0) {
-			this.nativeHostMainService.openExternal(undefined, product.downloadUrl);
+			shell.openExternal(product.downloadUrl);
 		} else if (state.update.url) {
-			this.nativeHostMainService.openExternal(undefined, state.update.url);
+			shell.openExternal(state.update.url);
 		}
 
 		this.setState(State.Idle(UpdateType.Archive));

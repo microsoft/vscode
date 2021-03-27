@@ -6,252 +6,115 @@
 import 'vs/css!./welcomePage';
 import 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { URI } from 'vs/base/common/uri';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import * as strings from 'vs/base/common/strings';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { FileAccess, Schemas } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IExtensionEnablementService, EnablementState, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { splitName } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
-import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { IRecentlyOpened, isRecentWorkspace, IRecentWorkspace, IRecentFolder, isRecentFolder, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
-import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-
-
-export const DEFAULT_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.startupEditor': {
-			'scope': ConfigurationScope.RESOURCE,
-			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'gettingStarted'],
-			'enumDescriptions': [...[
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStarted' }, "Open the Getting Started page.")]
-			],
-			'default': 'welcomePage',
-			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
-		},
-	}
-};
-
-export const EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG: IConfigurationNode = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.startupEditor': {
-			'scope': ConfigurationScope.RESOURCE,
-			'type': 'string',
-			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench', 'gettingStarted'],
-			'enumDescriptions': [...[
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
-				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStarted' }, "Open the Getting Started page.")]
-			],
-			'default': 'gettingStarted',
-			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
-		},
-	}
-};
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
-	private experimentManagementComplete: Promise<void>;
-	private tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
-		@IFileService private readonly fileService: IFileService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEditorService editorService: IEditorService,
+		@IBackupFileService backupFileService: IBackupFileService,
+		@IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
-		this.tasExperimentService = tasExperimentService;
+		const enabled = isWelcomePageEnabled(configurationService, contextService);
+		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			backupFileService.hasBackups().then(hasBackups => {
+				const activeEditor = editorService.activeEditor;
+				if (!activeEditor && !hasBackups) {
+					const openWithReadme = configurationService.getValue(configurationKey) === 'readme';
+					if (openWithReadme) {
+						return Promise.all(contextService.getWorkspace().folders.map(folder => {
+							const folderUri = folder.uri;
+							return fileService.resolve(folderUri)
+								.then(folder => {
+									const files = folder.children ? folder.children.map(child => child.name) : [];
 
-		// Run immediately to minimize time spent waiting for exp service.
-		this.experimentManagementComplete = this.manageDefaultValuesForGettingStartedExperiment().catch(onUnexpectedError);
-		this.run().then(undefined, onUnexpectedError);
-	}
-
-	private async manageDefaultValuesForGettingStartedExperiment() {
-		const config = this.configurationService.inspect(configurationKey);
-
-		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || config.value !== config.defaultValue) {
-			return;
-		}
-
-		if (this.configurationService.getValue('workbench.gettingStartedTreatmentOverride')) {
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
-		}
-
-		let someValueReturned = false;
-		type GettingStartedTreatmentData = { value: string; };
-		type GettingStartedTreatmentClassification = { value: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' }; };
-
-		const tasUseGettingStartedAsDefault = this.tasExperimentService?.getTreatment<boolean>('StartupGettingStarted')
-			.then(result => {
-				this.logService.trace('StartupGettingStarted:', result);
-				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: '' + !!result });
-				someValueReturned = true;
-				return result;
-			})
-			.catch(error => {
-				this.logService.error('Recieved error when consulting experiment service for getting started experiment', error);
-				this.telemetryService.publicLog2<GettingStartedTreatmentData, GettingStartedTreatmentClassification>('gettingStartedTreatmentValue', { value: 'err' });
-				someValueReturned = true;
-				return false;
-			});
-
-		const fallback = new Promise<false>(c => setTimeout(() => c(false), 2000)).then(
-			() => {
-				if (!someValueReturned) { this.logService.trace('Unable to read getting started treatment data in time, falling back to welcome'); }
-				someValueReturned = true;
-			}
-		);
-
-		const useGettingStartedAsDefault = !!await Promise.race([tasUseGettingStartedAsDefault, fallback]);
-		if (useGettingStartedAsDefault) {
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).deregisterConfigurations([DEFAULT_STARTUP_EDITOR_CONFIG]);
-			Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(EXPERIMENTAL_GETTING_STARTED_STARTUP_EDITOR_CONFIG);
-		}
-	}
-
-	private async run() {
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
-		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			const hasBackups = await this.backupFileService.hasBackups();
-			if (hasBackups) { return; }
-
-			// Open the welcome even if we opened a set of default editors
-			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
-				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
-
-				// 'readme' should not be set in workspace settings to prevent tracking,
-				// but it can be set as a default (as in codespaces) or a user setting
-				const openWithReadme = startupEditorSetting.value === 'readme' &&
-					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
-
-				if (openWithReadme) {
-					await this.openReadme();
-				} else {
-					await this.openWelcome();
+									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
+									if (file) {
+										return joinPath(folderUri, file);
+									}
+									return undefined;
+								}, onUnexpectedError);
+						})).then(arrays.coalesce)
+							.then<any>(readmes => {
+								if (!editorService.activeEditor) {
+									if (readmes.length) {
+										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										return Promise.all([
+											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
+											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
+												.map(readme => ({ resource: readme }))),
+										]);
+									} else {
+										return instantiationService.createInstance(WelcomePage).openEditor();
+									}
+								}
+								return undefined;
+							});
+					} else {
+						return instantiationService.createInstance(WelcomePage).openEditor();
+					}
 				}
-			}
-		}
-	}
-
-	private async openReadme() {
-		const readmes = arrays.coalesce(
-			await Promise.all(this.contextService.getWorkspace().folders.map(
-				async folder => {
-					const folderUri = folder.uri;
-					const folderStat = await this.fileService.resolve(folderUri).catch(onUnexpectedError);
-					const files = folderStat?.children ? folderStat.children.map(child => child.name).sort() : [];
-					const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
-					if (file) { return joinPath(folderUri, file); }
-					else { return undefined; }
-				})));
-
-		if (!this.editorService.activeEditor) {
-			if (readmes.length) {
-				const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
-				await Promise.all([
-					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
-					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
-				]);
-			} else {
-				await this.openWelcome();
-			}
-		}
-	}
-
-	private async openWelcome() {
-		await this.experimentManagementComplete;
-
-		const startupEditorSetting = this.configurationService.getValue(configurationKey);
-		const startupEditorTypeID = startupEditorSetting === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
-		const editor = this.editorService.activeEditor;
-
-		// Ensure that the welcome editor won't get opened more than once
-		if (editor?.getTypeId() === startupEditorTypeID || this.editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
-			return;
-		}
-		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
-		if (startupEditorTypeID === gettingStartedInputTypeId) {
-			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, {}), options);
-		} else {
-			this.instantiationService.createInstance(WelcomePage).openEditor(options);
+				return undefined;
+			}).then(undefined, onUnexpectedError);
 		}
 	}
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService) {
-	const startupEditor = configurationService.inspect<string>(configurationKey);
+	const startupEditor = configurationService.inspect(configurationKey);
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
 		if (welcomeEnabled.value !== undefined && welcomeEnabled.value !== null) {
 			return welcomeEnabled.value;
 		}
 	}
-	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme') {
-		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
-	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.userValue === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	return startupEditor.value === 'welcomePage' || startupEditor.value === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 }
 
 export class WelcomePageAction extends Action {
@@ -285,7 +148,7 @@ interface ExtensionSuggestion {
 const extensionPacks: ExtensionSuggestion[] = [
 	{ name: localize('welcomePage.javaScript', "JavaScript"), id: 'dbaeumer.vscode-eslint' },
 	{ name: localize('welcomePage.python', "Python"), id: 'ms-python.python' },
-	{ name: localize('welcomePage.java', "Java"), id: 'vscjava.vscode-java-pack' },
+	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
 	{ name: localize('welcomePage.docker', "Docker"), id: 'ms-azuretools.vscode-docker' },
@@ -344,16 +207,6 @@ const extensionPackStrings: Strings = {
 	extensionNotFound: localize('welcomePage.extensionPackNotFound', "Support for {0} with id {1} could not be found."),
 };
 
-CommandsRegistry.registerCommand('workbench.extensions.action.showAzureExtensions', accessor => {
-	const viewletService = accessor.get(IViewletService);
-	return viewletService.openViewlet(VIEWLET_ID, true)
-		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-		.then(viewlet => {
-			viewlet.search('@sort:installs azure ');
-			viewlet.focus();
-		});
-});
-
 /* __GDPR__
 	"installKeymap" : {
 		"${include}": [
@@ -404,10 +257,10 @@ class WelcomePage extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionRecommendationsService private readonly tipsService: IExtensionRecommendationsService,
+		@IExtensionTipsService private readonly tipsService: IExtensionTipsService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -420,7 +273,7 @@ class WelcomePage extends Disposable {
 
 		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
-		const resource = FileAccess.asBrowserUri('./vs_code_welcome_page', require)
+		const resource = URI.parse(require.toUrl('./vs_code_welcome_page'))
 			.with({
 				scheme: Schemas.walkThrough,
 				query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page' })
@@ -434,23 +287,23 @@ class WelcomePage extends Disposable {
 		});
 	}
 
-	public openEditor(options: IEditorOptions = { pinned: false }) {
-		return this.editorService.openEditor(this.editorInput, options);
+	public openEditor() {
+		return this.editorService.openEditor(this.editorInput, { pinned: false });
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: Promise<IRecentlyOpened>, installedExtensions: Promise<IExtensionStatus[]>): void {
-		const enabled = this.configurationService.getValue(configurationKey) === 'welcomePage';
+		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile');
+			this.configurationService.updateValue(configurationKey, showOnStartup.checked ? 'welcomePage' : 'newUntitledFile', ConfigurationTarget.USER);
 		});
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
 		if (prodName) {
-			prodName.textContent = this.productService.nameLong;
+			prodName.innerHTML = this.productService.nameLong;
 		}
 
 		recentlyOpened.then(({ workspaces }) => {
@@ -584,7 +437,7 @@ class WelcomePage extends Disposable {
 			extensionId: extensionSuggestion.id,
 		});
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const installedExtension = extensions.find(extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
+			const installedExtension = arrays.first(extensions, extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 					"WelcomePageInstalled-1" : {
@@ -608,7 +461,7 @@ class WelcomePage extends Disposable {
 						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
-						.then(() => this.extensionManagementService.getInstalled())
+						.then(() => this.extensionManagementService.getInstalled(ExtensionType.User))
 						.then(installed => {
 							const local = installed.filter(i => areSameExtensions(extension.identifier, i.identifier))[0];
 							// TODO: Do this as part of the install to avoid multiple events.
@@ -759,6 +612,10 @@ export class WelcomeInputFactory implements IEditorInputFactory {
 
 // theming
 
+export const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
+export const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
+export const welcomePageBackground = registerColor('welcomePage.background', { light: null, dark: null, hc: null }, localize('welcomePage.background', 'Background color for the Welcome page.'));
+
 registerThemingParticipant((theme, collector) => {
 	const backgroundColor = theme.getColor(welcomePageBackground);
 	if (backgroundColor) {
@@ -772,11 +629,11 @@ registerThemingParticipant((theme, collector) => {
 	if (descriptionColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .detail { color: ${descriptionColor}; }`);
 	}
-	const buttonColor = getExtraColor(theme, welcomeButtonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
+	const buttonColor = getExtraColor(theme, buttonBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
 	if (buttonColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button { background: ${buttonColor}; }`);
 	}
-	const buttonHoverColor = getExtraColor(theme, welcomeButtonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
+	const buttonHoverColor = getExtraColor(theme, buttonHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
 	if (buttonHoverColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .welcomePage .commands .item button:hover { background: ${buttonHoverColor}; }`);
 	}

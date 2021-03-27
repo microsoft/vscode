@@ -12,16 +12,16 @@ import { join } from 'vs/base/common/path';
 import { Limiter } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
-import { rimraf } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { rimraf } from 'vs/base/node/pfs';
 
 export class ExtensionsLifecycle extends Disposable {
 
 	private processesLimiter: Limiter<void> = new Limiter(5); // Run max 5 processes in parallel
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		private environmentService: IEnvironmentService,
+		private logService: ILogService
 	) {
 		super();
 	}
@@ -130,6 +130,6 @@ export class ExtensionsLifecycle extends Disposable {
 	}
 
 	private getExtensionStoragePath(extension: ILocalExtension): string {
-		return join(this.environmentService.globalStorageHome.fsPath, extension.identifier.id.toLowerCase());
+		return join(this.environmentService.globalStorageHome, extension.identifier.id.toLowerCase());
 	}
 }

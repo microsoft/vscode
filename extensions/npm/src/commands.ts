@@ -15,29 +15,27 @@ import {
 
 const localize = nls.loadMessageBundle();
 
-export function runSelectedScript(context: vscode.ExtensionContext) {
+export function runSelectedScript() {
 	let editor = vscode.window.activeTextEditor;
 	if (!editor) {
 		return;
 	}
 	let document = editor.document;
 	let contents = document.getText();
-	let script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
+	let selection = editor.selection;
+	let offset = document.offsetAt(selection.anchor);
+
+	let script = findScriptAtPosition(contents, offset);
 	if (script) {
-		runScript(context, script, document);
+		runScript(script, document);
 	} else {
 		let message = localize('noScriptFound', 'Could not find a valid npm script at the selection.');
 		vscode.window.showErrorMessage(message);
 	}
 }
 
-export async function selectAndRunScriptFromFolder(context: vscode.ExtensionContext, selectedFolders: vscode.Uri[]) {
-	if (selectedFolders.length === 0) {
-		return;
-	}
-	const selectedFolder = selectedFolders[0];
-
-	let taskList: FolderTaskItem[] = await detectNpmScriptsForFolder(context, selectedFolder);
+export async function selectAndRunScriptFromFolder(selectedFolder: vscode.Uri) {
+	let taskList: FolderTaskItem[] = await detectNpmScriptsForFolder(selectedFolder);
 
 	if (taskList && taskList.length > 0) {
 		const quickPick = vscode.window.createQuickPick<FolderTaskItem>();

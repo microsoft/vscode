@@ -19,24 +19,34 @@ export async function renderMarkdownDocument(
 	extensionService: IExtensionService,
 	modeService: IModeService,
 ): Promise<string> {
+	const renderer = await getRenderer(text, extensionService, modeService);
+	return marked(text, { renderer });
+}
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
-		if (!callback) {
-			return code;
-		}
-		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			let support: ITokenizationSupport | undefined;
-			const modeId = modeService.getModeIdForLanguageName(lang);
-			if (modeId) {
+async function getRenderer(
+	text: string,
+	extensionService: IExtensionService,
+	modeService: IModeService,
+): Promise<marked.Renderer> {
+	let result: Promise<ITokenizationSupport | null>[] = [];
+	const renderer = new marked.Renderer();
+	renderer.code = (_code, lang) => {
+		const modeId = modeService.getModeIdForLanguageName(lang);
+		if (modeId) {
+			result.push(extensionService.whenInstalledExtensionsRegistered().then<ITokenizationSupport | null>(() => {
 				modeService.triggerMode(modeId);
-				support = await TokenizationRegistry.getPromise(modeId) ?? undefined;
-			}
-			callback(null, `<code>${tokenizeToString(code, support)}</code>`);
-		});
+				return TokenizationRegistry.getPromise(modeId);
+			}));
+		}
 		return '';
 	};
 
-	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
-	});
+	marked(text, { renderer });
+	await Promise.all(result);
+
+	renderer.code = (code, lang) => {
+		const modeId = modeService.getModeIdForLanguageName(lang);
+		return `<code>${tokenizeToString(code, modeId ? TokenizationRegistry.get(modeId)! : undefined)}</code>`;
+	};
+	return renderer;
 }

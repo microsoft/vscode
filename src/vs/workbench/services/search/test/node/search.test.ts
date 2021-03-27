@@ -11,7 +11,6 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IFolderQuery, QueryType, IRawFileMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
-import { flakySuite } from 'vs/base/test/node/testUtils';
 
 const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
 const EXAMPLES_FIXTURES = URI.file(path.join(TEST_FIXTURES, 'examples'));
@@ -30,9 +29,12 @@ const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: MORE_FIXTURES }
 ];
 
-flakySuite('FileSearchEngine', () => {
+const testTimeout = 5000;
+
+suite('FileSearchEngine', () => {
 
 	test('Files: *.js', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -52,6 +54,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: maxResults', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -71,6 +74,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: maxResults without Ripgrep', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -90,6 +94,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: exists', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -111,6 +116,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: not exists', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -132,6 +138,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: exists without Ripgrep', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -153,6 +160,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: not exists without Ripgrep', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -174,6 +182,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: examples/com*', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -193,6 +202,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: examples (fuzzy)', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -212,6 +222,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: multiroot', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
@@ -231,6 +242,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: multiroot with includePattern and maxResults', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
@@ -254,6 +266,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: multiroot with includePattern and exists', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: MULTIROOT_QUERIES,
@@ -278,6 +291,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: NPE (CamelCase)', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -297,6 +311,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.*', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -316,6 +331,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.as', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -335,6 +351,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.* without derived', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -358,6 +375,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.* exclude folder without wildcard', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -378,6 +396,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: exclude folder without wildcard #36438', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY_36438,
@@ -397,6 +416,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: include folder without wildcard #36438', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY_36438,
@@ -416,6 +436,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.* exclude folder with leading wildcard', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -436,6 +457,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.* exclude folder with trailing wildcard', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -456,6 +478,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.* exclude with unicode', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -476,6 +499,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: *.* include with unicode', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -496,6 +520,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: multiroot with exclude', function (done: () => void) {
+		this.timeout(testTimeout);
 		const folderQueries: IFolderQuery[] = [
 			{
 				folder: EXAMPLES_FIXTURES,
@@ -530,6 +555,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: Unicode and Spaces', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -552,6 +578,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: no results', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -571,6 +598,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: relative path matched once', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -593,6 +621,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: Include pattern, single files', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: ROOT_FOLDER_QUERY,
@@ -617,6 +646,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: extraFiles only', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [],
@@ -644,6 +674,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: extraFiles only (with include)', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [],
@@ -672,6 +703,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: extraFiles only (with exclude)', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [],
@@ -697,6 +729,7 @@ flakySuite('FileSearchEngine', () => {
 	});
 
 	test('Files: no dupes in nested folders', function (done: () => void) {
+		this.timeout(testTimeout);
 		const engine = new FileSearchEngine({
 			type: QueryType.File,
 			folderQueries: [
@@ -719,9 +752,15 @@ flakySuite('FileSearchEngine', () => {
 	});
 });
 
-flakySuite('FileWalker', () => {
+suite('FileWalker', () => {
 
-	(platform.isWindows ? test.skip : test)('Find: exclude subfolder', function (done: () => void) {
+	test('Find: exclude subfolder', function (done: () => void) {
+		this.timeout(testTimeout);
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
 		const file0 = './more/file.txt';
 		const file1 = './examples/subfolder/subfile.txt';
 
@@ -751,7 +790,13 @@ flakySuite('FileWalker', () => {
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: folder excludes', function (done: () => void) {
+	test('Find: folder excludes', function (done: () => void) {
+		this.timeout(testTimeout);
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
 		const folderQueries: IFolderQuery[] = [
 			{
 				folder: URI.file(TEST_FIXTURES),
@@ -772,7 +817,13 @@ flakySuite('FileWalker', () => {
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude multiple folders', function (done: () => void) {
+	test('Find: exclude multiple folders', function (done: () => void) {
+		this.timeout(testTimeout);
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
 		const file0 = './index.html';
 		const file1 = './examples/small.js';
 		const file2 = './more/file.txt';
@@ -797,7 +848,13 @@ flakySuite('FileWalker', () => {
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude folder path suffix', function (done: () => void) {
+	test('Find: exclude folder path suffix', function (done: () => void) {
+		this.timeout(testTimeout);
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
 		const file0 = './examples/company.js';
 		const file1 = './examples/subfolder/subfile.txt';
 
@@ -819,7 +876,13 @@ flakySuite('FileWalker', () => {
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude subfolder path suffix', function (done: () => void) {
+	test('Find: exclude subfolder path suffix', function (done: () => void) {
+		this.timeout(testTimeout);
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
 		const file0 = './examples/subfolder/subfile.txt';
 		const file1 = './examples/subfolder/anotherfolder/anotherfile.txt';
 
@@ -841,7 +904,13 @@ flakySuite('FileWalker', () => {
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude folder path', function (done: () => void) {
+	test('Find: exclude folder path', function (done: () => void) {
+		this.timeout(testTimeout);
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
 		const file0 = './examples/company.js';
 		const file1 = './examples/subfolder/subfile.txt';
 
@@ -863,7 +932,13 @@ flakySuite('FileWalker', () => {
 		});
 	});
 
-	(platform.isWindows ? test.skip : test)('Find: exclude combination of paths', function (done: () => void) {
+	test('Find: exclude combination of paths', function (done: () => void) {
+		this.timeout(testTimeout);
+		if (platform.isWindows) {
+			done();
+			return;
+		}
+
 		const filesIn = [
 			'./examples/subfolder/subfile.txt',
 			'./examples/company.js',

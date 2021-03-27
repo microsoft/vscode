@@ -9,18 +9,16 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISurveyData, IProductService } from 'vs/platform/product/common/productService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
-import { RunOnceWorker } from 'vs/base/common/async';
-import { Disposable } from 'vs/base/common/lifecycle';
 
-class LanguageSurvey extends Disposable {
+class LanguageSurvey {
 
 	constructor(
 		data: ISurveyData,
@@ -32,8 +30,6 @@ class LanguageSurvey extends Disposable {
 		openerService: IOpenerService,
 		productService: IProductService
 	) {
-		super();
-
 		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
 		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
 		const SKIP_VERSION_KEY = `${data.surveyId}.skipVersion`;
@@ -49,19 +45,18 @@ class LanguageSurvey extends Disposable {
 		const date = new Date().toDateString();
 
 		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
-
-			// Process model-save event every 250ms to reduce load
-			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
-				models.forEach(m => {
-					if (m.getMode() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
-						const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
-						storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL, StorageTarget.USER);
-						storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
+			textFileService.models.onModelsSaved(e => {
+				e.forEach(event => {
+					if (event.kind === StateChange.SAVED) {
+						const model = modelService.getModel(event.resource);
+						if (model && model.getModeId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
+							const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
+							storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL);
+							storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL);
+						}
 					}
 				});
-			}, 250));
-
-			this._register(textFileService.files.onDidSave(e => onModelsSavedWorker.work(e.model)));
+			});
 		}
 
 		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
@@ -70,8 +65,8 @@ class LanguageSurvey extends Disposable {
 		}
 
 		const sessionCount = storageService.getNumber(SESSION_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
-		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL, StorageTarget.USER);
-		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store(LAST_SESSION_DATE_KEY, date, StorageScope.GLOBAL);
+		storageService.store(SESSION_COUNT_KEY, sessionCount, StorageScope.GLOBAL);
 
 		if (sessionCount < 9) {
 			return;
@@ -84,10 +79,10 @@ class LanguageSurvey extends Disposable {
 		const isCandidate = storageService.getBoolean(IS_CANDIDATE_KEY, StorageScope.GLOBAL, false)
 			|| Math.random() < data.userProbability;
 
-		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store(IS_CANDIDATE_KEY, isCandidate, StorageScope.GLOBAL);
 
 		if (!isCandidate) {
-			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+			storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 			return;
 		}
 
@@ -103,23 +98,23 @@ class LanguageSurvey extends Disposable {
 					telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
 					telemetryService.getTelemetryInfo().then(info => {
 						openerService.open(URI.parse(`${data.surveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
-						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
+						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 					});
 				}
 			}, {
 				label: nls.localize('remindLater', "Remind Me later"),
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/remindMeLater`);
-					storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL, StorageTarget.USER);
+					storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL);
 				}
 			}, {
 				label: nls.localize('neverAgain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
 					telemetryService.publicLog(`${data.surveyId}.survey/dontShowAgain`);
-					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
-					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL, StorageTarget.USER);
+					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
+					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.GLOBAL);
 				}
 			}],
 			{ sticky: true }

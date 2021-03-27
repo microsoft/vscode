@@ -4,378 +4,398 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as os from 'os';
+import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
-import { tmpdir } from 'os';
-import { join, sep } from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
-import { copy, exists, move, readdir, readDirsInDir, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { Readable } from 'stream';
+import * as uuid from 'vs/base/common/uuid';
+import * as pfs from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { isWindows } from 'vs/base/common/platform';
 
-flakySuite('PFS', function () {
+const chunkSize = 64 * 1024;
+const readError = 'Error while reading';
+function toReadable(value: string, throwError?: boolean): Readable {
+	const totalChunks = Math.ceil(value.length / chunkSize);
+	const stringChunks: string[] = [];
 
-	let testDir: string;
+	for (let i = 0, j = 0; i < totalChunks; ++i, j += chunkSize) {
+		stringChunks[i] = value.substr(j, chunkSize);
+	}
 
-	setup(() => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'pfs');
+	let counter = 0;
+	return new Readable({
+		read: function () {
+			if (throwError) {
+				this.emit('error', new Error(readError));
+			}
 
-		return fs.promises.mkdir(testDir, { recursive: true });
+			let res!: string;
+			let canPush = true;
+			while (canPush && (res = stringChunks[counter++])) {
+				canPush = this.push(res);
+			}
+
+			// EOS
+			if (!res) {
+				this.push(null);
+			}
+		},
+		encoding: 'utf8'
 	});
+}
 
-	teardown(() => {
-		return rimraf(testDir);
-	});
+suite('PFS', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/84066
+	// we see random test failures when accessing the native file system. To
+	// diagnose further, we retry node.js file access tests up to 3 times to
+	// rule out any random disk issue.
+	this.retries(3);
 
 	test('writeFile', async () => {
-		const testFile = join(testDir, 'writefile.txt');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'writefile.txt');
 
-		assert.ok(!(await exists(testFile)));
+		await pfs.mkdirp(newDir, 493);
+		assert.ok(fs.existsSync(newDir));
 
-		await writeFile(testFile, 'Hello World', (null!));
+		await pfs.writeFile(testFile, 'Hello World', (null!));
+		assert.equal(fs.readFileSync(testFile), 'Hello World');
 
-		assert.strictEqual((await fs.promises.readFile(testFile)).toString(), 'Hello World');
+		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('writeFile - parallel write on different files works', async () => {
-		const testFile1 = join(testDir, 'writefile1.txt');
-		const testFile2 = join(testDir, 'writefile2.txt');
-		const testFile3 = join(testDir, 'writefile3.txt');
-		const testFile4 = join(testDir, 'writefile4.txt');
-		const testFile5 = join(testDir, 'writefile5.txt');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile1 = path.join(newDir, 'writefile1.txt');
+		const testFile2 = path.join(newDir, 'writefile2.txt');
+		const testFile3 = path.join(newDir, 'writefile3.txt');
+		const testFile4 = path.join(newDir, 'writefile4.txt');
+		const testFile5 = path.join(newDir, 'writefile5.txt');
+
+		await pfs.mkdirp(newDir, 493);
+		assert.ok(fs.existsSync(newDir));
 
 		await Promise.all([
-			writeFile(testFile1, 'Hello World 1', (null!)),
-			writeFile(testFile2, 'Hello World 2', (null!)),
-			writeFile(testFile3, 'Hello World 3', (null!)),
-			writeFile(testFile4, 'Hello World 4', (null!)),
-			writeFile(testFile5, 'Hello World 5', (null!))
+			pfs.writeFile(testFile1, 'Hello World 1', (null!)),
+			pfs.writeFile(testFile2, 'Hello World 2', (null!)),
+			pfs.writeFile(testFile3, 'Hello World 3', (null!)),
+			pfs.writeFile(testFile4, 'Hello World 4', (null!)),
+			pfs.writeFile(testFile5, 'Hello World 5', (null!))
 		]);
-		assert.strictEqual(fs.readFileSync(testFile1).toString(), 'Hello World 1');
-		assert.strictEqual(fs.readFileSync(testFile2).toString(), 'Hello World 2');
-		assert.strictEqual(fs.readFileSync(testFile3).toString(), 'Hello World 3');
-		assert.strictEqual(fs.readFileSync(testFile4).toString(), 'Hello World 4');
-		assert.strictEqual(fs.readFileSync(testFile5).toString(), 'Hello World 5');
+		assert.equal(fs.readFileSync(testFile1), 'Hello World 1');
+		assert.equal(fs.readFileSync(testFile2), 'Hello World 2');
+		assert.equal(fs.readFileSync(testFile3), 'Hello World 3');
+		assert.equal(fs.readFileSync(testFile4), 'Hello World 4');
+		assert.equal(fs.readFileSync(testFile5), 'Hello World 5');
+
+		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('writeFile - parallel write on same files works and is sequentalized', async () => {
-		const testFile = join(testDir, 'writefile.txt');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'writefile.txt');
+
+		await pfs.mkdirp(newDir, 493);
+		assert.ok(fs.existsSync(newDir));
 
 		await Promise.all([
-			writeFile(testFile, 'Hello World 1', undefined),
-			writeFile(testFile, 'Hello World 2', undefined),
-			timeout(10).then(() => writeFile(testFile, 'Hello World 3', undefined)),
-			writeFile(testFile, 'Hello World 4', undefined),
-			timeout(10).then(() => writeFile(testFile, 'Hello World 5', undefined))
+			pfs.writeFile(testFile, 'Hello World 1', undefined),
+			pfs.writeFile(testFile, 'Hello World 2', undefined),
+			timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 3', undefined)),
+			pfs.writeFile(testFile, 'Hello World 4', undefined),
+			timeout(10).then(() => pfs.writeFile(testFile, 'Hello World 5', undefined))
 		]);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), 'Hello World 5');
+		assert.equal(fs.readFileSync(testFile), 'Hello World 5');
+
+		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('rimraf - simple - unlink', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		await rimraf(testDir);
-		assert.ok(!fs.existsSync(testDir));
+		await pfs.mkdirp(newDir, 493);
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+		await pfs.rimraf(newDir);
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimraf - simple - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		await rimraf(testDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await pfs.mkdirp(newDir, 493);
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+		await pfs.rimraf(newDir, pfs.RimRafMode.MOVE);
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimraf - recursive folder structure - unlink', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		await rimraf(testDir);
-		assert.ok(!fs.existsSync(testDir));
+		await pfs.mkdirp(newDir, 493);
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+		fs.mkdirSync(path.join(newDir, 'somefolder'));
+		fs.writeFileSync(path.join(newDir, 'somefolder', 'somefile.txt'), 'Contents');
+
+		await pfs.rimraf(newDir);
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimraf - recursive folder structure - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		await rimraf(testDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await pfs.mkdirp(newDir, 493);
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+		fs.mkdirSync(path.join(newDir, 'somefolder'));
+		fs.writeFileSync(path.join(newDir, 'somefolder', 'somefile.txt'), 'Contents');
+
+		await pfs.rimraf(newDir, pfs.RimRafMode.MOVE);
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimraf - simple ends with dot - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+		const id = `${uuid.generateUuid()}.`;
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		await rimraf(testDir, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await pfs.mkdirp(newDir, 493);
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+		await pfs.rimraf(newDir, pfs.RimRafMode.MOVE);
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimraf - simple ends with dot slash/backslash - move', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+		const id = `${uuid.generateUuid()}.`;
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		await rimraf(`${testDir}${sep}`, RimRafMode.MOVE);
-		assert.ok(!fs.existsSync(testDir));
+		await pfs.mkdirp(newDir, 493);
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+		await pfs.rimraf(`${newDir}${path.sep}`, pfs.RimRafMode.MOVE);
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimrafSync - swallows file not found error', function () {
-		const nonExistingDir = join(testDir, 'not-existing');
-		rimrafSync(nonExistingDir);
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		assert.ok(!fs.existsSync(nonExistingDir));
+		pfs.rimrafSync(newDir);
+
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimrafSync - simple', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		rimrafSync(testDir);
+		await pfs.mkdirp(newDir, 493);
 
-		assert.ok(!fs.existsSync(testDir));
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+		pfs.rimrafSync(newDir);
+
+		assert.ok(!fs.existsSync(newDir));
 	});
 
 	test('rimrafSync - recursive folder structure', async () => {
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		fs.mkdirSync(join(testDir, 'somefolder'));
-		fs.writeFileSync(join(testDir, 'somefolder', 'somefile.txt'), 'Contents');
+		await pfs.mkdirp(newDir, 493);
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
 
-		rimrafSync(testDir);
+		fs.mkdirSync(path.join(newDir, 'somefolder'));
+		fs.writeFileSync(path.join(newDir, 'somefolder', 'somefile.txt'), 'Contents');
 
-		assert.ok(!fs.existsSync(testDir));
+		pfs.rimrafSync(newDir);
+
+		assert.ok(!fs.existsSync(newDir));
+	});
+
+	test('moveIgnoreError', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+
+		await pfs.mkdirp(newDir, 493);
+		try {
+			await pfs.renameIgnoreError(path.join(newDir, 'foo'), path.join(newDir, 'bar'));
+			return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
+		}
+		catch (error) {
+			assert.fail(error);
+			throw error;
+		}
 	});
 
 	test('copy, move and delete', async () => {
-		const id = generateUuid();
-		const id2 = generateUuid();
+		const id = uuid.generateUuid();
+		const id2 = uuid.generateUuid();
 		const sourceDir = getPathFromAmdModule(require, './fixtures');
-		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
-		const targetDir = join(parentDir, id);
-		const targetDir2 = join(parentDir, id2);
+		const parentDir = path.join(os.tmpdir(), 'vsctests', 'pfs');
+		const targetDir = path.join(parentDir, id);
+		const targetDir2 = path.join(parentDir, id2);
 
-		await copy(sourceDir, targetDir, { preserveSymlinks: true });
+		await pfs.copy(sourceDir, targetDir);
 
 		assert.ok(fs.existsSync(targetDir));
-		assert.ok(fs.existsSync(join(targetDir, 'index.html')));
-		assert.ok(fs.existsSync(join(targetDir, 'site.css')));
-		assert.ok(fs.existsSync(join(targetDir, 'examples')));
-		assert.ok(fs.statSync(join(targetDir, 'examples')).isDirectory());
-		assert.ok(fs.existsSync(join(targetDir, 'examples', 'small.jxs')));
+		assert.ok(fs.existsSync(path.join(targetDir, 'index.html')));
+		assert.ok(fs.existsSync(path.join(targetDir, 'site.css')));
+		assert.ok(fs.existsSync(path.join(targetDir, 'examples')));
+		assert.ok(fs.statSync(path.join(targetDir, 'examples')).isDirectory());
+		assert.ok(fs.existsSync(path.join(targetDir, 'examples', 'small.jxs')));
 
-		await move(targetDir, targetDir2);
+		await pfs.move(targetDir, targetDir2);
 
 		assert.ok(!fs.existsSync(targetDir));
 		assert.ok(fs.existsSync(targetDir2));
-		assert.ok(fs.existsSync(join(targetDir2, 'index.html')));
-		assert.ok(fs.existsSync(join(targetDir2, 'site.css')));
-		assert.ok(fs.existsSync(join(targetDir2, 'examples')));
-		assert.ok(fs.statSync(join(targetDir2, 'examples')).isDirectory());
-		assert.ok(fs.existsSync(join(targetDir2, 'examples', 'small.jxs')));
+		assert.ok(fs.existsSync(path.join(targetDir2, 'index.html')));
+		assert.ok(fs.existsSync(path.join(targetDir2, 'site.css')));
+		assert.ok(fs.existsSync(path.join(targetDir2, 'examples')));
+		assert.ok(fs.statSync(path.join(targetDir2, 'examples')).isDirectory());
+		assert.ok(fs.existsSync(path.join(targetDir2, 'examples', 'small.jxs')));
 
-		await move(join(targetDir2, 'index.html'), join(targetDir2, 'index_moved.html'));
+		await pfs.move(path.join(targetDir2, 'index.html'), path.join(targetDir2, 'index_moved.html'));
 
-		assert.ok(!fs.existsSync(join(targetDir2, 'index.html')));
-		assert.ok(fs.existsSync(join(targetDir2, 'index_moved.html')));
+		assert.ok(!fs.existsSync(path.join(targetDir2, 'index.html')));
+		assert.ok(fs.existsSync(path.join(targetDir2, 'index_moved.html')));
 
-		await rimraf(parentDir);
+		await pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 
 		assert.ok(!fs.existsSync(parentDir));
 	});
 
-	test('copy handles symbolic links', async () => {
-		const id1 = generateUuid();
-		const symbolicLinkTarget = join(testDir, id1);
+	test('mkdirp', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		const id2 = generateUuid();
-		const symLink = join(testDir, id2);
+		await pfs.mkdirp(newDir, 493);
 
-		const id3 = generateUuid();
-		const copyTarget = join(testDir, id3);
+		assert.ok(fs.existsSync(newDir));
 
-		await fs.promises.mkdir(symbolicLinkTarget, { recursive: true });
-
-		fs.symlinkSync(symbolicLinkTarget, symLink, 'junction');
-
-		// Copy preserves symlinks if configured as such
-		//
-		// Windows: this test does not work because creating symlinks
-		// requires priviledged permissions (admin).
-		if (!isWindows) {
-			await copy(symLink, copyTarget, { preserveSymlinks: true });
-
-			assert.ok(fs.existsSync(copyTarget));
-
-			const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
-			assert.ok(symbolicLink);
-			assert.ok(!symbolicLink.dangling);
-
-			const target = await fs.promises.readlink(copyTarget);
-			assert.strictEqual(target, symbolicLinkTarget);
-
-			// Copy does not preserve symlinks if configured as such
-
-			await rimraf(copyTarget);
-			await copy(symLink, copyTarget, { preserveSymlinks: false });
-
-			assert.ok(fs.existsSync(copyTarget));
-
-			const { symbolicLink: symbolicLink2 } = await SymlinkSupport.stat(copyTarget);
-			assert.ok(!symbolicLink2);
-		}
-
-		// Copy does not fail over dangling symlinks
-
-		await rimraf(copyTarget);
-		await rimraf(symbolicLinkTarget);
-
-		await copy(symLink, copyTarget, { preserveSymlinks: true }); // this should not throw
-
-		if (!isWindows) {
-			const { symbolicLink } = await SymlinkSupport.stat(copyTarget);
-			assert.ok(symbolicLink?.dangling);
-		} else {
-			assert.ok(!fs.existsSync(copyTarget));
-		}
-	});
-
-	test('copy handles symbolic links when the reference is inside source', async () => {
-
-		// Source Folder
-		const sourceFolder = join(testDir, generateUuid(), 'copy-test'); 	// copy-test
-		const sourceLinkTestFolder = join(sourceFolder, 'link-test');		// copy-test/link-test
-		const sourceLinkMD5JSFolder = join(sourceLinkTestFolder, 'md5');	// copy-test/link-test/md5
-		const sourceLinkMD5JSFile = join(sourceLinkMD5JSFolder, 'md5.js');	// copy-test/link-test/md5/md5.js
-		await fs.promises.mkdir(sourceLinkMD5JSFolder, { recursive: true });
-		await writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
-
-		const sourceLinkMD5JSFolderLinked = join(sourceLinkTestFolder, 'md5-linked');	// copy-test/link-test/md5-linked
-		fs.symlinkSync(sourceLinkMD5JSFolder, sourceLinkMD5JSFolderLinked, 'junction');
-
-		// Target Folder
-		const targetLinkTestFolder = join(sourceFolder, 'link-test copy');				// copy-test/link-test copy
-		const targetLinkMD5JSFolder = join(targetLinkTestFolder, 'md5');				// copy-test/link-test copy/md5
-		const targetLinkMD5JSFile = join(targetLinkMD5JSFolder, 'md5.js');				// copy-test/link-test copy/md5/md5.js
-		const targetLinkMD5JSFolderLinked = join(targetLinkTestFolder, 'md5-linked');	// copy-test/link-test copy/md5-linked
-
-		// Copy with `preserveSymlinks: true` and verify result
-		//
-		// Windows: this test does not work because creating symlinks
-		// requires priviledged permissions (admin).
-		if (!isWindows) {
-			await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
-
-			assert.ok(fs.existsSync(targetLinkTestFolder));
-			assert.ok(fs.existsSync(targetLinkMD5JSFolder));
-			assert.ok(fs.existsSync(targetLinkMD5JSFile));
-			assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
-			assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isSymbolicLink());
-
-			const linkTarget = await fs.promises.readlink(targetLinkMD5JSFolderLinked);
-			assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
-
-			await fs.promises.rmdir(targetLinkTestFolder, { recursive: true });
-		}
-
-		// Copy with `preserveSymlinks: false` and verify result
-		await copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: false });
-
-		assert.ok(fs.existsSync(targetLinkTestFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolder));
-		assert.ok(fs.existsSync(targetLinkMD5JSFile));
-		assert.ok(fs.existsSync(targetLinkMD5JSFolderLinked));
-		assert.ok(fs.lstatSync(targetLinkMD5JSFolderLinked).isDirectory());
+		return pfs.rimraf(parentDir, pfs.RimRafMode.MOVE);
 	});
 
 	test('readDirsInDir', async () => {
-		fs.mkdirSync(join(testDir, 'somefolder1'));
-		fs.mkdirSync(join(testDir, 'somefolder2'));
-		fs.mkdirSync(join(testDir, 'somefolder3'));
-		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
-		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
 
-		const result = await readDirsInDir(testDir);
-		assert.strictEqual(result.length, 3);
+		await pfs.mkdirp(newDir, 493);
+
+		fs.mkdirSync(path.join(newDir, 'somefolder1'));
+		fs.mkdirSync(path.join(newDir, 'somefolder2'));
+		fs.mkdirSync(path.join(newDir, 'somefolder3'));
+		fs.writeFileSync(path.join(newDir, 'somefile.txt'), 'Contents');
+		fs.writeFileSync(path.join(newDir, 'someOtherFile.txt'), 'Contents');
+
+		const result = await pfs.readDirsInDir(newDir);
+		assert.equal(result.length, 3);
 		assert.ok(result.indexOf('somefolder1') !== -1);
 		assert.ok(result.indexOf('somefolder2') !== -1);
 		assert.ok(result.indexOf('somefolder3') !== -1);
+
+		await pfs.rimraf(newDir);
 	});
 
 	test('stat link', async () => {
-		const id1 = generateUuid();
-		const directory = join(testDir, id1);
+		if (isWindows) {
+			return Promise.resolve(); // Symlinks are not the same on win, and we can not create them programitically without admin privileges
+		}
 
-		const id2 = generateUuid();
-		const symbolicLink = join(testDir, id2);
+		const id1 = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id1);
+		const directory = path.join(parentDir, 'pfs', id1);
 
-		await fs.promises.mkdir(directory, { recursive: true });
+		const id2 = uuid.generateUuid();
+		const symbolicLink = path.join(parentDir, 'pfs', id2);
 
-		fs.symlinkSync(directory, symbolicLink, 'junction');
+		await pfs.mkdirp(directory, 493);
 
-		let statAndIsLink = await SymlinkSupport.stat(directory);
-		assert.ok(!statAndIsLink?.symbolicLink);
+		fs.symlinkSync(directory, symbolicLink);
 
-		statAndIsLink = await SymlinkSupport.stat(symbolicLink);
-		assert.ok(statAndIsLink?.symbolicLink);
-		assert.ok(!statAndIsLink?.symbolicLink?.dangling);
-	});
+		let statAndIsLink = await pfs.statLink(directory);
+		assert.ok(!statAndIsLink!.isSymbolicLink);
 
-	test('stat link (non existing target)', async () => {
-		const id1 = generateUuid();
-		const directory = join(testDir, id1);
+		statAndIsLink = await pfs.statLink(symbolicLink);
+		assert.ok(statAndIsLink!.isSymbolicLink);
 
-		const id2 = generateUuid();
-		const symbolicLink = join(testDir, id2);
-
-		await fs.promises.mkdir(directory, { recursive: true });
-
-		fs.symlinkSync(directory, symbolicLink, 'junction');
-
-		await rimraf(directory);
-
-		const statAndIsLink = await SymlinkSupport.stat(symbolicLink);
-		assert.ok(statAndIsLink?.symbolicLink);
-		assert.ok(statAndIsLink?.symbolicLink?.dangling);
+		pfs.rimrafSync(directory);
 	});
 
 	test('readdir', async () => {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const id = generateUuid();
-			const newDir = join(testDir, 'pfs', id, 'öäü');
+			const id = uuid.generateUuid();
+			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			const newDir = path.join(parentDir, 'pfs', id, 'öäü');
 
-			await fs.promises.mkdir(newDir, { recursive: true });
+			await pfs.mkdirp(newDir, 493);
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await readdir(join(testDir, 'pfs', id));
-			assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
+			const children = await pfs.readdir(path.join(parentDir, 'pfs', id));
+			assert.equal(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
+
+			await pfs.rimraf(parentDir);
 		}
 	});
 
-	test('readdir (with file types)', async () => {
+	test('readdirWithFileTypes', async () => {
 		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const newDir = join(testDir, 'öäü');
-			await fs.promises.mkdir(newDir, { recursive: true });
+			const id = uuid.generateUuid();
+			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			const testDir = path.join(parentDir, 'pfs', id);
 
-			await writeFile(join(testDir, 'somefile.txt'), 'contents');
+			const newDir = path.join(testDir, 'öäü');
+			await pfs.mkdirp(newDir, 493);
+
+			await pfs.writeFile(path.join(testDir, 'somefile.txt'), 'contents');
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await readdir(testDir, { withFileTypes: true });
+			const children = await pfs.readdirWithFileTypes(testDir);
 
-			assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
-			assert.strictEqual(children.some(n => n.isDirectory()), true);
+			assert.equal(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
+			assert.equal(children.some(n => n.isDirectory()), true);
 
-			assert.strictEqual(children.some(n => n.name === 'somefile.txt'), true);
-			assert.strictEqual(children.some(n => n.isFile()), true);
+			assert.equal(children.some(n => n.name === 'somefile.txt'), true);
+			assert.equal(children.some(n => n.isFile()), true);
+
+			await pfs.rimraf(parentDir);
 		}
 	});
 
@@ -400,47 +420,206 @@ flakySuite('PFS', function () {
 		return testWriteFileAndFlush(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
 	});
 
+	test('writeFile (stream)', async () => {
+		const smallData = 'Hello World';
+		const bigData = (new Array(100 * 1024)).join('Large String\n');
+
+		return testWriteFileAndFlush(toReadable(smallData), smallData, toReadable(bigData), bigData);
+	});
+
 	async function testWriteFileAndFlush(
-		smallData: string | Buffer | Uint8Array,
+		smallData: string | Buffer | NodeJS.ReadableStream | Uint8Array,
 		smallDataValue: string,
-		bigData: string | Buffer | Uint8Array,
+		bigData: string | Buffer | NodeJS.ReadableStream | Uint8Array,
 		bigDataValue: string
 	): Promise<void> {
-		const testFile = join(testDir, 'flushed.txt');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
 
-		assert.ok(fs.existsSync(testDir));
+		await pfs.mkdirp(newDir, 493);
+		assert.ok(fs.existsSync(newDir));
 
-		await writeFile(testFile, smallData);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), smallDataValue);
+		await pfs.writeFile(testFile, smallData);
+		assert.equal(fs.readFileSync(testFile), smallDataValue);
 
-		await writeFile(testFile, bigData);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), bigDataValue);
+		await pfs.writeFile(testFile, bigData);
+		assert.equal(fs.readFileSync(testFile), bigDataValue);
+
+		await pfs.rimraf(parentDir);
 	}
 
-	test('writeFile (string, error handling)', async () => {
-		const testFile = join(testDir, 'flushed.txt');
+	test('writeFile (file stream)', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
 
-		fs.mkdirSync(testFile); // this will trigger an error later because testFile is now a directory!
+		await pfs.mkdirp(newDir, 493);
+		assert.ok(fs.existsSync(newDir));
+
+		await pfs.writeFile(testFile, fs.createReadStream(sourceFile));
+		assert.equal(fs.readFileSync(testFile).toString(), fs.readFileSync(sourceFile).toString());
+
+		await pfs.rimraf(parentDir);
+	});
+
+	test('writeFile (string, error handling)', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		await pfs.mkdirp(newDir, 493);
+
+		assert.ok(fs.existsSync(newDir));
+
+		fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
 
 		let expectedError: Error | undefined;
 		try {
-			await writeFile(testFile, 'Hello World');
+			await pfs.writeFile(testFile, 'Hello World');
 		} catch (error) {
 			expectedError = error;
 		}
 
 		assert.ok(expectedError);
+
+		await pfs.rimraf(parentDir);
+	});
+
+	test('writeFile (stream, error handling EISDIR)', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		await pfs.mkdirp(newDir, 493);
+
+		assert.ok(fs.existsSync(newDir));
+
+		fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
+
+		const readable = toReadable('Hello World');
+
+		let expectedError: Error | undefined;
+		try {
+			await pfs.writeFile(testFile, readable);
+		} catch (error) {
+			expectedError = error;
+		}
+
+		if (!expectedError || (<any>expectedError).code !== 'EISDIR') {
+			throw new Error('Expected EISDIR error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
+		}
+
+		// verify that the stream is still consumable (for https://github.com/Microsoft/vscode/issues/42542)
+		assert.equal(readable.read(), 'Hello World');
+
+		await pfs.rimraf(parentDir);
+	});
+
+	test('writeFile (stream, error handling READERROR)', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		await pfs.mkdirp(newDir, 493);
+		assert.ok(fs.existsSync(newDir));
+
+		let expectedError: Error | undefined;
+		try {
+			await pfs.writeFile(testFile, toReadable('Hello World', true /* throw error */));
+		} catch (error) {
+			expectedError = error;
+		}
+
+		if (!expectedError || expectedError.message !== readError) {
+			throw new Error('Expected error for writing to folder');
+		}
+
+		await pfs.rimraf(parentDir);
+	});
+
+	test('writeFile (stream, error handling EACCES)', async () => {
+		if (isLinux) {
+			return Promise.resolve(); // somehow this test fails on Linux in our TFS builds
+		}
+
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		await pfs.mkdirp(newDir, 493);
+
+		assert.ok(fs.existsSync(newDir));
+
+		fs.writeFileSync(testFile, '');
+		fs.chmodSync(testFile, 33060); // make readonly
+
+		let expectedError: Error | undefined;
+		try {
+			await pfs.writeFile(testFile, toReadable('Hello World'));
+		} catch (error) {
+			expectedError = error;
+		}
+
+		if (!expectedError || !((<any>expectedError).code !== 'EACCES' || (<any>expectedError).code !== 'EPERM')) {
+			throw new Error('Expected EACCES/EPERM error for writing to folder but got: ' + (expectedError ? (<any>expectedError).code : 'no error'));
+		}
+
+		await pfs.rimraf(parentDir);
+	});
+
+	test('writeFile (file stream, error handling)', async () => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const sourceFile = getPathFromAmdModule(require, './fixtures/index.html');
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		await pfs.mkdirp(newDir, 493);
+
+		assert.ok(fs.existsSync(newDir));
+
+		fs.mkdirSync(testFile); // this will trigger an error because testFile is now a directory!
+
+		let expectedError: Error | undefined;
+		try {
+			await pfs.writeFile(testFile, fs.createReadStream(sourceFile));
+		} catch (error) {
+			expectedError = error;
+		}
+
+		if (!expectedError) {
+			throw new Error('Expected error for writing to folder');
+		}
+
+		await pfs.rimraf(parentDir);
 	});
 
 	test('writeFileSync', async () => {
-		const testFile = join(testDir, 'flushed.txt');
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'pfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
 
-		writeFileSync(testFile, 'Hello World');
-		assert.strictEqual(fs.readFileSync(testFile).toString(), 'Hello World');
+		await pfs.mkdirp(newDir, 493);
+
+		assert.ok(fs.existsSync(newDir));
+
+		pfs.writeFileSync(testFile, 'Hello World');
+		assert.equal(fs.readFileSync(testFile), 'Hello World');
 
 		const largeString = (new Array(100 * 1024)).join('Large String\n');
 
-		writeFileSync(testFile, largeString);
-		assert.strictEqual(fs.readFileSync(testFile).toString(), largeString);
+		pfs.writeFileSync(testFile, largeString);
+		assert.equal(fs.readFileSync(testFile), largeString);
+
+		await pfs.rimraf(parentDir);
 	});
 });

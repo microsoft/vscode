@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -24,7 +25,7 @@ export class CommentFormActions implements IDisposable {
 	setActions(menu: IMenu) {
 		this._toDispose.clear();
 
-		this._buttonElements.forEach(b => b.remove());
+		this._buttonElements.forEach(b => DOM.removeNode(b));
 
 		const groups = menu.getActions({ shouldForwardArgs: true });
 		for (const group of groups) {

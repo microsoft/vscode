@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
@@ -14,7 +14,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { DocumentFormattingEditProvider, DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProvider, DocumentRangeFormattingEditProviderRegistry, FormattingOptions, OnTypeFormattingEditProviderRegistry, TextEdit } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -27,8 +27,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { Iterable } from 'vs/base/common/iterator';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -112,20 +110,19 @@ export abstract class FormattingConflicts {
 		if (formatter.length === 0) {
 			return undefined;
 		}
-		const selector = Iterable.first(FormattingConflicts._selectors);
+		const { value: selector } = FormattingConflicts._selectors.iterator().next();
 		if (selector) {
 			return await selector(formatter, document, mode);
 		}
-		return undefined;
+		return formatter[0];
 	}
 }
 
-export async function formatDocumentRangesWithSelectedProvider(
+export async function formatDocumentRangeWithSelectedProvider(
 	accessor: ServicesAccessor,
 	editorOrModel: ITextModel | IActiveCodeEditor,
-	rangeOrRanges: Range | Range[],
+	range: Range,
 	mode: FormattingMode,
-	progress: IProgress<DocumentRangeFormattingEditProvider>,
 	token: CancellationToken
 ): Promise<void> {
 
@@ -134,16 +131,15 @@ export async function formatDocumentRangesWithSelectedProvider(
 	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
-		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
+		await instaService.invokeFunction(formatDocumentRangeWithProvider, selected, editorOrModel, range, token);
 	}
 }
 
-export async function formatDocumentRangesWithProvider(
+export async function formatDocumentRangeWithProvider(
 	accessor: ServicesAccessor,
 	provider: DocumentRangeFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
-	rangeOrRanges: Range | Range[],
+	range: Range,
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
@@ -152,59 +148,47 @@ export async function formatDocumentRangesWithProvider(
 	let cts: CancellationTokenSource;
 	if (isCodeEditor(editorOrModel)) {
 		model = editorOrModel.getModel();
-		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, undefined, token);
+		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, token);
 	} else {
 		model = editorOrModel;
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
 	}
 
-	// make sure that ranges don't overlap nor touch each other
-	let ranges: Range[] = [];
-	let len = 0;
-	for (let range of asArray(rangeOrRanges).sort(Range.compareRangesUsingStarts)) {
-		if (len > 0 && Range.areIntersectingOrTouching(ranges[len - 1], range)) {
-			ranges[len - 1] = Range.fromPositions(ranges[len - 1].getStartPosition(), range.getEndPosition());
-		} else {
-			len = ranges.push(range);
+	let edits: TextEdit[] | undefined;
+	try {
+		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+			model,
+			range,
+			model.getFormattingOptions(),
+			cts.token
+		);
+		edits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+
+		if (cts.token.isCancellationRequested) {
+			return true;
 		}
+
+	} finally {
+		cts.dispose();
 	}
 
-	const allEdits: TextEdit[] = [];
-	for (let range of ranges) {
-		try {
-			const rawEdits = await provider.provideDocumentRangeFormattingEdits(
-				model,
-				range,
-				model.getFormattingOptions(),
-				cts.token
-			);
-			const minEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
-			if (minEdits) {
-				allEdits.push(...minEdits);
-			}
-			if (cts.token.isCancellationRequested) {
-				return true;
-			}
-		} finally {
-			cts.dispose();
-		}
-	}
-
-	if (allEdits.length === 0) {
+	if (!edits || edits.length === 0) {
 		return false;
 	}
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, allEdits, true);
-		alertFormattingEdits(allEdits);
-		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
+		FormattingEdit.execute(editorOrModel, edits);
+		alertFormattingEdits(edits);
+		editorOrModel.pushUndoStop();
+		editorOrModel.focus();
+		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
 
 	} else {
 		// use model to apply edits
-		const [{ range }] = allEdits;
+		const [{ range }] = edits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
-		model.pushEditOperations([initialSelection], allEdits.map(edit => {
+		model.pushEditOperations([initialSelection], edits.map(edit => {
 			return {
 				text: edit.text,
 				range: Range.lift(edit.range),
@@ -227,7 +211,6 @@ export async function formatDocumentWithSelectedProvider(
 	accessor: ServicesAccessor,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
-	progress: IProgress<DocumentFormattingEditProvider>,
 	token: CancellationToken
 ): Promise<void> {
 
@@ -236,7 +219,6 @@ export async function formatDocumentWithSelectedProvider(
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
-		progress.report(selected);
 		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
 	}
 }
@@ -254,7 +236,7 @@ export async function formatDocumentWithProvider(
 	let cts: CancellationTokenSource;
 	if (isCodeEditor(editorOrModel)) {
 		model = editorOrModel.getModel();
-		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, undefined, token);
+		cts = new EditorStateCancellationTokenSource(editorOrModel, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position, token);
 	} else {
 		model = editorOrModel;
 		cts = new TextModelCancellationTokenSource(editorOrModel, token);
@@ -284,11 +266,13 @@ export async function formatDocumentWithProvider(
 
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
+		FormattingEdit.execute(editorOrModel, edits);
 
 		if (mode !== FormattingMode.Silent) {
 			alertFormattingEdits(edits);
-			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
+			editorOrModel.pushUndoStop();
+			editorOrModel.focus();
+			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), editorCommon.ScrollType.Immediate);
 		}
 
 	} else {

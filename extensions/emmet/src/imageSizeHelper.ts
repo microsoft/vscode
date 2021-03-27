@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Based on @sergeche's work on the emmet plugin for atom
+// TODO: Move to https://github.com/emmetio/image-size
 
 import * as path from 'path';
 import * as http from 'http';

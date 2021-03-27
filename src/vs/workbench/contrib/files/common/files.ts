@@ -5,55 +5,85 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
+import { Event } from 'vs/base/common/event';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService, ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import { IEditableData } from 'vs/workbench/common/views';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { localize } from 'vs/nls';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
 
-/**
- * Explorer file view id.
- */
-export const VIEW_ID = 'workbench.explorer.fileView';
+export interface IExplorerService {
+	_serviceBrand: undefined;
+	readonly roots: ExplorerItem[];
+	readonly sortOrder: SortOrder;
+	readonly onDidChangeRoots: Event<void>;
+	readonly onDidChangeItem: Event<{ item?: ExplorerItem, recursive: boolean }>;
+	readonly onDidChangeEditable: Event<ExplorerItem>;
+	readonly onDidSelectResource: Event<{ resource?: URI, reveal?: boolean }>;
+	readonly onDidCopyItems: Event<{ items: ExplorerItem[], cut: boolean, previouslyCutItems: ExplorerItem[] | undefined }>;
+
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
+	setEditable(stat: ExplorerItem, data: IEditableData | null): void;
+	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined;
+	getEditableData(stat: ExplorerItem): IEditableData | undefined;
+	// If undefined is passed checks if any element is currently being edited.
+	isEditable(stat: ExplorerItem | undefined): boolean;
+	findClosest(resource: URI): ExplorerItem | null;
+	refresh(): void;
+	setToCopy(stats: ExplorerItem[], cut: boolean): void;
+	isCut(stat: ExplorerItem): boolean;
+
+	/**
+	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
+	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
+	 */
+	select(resource: URI, reveal?: boolean): Promise<void>;
+
+	registerContextProvider(contextProvider: IContextProvider): void;
+}
+
+export interface IContextProvider {
+	getContext(respectMultiSelection: boolean): ExplorerItem[];
+}
+
+export const IExplorerService = createDecorator<IExplorerService>('explorerService');
 
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view
  */
-export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true, { type: 'boolean', description: localize('explorerViewletVisible', "True when the EXPLORER viewlet is visible.") });
-export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false, { type: 'boolean', description: localize('explorerResourceIsFolder', "True when the focused item in the EXPLORER is a folder.") });
-export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false, { type: 'boolean', description: localize('explorerResourceReadonly', "True when the focused item in the EXPLORER is readonly.") });
+export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explorerViewletVisible', true);
+export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false);
+export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false);
 export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
-/**
- * Comma separated list of editor ids that can be used for the selected explorer resource.
- */
-export const ExplorerResourceAvailableEditorIdsContext = new RawContextKey<string>('explorerResourceAvailableEditorIds', '');
-export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceIsRoot', false, { type: 'boolean', description: localize('explorerResourceIsRoot', "True when the focused item in the EXPLORER is a root folder.") });
-export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false, { type: 'boolean', description: localize('explorerResourceCut', "True when an item in the EXPLORER has been cut for cut and paste.") });
-export const ExplorerResourceMoveableToTrash = new RawContextKey<boolean>('explorerResourceMoveableToTrash', false, { type: 'boolean', description: localize('explorerResourceMoveableToTrash', "True when the focused item in the EXPLORER can be moved to trash.") });
-export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExplorerFocus', true, { type: 'boolean', description: localize('filesExplorerFocus', "True when the focus is inside the EXPLORER view.") });
-export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false, { type: 'boolean', description: localize('openEditorsVisible', "True when the OPEN EDITORS view is visible.") });
-export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true, { type: 'boolean', description: localize('openEditorsFocus', "True when the focus is inside the OPEN EDITORS view.") });
-export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true, { type: 'boolean', description: localize('explorerViewletFocus', "True when the focus is inside the EXPLORER viewlet.") });
+export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceIsRoot', false);
+export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false);
+export const ExplorerResourceMoveableToTrash = new RawContextKey<boolean>('explorerResourceMoveableToTrash', false);
+export const FilesExplorerFocusedContext = new RawContextKey<boolean>('filesExplorerFocus', true);
+export const OpenEditorsVisibleContext = new RawContextKey<boolean>('openEditorsVisible', false);
+export const OpenEditorsFocusedContext = new RawContextKey<boolean>('openEditorsFocus', true);
+export const ExplorerFocusedContext = new RawContextKey<boolean>('explorerViewletFocus', true);
 
 // compressed nodes
-export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedFocus', "True when the focused item in the EXPLORER view is a compact item.") });
-export const ExplorerCompressedFirstFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFirstFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedFirstFocus', "True when the focus is inside a compact item's first part in the EXPLORER view.") });
-export const ExplorerCompressedLastFocusContext = new RawContextKey<boolean>('explorerViewletCompressedLastFocus', true, { type: 'boolean', description: localize('explorerViewletCompressedLastFocus', "True when the focus is inside a compact item's last part in the EXPLORER view.") });
+export const ExplorerCompressedFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFocus', true);
+export const ExplorerCompressedFirstFocusContext = new RawContextKey<boolean>('explorerViewletCompressedFirstFocus', true);
+export const ExplorerCompressedLastFocusContext = new RawContextKey<boolean>('explorerViewletCompressedLastFocus', true);
 
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, FilesExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ExplorerViewletVisibleContext, ExplorerFocusedContext, ContextKeyExpr.not(InputFocusedContextKey));
@@ -77,9 +107,8 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 	explorer: {
 		openEditors: {
 			visible: number;
-			sortOrder: 'editorOrder' | 'alphabetical';
 		};
-		autoReveal: boolean | 'focusNoScroll';
+		autoReveal: boolean;
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
@@ -127,21 +156,14 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 	}
 
 	private static resourceToTextFile(scheme: string, resource: URI): URI {
-		return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme, query: resource.query }) });
+		return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme }) });
 	}
 
 	private static textFileToResource(resource: URI): URI {
-		const { scheme, query } = JSON.parse(resource.query);
-		return resource.with({ scheme, query });
+		return resource.with({ scheme: JSON.parse(resource.query)['scheme'], query: null });
 	}
 
-	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-		if (!resource.query) {
-			// We require the URI to use the `query` to transport the original scheme and query
-			// as done by `resourceToTextFile`
-			return null;
-		}
-
+	async provideTextContent(resource: URI): Promise<ITextModel> {
 		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
 
 		// Make sure our text file is resolved up to date
@@ -149,7 +171,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 		// Make sure to keep contents up to date when it changes
 		if (!this.fileWatcherDisposable.value) {
-			this.fileWatcherDisposable.value = this.fileService.onDidFilesChange(changes => {
+			this.fileWatcherDisposable.value = this.fileService.onFileChanges(changes => {
 				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
 					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 				}
@@ -192,15 +214,16 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 export class OpenEditor implements IEditorIdentifier {
 
-	private id: number;
-	private static COUNTER = 0;
-
 	constructor(private _editor: IEditorInput, private _group: IEditorGroup) {
-		this.id = OpenEditor.COUNTER++;
+		// noop
 	}
 
 	get editor() {
 		return this._editor;
+	}
+
+	get editorIndex() {
+		return this._group.getIndexOfEditor(this.editor);
 	}
 
 	get group() {
@@ -212,18 +235,18 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	getId(): string {
-		return `openeditor:${this.groupId}:${this.id}`;
+		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
 	isPreview(): boolean {
 		return this._group.previewEditor === this.editor;
 	}
 
-	isSticky(): boolean {
-		return this._group.isSticky(this.editor);
+	isDirty(): boolean {
+		return this.editor.isDirty();
 	}
 
 	getResource(): URI | undefined {
-		return EditorResourceAccessor.getOriginalUri(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
 	}
 }

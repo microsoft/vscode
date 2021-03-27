@@ -11,12 +11,11 @@ export const ITitleService = createDecorator<ITitleService>('titleService');
 export interface ITitleProperties {
 	isPure?: boolean;
 	isAdmin?: boolean;
-	prefix?: string;
 }
 
 export interface ITitleService {
 
-	readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	/**
 	 * An event when the menubar visibility changes.

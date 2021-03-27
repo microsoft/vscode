@@ -29,11 +29,10 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { isWeb, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
 
 suite('Paths (Node Implementation)', () => {
-	const __filename = 'path.test.js';
 	test('join', () => {
 		const failures = [] as string[];
 		const backslashRE = /\\/g;
@@ -165,7 +164,8 @@ suite('Paths (Node Implementation)', () => {
 						os = 'posix';
 					}
 					const message =
-						`path.${os}.join(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+						`path.${os}.join(${test[0].map(JSON.stringify).join(',')})\n  expect=${
+						JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 					if (actual !== expected && actualAlt !== expected) {
 						failures.push(`\n${message}`);
 					}
@@ -176,6 +176,9 @@ suite('Paths (Node Implementation)', () => {
 	});
 
 	test('dirname', () => {
+		assert.strictEqual(path.dirname(path.normalize(__filename)).substr(-11),
+			isWindows ? 'test\\common' : 'test/common');
+
 		assert.strictEqual(path.posix.dirname('/a/b/'), '/a');
 		assert.strictEqual(path.posix.dirname('/a/b'), '/a');
 		assert.strictEqual(path.posix.dirname('/a'), '/');
@@ -316,7 +319,8 @@ suite('Paths (Node Implementation)', () => {
 					os = 'posix';
 				}
 				const actual = extname(input);
-				const message = `path.${os}.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.${os}.extname(${JSON.stringify(input)})\n  expect=${
+					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -324,7 +328,8 @@ suite('Paths (Node Implementation)', () => {
 			{
 				const input = `C:${test[0].replace(slashRE, '\\')}`;
 				const actual = path.win32.extname(input);
-				const message = `path.win32.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.win32.extname(${JSON.stringify(input)})\n  expect=${
+					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -360,7 +365,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.equal(path.extname('far.boo/boo'), '');
 	});
 
-	(isWeb && isWindows ? test.skip : test)('resolve', () => { // TODO@sbatten fails on windows & browser only
+	test('resolve', () => {
 		const failures = [] as string[];
 		const slashRE = /\//g;
 		const backslashRE = /\\/g;
@@ -396,9 +401,9 @@ suite('Paths (Node Implementation)', () => {
 		];
 		resolveTests.forEach((test) => {
 			const resolve = test[0];
-			//@ts-expect-error
+			//@ts-ignore
 			test[1].forEach((test) => {
-				//@ts-expect-error
+				//@ts-ignore
 				const actual = resolve.apply(null, test[0]);
 				let actualAlt;
 				const os = resolve === path.win32.resolve ? 'win32' : 'posix';
@@ -411,7 +416,8 @@ suite('Paths (Node Implementation)', () => {
 
 				const expected = test[1];
 				const message =
-					`path.${os}.resolve(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+					`path.${os}.resolve(${test[0].map(JSON.stringify).join(',')})\n  expect=${
+					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected && actualAlt !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -573,13 +579,15 @@ suite('Paths (Node Implementation)', () => {
 		];
 		relativeTests.forEach((test) => {
 			const relative = test[0];
-			//@ts-expect-error
+			//@ts-ignore
 			test[1].forEach((test) => {
-				//@ts-expect-error
+				//@ts-ignore
 				const actual = relative(test[0], test[1]);
 				const expected = test[2];
 				const os = relative === path.win32.relative ? 'win32' : 'posix';
-				const message = `path.${os}.relative(${test.slice(0, 2).map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.${os}.relative(${
+					test.slice(0, 2).map(JSON.stringify).join(',')})\n  expect=${
+					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}

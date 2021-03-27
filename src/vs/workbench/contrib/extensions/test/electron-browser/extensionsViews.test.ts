@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -13,37 +14,37 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
+import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestMenuService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestContextService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
+import { URLService } from 'vs/platform/url/node/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
 import { IExperimentService, ExperimentState, ExperimentActionType, ExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
-import { ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
+import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IMenuService } from 'vs/platform/actions/common/actions';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { Schemas } from 'vs/base/common/network';
+
 
 suite('ExtensionsListView Tests', () => {
 
@@ -64,8 +65,6 @@ suite('ExtensionsListView Tests', () => {
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
-	const configBasedRecommendationA = aGalleryExtension('configbased-recommendation-A');
-	const configBasedRecommendationB = aGalleryExtension('configbased-recommendation-B');
 	const fileBasedRecommendationA = aGalleryExtension('filebased-recommendation-A');
 	const fileBasedRecommendationB = aGalleryExtension('filebased-recommendation-B');
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
@@ -87,73 +86,46 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 		instantiationService.stub(IExperimentService, ExperimentService);
 
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
-			onDidInstallExtension: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			async getInstalled() { return []; },
-			async canInstall() { return true; },
-			async getExtensionsReport() { return []; },
-		});
+		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
+		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
+		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IMenuService, new TestMenuService());
+		instantiationService.stub(IContextKeyService, MockContextKeyService);
 
-		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
-		instantiationService.stub(IExtensionManagementServerService, <Partial<IExtensionManagementServerService>>{
-			get localExtensionManagementServer(): IExtensionManagementServer {
-				return localExtensionManagementServer;
-			},
-			getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null {
-				if (extension.location.scheme === Schemas.file) {
-					return localExtensionManagementServer;
-				}
-				throw new Error(`Invalid Extension ${extension.location}`);
+		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
+			private _localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', authority: 'vscode-local' };
+			constructor() {
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IConfigurationService), instantiationService.get(IProductService), instantiationService.get(ILogService), instantiationService.get(ILabelService));
 			}
-		});
+			get localExtensionManagementServer(): IExtensionManagementServer { return this._localExtensionManagementServer; }
+			set localExtensionManagementServer(server: IExtensionManagementServer) { }
+		}());
 
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
+		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
+		instantiationService.stub(IURLService, URLService);
+
+		instantiationService.stubPromise(IExtensionTipsService, 'getWorkspaceRecommendations', [
+			{ extensionId: workspaceRecommendationA.identifier.id },
+			{ extensionId: workspaceRecommendationB.identifier.id }]);
+		instantiationService.stub(IExtensionTipsService, 'getFileBasedRecommendations', [
+			{ extensionId: fileBasedRecommendationA.identifier.id },
+			{ extensionId: fileBasedRecommendationB.identifier.id }]);
+		instantiationService.stubPromise(IExtensionTipsService, 'getOtherRecommendations', [
+			{ extensionId: otherRecommendationA.identifier.id }
+		]);
 		const reasons: { [key: string]: any } = {};
 		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[workspaceRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[fileBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
 		reasons[fileBasedRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
 		reasons[otherRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Executable };
-		reasons[configBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.WorkspaceConfig };
-		instantiationService.stub(IExtensionRecommendationsService, <Partial<IExtensionRecommendationsService>>{
-			getWorkspaceRecommendations() {
-				return Promise.resolve([
-					workspaceRecommendationA.identifier.id,
-					workspaceRecommendationB.identifier.id]);
-			},
-			getConfigBasedRecommendations() {
-				return Promise.resolve({
-					important: [configBasedRecommendationA.identifier.id],
-					others: [configBasedRecommendationB.identifier.id],
-				});
-			},
-			getImportantRecommendations(): Promise<string[]> {
-				return Promise.resolve([]);
-			},
-			getFileBasedRecommendations() {
-				return [
-					fileBasedRecommendationA.identifier.id,
-					fileBasedRecommendationB.identifier.id
-				];
-			},
-			getOtherRecommendations() {
-				return Promise.resolve([
-					configBasedRecommendationB.identifier.id,
-					otherRecommendationA.identifier.id
-				]);
-			},
-			getAllRecommendationsWithReason() {
-				return reasons;
-			}
-		});
-		instantiationService.stub(IURLService, NativeURLService);
+
+		instantiationService.stub(IExtensionTipsService, 'getAllRecommendationsWithReason', reasons);
+
 	});
 
 	setup(async () => {
@@ -162,15 +134,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
-		instantiationService.stub(IViewDescriptorService, {
-			getViewLocationById(): ViewContainerLocation {
-				return ViewContainerLocation.Sidebar;
-			},
-			onDidChangeLocation: Event.None
-		});
-
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
-			onDidChangeExtensions: Event.None,
+		instantiationService.stub(IExtensionService, {
 			getExtensions: (): Promise<IExtensionDescription[]> => {
 				return Promise.resolve([
 					toExtensionDescription(localEnabledTheme),
@@ -181,11 +145,11 @@ suite('ExtensionsListView Tests', () => {
 				]);
 			}
 		});
-		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
-		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
+		await (<TestExtensionEnablementService>instantiationService.get(IExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
 		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
 	});
 
 	teardown(() => {
@@ -343,8 +307,7 @@ suite('ExtensionsListView Tests', () => {
 	test('Test @recommended:workspace query', () => {
 		const workspaceRecommendedExtensions = [
 			workspaceRecommendationA,
-			workspaceRecommendationB,
-			configBasedRecommendationA,
+			workspaceRecommendationB
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...workspaceRecommendedExtensions));
 
@@ -364,7 +327,6 @@ suite('ExtensionsListView Tests', () => {
 		const allRecommendedExtensions = [
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
-			configBasedRecommendationB,
 			otherRecommendationA
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
@@ -387,11 +349,9 @@ suite('ExtensionsListView Tests', () => {
 		const allRecommendedExtensions = [
 			workspaceRecommendationA,
 			workspaceRecommendationB,
-			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
-			configBasedRecommendationB,
-			otherRecommendationA,
+			otherRecommendationA
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
 
@@ -487,7 +447,7 @@ suite('ExtensionsListView Tests', () => {
 		}]);
 
 		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
 
 		return testableView.show('search-me').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
@@ -514,7 +474,7 @@ suite('ExtensionsListView Tests', () => {
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
 
 		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, {});
+		testableView = instantiationService.createInstance(ExtensionsListView, {});
 
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
@@ -529,22 +489,21 @@ suite('ExtensionsListView Tests', () => {
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-		manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
-		properties = {
+		manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+		properties = assign({
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
-			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' },
-			...properties
-		};
-		properties.isBuiltin = properties.type === ExtensionType.System;
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
+			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
+		}, properties);
 		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
-		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {}, ...properties });
-		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
-		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
+		const galleryExtension = <IGalleryExtension>Object.create({});
+		assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
+		assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
+		assign(galleryExtension.assets, assets);
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 		return <IGalleryExtension>galleryExtension;
 	}
@@ -553,5 +512,14 @@ suite('ExtensionsListView Tests', () => {
 		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 
+	function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
+		return {
+			identifier: new ExtensionIdentifier(local.identifier.id),
+			isBuiltin: local.type === ExtensionType.System,
+			isUnderDevelopment: false,
+			extensionLocation: local.location,
+			...local.manifest
+		};
+	}
 });
 

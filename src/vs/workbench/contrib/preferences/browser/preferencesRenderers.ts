@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -17,23 +18,21 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationTarget, IConfigurationService, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
+import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { DefaultSettingsHeaderWidget, EditPreferenceWidget, SettingsGroupTitleWidget, SettingsHeaderWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { IFilterResult, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { find } from 'vs/base/common/arrays';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -323,7 +322,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		const { key, overrideOf } = setting;
 		if (overrideOf) {
 			const setting = this.getSetting(overrideOf);
-			return setting!.overrides!.find(override => override.key === key);
+			return find(setting!.overrides!, override => override.key === key);
 		}
 		const settingsGroups = this.filterResult ? this.filterResult.filteredGroups : this.preferencesModel.settingsGroups;
 		return this.getPreference(key, settingsGroups);
@@ -572,9 +571,14 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	private createDecoration(range: IRange): IModelDeltaDecoration {
 		return {
 			range,
-			options: FindDecorations._FIND_MATCH_DECORATION
+			options: FilteredMatchesRenderer._FIND_MATCH
 		};
 	}
+
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'findMatch'
+	});
 
 	private computeHiddenRanges(filteredGroups: ISettingsGroup[] | undefined, allSettingsGroups: ISettingsGroup[]): IRange[] {
 		// Hide the contents of hidden groups
@@ -612,10 +616,15 @@ export class HighlightMatchesRenderer extends Disposable {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, matches.map(match => this.createDecoration(match)));
 	}
 
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'findMatch'
+	});
+
 	private createDecoration(range: IRange): IModelDeltaDecoration {
 		return {
 			range,
-			options: FindDecorations._FIND_MATCH_DECORATION
+			options: HighlightMatchesRenderer._FIND_MATCH
 		};
 	}
 
@@ -642,7 +651,7 @@ class EditSettingRenderer extends Disposable {
 	private readonly _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
 	readonly onUpdateSetting: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdateSetting.event;
 
-	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
+	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
@@ -674,7 +683,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private isDefaultSettings(): boolean {
-		return this.primarySettingsModel instanceof DefaultSettingsEditorModel;
+		return this.masterSettingsModel instanceof DefaultSettingsEditorModel;
 	}
 
 	private onConfigurationChanged(): void {
@@ -739,7 +748,7 @@ class EditSettingRenderer extends Disposable {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(ThemeIcon.asClassName(settingsEditIcon)) === -1) {
+				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME) === -1) {
 					return false;
 				}
 			}
@@ -754,16 +763,16 @@ class EditSettingRenderer extends Disposable {
 			if (configurationNode) {
 				if (this.isDefaultSettings()) {
 					if (setting.key === 'launch') {
-						// Do not show because of https://github.com/microsoft/vscode/issues/32593
+						// Do not show because of https://github.com/Microsoft/vscode/issues/32593
 						return false;
 					}
 					return true;
 				}
 				if (configurationNode.type === 'boolean' || configurationNode.enum) {
-					if ((<SettingsEditorModel>this.primarySettingsModel).configurationTarget !== ConfigurationTarget.WORKSPACE_FOLDER) {
+					if ((<SettingsEditorModel>this.masterSettingsModel).configurationTarget !== ConfigurationTarget.WORKSPACE_FOLDER) {
 						return true;
 					}
-					if (configurationNode.scope === ConfigurationScope.RESOURCE || configurationNode.scope === ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+					if (configurationNode.scope === ConfigurationScope.RESOURCE || configurationNode.scope === ConfigurationScope.RESOURCE_LANGUAGE) {
 						return true;
 					}
 				}
@@ -817,7 +826,7 @@ class EditSettingRenderer extends Disposable {
 
 		const anchor = { x: e.event.posx, y: e.event.posy + 10 };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
-			: editPreferenceWidget.preferences.map(setting => new SubmenuAction(`preferences.submenu.${setting.key}`, setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
+			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions
@@ -947,7 +956,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		private editor: ICodeEditor,
 		private settingsEditorModel: SettingsEditorModel,
 		@IMarkerService private markerService: IMarkerService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super();
@@ -962,9 +971,9 @@ class UnsupportedSettingsRenderer extends Disposable {
 	public render(): void {
 		const markerData: IMarkerData[] = this.generateMarkerData();
 		if (markerData.length) {
-			this.markerService.changeOne('UnsupportedSettingsRenderer', this.settingsEditorModel.uri, markerData);
+			this.markerService.changeOne('preferencesEditor', this.settingsEditorModel.uri, markerData);
 		} else {
-			this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
+			this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
 		}
 	}
 
@@ -1005,7 +1014,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 	}
 
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
-		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
+		if (this.workbenchEnvironmentService.configuration.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
@@ -1069,7 +1078,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 	}
 
 	public dispose(): void {
-		this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
+		this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
 		super.dispose();
 	}
 
@@ -1082,8 +1091,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IMarkerService private readonly markerService: IMarkerService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		super();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render(this.associatedSettingsEditorModel))));
@@ -1091,39 +1099,24 @@ class WorkspaceConfigurationRenderer extends Disposable {
 
 	render(associatedSettingsEditorModel: IPreferencesEditorModel<ISetting>): void {
 		this.associatedSettingsEditorModel = associatedSettingsEditorModel;
-		const markerData: IMarkerData[] = [];
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceSettingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
+		// Dim other configurations in workspace configuration file only in the context of Settings Editor
+		if (this.associatedSettingsEditorModel && this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceSettingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
 			const ranges: IRange[] = [];
 			for (const settingsGroup of this.workspaceSettingsEditorModel.configurationGroups) {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
-						if (setting.key === 'folders' || setting.key === 'tasks' || setting.key === 'launch' || setting.key === 'extensions') {
-							if (this.associatedSettingsEditorModel) {
-								// Dim other configurations in workspace configuration file only in the context of Settings Editor
-								ranges.push({
-									startLineNumber: setting.keyRange.startLineNumber,
-									startColumn: setting.keyRange.startColumn - 1,
-									endLineNumber: setting.valueRange.endLineNumber,
-									endColumn: setting.valueRange.endColumn
-								});
-							}
-						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority') {
-							markerData.push({
-								severity: MarkerSeverity.Hint,
-								tags: [MarkerTag.Unnecessary],
-								...setting.range,
-								message: nls.localize('unsupportedProperty', "Unsupported Property")
+						if (setting.key !== 'settings') {
+							ranges.push({
+								startLineNumber: setting.keyRange.startLineNumber,
+								startColumn: setting.keyRange.startColumn - 1,
+								endLineNumber: setting.valueRange.endLineNumber,
+								endColumn: setting.valueRange.endColumn
 							});
 						}
 					}
 				}
 			}
 			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range)));
-		}
-		if (markerData.length) {
-			this.markerService.changeOne('WorkspaceConfigurationRenderer', this.workspaceSettingsEditorModel.uri, markerData);
-		} else {
-			this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
 		}
 	}
 
@@ -1140,7 +1133,6 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	dispose(): void {
-		this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}

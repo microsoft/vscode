@@ -5,7 +5,6 @@
 
 import { timeout } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import * as performance from 'vs/base/common/performance';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -22,7 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -37,7 +35,6 @@ export class ExtensionHostMain {
 	private _isTerminating: boolean;
 	private readonly _hostUtils: IHostUtils;
 	private readonly _extensionService: IExtHostExtensionService;
-	private readonly _logService: ILogService;
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -62,16 +59,15 @@ export class ExtensionHostMain {
 
 		const instaService: IInstantiationService = new InstantiationService(services, true);
 
+		// todo@joh
 		// ugly self - inject
-		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
-		this._disposables.add(terminalService);
+		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
+		this._disposables.add(logService);
 
-		this._logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
+		logService.info('extension host started');
+		logService.trace('initData', initData);
 
-		performance.mark(`code/extHost/didCreateServices`);
-		this._logService.info('extension host started');
-		this._logService.trace('initData', initData);
-
+		// todo@joh
 		// ugly self - inject
 		// must call initialize *after* creating the extension service
 		// because `initialize` itself creates instances that depend on it
@@ -80,7 +76,7 @@ export class ExtensionHostMain {
 
 		// error forwarding and stack trace scanning
 		Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-		const extensionErrors = new WeakMap<Error, IExtensionDescription | undefined>();
+		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
 		this._extensionService.getExtensionPathIndex().then(map => {
 			(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
 				let stackTraceMessage = '';
@@ -112,14 +108,12 @@ export class ExtensionHostMain {
 		});
 	}
 
-	terminate(reason: string): void {
+	terminate(): void {
 		if (this._isTerminating) {
 			// we are already shutting down...
 			return;
 		}
 		this._isTerminating = true;
-		this._logService.info(`extension host terminating: ${reason}`);
-		this._logService.flush();
 
 		this._disposables.dispose();
 
@@ -131,25 +125,21 @@ export class ExtensionHostMain {
 
 		// Give extensions 1 second to wrap up any async dispose, then exit in at most 4 seconds
 		setTimeout(() => {
-			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => {
-				this._logService.info(`exiting with code 0`);
-				this._logService.flush();
-				this._logService.dispose();
-				this._hostUtils.exit(0);
-			});
+			Promise.race([timeout(4000), extensionsDeactivated]).finally(() => this._hostUtils.exit());
 		}, 1000);
 	}
 
 	private static _transform(initData: IInitData, rpcProtocol: RPCProtocol): IInitData {
 		initData.extensions.forEach((ext) => (<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation)));
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
+		initData.environment.appSettingsHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appSettingsHome));
 		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;
 		if (extDevLocs) {
 			initData.environment.extensionDevelopmentLocationURI = extDevLocs.map(url => URI.revive(rpcProtocol.transformIncomingURIs(url)));
 		}
 		initData.environment.extensionTestsLocationURI = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTestsLocationURI));
 		initData.environment.globalStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.globalStorageHome));
-		initData.environment.workspaceStorageHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.workspaceStorageHome));
+		initData.environment.userHome = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.userHome));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
 		initData.logFile = URI.revive(rpcProtocol.transformIncomingURIs(initData.logFile));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);

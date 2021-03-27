@@ -7,10 +7,10 @@ import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -74,12 +74,12 @@ function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnv
 	}
 }
 
-function resolveConfigurationVariables(variableResolver: VariableResolver, env: ITerminalEnvironment): ITerminalEnvironment {
+function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
-		if (typeof value === 'string') {
+		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
 			try {
-				env[key] = variableResolver(value);
+				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
 			} catch (e) {
 				env[key] = value;
 			}
@@ -93,8 +93,7 @@ export function shouldSetLangEnvVariable(env: platform.IProcessEnvironment, dete
 		return true;
 	}
 	if (detectLocale === 'auto') {
-		const lang = env['LANG'];
-		return !lang || (lang.search(/\.UTF\-8$/) === -1 && lang.search(/\.utf8$/) === -1 && lang.search(/\.euc.+/) === -1);
+		return !env['LANG'] || env['LANG'].search(/\.UTF\-8$/) === -1;
 	}
 	return false; // 'off'
 }
@@ -177,23 +176,24 @@ export function getLangEnvVariable(locale?: string): string {
 
 export function getCwd(
 	shell: IShellLaunchConfig,
-	userHome: string | undefined,
-	variableResolver: VariableResolver | undefined,
+	userHome: string,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
 	root: Uri | undefined,
 	customCwd: string | undefined,
 	logService?: ILogService
 ): string {
 	if (shell.cwd) {
 		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
-		const resolved = _resolveCwd(unresolved, variableResolver);
-		return _sanitizeCwd(resolved || unresolved);
+		const resolved = _resolveCwd(unresolved, lastActiveWorkspace, configurationResolverService);
+		return resolved || unresolved;
 	}
 
 	let cwd: string | undefined;
 
 	if (!shell.ignoreConfigurationCwd && customCwd) {
-		if (variableResolver) {
-			customCwd = _resolveCwd(customCwd, variableResolver, logService);
+		if (configurationResolverService) {
+			customCwd = _resolveCwd(customCwd, lastActiveWorkspace, configurationResolverService, logService);
 		}
 		if (customCwd) {
 			if (path.isAbsolute(customCwd)) {
@@ -206,16 +206,16 @@ export function getCwd(
 
 	// If there was no custom cwd or it was relative with no workspace
 	if (!cwd) {
-		cwd = root ? root.fsPath : userHome || '';
+		cwd = root ? root.fsPath : userHome;
 	}
 
 	return _sanitizeCwd(cwd);
 }
 
-function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined, logService?: ILogService): string | undefined {
-	if (variableResolver) {
+function _resolveCwd(cwd: string, lastActiveWorkspace: IWorkspaceFolder | undefined, configurationResolverService: IConfigurationResolverService | undefined, logService?: ILogService): string | undefined {
+	if (configurationResolverService) {
 		try {
-			return variableResolver(cwd);
+			return configurationResolverService.resolve(lastActiveWorkspace, cwd);
 		} catch (e) {
 			logService?.error('Could not resolve terminal cwd', e);
 			return undefined;
@@ -237,42 +237,22 @@ export function escapeNonWindowsPath(path: string): string {
 	if (newPath.indexOf('\\') !== 0) {
 		newPath = newPath.replace(/\\/g, '\\\\');
 	}
-	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
-	newPath = newPath.replace(bannedChars, '');
-	return `'${newPath}'`;
-}
-
-export type TerminalShellSetting = (
-	`terminal.integrated.automationShell.windows`
-	| `terminal.integrated.automationShell.osx`
-	| `terminal.integrated.automationShell.linux`
-	| `terminal.integrated.shell.windows`
-	| `terminal.integrated.shell.osx`
-	| `terminal.integrated.shell.linux`
-);
-
-export type TerminalShellArgsSetting = (
-	`terminal.integrated.shellArgs.windows`
-	| `terminal.integrated.shellArgs.osx`
-	| `terminal.integrated.shellArgs.linux`
-);
-
-export type VariableResolver = (str: string) => string;
-
-export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | undefined, configurationResolverService: IConfigurationResolverService | undefined): VariableResolver | undefined {
-	if (!configurationResolverService) {
-		return undefined;
+	if (!newPath && (newPath.indexOf('"') !== -1)) {
+		newPath = '\'' + newPath + '\'';
+	} else if (newPath.indexOf(' ') !== -1) {
+		newPath = newPath.replace(/ /g, '\\ ');
 	}
-	return (str) => configurationResolverService.resolve(lastActiveWorkspace, str);
+	return newPath;
 }
 
 export function getDefaultShell(
-	fetchSetting: (key: TerminalShellSetting) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
+	fetchSetting: (key: string) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	defaultShell: string,
 	isWoW64: boolean,
 	windir: string | undefined,
-	variableResolver: VariableResolver | undefined,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
 	logService: ILogService,
 	useAutomationShell: boolean,
 	platformOverride: platform.Platform = platform.platform
@@ -302,9 +282,9 @@ export function getDefaultShell(
 		executable = executable.replace(/\//g, '\\');
 	}
 
-	if (variableResolver) {
+	if (configurationResolverService) {
 		try {
-			executable = variableResolver(executable);
+			executable = configurationResolverService.resolve(lastActiveWorkspace, executable);
 		} catch (e) {
 			logService.error(`Could not resolve shell`, e);
 		}
@@ -314,10 +294,11 @@ export function getDefaultShell(
 }
 
 export function getDefaultShellArgs(
-	fetchSetting: (key: TerminalShellSetting | TerminalShellArgsSetting) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
+	fetchSetting: (key: string) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	useAutomationShell: boolean,
-	variableResolver: VariableResolver | undefined,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
 	logService: ILogService,
 	platformOverride: platform.Platform = platform.platform,
 ): string | string[] {
@@ -328,19 +309,19 @@ export function getDefaultShellArgs(
 	}
 
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-	const shellArgsConfigValue = fetchSetting(<TerminalShellArgsSetting>`terminal.integrated.shellArgs.${platformKey}`);
+	const shellArgsConfigValue = fetchSetting(`terminal.integrated.shellArgs.${platformKey}`);
 	let args = ((isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.userValue) || shellArgsConfigValue.defaultValue);
 	if (!args) {
 		return [];
 	}
 	if (typeof args === 'string' && platformOverride === platform.Platform.Windows) {
-		return variableResolver ? variableResolver(args) : args;
+		return configurationResolverService ? configurationResolverService.resolve(lastActiveWorkspace, args) : args;
 	}
-	if (variableResolver) {
+	if (configurationResolverService) {
 		const resolvedArgs: string[] = [];
 		for (const arg of args) {
 			try {
-				resolvedArgs.push(variableResolver(arg));
+				resolvedArgs.push(configurationResolverService.resolve(lastActiveWorkspace, arg));
 			} catch (e) {
 				logService.error(`Could not resolve terminal.integrated.shellArgs.${platformKey}`, e);
 				resolvedArgs.push(arg);
@@ -352,21 +333,22 @@ export function getDefaultShellArgs(
 }
 
 function getShellSetting(
-	fetchSetting: (key: TerminalShellSetting) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
+	fetchSetting: (key: string) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
 	type: 'automationShell' | 'shell',
 	platformOverride: platform.Platform = platform.platform,
 ): string | null {
 	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
-	const shellConfigValue = fetchSetting(<TerminalShellSetting>`terminal.integrated.${type}.${platformKey}`);
+	const shellConfigValue = fetchSetting(`terminal.integrated.${type}.${platformKey}`);
 	const executable = (isWorkspaceShellAllowed ? <string>shellConfigValue.value : <string>shellConfigValue.userValue) || (<string | null>shellConfigValue.defaultValue);
 	return executable;
 }
 
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
+	lastActiveWorkspace: IWorkspaceFolder | null,
 	envFromConfig: { userValue?: ITerminalEnvironment, value?: ITerminalEnvironment, defaultValue?: ITerminalEnvironment },
-	variableResolver: VariableResolver | undefined,
+	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,
 	version: string | undefined,
 	detectLocale: 'auto' | 'off' | 'on',
@@ -386,12 +368,12 @@ export function createTerminalEnvironment(
 		const allowedEnvFromConfig = { ...(isWorkspaceShellAllowed ? envFromConfig.value : envFromConfig.userValue) };
 
 		// Resolve env vars from config and shell
-		if (variableResolver) {
+		if (configurationResolverService) {
 			if (allowedEnvFromConfig) {
-				resolveConfigurationVariables(variableResolver, allowedEnvFromConfig);
+				resolveConfigurationVariables(configurationResolverService, allowedEnvFromConfig, lastActiveWorkspace);
 			}
 			if (shellLaunchConfig.env) {
-				resolveConfigurationVariables(variableResolver, shellLaunchConfig.env);
+				resolveConfigurationVariables(configurationResolverService, shellLaunchConfig.env, lastActiveWorkspace);
 			}
 		}
 

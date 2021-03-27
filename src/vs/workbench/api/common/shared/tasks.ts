@@ -78,7 +78,7 @@ export interface TaskSourceDTO {
 
 export interface TaskHandleDTO {
 	id: string;
-	workspaceFolder: UriComponents | string;
+	workspaceFolder: UriComponents;
 }
 
 export interface TaskDTO {
@@ -113,7 +113,7 @@ export interface TaskProcessStartedDTO {
 
 export interface TaskProcessEndedDTO {
 	id: string;
-	exitCode: number | undefined;
+	exitCode: number;
 }
 
 

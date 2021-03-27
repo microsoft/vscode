@@ -15,7 +15,6 @@ import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 const testProvider = {
 	provideCodeActions(): modes.CodeActionList {
@@ -39,7 +38,7 @@ suite('CodeActionModel', () => {
 	setup(() => {
 		disposables.clear();
 		markerService = new MarkerService();
-		model = createTextModel('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+		model = TextModel.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = createTestCodeEditor({ model: model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
@@ -60,7 +59,7 @@ suite('CodeActionModel', () => {
 		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 			assertType(e.type === CodeActionsState.Type.Triggered);
 
-			assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+			assert.strictEqual(e.trigger.type, 'auto');
 			assert.ok(e.actions);
 
 			e.actions.then(fixes => {
@@ -101,7 +100,7 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.equal(e.trigger.type, 'auto');
 				assert.ok(e.actions);
 				e.actions.then(fixes => {
 					model.dispose();
@@ -139,7 +138,7 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.equal(e.trigger.type, 'auto');
 				const selection = <Selection>e.rangeOrSelection;
 				assert.deepEqual(selection.selectionStartLineNumber, 1);
 				assert.deepEqual(selection.selectionStartColumn, 1);
@@ -164,7 +163,7 @@ suite('CodeActionModel', () => {
 		disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 			assertType(e.type === CodeActionsState.Type.Triggered);
 
-			assert.equal(e.trigger.type, modes.CodeActionTriggerType.Auto);
+			assert.equal(e.trigger.type, 'auto');
 			++triggerCount;
 
 			// give time for second trigger before completing test

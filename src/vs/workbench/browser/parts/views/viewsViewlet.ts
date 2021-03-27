@@ -3,19 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
+import { IAction } from 'vs/base/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
+import { IViewDescriptor } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ViewPaneContainer, ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
 }
@@ -23,11 +30,11 @@ export interface IViewletViewOptions extends IViewPaneOptions {
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 	private constantViewDescriptors: Map<string, IViewDescriptor> = new Map();
 	private allViews: Map<string, Map<string, IViewDescriptor>> = new Map();
-	private filterValue: string[] | undefined;
+	private filterValue: string | undefined;
 
 	constructor(
 		viewletId: string,
-		onDidChangeFilterValue: Event<string[]>,
+		onDidChangeFilterValue: Event<string>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -36,25 +43,17 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
+		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
 
-		super(viewletId, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(viewletId, `${viewletId}.state`, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService);
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
 		}));
 
-		this._register(this.onDidChangeViewVisibility(view => {
-			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(view.id));
-			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
-				this.setFilter(descriptorMap[1].get(view.id)!);
-			}
-		}));
-
-		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
-			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
+		this._register(this.viewsModel.onDidChangeActiveViews((viewDescriptors) => {
+			this.updateAllViews(viewDescriptors);
 		}));
 	}
 
@@ -68,8 +67,8 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 				this.allViews.set(filterOnValue, new Map());
 			}
 			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
-			if (this.filterValue && !this.filterValue.includes(filterOnValue)) {
-				this.viewContainerModel.setVisible(descriptor.id, false);
+			if (filterOnValue !== this.filterValue) {
+				this.viewsModel.setVisible(descriptor.id, false);
 			}
 		});
 	}
@@ -80,49 +79,53 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	protected abstract getFilterOn(viewDescriptor: IViewDescriptor): string | undefined;
 
-	protected abstract setFilter(viewDescriptor: IViewDescriptor): void;
-
-	private onFilterChanged(newFilterValue: string[]) {
+	private onFilterChanged(newFilterValue: string) {
 		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
+			this.updateAllViews(this.viewsModel.viewDescriptors);
 		}
-		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, false));
-		this.getViewsForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, true));
+		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, false));
+		this.getViewsForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, true));
 	}
 
-	private getViewsForTarget(target: string[]): IViewDescriptor[] {
-		const views: IViewDescriptor[] = [];
-		for (let i = 0; i < target.length; i++) {
-			if (this.allViews.has(target[i])) {
-				views.push(...Array.from(this.allViews.get(target[i])!.values()));
-			}
+	getContextMenuActions(): IAction[] {
+		const result: IAction[] = [];
+		let viewToggleActions: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.viewsModel.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility,
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		}));
+
+		result.push(...viewToggleActions);
+		const parentActions = super.getContextMenuActions();
+		if (viewToggleActions.length && parentActions.length) {
+			result.push(new Separator());
 		}
 
-		return views;
+		result.push(...parentActions);
+		return result;
 	}
 
-	private getViewsNotForTarget(target: string[]): IViewDescriptor[] {
+	private getViewsForTarget(target: string): IViewDescriptor[] {
+		return this.allViews.has(target) ? Array.from(this.allViews.get(target)!.values()) : [];
+	}
+
+	private getViewsNotForTarget(target: string): IViewDescriptor[] {
 		const iterable = this.allViews.keys();
 		let key = iterable.next();
 		let views: IViewDescriptor[] = [];
 		while (!key.done) {
-			let isForTarget: boolean = false;
-			target.forEach(value => {
-				if (key.value === value) {
-					isForTarget = true;
-				}
-			});
-			if (!isForTarget) {
-				views = views.concat(this.getViewsForTarget([key.value]));
+			if (key.value !== target) {
+				views = views.concat(this.getViewsForTarget(key.value));
 			}
-
 			key = iterable.next();
 		}
 		return views;
 	}
 
-	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
+	onDidAddViews(added: IAddedViewDescriptorRef[]): ViewPane[] {
+		const panes: ViewPane[] = super.onDidAddViews(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
 				panes[i].setExpanded(false);
@@ -130,11 +133,37 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		}
 		// Check that allViews is ready
 		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
+			this.updateAllViews(this.viewsModel.viewDescriptors);
 		}
 		return panes;
 	}
 
 	abstract getTitle(): string;
+}
 
+export class FileIconThemableWorkbenchTree extends WorkbenchTree {
+
+	constructor(
+		container: HTMLElement,
+		configuration: ITreeConfiguration,
+		options: ITreeOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
+		@IThemeService themeService: IWorkbenchThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService, instantiationService, configurationService);
+
+		DOM.addClass(container, 'file-icon-themable-tree');
+		DOM.addClass(container, 'show-file-icons');
+
+		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
+			DOM.toggleClass(container, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			DOM.toggleClass(container, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
+		};
+
+		this.disposables.push(themeService.onDidFileIconThemeChange(onFileIconThemeChange));
+		onFileIconThemeChange(themeService.getFileIconTheme());
+	}
 }

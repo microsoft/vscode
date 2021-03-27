@@ -6,26 +6,24 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isNative } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
+import { isNative } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustRequest, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, ITextSearchComplete, IWorkspaceData, MainContext, MainThreadWorkspaceShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostWorkspaceShape, IExtHostContext, MainContext, MainThreadWorkspaceShape, IWorkspaceData, ITextSearchComplete } from '../common/extHost.protocol';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IRequestService } from 'vs/platform/request/common/request';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -46,21 +44,19 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService,
-		@IWorkspaceTrustService private readonly _workspaceTrustService: IWorkspaceTrustService
+		@IFileService fileService: IFileService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
 		// The workspace file is provided be a unknown file system provider. It might come
 		// from the extension host. So initialize now knowing that `rootPath` is undefined.
 		if (workspace.configuration && !isNative && !fileService.canHandleResource(workspace.configuration)) {
-			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.getWorkspaceTrustState());
+			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace));
 		} else {
-			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.getWorkspaceTrustState()));
+			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace)));
 		}
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
-		this._workspaceTrustService.onDidChangeTrustState(this._onDidChangeWorkspaceTrustState, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -142,7 +138,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 
 		const query = this._queryBuilder.file(
-			includeFolder ? [includeFolder] : workspace.folders,
+			includeFolder ? [includeFolder] : workspace.folders.map(f => f.uri),
 			{
 				maxResults: withNullAsUndefined(maxResults),
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
@@ -192,8 +188,26 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return search;
 	}
 
-	$checkExists(folders: readonly UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
-		return this._instantiationService.invokeFunction((accessor) => checkGlobFileExists(accessor, folders, includes, token));
+	$checkExists(folders: UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
+		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
+		const query = queryBuilder.file(folders.map(folder => URI.revive(folder)), {
+			_reason: 'checkExists',
+			includePattern: includes.join(', '),
+			expandPatterns: true,
+			exists: true
+		});
+
+		return this._searchService.fileSearch(query, token).then(
+			result => {
+				return !!result.limitHit;
+			},
+			err => {
+				if (!isPromiseCanceledError(err)) {
+					return Promise.reject(err);
+				}
+
+				return false;
+			});
 	}
 
 	// --- save & edit resources ---
@@ -204,19 +218,5 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	$resolveProxy(url: string): Promise<string | undefined> {
 		return this._requestService.resolveProxy(url);
-	}
-
-	// --- trust ---
-
-	$requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState> {
-		return this._workspaceTrustService.requireWorkspaceTrust(request);
-	}
-
-	private getWorkspaceTrustState(): WorkspaceTrustState {
-		return this._workspaceTrustService.getWorkspaceTrustState();
-	}
-
-	private _onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void {
-		this._proxy.$onDidChangeWorkspaceTrustState(state);
 	}
 }

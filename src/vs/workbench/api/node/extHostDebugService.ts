@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import type * as vscode from 'vscode';
-import * as env from 'vs/base/common/platform';
+import * as vscode from 'vscode';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostDocumentsAndEditors, ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IAdapterDescriptor } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostConfiguration, ExtHostConfigProvider } from '../common/extHostConfiguration';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -23,13 +23,14 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { IProcessEnvironment } from 'vs/base/common/platform';
+
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 	readonly _serviceBrand: undefined;
 
-	private _integratedTerminalInstances = new DebugTerminalCollection();
+	private _integratedTerminalInstance?: vscode.Terminal;
 	private _terminalDisposedListener: IDisposable | undefined;
 
 	constructor(
@@ -38,17 +39,16 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService private _terminalService: IExtHostTerminalService
+		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
+		@IExtHostCommands commandService: IExtHostCommands
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
+		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, commandService);
 	}
 
 	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
 		switch (adapter.type) {
 			case 'server':
 				return new SocketDebugAdapter(adapter);
-			case 'pipeServer':
-				return new NamedPipeDebugAdapter(adapter);
 			case 'executable':
 				return new ExecutableDebugAdapter(adapter, session.type);
 		}
@@ -67,120 +67,61 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		return new SignService();
 	}
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
 
 		if (args.kind === 'integrated') {
 
 			if (!this._terminalDisposedListener) {
 				// React on terminal disposed and check if that is the debug terminal #12956
 				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
-					this._integratedTerminalInstances.onTerminalClosed(terminal);
+					if (this._integratedTerminalInstance && this._integratedTerminalInstance === terminal) {
+						this._integratedTerminalInstance = undefined;
+					}
 				});
+			}
+
+			let needNewTerminal = true;	// be pessimistic
+			if (this._integratedTerminalInstance) {
+				const pid = await this._integratedTerminalInstance.processId;
+				needNewTerminal = await hasChildProcesses(pid);		// if no processes running in terminal reuse terminal
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
 			const shell = this._terminalService.getDefaultShell(true, configProvider);
-			const shellArgs = this._terminalService.getDefaultShellArgs(true, configProvider);
 
-			const shellConfig = JSON.stringify({ shell, shellArgs });
-			let terminal = await this._integratedTerminalInstances.checkout(shellConfig);
+			if (needNewTerminal || !this._integratedTerminalInstance) {
 
-			let cwdForPrepareCommand: string | undefined;
-			let giveShellTimeToInitialize = false;
-
-			if (!terminal) {
 				const options: vscode.TerminalOptions = {
 					shellPath: shell,
-					shellArgs: shellArgs,
+					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
+					env: args.env
 				};
-				giveShellTimeToInitialize = true;
-				terminal = this._terminalService.createTerminalFromOptions(options, true);
-				this._integratedTerminalInstances.insert(terminal, shellConfig);
-
-			} else {
-				cwdForPrepareCommand = args.cwd;
+				delete args.cwd;
+				delete args.env;
+				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
 			}
 
-			terminal.show(true);
+			const terminal = this._integratedTerminalInstance;
 
-			const shellProcessId = await terminal.processId;
+			terminal.show();
 
-			if (giveShellTimeToInitialize) {
-				// give a new terminal some time to initialize the shell
-				await new Promise(resolve => setTimeout(resolve, 1000));
-			}
-
-			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
+			const shellProcessId = await this._integratedTerminalInstance.processId;
+			const command = prepareCommand(args, shell, configProvider);
 			terminal.sendText(command, true);
-
-			// Mark terminal as unused when its session ends, see #112055
-			const sessionListener = this.onDidTerminateDebugSession(s => {
-				if (s.id === sessionId) {
-					this._integratedTerminalInstances.free(terminal!);
-					sessionListener.dispose();
-				}
-			});
 
 			return shellProcessId;
 
 		} else if (args.kind === 'external') {
 
-			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+			runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
-		return super.$runInTerminal(args, sessionId);
+		return super.$runInTerminal(args);
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as env.IProcessEnvironment, this._workspaceService);
-	}
-}
-
-class DebugTerminalCollection {
-	/**
-	 * Delay before a new terminal is a candidate for reuse. See #71850
-	 */
-	private static minUseDelay = 1000;
-
-	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
-
-	public async checkout(config: string) {
-		const entries = [...this._terminalInstances.entries()];
-		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
-			if (termInfo.lastUsedAt !== -1 && await hasChildProcesses(await terminal.processId)) {
-				return null;
-			}
-
-			// important: date check and map operations must be synchronous
-			const now = Date.now();
-			if (termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
-				return null;
-			}
-
-			if (termInfo.config !== config) {
-				return null;
-			}
-
-			termInfo.lastUsedAt = now;
-			return terminal;
-		}));
-
-		return await firstParallel(promises, (t): t is vscode.Terminal => !!t);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, process.env as IProcessEnvironment);
 	}
 
-	public insert(terminal: vscode.Terminal, termConfig: string) {
-		this._terminalInstances.set(terminal, { lastUsedAt: Date.now(), config: termConfig });
-	}
-
-	public free(terminal: vscode.Terminal) {
-		const info = this._terminalInstances.get(terminal);
-		if (info) {
-			info.lastUsedAt = -1;
-		}
-	}
-
-	public onTerminalClosed(terminal: vscode.Terminal) {
-		this._terminalInstances.delete(terminal);
-	}
 }

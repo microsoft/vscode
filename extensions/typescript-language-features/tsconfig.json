@@ -2,12 +2,7 @@
 	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"experimentalDecorators": true,
-		"paths": {
-			"vscode": [
-				"../../src/vs/vscode.d.ts"
-			]
-		}
+		"experimentalDecorators": true
 	},
 	"include": [
 		"src/**/*"

@@ -43,7 +43,7 @@ export class ScrollbarVisibilityController extends Disposable {
 	}
 
 	public setShouldBeVisible(rawShouldBeVisible: boolean): void {
-		const shouldBeVisible = this.applyVisibilitySetting(rawShouldBeVisible);
+		let shouldBeVisible = this.applyVisibilitySetting(rawShouldBeVisible);
 
 		if (this._shouldBeVisible !== shouldBeVisible) {
 			this._shouldBeVisible = shouldBeVisible;

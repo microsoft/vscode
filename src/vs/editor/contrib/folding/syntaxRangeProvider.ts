@@ -9,7 +9,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { RangeProvider } from './folding';
 import { MAX_LINE_NUMBER, FoldingRegions } from './foldingRanges';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const MAX_FOLDING_REGIONS = 5000;
 
@@ -26,17 +25,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	readonly id = ID_SYNTAX_PROVIDER;
 
-	readonly disposables: DisposableStore | undefined;
-
-	constructor(private readonly editorModel: ITextModel, private providers: FoldingRangeProvider[], handleFoldingRangesChange: () => void, private limit = MAX_FOLDING_REGIONS) {
-		for (const provider of providers) {
-			if (typeof provider.onDidChange === 'function') {
-				if (!this.disposables) {
-					this.disposables = new DisposableStore();
-				}
-				this.disposables.add(provider.onDidChange(handleFoldingRangesChange));
-			}
-		}
+	constructor(private readonly editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}
 
 	compute(cancellationToken: CancellationToken): Promise<FoldingRegions | null> {
@@ -50,8 +39,8 @@ export class SyntaxRangeProvider implements RangeProvider {
 	}
 
 	dispose() {
-		this.disposables?.dispose();
 	}
+
 }
 
 function collectSyntaxRanges(providers: FoldingRangeProvider[], model: ITextModel, cancellationToken: CancellationToken): Promise<IFoldingRangeData[] | null> {

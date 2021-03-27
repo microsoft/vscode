@@ -11,9 +11,8 @@ import { ExtHostDocumentsShape, IMainContext, MainContext, MainThreadDocumentsSh
 import { ExtHostDocumentData, setWordDefinitionFor } from 'vs/workbench/api/common/extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { assertIsDefined } from 'vs/base/common/types';
-import { deepFreeze } from 'vs/base/common/objects';
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
@@ -53,7 +52,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	}
 
 	public getAllDocumentData(): ExtHostDocumentData[] {
-		return [...this._documentsAndEditors.allDocuments()];
+		return this._documentsAndEditors.allDocuments();
 	}
 
 	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
@@ -69,8 +68,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public getDocument(resource: vscode.Uri): vscode.TextDocument {
 		const data = this.getDocumentData(resource);
-		if (!data?.document) {
-			throw new Error(`Unable to retrieve document from URI '${resource}'`);
+		if (!data || !data.document) {
+			throw new Error('Unable to retrieve document from URI');
 		}
 		return data.document;
 	}
@@ -84,10 +83,9 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
-			promise = this._proxy.$tryOpenDocument(uri).then(uriData => {
+			promise = this._proxy.$tryOpenDocument(uri).then(() => {
 				this._documentLoader.delete(uri.toString());
-				const canonicalUri = URI.revive(uriData);
-				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
+				return assertIsDefined(this._documentsAndEditors.getDocument(uri));
 			}, err => {
 				this._documentLoader.delete(uri.toString());
 				return Promise.reject(err);
@@ -146,7 +144,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 		}
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
-		this._onDidChangeDocument.fire(deepFreeze({
+		this._onDidChangeDocument.fire({
 			document: data.document,
 			contentChanges: events.changes.map((change) => {
 				return {
@@ -156,7 +154,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 					text: change.text
 				};
 			})
-		}));
+		});
 	}
 
 	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {

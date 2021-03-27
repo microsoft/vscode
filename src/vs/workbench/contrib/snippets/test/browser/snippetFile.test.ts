@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 suite('Snippets', function () {
 
@@ -21,7 +20,7 @@ suite('Snippets', function () {
 		let file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), []);
 		let bucket: Snippet[] = [];
 		file.select('', bucket);
-		assert.strictEqual(bucket.length, 0);
+		assert.equal(bucket.length, 0);
 
 		file = new TestSnippetFile(URI.file('somepath/foo.code-snippets'), [
 			new Snippet(['foo'], 'FooSnippet1', 'foo', '', 'snippet', 'test', SnippetSource.User),
@@ -34,23 +33,23 @@ suite('Snippets', function () {
 
 		bucket = [];
 		file.select('foo', bucket);
-		assert.strictEqual(bucket.length, 2);
+		assert.equal(bucket.length, 2);
 
 		bucket = [];
 		file.select('fo', bucket);
-		assert.strictEqual(bucket.length, 0);
+		assert.equal(bucket.length, 0);
 
 		bucket = [];
 		file.select('bar', bucket);
-		assert.strictEqual(bucket.length, 1);
+		assert.equal(bucket.length, 1);
 
 		bucket = [];
 		file.select('bar.comment', bucket);
-		assert.strictEqual(bucket.length, 2);
+		assert.equal(bucket.length, 2);
 
 		bucket = [];
 		file.select('bazz', bucket);
-		assert.strictEqual(bucket.length, 1);
+		assert.equal(bucket.length, 1);
 	});
 
 	test('SnippetFile#select - any scope', function () {
@@ -62,7 +61,7 @@ suite('Snippets', function () {
 
 		let bucket: Snippet[] = [];
 		file.select('foo', bucket);
-		assert.strictEqual(bucket.length, 2);
+		assert.equal(bucket.length, 2);
 
 	});
 
@@ -70,9 +69,7 @@ suite('Snippets', function () {
 
 		function assertNeedsClipboard(body: string, expected: boolean): void {
 			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
-			assert.strictEqual(snippet.needsClipboard, expected);
-
-			assert.strictEqual(SnippetParser.guessNeedsClipboard(body), expected);
+			assert.equal(snippet.needsClipboard, expected);
 		}
 
 		assertNeedsClipboard('foo$CLIPBOARD', true);

@@ -14,7 +14,7 @@ suite('getNonWhitespacePrefix', () => {
 			getLineContent: (lineNumber: number) => line
 		};
 		let actual = getNonWhitespacePrefix(model, new Position(1, column));
-		assert.strictEqual(actual, expected);
+		assert.equal(actual, expected);
 	}
 
 	test('empty line', () => {

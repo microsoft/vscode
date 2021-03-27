@@ -10,23 +10,18 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';
-import * as path from 'vs/base/common/path';
-import * as performance from 'vs/base/common/performance';
-
-import 'vs/workbench/api/common/extHost.common.services';
-import 'vs/workbench/api/worker/extHost.worker.services';
+import 'vs/workbench/services/extensions/worker/extHost.services';
 
 //#region --- Define, capture, and override some globals
+//todo@joh do not allow extensions to call postMessage and other globals...
 
+// declare WorkerSelf#postMessage
 declare function postMessage(data: any, transferables?: Transferable[]): void;
 
 declare namespace self {
 	let close: any;
 	let postMessage: any;
-	let addEventListener: any;
-	let removeEventListener: any;
-	let dispatchEvent: any;
+	let addEventLister: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
 }
@@ -37,44 +32,13 @@ self.close = () => console.trace(`'close' has been blocked`);
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
-// const nativeAddEventListener = addEventListener.bind(self);
-self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);
-
-(<any>self)['AMDLoader'] = undefined;
-(<any>self)['NLSLoaderPlugin'] = undefined;
-(<any>self)['define'] = undefined;
-(<any>self)['require'] = undefined;
-(<any>self)['webkitRequestFileSystem'] = undefined;
-(<any>self)['webkitRequestFileSystemSync'] = undefined;
-(<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
-(<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
-
-if ((<any>self).Worker) {
-	const ttPolicy = (<any>self).trustedTypes?.createPolicy('extensionHostWorker', { createScriptURL: (value: string) => value });
-
-	// make sure new Worker(...) always uses blob: (to maintain current origin)
-	const _Worker = (<any>self).Worker;
-	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
-		const js = `importScripts('${stringUrl}');`;
-		options = options || {};
-		options.name = options.name || path.basename(stringUrl.toString());
-		const blob = new Blob([js], { type: 'application/javascript' });
-		const blobUrl = URL.createObjectURL(blob);
-		return new _Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) : blobUrl, options);
-	};
-
-} else {
-	(<any>self).Worker = class extends NestedWorker {
-		constructor(stringOrUrl: string | URL, options?: WorkerOptions) {
-			super(nativePostMessage, stringOrUrl, { name: path.basename(stringOrUrl.toString()), ...options });
-		}
-	};
-}
+const nativeAddEventLister = addEventListener.bind(self);
+self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
 
 //#endregion ---
 
 const hostUtil = new class implements IHostUtils {
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}
@@ -94,14 +58,11 @@ class ExtensionWorker {
 
 	constructor() {
 
-		const channel = new MessageChannel();
-		const emitter = new Emitter<VSBuffer>();
+		let emitter = new Emitter<VSBuffer>();
 		let terminating = false;
 
-		// send over port2, keep port1
-		nativePostMessage(channel.port2, [channel.port2]);
 
-		channel.port1.onmessage = event => {
+		nativeAddEventLister('message', event => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
@@ -112,20 +73,20 @@ class ExtensionWorker {
 			if (isMessageOfType(msg, MessageType.Terminate)) {
 				// handle terminate-message right here
 				terminating = true;
-				onTerminate('received terminate message from renderer');
+				onTerminate();
 				return;
 			}
 
 			// emit non-terminate messages to the outside
 			emitter.fire(msg);
-		};
+		});
 
 		this.protocol = {
 			onMessage: emitter.event,
 			send: vsbuf => {
 				if (!terminating) {
 					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-					channel.port1.postMessage(data, [data]);
+					nativePostMessage(data, [data]);
 				}
 			}
 		};
@@ -148,13 +109,13 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-let onTerminate = (reason: string) => nativeClose();
+let onTerminate = nativeClose;
 
 (function create(): void {
 	const res = new ExtensionWorker();
-	performance.mark(`code/extHost/willConnectToRenderer`);
+
 	connectToRenderer(res.protocol).then(data => {
-		performance.mark(`code/extHost/didWaitForInitData`);
+
 		const extHostMain = new ExtensionHostMain(
 			data.protocol,
 			data.initData,
@@ -162,6 +123,6 @@ let onTerminate = (reason: string) => nativeClose();
 			null,
 		);
 
-		onTerminate = (reason: string) => extHostMain.terminate(reason);
+		onTerminate = () => extHostMain.terminate();
 	});
 })();

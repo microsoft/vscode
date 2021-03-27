@@ -9,16 +9,16 @@
 
 const withDefaults = require('../../shared.webpack.config');
 const path = require('path');
-const webpack = require('webpack');
+var webpack = require('webpack');
 
 const config = withDefaults({
 	context: path.join(__dirname),
 	entry: {
-		extension: './src/node/jsonServerMain.ts',
+		extension: './src/jsonServerMain.ts',
 	},
 	output: {
 		filename: 'jsonServerMain.js',
-		path: path.join(__dirname, 'dist', 'node'),
+		path: path.join(__dirname, 'dist')
 	}
 });
 

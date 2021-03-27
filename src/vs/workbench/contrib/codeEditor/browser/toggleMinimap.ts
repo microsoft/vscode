@@ -6,10 +6,10 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 
 export class ToggleMinimapAction extends Action {
 	public static readonly ID = 'editor.action.toggleMinimap';
@@ -25,12 +25,12 @@ export class ToggleMinimapAction extends Action {
 
 	public run(): Promise<any> {
 		const newValue = !this._configurationService.getValue<boolean>('editor.minimap.enabled');
-		return this._configurationService.updateValue('editor.minimap.enabled', newValue);
+		return this._configurationService.updateValue('editor.minimap.enabled', newValue, ConfigurationTarget.USER);
 	}
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleMinimapAction), 'View: Toggle Minimap', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleMinimapAction, ToggleMinimapAction.ID, ToggleMinimapAction.LABEL), 'View: Toggle Minimap', nls.localize('view', "View"));
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',

@@ -10,6 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
+
 export class DebugStatusContribution implements IWorkbenchContribution {
 
 	private showInStatusBar!: 'never' | 'always' | 'onFirstSessionStart';
@@ -55,18 +56,20 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 		}));
 	}
 
-	private get entry(): IStatusbarEntry {
-		let text = '';
+	private getText(): string {
 		const manager = this.debugService.getConfigurationManager();
 		const name = manager.selectedConfiguration.name || '';
 		const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
 		if (nameAndLaunchPresent) {
-			text = (manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name);
+			return '$(play) ' + (manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name);
 		}
 
+		return '';
+	}
+
+	private get entry(): IStatusbarEntry {
 		return {
-			text: '$(debug-alt-small) ' + text,
-			ariaLabel: nls.localize('debugTarget', "Debug: {0}", text),
+			text: this.getText(),
 			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
 			command: 'workbench.action.debug.selectandstart'
 		};

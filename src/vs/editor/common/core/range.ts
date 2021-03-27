@@ -264,28 +264,14 @@ export class Range {
 	 * Return the end position (which will be after or equal to the start position)
 	 */
 	public getEndPosition(): Position {
-		return Range.getEndPosition(this);
-	}
-
-	/**
-	 * Return the end position (which will be after or equal to the start position)
-	 */
-	public static getEndPosition(range: IRange): Position {
-		return new Position(range.endLineNumber, range.endColumn);
+		return new Position(this.endLineNumber, this.endColumn);
 	}
 
 	/**
 	 * Return the start position (which will be before or equal to the end position)
 	 */
 	public getStartPosition(): Position {
-		return Range.getStartPosition(this);
-	}
-
-	/**
-	 * Return the start position (which will be before or equal to the end position)
-	 */
-	public static getStartPosition(range: IRange): Position {
-		return new Position(range.startLineNumber, range.startColumn);
+		return new Position(this.startLineNumber, this.startColumn);
 	}
 
 	/**

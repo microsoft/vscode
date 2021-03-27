@@ -6,7 +6,6 @@
 'use strict';
 
 import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
 
 function getEnv(name: string): string {
 	const result = process.env[name];
@@ -59,7 +58,7 @@ async function main(): Promise<void> {
 	console.log(`Releasing build ${commit}...`);
 
 	const scripts = client.database('builds').container(quality).scripts;
-	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
+	await scripts.storedProcedure('releaseBuild').execute('', [commit]);
 }
 
 main().then(() => {

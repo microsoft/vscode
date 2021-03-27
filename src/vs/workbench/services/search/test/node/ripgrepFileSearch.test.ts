@@ -13,7 +13,11 @@ suite('RipgrepFileSearch - etc', () => {
 		assert.equal(fixDriveC(getAbsoluteGlob(folder, glob)), expectedResult, JSON.stringify(params));
 	}
 
-	(!platform.isWindows ? test.skip : test)('getAbsoluteGlob_win', () => {
+	test('getAbsoluteGlob_win', () => {
+		if (!platform.isWindows) {
+			return;
+		}
+
 		[
 			['C:/foo/bar', 'glob/**', '/foo\\bar\\glob\\**'],
 			['c:/', 'glob/**', '/glob\\**'],
@@ -28,7 +32,11 @@ suite('RipgrepFileSearch - etc', () => {
 		].forEach(testGetAbsGlob);
 	});
 
-	(platform.isWindows ? test.skip : test)('getAbsoluteGlob_posix', () => {
+	test('getAbsoluteGlob_posix', () => {
+		if (platform.isWindows) {
+			return;
+		}
+
 		[
 			['/foo/bar', 'glob/**', '/foo/bar/glob/**'],
 			['/', 'glob/**', '/glob/**'],

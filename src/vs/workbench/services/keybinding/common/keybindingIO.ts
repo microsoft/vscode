@@ -6,7 +6,7 @@
 import { SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
-import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
@@ -14,7 +14,7 @@ export interface IUserKeybindingItem {
 	parts: (SimpleKeybinding | ScanCodeBinding)[];
 	command: string | null;
 	commandArgs?: any;
-	when: ContextKeyExpression | undefined;
+	when: ContextKeyExpr | undefined;
 }
 
 export class KeybindingIO {
@@ -31,16 +31,12 @@ export class KeybindingIO {
 		if (quotedSerializedWhen.length > 0) {
 			out.write(`${quotedSerializeCommand},`);
 			out.writeLine();
-			out.write(`                                     "when": ${quotedSerializedWhen}`);
+			out.write(`                                     "when": ${quotedSerializedWhen} `);
 		} else {
-			out.write(`${quotedSerializeCommand}`);
+			out.write(`${quotedSerializeCommand} `);
 		}
-		if (item.commandArgs) {
-			out.write(',');
-			out.writeLine();
-			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)}`);
-		}
-		out.write(' }');
+		// out.write(String(item.weight1 + '-' + item.weight2));
+		out.write('}');
 	}
 
 	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {

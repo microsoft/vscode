@@ -7,7 +7,7 @@ import { FileSystemProviderCapabilities, IStat, FileType, FileDeleteOptions, Fil
 import { Event } from 'vs/base/common/event';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { NotSupportedError } from 'vs/base/common/errors';
+import { NotImplementedError } from 'vs/base/common/errors';
 
 export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -44,18 +44,18 @@ export class FetchFileSystemProvider implements IFileSystemProviderWithFileReadW
 
 	// error implementations
 	writeFile(_resource: URI, _content: Uint8Array, _opts: FileWriteOptions): Promise<void> {
-		throw new NotSupportedError();
+		throw new NotImplementedError();
 	}
 	readdir(_resource: URI): Promise<[string, FileType][]> {
-		throw new NotSupportedError();
+		throw new NotImplementedError();
 	}
 	mkdir(_resource: URI): Promise<void> {
-		throw new NotSupportedError();
+		throw new NotImplementedError();
 	}
 	delete(_resource: URI, _opts: FileDeleteOptions): Promise<void> {
-		throw new NotSupportedError();
+		throw new NotImplementedError();
 	}
 	rename(_from: URI, _to: URI, _opts: FileOverwriteOptions): Promise<void> {
-		throw new NotSupportedError();
+		throw new NotImplementedError();
 	}
 }

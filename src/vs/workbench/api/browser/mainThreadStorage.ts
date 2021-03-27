@@ -3,31 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { MainThreadStorageShape, MainContext, IExtHostContext, ExtHostStorageShape, ExtHostContext } from '../common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionIdWithVersion, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 
 @extHostNamedCustomer(MainContext.MainThreadStorage)
 export class MainThreadStorage implements MainThreadStorageShape {
 
 	private readonly _storageService: IStorageService;
-	private readonly _extensionsStorageSyncService: IExtensionsStorageSyncService;
 	private readonly _proxy: ExtHostStorageShape;
 	private readonly _storageListener: IDisposable;
 	private readonly _sharedStorageKeysToWatch: Map<string, boolean> = new Map<string, boolean>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IStorageService storageService: IStorageService,
-		@IExtensionsStorageSyncService extensionsStorageSyncService: IExtensionsStorageSyncService,
+		@IStorageService storageService: IStorageService
 	) {
 		this._storageService = storageService;
-		this._extensionsStorageSyncService = extensionsStorageSyncService;
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostStorage);
 
-		this._storageListener = this._storageService.onDidChangeValue(e => {
+		this._storageListener = this._storageService.onDidChangeStorage(e => {
 			const shared = e.scope === StorageScope.GLOBAL;
 			if (shared && this._sharedStorageKeysToWatch.has(e.key)) {
 				try {
@@ -66,15 +62,10 @@ export class MainThreadStorage implements MainThreadStorageShape {
 		let jsonValue: string;
 		try {
 			jsonValue = JSON.stringify(value);
-			// Extension state is synced separately through extensions
-			this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this._storageService.store(key, jsonValue, shared ? StorageScope.GLOBAL : StorageScope.WORKSPACE);
 		} catch (err) {
 			return Promise.reject(err);
 		}
 		return Promise.resolve(undefined);
-	}
-
-	$registerExtensionStorageKeysToSync(extension: IExtensionIdWithVersion, keys: string[]): void {
-		this._extensionsStorageSyncService.setKeysForSync(extension, keys);
 	}
 }

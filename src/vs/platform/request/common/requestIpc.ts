@@ -40,16 +40,12 @@ export class RequestChannel implements IServerChannel {
 
 export class RequestChannelClient {
 
-	declare readonly _serviceBrand: undefined;
+	_serviceBrand: undefined;
 
 	constructor(private readonly channel: IChannel) { }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		return RequestChannelClient.request(this.channel, options, token);
-	}
-
-	static async request(channel: IChannel, options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		const [res, buffer] = await channel.call<RequestResponse>('request', [options]);
+		const [res, buffer] = await this.channel.call<RequestResponse>('request', [options]);
 		return { res, stream: bufferToStream(buffer) };
 	}
 

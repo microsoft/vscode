@@ -1,0 +1,50 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .screencast-mouse {
+	position: absolute;
+	border: 2px solid red;
+	border-radius: 20px;
+	width: 20px;
+	height: 20px;
+	top: 0;
+	left: 0;
+	z-index: 100000;
+	content: ' ';
+	pointer-events: none;
+	display: none;
+}
+
+.monaco-workbench .screencast-keyboard {
+	position: absolute;
+	background-color: rgba(0, 0, 0 ,0.5);
+	width: 100%;
+	height: 100px;
+	bottom: 20%;
+	left: 0;
+	z-index: 100000;
+	pointer-events: none;
+	color: #eee;
+	line-height: 100px;
+	text-align: center;
+	font-size: 56px;
+	transition: opacity 0.3s ease-out;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .screencast-keyboard:empty {
+	opacity: 0;
+}
+
+.monaco-workbench .screencast-keyboard > .key {
+	padding: 0 8px;
+	box-shadow: inset 0 -3px 0 hsla(0,0%,73%,.4);
+	margin-right: 6px;
+	border: 1px solid hsla(0,0%,80%,.4);
+	border-radius: 5px;
+	background-color: rgba(255, 255, 255, 0.05);
+}

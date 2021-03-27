@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IView, IViewPaneContainer } from 'vs/workbench/common/views';
+import { IView } from 'vs/workbench/common/views';
 import { IComposite } from 'vs/workbench/common/composite';
+import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
 
 export interface IPaneComposite extends IComposite {
-	openView<T extends IView>(id: string, focus?: boolean): T | undefined;
-	getViewPaneContainer(): IViewPaneContainer | undefined;
+	openView(id: string, focus?: boolean): IView;
+	getViewPaneContainer(): IViewPaneContainer;
 	saveState(): void;
 }

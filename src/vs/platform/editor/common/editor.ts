@@ -19,17 +19,12 @@ export interface IEditorModel {
 	load(): Promise<IEditorModel>;
 
 	/**
-	 * Find out if this model has been disposed.
-	 */
-	isDisposed(): boolean;
-
-	/**
 	 * Dispose associated resources
 	 */
 	dispose(): void;
 }
 
-export interface IBaseResourceEditorInput {
+export interface IBaseResourceInput {
 
 	/**
 	 * Optional options to use when opening the text input.
@@ -65,12 +60,12 @@ export interface IBaseResourceEditorInput {
 	readonly forceUntitled?: boolean;
 }
 
-export interface IResourceEditorInput extends IBaseResourceEditorInput {
+export interface IResourceInput extends IBaseResourceInput {
 
 	/**
 	 * The resource URI of the resource to open.
 	 */
-	readonly resource: URI;
+	resource: URI;
 
 	/**
 	 * The encoding of the text input if known.
@@ -109,19 +104,6 @@ export enum EditorActivation {
 	 * automatically.
 	 */
 	PRESERVE
-}
-
-export enum EditorOverride {
-
-	/**
-	 * Displays a picker and allows the user to decide which editor to use
-	 */
-	PICK = 1,
-
-	/**
-	 * Disables overrides
-	 */
-	DISABLED
 }
 
 export enum EditorOpenContext {
@@ -189,12 +171,6 @@ export interface IEditorOptions {
 	readonly pinned?: boolean;
 
 	/**
-	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
-	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
-	 */
-	readonly sticky?: boolean;
-
-	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	readonly index?: number;
@@ -215,12 +191,9 @@ export interface IEditorOptions {
 	readonly ignoreError?: boolean;
 
 	/**
-	 * Allows to override the editor that should be used to display the input:
-	 * - `undefined`: let the editor decide for itself
-	 * - `string`: specific override by id
-	 * - `EditorOverride`: specific override handling
+	 * Does not use editor overrides while opening the editor
 	 */
-	readonly override?: string | EditorOverride;
+	readonly ignoreOverrides?: boolean;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -242,41 +215,20 @@ export interface ITextEditorSelection {
 	readonly endColumn?: number;
 }
 
-export const enum TextEditorSelectionRevealType {
-	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
-	 */
-	Center = 0,
-	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
-	 */
-	CenterIfOutsideViewport = 1,
-	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
-	 */
-	NearTop = 2,
-	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
-	 * Only if it lies outside the viewport
-	 */
-	NearTopIfOutsideViewport = 3,
-}
-
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
 	 */
-	readonly selection?: ITextEditorSelection;
+	selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.
 	 */
-	readonly viewState?: object;
+	viewState?: object;
 
 	/**
-	 * Option to control the text editor selection reveal type.
-	 * Defaults to TextEditorSelectionRevealType.Center
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
-	readonly selectionRevealType?: TextEditorSelectionRevealType;
+	revealInCenterIfOutsideViewport?: boolean;
 }

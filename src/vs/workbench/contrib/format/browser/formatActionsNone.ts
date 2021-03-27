@@ -14,14 +14,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-
-async function showExtensionQuery(viewletService: IViewletService, query: string) {
-	const viewlet = await viewletService.openViewlet(VIEWLET_ID, true);
-	if (viewlet) {
-		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-	}
-}
+import { showExtensionQuery } from 'vs/workbench/contrib/format/browser/showExtensionQuery';
 
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
@@ -32,7 +25,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			alias: 'Format Document',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
 				weight: KeybindingWeight.EditorContrib,
@@ -55,8 +48,6 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			return commandService.executeCommand('editor.action.formatDocument.multiple');
 		} else if (formatterCount === 1) {
 			return commandService.executeCommand('editor.action.formatDocument');
-		} else if (model.isTooLargeForSyncing()) {
-			notificationService.prompt(Severity.Info, nls.localize('too.large', "This file cannot be formatted because it is too large"), []);
 		} else {
 			const langName = model.getLanguageIdentifier().language;
 			const message = nls.localize('no.provider', "There is no formatter for '{0}' files installed.", langName);

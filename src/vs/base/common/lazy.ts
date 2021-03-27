@@ -21,7 +21,7 @@ export class Lazy<T> {
 
 	private _didRun: boolean = false;
 	private _value?: T;
-	private _error: Error | undefined;
+	private _error: any;
 
 	constructor(
 		private readonly executor: () => T,
