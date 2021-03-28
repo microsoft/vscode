@@ -43,9 +43,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-				});
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
@@ -80,9 +78,7 @@ suite('Notebook Clipboard', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
 
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-				});
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 				clipboardContrib.runCutAction(accessor);
@@ -138,17 +134,14 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
-					setToCopy() { }
-				});
-
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 3 }] }, 'model');
-				assert.strictEqual(clipboardContrib.runCutAction(accessor), true);
+				assert.ok(clipboardContrib.runCutAction(accessor));
 				// it should be the last cell, other than the first one.
-				assert.strictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
 			});
 	});
 
