@@ -1056,14 +1056,19 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		const _onDidReject: Emitter<void> = disposables.add(new Emitter<void>());
 		const onDidReject: Event<void> = _onDidReject.event;
 
+		const hideInputBox = () => {
+			element.classList.remove('input-mode');
+			container.style.paddingLeft = '10px';
+		};
+
 		disposables.add(DOM.addStandardDisposableListener(whenInput.inputElement, DOM.EventType.KEY_DOWN, e => {
 			let handled = false;
 			if (e.equals(KeyCode.Enter)) {
-				element.classList.remove('input-mode');
+				hideInputBox();
 				_onDidAccept.fire();
 				handled = true;
 			} else if (e.equals(KeyCode.Escape)) {
-				element.classList.remove('input-mode');
+				hideInputBox();
 				_onDidReject.fire();
 				handled = true;
 			}
@@ -1073,7 +1078,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			}
 		}));
 		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.BLUR, () => {
-			element.classList.remove('input-mode');
+			hideInputBox();
 			_onDidReject.fire();
 		})));
 
@@ -1099,6 +1104,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 				templateData.element.classList.add('input-mode');
 				templateData.whenInput.focus();
 				templateData.whenInput.select();
+				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
 		}));
 

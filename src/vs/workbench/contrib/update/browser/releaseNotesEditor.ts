@@ -84,6 +84,8 @@ export class ReleaseNotesManager {
 				{
 					tryRestoreScrollPosition: true,
 					enableFindWidget: true,
+				},
+				{
 					localResourceRoots: []
 				},
 				undefined);

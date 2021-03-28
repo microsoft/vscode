@@ -11,7 +11,6 @@ import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import * as modes from 'vs/editor/common/modes';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -20,6 +19,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { IRequestService } from 'vs/platform/request/common/request';
 import { loadLocalResource, readFileStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMapping';
 import { WebviewContentOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -51,7 +51,7 @@ export class WebviewResourceRequestManager extends Disposable {
 	private readonly _webviewManagerService: IWebviewManagerService;
 
 	private _localResourceRoots: ReadonlyArray<URI>;
-	private _portMappings: ReadonlyArray<modes.IWebviewPortMapping>;
+	private _portMappings: ReadonlyArray<IWebviewPortMapping>;
 
 	private _ready: Promise<void>;
 
@@ -164,7 +164,7 @@ export class WebviewResourceRequestManager extends Disposable {
 
 	private needsUpdate(
 		localResourceRoots: readonly URI[],
-		portMappings: readonly modes.IWebviewPortMapping[],
+		portMappings: readonly IWebviewPortMapping[],
 	): boolean {
 		return !(
 			equals(this._localResourceRoots, localResourceRoots, (a, b) => a.toString() === b.toString())

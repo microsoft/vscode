@@ -76,11 +76,11 @@ export class CodeCell extends Disposable {
 		});
 
 		const updateForFocusMode = () => {
-			if (this.notebookEditor.getSelection().start !== this.notebookEditor.viewModel.getCellIndex(viewCell)) {
-				return;
+			if (this.notebookEditor.getFocus().start !== this.notebookEditor.viewModel.getCellIndex(viewCell)) {
+				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 			}
 
-			if (viewCell.focusMode === CellFocusMode.Editor) {
+			if (viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
 				templateData.editor?.focus();
 			}
 
@@ -204,7 +204,13 @@ export class CodeCell extends Disposable {
 		}));
 
 		// Focus Mode
-		const updateFocusMode = () => viewCell.focusMode = templateData.editor.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		const updateFocusMode = () => {
+			viewCell.focusMode =
+				(templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
+					? CellFocusMode.Editor
+					: CellFocusMode.Container;
+		};
+
 		this._register(templateData.editor.onDidFocusEditorWidget(() => {
 			updateFocusMode();
 		}));
@@ -212,7 +218,7 @@ export class CodeCell extends Disposable {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
-			if (document.activeElement?.contains(this.templateData.container)) {
+			if (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)) {
 				setTimeout(() => {
 					updateFocusMode();
 				}, 300);
@@ -231,7 +237,6 @@ export class CodeCell extends Disposable {
 		const updatePlaceholder = () => {
 			if (this.notebookEditor.viewModel
 				&& this.notebookEditor.getActiveCell() === this.viewCell
-				&& viewCell.getEvaluatedMetadata(this.notebookEditor.viewModel.metadata).runnable
 				&& viewCell.metadata.runState === undefined
 				&& viewCell.metadata.lastRunDuration === undefined
 			) {

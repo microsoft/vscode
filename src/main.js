@@ -15,7 +15,7 @@ const os = require('os');
 const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const { getDefaultUserDataPath } = require('./vs/base/node/userDataPath');
+const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 /** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
@@ -48,9 +48,6 @@ configureCrashReporter();
 if (portable && portable.isPortable) {
 	app.setAppLogsPath(path.join(userDataPath, 'logs'));
 }
-
-// Update cwd based on environment and platform
-setCurrentWorkingDirectory();
 
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
@@ -161,9 +158,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// TODO@bpasero remove me once testing is done on `vscode-file` protocol
+		// TODO@sandbox remove me once testing is done on `vscode-file` protocol
 		// (all traces of `enable-browser-code-loading` and `ENABLE_VSCODE_BROWSER_CODE_LOADING`)
-		'enable-browser-code-loading'
+		'enable-browser-code-loading',
+
+		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		'log-level',
 	];
 
 	// Read argv config
@@ -206,6 +206,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'enable-browser-code-loading':
 					if (typeof argvValue === 'string') {
 						process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = argvValue;
+					}
+					break;
+
+				case 'log-level':
+					if (typeof argvValue === 'string') {
+						process.argv.push('--log', argvValue);
 					}
 					break;
 			}
@@ -425,19 +431,6 @@ function getJSFlags(cliArgs) {
 }
 
 /**
- * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
- *
- * @returns {string}
- */
-function getUserDataPath(cliArgs) {
-	if (portable.isPortable) {
-		return path.join(portable.portableDataPath, 'user-data');
-	}
-
-	return path.resolve(cliArgs['user-data-dir'] || getDefaultUserDataPath());
-}
-
-/**
  * @returns {import('./vs/platform/environment/common/argv').NativeParsedArgs}
  */
 function parseCLIArgs() {
@@ -452,19 +445,6 @@ function parseCLIArgs() {
 			'crash-reporter-directory'
 		]
 	});
-}
-
-function setCurrentWorkingDirectory() {
-	try {
-		if (process.platform === 'win32') {
-			process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
-			process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
-		} else if (process.env['VSCODE_CWD']) {
-			process.chdir(process.env['VSCODE_CWD']);
-		}
-	} catch (err) {
-		console.error(err);
-	}
 }
 
 function registerListeners() {
@@ -516,7 +496,7 @@ function getNodeCachedDir() {
 	return new class {
 
 		constructor() {
-			this.value = this._compute();
+			this.value = this.compute();
 		}
 
 		async ensureExists() {
@@ -531,7 +511,7 @@ function getNodeCachedDir() {
 			}
 		}
 
-		_compute() {
+		compute() {
 			if (process.argv.indexOf('--no-cached-data') > 0) {
 				return undefined;
 			}

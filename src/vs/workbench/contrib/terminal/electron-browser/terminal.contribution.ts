@@ -13,6 +13,8 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { getTerminalShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getSystemShell } from 'vs/base/node/shell';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { Platform } from 'vs/base/common/platform';
 
 // This file contains additional desktop-only contributions on top of those in browser/
 
@@ -25,4 +27,5 @@ workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, Life
 // Register configurations
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
-getTerminalShellConfiguration(getSystemShell).then(config => configurationRegistry.registerConfiguration(config));
+const systemShell = async (p: Platform) => getSystemShell(p, await process.getShellEnv());
+getTerminalShellConfiguration(systemShell).then(config => configurationRegistry.registerConfiguration(config));

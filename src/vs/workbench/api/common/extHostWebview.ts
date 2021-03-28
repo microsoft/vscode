@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/modes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
@@ -97,7 +96,7 @@ export class ExtHostWebview implements vscode.Webview {
 
 	public set options(newOptions: vscode.WebviewOptions) {
 		this.assertNotDisposed();
-		this.#proxy.$setOptions(this.#handle, convertWebviewOptions(this.#extension, this.#workspace, newOptions));
+		this.#proxy.$setOptions(this.#handle, serializeWebviewOptions(this.#extension, this.#workspace, newOptions));
 		this.#options = newOptions;
 	}
 
@@ -148,7 +147,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		this._logService.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
 	}
 
-	public createNewWebview(handle: string, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, extension: IExtensionDescription): ExtHostWebview {
+	public createNewWebview(handle: string, options: extHostProtocol.IWebviewOptions, extension: IExtensionDescription): ExtHostWebview {
 		const webview = new ExtHostWebview(handle, this._webviewProxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
 		this._webviews.set(handle, webview);
 
@@ -170,22 +169,24 @@ export function toExtensionData(extension: IExtensionDescription): extHostProtoc
 	return { id: extension.identifier, location: extension.extensionLocation };
 }
 
-export function convertWebviewOptions(
+export function serializeWebviewOptions(
 	extension: IExtensionDescription,
 	workspace: IExtHostWorkspace | undefined,
-	options: vscode.WebviewPanelOptions & vscode.WebviewOptions,
-): modes.IWebviewOptions {
+	options: vscode.WebviewOptions,
+): extHostProtocol.IWebviewOptions {
 	return {
-		...options,
+		enableCommandUris: options.enableCommandUris,
+		enableScripts: options.enableScripts,
+		portMapping: options.portMapping,
 		localResourceRoots: options.localResourceRoots || getDefaultLocalResourceRoots(extension, workspace)
 	};
 }
 
-function reviveOptions(
-	options: modes.IWebviewOptions & modes.IWebviewPanelOptions
-): vscode.WebviewOptions {
+export function reviveOptions(options: extHostProtocol.IWebviewOptions): vscode.WebviewOptions {
 	return {
-		...options,
+		enableCommandUris: options.enableCommandUris,
+		enableScripts: options.enableScripts,
+		portMapping: options.portMapping,
 		localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
 	};
 }

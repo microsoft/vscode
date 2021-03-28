@@ -131,11 +131,6 @@ export interface IWriteTextFileOptions extends IWriteFileOptions {
 	encoding?: string;
 
 	/**
-	 * Whether to overwrite a file even if it is readonly.
-	 */
-	overwriteReadonly?: boolean;
-
-	/**
 	 * Whether to write to the file as elevated (admin) user. When setting this option a prompt will
 	 * ask the user to authenticate as super user.
 	 */
@@ -367,9 +362,9 @@ export interface ITextFileEditorModelManager {
 export interface ITextFileSaveOptions extends ISaveOptions {
 
 	/**
-	 * Makes the file writable if it is readonly.
+	 * Save the file with an attempt to unlock it.
 	 */
-	overwriteReadonly?: boolean;
+	writeUnlock?: boolean;
 
 	/**
 	 * Save the file with elevated privileges.
@@ -407,9 +402,9 @@ export interface ITextFileLoadOptions {
 	contents?: ITextBufferFactory;
 
 	/**
-	 * Go to disk bypassing any cache of the model if any.
+	 * Go to file bypassing any cache of the model if any.
 	 */
-	forceReadFromDisk?: boolean;
+	forceReadFromFile?: boolean;
 
 	/**
 	 * Allow to load a model even if we think it is a binary file.

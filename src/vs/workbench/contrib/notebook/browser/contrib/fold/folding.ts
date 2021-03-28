@@ -165,6 +165,7 @@ registerAction2(class extends Action2 {
 				description: NOTEBOOK_FOLD_COMMAND_LABEL,
 				args: [
 					{
+						isOptional: true,
 						name: 'index',
 						description: 'The cell index',
 						schema: {
@@ -217,6 +218,11 @@ registerAction2(class extends Action2 {
 
 		const controller = editor.getContribution<FoldingController>(FoldingController.id);
 		if (index !== undefined) {
+			const targetCell = editor.viewModel?.viewCells[index];
+			if (targetCell?.cellKind === CellKind.Code && direction === 'down') {
+				return;
+			}
+
 			if (direction === 'up') {
 				controller.setFoldingStateUp(index, CellFoldingState.Collapsed, levels);
 			} else {
@@ -249,6 +255,7 @@ registerAction2(class extends Action2 {
 				description: NOTEBOOK_UNFOLD_COMMAND_LABEL,
 				args: [
 					{
+						isOptional: true,
 						name: 'index',
 						description: 'The cell index',
 						schema: {

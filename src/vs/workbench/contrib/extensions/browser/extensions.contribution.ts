@@ -65,7 +65,7 @@ import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isArray } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { Promises } from 'vs/base/common/async';
@@ -156,7 +156,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.confirmedUriHandlerExtensionIds': {
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
-				default: []
+				default: [],
+				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.webWorker': {
 				type: 'boolean',
@@ -286,7 +287,7 @@ CommandsRegistry.registerCommand({
 });
 
 function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
-	command?.addImplementation(105, (accessor) => {
+	command?.addImplementation(105, 'extensions-editor', (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
 		if (editor instanceof ExtensionEditor) {
@@ -332,7 +333,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
@@ -466,28 +467,11 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: async () => {
 				await this.extensionsWorkbenchService.checkForUpdates();
 				const outdated = this.extensionsWorkbenchService.outdated;
-				if (!outdated.length) {
-					this.notificationService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
-					return;
+				if (outdated.length) {
+					return runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '));
+				} else {
+					return this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."), []);
 				}
-
-				let msgAvailableExtensions = outdated.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdated.length);
-
-				const disabledExtensionsCount = outdated.filter(ext => ext.local && !this.extensionEnablementService.isEnabled(ext.local)).length;
-				if (disabledExtensionsCount) {
-					if (outdated.length === 1) {
-						msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
-					} else if (disabledExtensionsCount === 1) {
-						msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdated.length);
-					} else if (disabledExtensionsCount === outdated.length) {
-						msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdated.length);
-					} else {
-						msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdated.length, disabledExtensionsCount);
-					}
-				}
-
-				this.viewletService.openViewlet(VIEWLET_ID, true);
-				this.notificationService.info(msgAvailableExtensions);
 			}
 		});
 

@@ -51,7 +51,8 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 			dimension: {
 				width: 0,
 				height: 0
-			}
+			},
+			automaticLayout: true,
 		}, {
 			isSimpleWidget: true
 		});
@@ -153,7 +154,7 @@ class CodeRendererContrib extends Disposable implements IOutputRendererContribut
 class StreamRendererContrib extends Disposable implements IOutputRendererContribution {
 
 	getMimetypes() {
-		return ['application/x.notebook.stream'];
+		return ['application/x.notebook.stdout', 'application/x.notebook.stream'];
 	}
 
 	constructor(
@@ -177,6 +178,19 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		});
 
 		return { type: RenderOutputType.Mainframe };
+	}
+}
+
+class StderrRendererContrib extends StreamRendererContrib {
+
+	getMimetypes() {
+		return ['application/x.notebook.stderr'];
+	}
+
+	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI | undefined): IRenderOutput {
+		const result = super.render(output, items, container, notebookUri);
+		container.classList.add('error');
+		return result;
 	}
 }
 
@@ -392,6 +406,7 @@ NotebookRegistry.registerOutputTransform('plain', PlainTextRendererContrib);
 NotebookRegistry.registerOutputTransform('code', CodeRendererContrib);
 NotebookRegistry.registerOutputTransform('error-trace', ErrorRendererContrib);
 NotebookRegistry.registerOutputTransform('stream-text', StreamRendererContrib);
+NotebookRegistry.registerOutputTransform('stderr', StderrRendererContrib);
 
 export function getOutputSimpleEditorOptions(): IEditorOptions {
 	return {

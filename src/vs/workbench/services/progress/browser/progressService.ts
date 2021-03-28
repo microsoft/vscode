@@ -128,21 +128,22 @@ export class ProgressService extends Disposable implements IProgressService {
 			let progressCommand = (<IProgressWindowOptions>options).command;
 			let text: string;
 			let title: string;
+			const source = options.source && typeof options.source !== 'string' ? options.source.label : options.source;
 
 			if (progressTitle && progressMessage) {
 				// <title>: <message>
 				text = localize('progress.text2', "{0}: {1}", progressTitle, progressMessage);
-				title = options.source ? localize('progress.title3', "[{0}] {1}: {2}", options.source, progressTitle, progressMessage) : text;
+				title = source ? localize('progress.title3', "[{0}] {1}: {2}", source, progressTitle, progressMessage) : text;
 
 			} else if (progressTitle) {
 				// <title>
 				text = progressTitle;
-				title = options.source ? localize('progress.title2', "[{0}]: {1}", options.source, progressTitle) : text;
+				title = source ? localize('progress.title2', "[{0}]: {1}", source, progressTitle) : text;
 
 			} else if (progressMessage) {
 				// <message>
 				text = progressMessage;
-				title = options.source ? localize('progress.title2', "[{0}]: {1}", options.source, progressMessage) : text;
+				title = source ? localize('progress.title2', "[{0}]: {1}", source, progressMessage) : text;
 
 			} else {
 				// no title, no message -> no progress. try with next on stack

@@ -9,8 +9,8 @@ import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { IAvailableShellsRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IAvailableProfilesRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -96,9 +96,10 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
-	onRequestAvailableShells: Event<IAvailableShellsRequest>;
+	onRequestAvailableProfiles: Event<IAvailableProfilesRequest>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
+	onProfilesConfigChanged: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -154,7 +155,12 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	selectDefaultShell(): Promise<void>;
+	selectDefaultProfile(): Promise<void>;
+
+	/**
+	 * Gets the detected terminal profiles for the platform
+	 */
+	getAvailableProfiles(): ITerminalProfile[];
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
@@ -181,14 +187,8 @@ export interface ITerminalService {
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 }
 
-export interface IRemoteTerminalService {
-	readonly _serviceBrand: undefined;
-	dispose(): void;
-	listTerminals(isInitialization?: boolean): Promise<IRemoteTerminalAttachTarget[]>;
-	createRemoteTerminalProcess(instanceId: number, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper,): Promise<ITerminalChildProcess>;
-
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void>;
-	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+export interface IRemoteTerminalService extends IOffProcessTerminalService {
+	createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess>;
 }
 
 /**

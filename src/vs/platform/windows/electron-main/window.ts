@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -89,8 +89,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private hiddenTitleBarStyle: boolean | undefined;
 	private showTimeoutHandle: NodeJS.Timeout | undefined;
-	private _lastFocusTime = -1;
-	private _readyState = ReadyState.NONE;
 	private windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
@@ -119,7 +117,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -144,7 +143,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				minWidth: WindowMinimumSize.WIDTH,
 				minHeight: WindowMinimumSize.HEIGHT,
 				show: !isFullscreenOrMaximized,
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
@@ -196,7 +195,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const useNativeTabs = isMacintosh && windowConfig?.nativeTabs === true;
 			if (useNativeTabs) {
-				options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
+				options.tabbingIdentifier = this.productService.nameShort; // this opts in to sierra tabs
 			}
 
 			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -263,7 +262,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Request handling
-		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(product.version, this.environmentMainService, this.fileService, {
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.productService.version, this.environmentMainService, this.fileService, {
 			get: key => storageMainService.globalStorage.get(key),
 			store: (key, value) => storageMainService.globalStorage.set(key, value)
 		});
@@ -346,6 +345,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.focus();
 	}
 
+	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
 	get backupPath(): string | undefined { return this.currentConfig?.backupPath; }
@@ -354,8 +354,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	get remoteAuthority(): string | undefined { return this.currentConfig?.remoteAuthority; }
 
+	private readyState = ReadyState.NONE;
+
 	setReady(): void {
-		this._readyState = ReadyState.READY;
+		this.readyState = ReadyState.READY;
 
 		// inform all waiting promises that we are ready now
 		while (this.whenReadyCallbacks.length) {
@@ -378,7 +380,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	get isReady(): boolean {
-		return this._readyState === ReadyState.READY;
+		return this.readyState === ReadyState.READY;
 	}
 
 	get whenClosedOrLoaded(): Promise<void> {
@@ -410,13 +412,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.dispose();
 		});
 
+		// Block all SVG requests from unsupported origins
 		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
+
 			// Prevent loading of remote svgs
-			if (uri && uri.path.endsWith('.svg')) {
-				const safeScheme = svgFileSchemes.has(uri.scheme) ||
-					uri.path.includes(Schemas.vscodeRemoteResource);
+			if (uri.path.endsWith('.svg')) {
+				const safeScheme = svgFileSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
 				if (!safeScheme) {
 					return callback({ cancel: true });
 				}
@@ -425,25 +428,27 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return callback({ cancel: false });
 		});
 
+		// Configure SVG header content type properly
 		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
 			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
-			const contentType = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
+			const contentTypes = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 
-			if (contentType && Array.isArray(contentType)) {
+			if (contentTypes && Array.isArray(contentTypes)) {
 				const uri = URI.parse(details.url);
+
 				// https://github.com/microsoft/vscode/issues/97564
 				// ensure local svg files have Content-Type image/svg+xml
-				if (uri && uri.path.endsWith('.svg')) {
+				if (uri.path.endsWith('.svg')) {
 					if (svgFileSchemes.has(uri.scheme)) {
 						responseHeaders['Content-Type'] = ['image/svg+xml'];
+
 						return callback({ cancel: false, responseHeaders });
 					}
 				}
 
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
-				if (!uri.path.includes(Schemas.vscodeRemoteResource) &&
-					contentType.some(x => x.toLowerCase().includes('image/svg'))) {
+				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
 					return callback({ cancel: true });
 				}
 			}
@@ -453,7 +458,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
-			this._readyState = ReadyState.LOADING;
+			this.readyState = ReadyState.LOADING;
 
 			// Associate properties from the load request if provided
 			if (this.pendingLoadConfig) {
@@ -559,7 +564,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: (details && typeof details !== 'string') ? details.reason : undefined });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: typeof details !== 'string' ? details?.reason : undefined });
 
 		// Unresponsive
 		if (type === WindowError.UNRESPONSIVE) {
@@ -575,7 +580,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Show Dialog
 			const result = await this.dialogMainService.showMessageBox({
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appStalled', "The window is no longer responding"),
@@ -605,7 +610,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			const result = await this.dialogMainService.showMessageBox({
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message,
@@ -698,7 +703,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
-		if (this._readyState === ReadyState.NONE) {
+		if (this.readyState === ReadyState.NONE) {
 			this.currentConfig = config;
 		}
 
@@ -708,7 +713,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// the window load event has fired.
 		else {
 			this.pendingLoadConfig = config;
-			this._readyState = ReadyState.NAVIGATING;
+			this.readyState = ReadyState.NAVIGATING;
 		}
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or
@@ -731,7 +736,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this.setRepresentedFilename('');
 			}
 
-			this._win.setTitle(product.nameLong);
+			this._win.setTitle(this.productService.nameLong);
 		}
 
 		// Load URL

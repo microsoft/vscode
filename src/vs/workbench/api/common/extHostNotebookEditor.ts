@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellReplaceEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
 
@@ -45,7 +45,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.DocumentMetadata,
-			metadata: { ...notebookDocumentMetadataDefaults, ...value }
+			metadata: value
 		});
 	}
 
@@ -204,9 +204,9 @@ export class ExtHostNotebookEditor {
 			const prevIndex = compressedEditsIndex;
 			const prev = compressedEdits[prevIndex];
 
-			if (prev.editType === CellEditType.Replace && editData.cellEdits[i].editType === CellEditType.Replace) {
-				const edit = editData.cellEdits[i];
-				if ((edit.editType !== CellEditType.DocumentMetadata) && prev.index === edit.index) {
+			const edit = editData.cellEdits[i];
+			if (prev.editType === CellEditType.Replace && edit.editType === CellEditType.Replace) {
+				if (prev.index === edit.index) {
 					prev.cells.push(...(editData.cellEdits[i] as ICellReplaceEdit).cells);
 					prev.count += (editData.cellEdits[i] as ICellReplaceEdit).count;
 					continue;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh, isLinux, isWeb, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWeb, IProcessEnvironment, isNative } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -19,6 +19,14 @@ export const WindowMinimumSize = {
 
 export interface IBaseOpenWindowsOptions {
 	readonly forceReuseWindow?: boolean;
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * Use 'null' for a local window.
+	 * If not set, defaults to the remote authority of the current window.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -48,7 +56,6 @@ export interface IOpenedWindow {
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-	readonly remoteAuthority?: string;
 }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
@@ -87,7 +94,7 @@ export function getMenuBarVisibility(configurationService: IConfigurationService
 	const titleBarStyle = getTitleBarStyle(configurationService);
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact')) {
+	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;

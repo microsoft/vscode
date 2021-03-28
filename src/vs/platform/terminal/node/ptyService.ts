@@ -10,8 +10,9 @@ import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
-import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IPtyHostDescriptionDto, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IProcessDetails, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 
 type WorkspaceId = string;
 
@@ -40,6 +41,8 @@ export class PtyService extends Disposable implements IPtyService {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessResolvedShellLaunchConfig = this._register(new Emitter<{ id: number, event: IShellLaunchConfig }>());
 	readonly onProcessResolvedShellLaunchConfig = this._onProcessResolvedShellLaunchConfig.event;
+	private readonly _onProcessOrphanQuestion = this._register(new Emitter<{ id: number }>());
+	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	constructor(
 		private _lastPtyId: number,
@@ -93,6 +96,7 @@ export class PtyService extends Disposable implements IPtyService {
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessTitleChanged(event => this._onProcessTitleChanged.fire({ id, event }));
 		persistentProcess.onProcessShellTypeChanged(event => this._onProcessShellTypeChanged.fire({ id, event }));
+		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -108,6 +112,21 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async detachFromProcess(id: number): Promise<void> {
 		this._throwIfNoPty(id).detach();
+	}
+
+	async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
+		if (reduceGraceTime) {
+			for (const pty of this._ptys.values()) {
+				pty.reduceGraceTime();
+			}
+		}
+
+		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
+
+		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);
+		const promises = persistentProcesses.map(async ([id, terminalProcessData]) => this._buildProcessDetails(id, terminalProcessData));
+		const allTerminals = await Promise.all(promises);
+		return allTerminals.filter(entry => entry.isOrphan);
 	}
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {
@@ -134,6 +153,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async getLatency(id: number): Promise<number> {
 		return 0;
 	}
+	async orphanQuestionReply(id: number): Promise<void> {
+		return this._throwIfNoPty(id).orphanQuestionReply();
+	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
@@ -153,7 +175,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _expandTerminalTab(tab: ITerminalTabLayoutInfoById): Promise<ITerminalTabLayoutInfoDto> {
 		const expandedTerminals = (await Promise.all(tab.terminals.map(t => this._expandTerminalInstance(t))));
-		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto>[];
+		const filtered = expandedTerminals.filter(term => term.terminal !== null) as IRawTerminalInstanceLayoutInfo<IProcessDetails>[];
 		return {
 			isActive: tab.isActive,
 			activePersistentProcessId: tab.activePersistentProcessId,
@@ -161,12 +183,12 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 	}
 
-	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IPtyHostDescriptionDto | null>> {
+	private async _expandTerminalInstance(t: ITerminalInstanceLayoutInfoById): Promise<IRawTerminalInstanceLayoutInfo<IProcessDetails | null>> {
 		try {
 			const persistentProcess = this._throwIfNoPty(t.terminal);
-			const termDto = persistentProcess && await this._terminalToDto(t.terminal, persistentProcess);
+			const processDetails = persistentProcess && await this._buildProcessDetails(t.terminal, persistentProcess);
 			return {
-				terminal: termDto ?? null,
+				terminal: processDetails ?? null,
 				relativeSize: t.relativeSize
 			};
 		} catch (e) {
@@ -179,7 +201,7 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	private async _terminalToDto(id: number, persistentProcess: PersistentTerminalProcess): Promise<IPtyHostDescriptionDto> {
+	private async _buildProcessDetails(id: number, persistentProcess: PersistentTerminalProcess): Promise<IProcessDetails> {
 		const [cwd, isOrphan] = await Promise.all([persistentProcess.getCwd(), persistentProcess.isOrphaned()]);
 		return {
 			id,
@@ -203,7 +225,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 export class PersistentTerminalProcess extends Disposable {
 
-	// private readonly _bufferer: TerminalDataBufferer;
+	private readonly _bufferer: TerminalDataBufferer;
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
 
@@ -228,6 +250,8 @@ export class PersistentTerminalProcess extends Disposable {
 	readonly onProcessOverrideDimensions = this._onProcessOverrideDimensions.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
 	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessOrphanQuestion = this._register(new Emitter<void>());
+	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	private _inReplay = false;
 
@@ -259,15 +283,6 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
-		// TODO: Bring back bufferer
-		// this._bufferer = new TerminalDataBufferer((id, data) => {
-		// 	const ev: IPtyHostProcessDataEvent = {
-		// 		type: 'data',
-		// 		data: data
-		// 	};
-		// 	this._events.fire(ev);
-		// });
-
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;
@@ -275,12 +290,14 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(this._terminalProcess.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-		// Buffer data events to reduce the amount of messages going to the renderer
-		// this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
-		this._register(this._terminalProcess.onProcessData(e => this._recorder.recordData(e)));
-		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			// this._bufferer.stopBuffering(this._persistentProcessId);
-		}));
+
+		// Data buffering to reduce the amount of messages going to the renderer
+		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire({ data: data, sync: true }));
+		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
+		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
+
+		// Data recording for reconnect
+		this._register(this.onProcessData(e => this._recorder.recordData(e.data)));
 	}
 
 	attach(): void {
@@ -325,6 +342,9 @@ export class PersistentTerminalProcess extends Disposable {
 			return;
 		}
 		this._recorder.recordResize(cols, rows);
+
+		// Buffered events should flush when a resize occurs
+		this._bufferer.flushBuffer(this._persistentProcessId);
 		return this._terminalProcess.resize(cols, rows);
 	}
 	acknowledgeDataEvent(charCount: number): void {
@@ -363,7 +383,7 @@ export class PersistentTerminalProcess extends Disposable {
 		this._pendingCommands.delete(reqId);
 	}
 
-	async orphanQuestionReply(): Promise<void> {
+	orphanQuestionReply(): void {
 		this._orphanQuestionReplyTime = Date.now();
 		if (this._orphanQuestionBarrier) {
 			const barrier = this._orphanQuestionBarrier;
@@ -388,19 +408,17 @@ export class PersistentTerminalProcess extends Disposable {
 	}
 
 	private async _isOrphaned(): Promise<boolean> {
+		// The process is already known to be orphaned
 		if (this._disconnectRunner1.isScheduled() || this._disconnectRunner2.isScheduled()) {
 			return true;
 		}
 
+		// Ask whether the renderer(s) whether the process is orphaned and await the reply
 		if (!this._orphanQuestionBarrier) {
 			// the barrier opens after 4 seconds with or without a reply
 			this._orphanQuestionBarrier = new AutoOpenBarrier(4000);
 			this._orphanQuestionReplyTime = 0;
-			// TODO: Fire?
-			// const ev: IPtyHostProcessOrphanQuestionEvent = {
-			// 	type: 'orphan?'
-			// };
-			// this._events.fire(ev);
+			this._onProcessOrphanQuestion.fire();
 		}
 
 		await this._orphanQuestionBarrier.wait();

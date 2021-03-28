@@ -15,6 +15,7 @@
 	 */
 	const host = {
 		onElectron: true,
+		useParentPostMessage: true,
 		postMessage: (channel, data) => {
 			ipcRenderer.sendToHost(channel, data);
 		},
@@ -62,7 +63,7 @@
 		isInDevelopmentMode = true;
 	});
 
-	document.addEventListener('DOMContentLoaded', () => {
+	document.addEventListener('DOMContentLoaded', e => {
 		// Forward messages from the embedded iframe
 		window.onmessage = (message) => {
 			ipcRenderer.sendToHost(message.data.command, message.data.data);

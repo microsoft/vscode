@@ -11,7 +11,7 @@ import { join } from 'vs/base/common/path';
 import { rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { hashPath } from 'vs/workbench/services/backup/electron-browser/backupFileService';
+import { hashPath } from 'vs/workbench/services/backup/common/backupFileService';
 import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

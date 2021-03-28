@@ -44,7 +44,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private model: ITextFileEditorModel | undefined = undefined;
 	private cachedTextFileModelReference: IReference<ITextFileEditorModel> | undefined = undefined;
 
-	private readonly modelListeners: DisposableStore = this._register(new DisposableStore());
+	private readonly modelListeners = this._register(new DisposableStore());
 
 	constructor(
 		resource: URI,

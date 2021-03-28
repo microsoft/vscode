@@ -44,18 +44,27 @@ export interface IWorkspaceTrustModel {
 	getTrustStateInfo(): IWorkspaceTrustStateInfo;
 }
 
-export interface WorkspaceTrustRequest {
+export interface WorkspaceTrustRequestButton {
+	label: string;
+	type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+}
+
+export interface WorkspaceTrustRequestOptions {
+	buttons?: WorkspaceTrustRequestButton[];
+	message?: string;
 	modal: boolean;
 }
 
 export interface IWorkspaceTrustRequestModel {
-	readonly trustRequest: WorkspaceTrustRequest | undefined;
+	readonly trustRequestOptions: WorkspaceTrustRequestOptions | undefined;
 
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
+	readonly onDidCancelRequest: Event<void>;
 
-	initiateRequest(request?: WorkspaceTrustRequest): void;
+	initiateRequest(options?: WorkspaceTrustRequestOptions): void;
 	completeRequest(trustState?: WorkspaceTrustState): void;
+	cancelRequest(): void;
 }
 
 export interface WorkspaceTrustStateChangeEvent {
@@ -75,7 +84,7 @@ export interface IWorkspaceTrustService {
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState>;
+	requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState>;
 }
 
 export interface IWorkspaceTrustFolderInfo {

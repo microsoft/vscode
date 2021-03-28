@@ -221,7 +221,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.load({ forceReadFromDisk: true });
+				await this.load({ forceReadFromFile: true });
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -390,12 +390,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private async loadFromFile(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
 		this.logService.trace('[text file model] loadFromFile()', this.resource.toString(true));
 
-		const forceReadFromDisk = options?.forceReadFromDisk;
+		const forceReadFromFile = options?.forceReadFromFile;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
 		// Decide on etag
 		let etag: string | undefined;
-		if (forceReadFromDisk) {
+		if (forceReadFromFile) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
 		} else if (this.lastResolvedFileStat) {
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
@@ -428,14 +428,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+			// if we are resolved
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
 				return this;
 			}
 
-			// Ignore when a model has been resolved once and the file was deleted meanwhile. Since
-			// we already have the model loaded, we can return to this state and update the orphaned
-			// flag to indicate that this model has no version on disk anymore.
-			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND) {
+			// Unless we are forced to read from the file, Ignore when a model has been resolved once
+			// and the file was deleted meanwhile. Since we already have the model loaded, we can return
+			// to this state and update the orphaned flag to indicate that this model has no version on
+			// disk anymore.
+			if (this.isResolved() && result === FileOperationResult.FILE_NOT_FOUND && !forceReadFromFile) {
 				return this;
 			}
 
@@ -798,10 +800,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
 					const stat = await this.textFileService.write(lastResolvedFileStat.resource, resolvedTextFileEditorModel.createSnapshot(), {
-						overwriteReadonly: options.overwriteReadonly,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, resolvedTextFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						unlock: options.writeUnlock,
 						writeElevated: options.writeElevated
 					});
 
@@ -960,7 +962,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Load
 			this.load({
-				forceReadFromDisk: true	// because encoding has changed
+				forceReadFromFile: true	// because encoding has changed
 			});
 		}
 	}
@@ -996,10 +998,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	isReadonly(): boolean {
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
-	}
-
-	getStat(): IFileStatWithMetadata | undefined {
-		return this.lastResolvedFileStat;
 	}
 
 	dispose(): void {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { diffMaps, diffSets } from 'vs/base/common/collections';
 import { Emitter } from 'vs/base/common/event';
@@ -23,7 +24,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ICellEditOperation, ICellRange, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellEditOperation, ICellRange, IImmediateCellEditOperation, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookCellsChangeType, NotebookDataDto, TransientMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -84,8 +85,7 @@ class NotebookAndEditorState {
 				cellKind: cell.cellKind,
 				outputs: cell.outputs,
 				metadata: cell.metadata
-			})),
-			contentOptions: e.transientOptions,
+			}))
 		};
 	}
 
@@ -107,6 +107,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 	private readonly _proxy: ExtHostNotebookShape;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
+	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
 	private readonly _editorEventListenersMapping = new Map<string, DisposableStore>();
 	private readonly _documentEventListenersMapping = new ResourceMap<DisposableStore>();
@@ -124,7 +125,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
-		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
+		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -147,6 +148,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			item.emitter.dispose();
 			item.provider.dispose();
 		}
+		dispose(this._notebookSerializer.values());
 		dispose(this._editorEventListenersMapping.values());
 		dispose(this._documentEventListenersMapping.values());
 		dispose(this._cellStatusBarEntries.values());
@@ -161,6 +163,15 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			return false;
 		}
 		return textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
+	}
+
+	async $applyEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[], computeUndoRedo = true): Promise<void> {
+		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
+		if (!textModel) {
+			throw new Error(`Can't apply edits to unknown notebook model: ${resource}`);
+		}
+
+		textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
 	}
 
 	private _registerListeners(): void {
@@ -323,7 +334,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			this._proxy.$acceptNotebookActiveKernelChange(e);
 		}));
 
-		this._disposables.add(this._notebookService.onNotebookDocumentSaved(e => {
+		this._disposables.add(this._notebookEditorModelResolverService.onDidSaveNotebook(e => {
 			this._proxy.$acceptModelSaved(e);
 		}));
 
@@ -403,8 +414,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
 			viewOptions: options.viewOptions,
-			openNotebook: async (viewType: string, uri: URI, backupId?: string) => {
-				const data = await this._proxy.$openNotebook(viewType, uri, backupId);
+			open: async (uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken) => {
+				const data = await this._proxy.$openNotebook(viewType, uri, backupId, untitledDocumentData, token);
 				return {
 					data,
 					transientOptions: contentOptions
@@ -452,6 +463,24 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		}
 	}
 
+	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions): void {
+		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
+			options,
+			dataToNotebook: (data: VSBuffer): Promise<NotebookDataDto> => {
+				return this._proxy.$dataToNotebook(handle, data);
+			},
+			notebookToData: (data: NotebookDataDto): Promise<VSBuffer> => {
+				return this._proxy.$notebookToData(handle, data);
+			}
+		});
+		this._notebookSerializer.set(handle, registration);
+	}
+
+	$unregisterNotebookSerializer(handle: number): void {
+		this._notebookSerializer.get(handle)?.dispose();
+		this._notebookSerializer.delete(handle);
+	}
+
 	async $registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void> {
 		const emitter = new Emitter<URI | undefined>();
 		const that = this;
@@ -477,17 +506,18 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 						isPreferred: dto.isPreferred,
 						preloads: dto.preloads?.map(u => URI.revive(u)),
 						supportedLanguages: dto.supportedLanguages,
+						implementsInterrupt: dto.implementsInterrupt,
 						resolve: (uri: URI, editorId: string, token: CancellationToken): Promise<void> => {
 							this._logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
 							return this._proxy.$resolveNotebookKernel(handle, editorId, uri, dto.friendlyId, token);
 						},
-						executeNotebookCell: (uri: URI, cellHandle: number | undefined): Promise<void> => {
-							this._logService.debug('MainthreadNotebooks.executeNotebookCell', uri.path, dto.friendlyId, cellHandle);
-							return this._proxy.$executeNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellHandle);
+						executeNotebookCellsRequest: (uri: URI, cellRanges: ICellRange[]): Promise<void> => {
+							this._logService.debug('MainthreadNotebooks.executeNotebookCell', uri.path, dto.friendlyId, cellRanges);
+							return this._proxy.$executeNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellRanges);
 						},
-						cancelNotebookCell: (uri: URI, cellHandle: number | undefined): Promise<void> => {
-							this._logService.debug('MainthreadNotebooks.cancelNotebookCell', uri.path, dto.friendlyId, cellHandle);
-							return this._proxy.$cancelNotebookKernelFromProvider(handle, uri, dto.friendlyId, cellHandle);
+						cancelNotebookCellExecution: (uri: URI, cellRanges: ICellRange[]): Promise<void> => {
+							this._logService.debug('MainthreadNotebooks.cancelNotebookCellExecution', uri.path, dto.friendlyId, cellRanges);
+							return this._proxy.$cancelNotebookCellExecution(handle, uri, dto.friendlyId, cellRanges);
 						}
 					});
 				}
@@ -583,18 +613,17 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	}
 
 
-	async $tryOpenDocument(uriComponents: UriComponents, viewType?: string): Promise<URI> {
+	async $tryOpenDocument(uriComponents: UriComponents): Promise<URI> {
 		const uri = URI.revive(uriComponents);
-		const ref = await this._notebookModelResolverService.resolve(uri, viewType);
+		const ref = await this._notebookEditorModelResolverService.resolve(uri, undefined);
 		this._modelReferenceCollection.add(uri, ref);
-
 		return uri;
 	}
 
 	async $trySaveDocument(uriComponents: UriComponents) {
 		const uri = URI.revive(uriComponents);
 
-		const ref = await this._notebookModelResolverService.resolve(uri);
+		const ref = await this._notebookEditorModelResolverService.resolve(uri);
 		const saveResult = await ref.object.save();
 		ref.dispose();
 		return saveResult;

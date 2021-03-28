@@ -120,8 +120,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._onDidChangeState.fire({ languageChanged: true });
 		}));
 
-		this._register(model.onDidChangeMetadata(() => {
-			this._onDidChangeState.fire({ metadataChanged: true });
+		this._register(model.onDidChangeMetadata(e => {
+			this._onDidChangeState.fire({ metadataChanged: true, runStateChanged: e.runStateChanged });
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -453,9 +453,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
-		const runnable = (this.metadata?.runnable ??
-			documentMetadata.cellRunnable) && !!documentMetadata.trusted;
-
 		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
 			documentMetadata.cellHasExecutionOrder;
 
@@ -463,7 +460,6 @@ export abstract class BaseCellViewModel extends Disposable {
 			...(this.metadata || {}),
 			...{
 				editable,
-				runnable,
 				hasExecutionOrder
 			}
 		};
