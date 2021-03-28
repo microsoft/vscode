@@ -72,6 +72,7 @@ export class KeybindingLabel {
 			this.domNode.title = this.keybinding.getAriaLabel() || '';
 		} else if (this.options && this.options.renderUnboundKeybindings) {
 			this.renderUnbound(this.domNode);
+			this.domNode.title = localize('unbound', "Unbound");
 		}
 
 		this.didEverRender = true;
