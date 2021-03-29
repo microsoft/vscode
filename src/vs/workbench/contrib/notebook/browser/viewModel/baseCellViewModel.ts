@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -17,7 +17,6 @@ import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChang
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IModeService } from 'vs/editor/common/services/modeService';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -87,34 +86,12 @@ export abstract class BaseCellViewModel extends Disposable {
 	}>();
 	private _lastDecorationId: number = 0;
 
-	private _textModelDisposables = new DisposableStore();
-	private _textModel: model.ITextModel | undefined = undefined;
 	get textModel(): model.ITextModel | undefined {
-		return this._textModel;
-	}
-
-	set textModel(m: model.ITextModel | undefined) {
-		this._textModelDisposables.clear();
-		this._textModel = m;
-		if (this._textModel) {
-			// Init language from text model
-			const originalLanguage = this.model.language;
-			this.model.language = this._textModel.getLanguageIdentifier().language;
-			if (this.model.language !== originalLanguage) {
-				this._onDidChangeState.fire({ languageChanged: true });
-			}
-
-			// Listen to language changes on the model
-			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
-				this.model.language = e.newLanguage;
-				this._onDidChangeState.fire({ languageChanged: true });
-			}));
-			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
-		}
+		return this.model.textModel;
 	}
 
 	hasModel(): this is IEditableCellViewModel {
-		return !!this._textModel;
+		return !!this.textModel;
 	}
 
 	private _dragging: boolean = false;
@@ -130,17 +107,9 @@ export abstract class BaseCellViewModel extends Disposable {
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		public id: string,
-		private readonly _configurationService: IConfigurationService,
-		modeService: IModeService
+		private readonly _configurationService: IConfigurationService
 	) {
 		super();
-
-		this._register(model.onDidChangeLanguage(() => {
-			if (this.textModel) {
-				const mode = modeService.create(model.language);
-				this.textModel.setMode(mode.languageIdentifier);
-			}
-		}));
 
 		this._register(model.onDidChangeMetadata(e => {
 			this._onDidChangeState.fire({ metadataChanged: true, runStateChanged: e.runStateChanged });
@@ -220,7 +189,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this.textModel = undefined;
+		this.model.textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -394,7 +363,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return true;
 		}
 
-		if (selection.startLineNumber === this._textModel?.getLineCount() && selection.startColumn === this._textModel?.getLineMaxColumn(selection.startLineNumber)) {
+		if (selection.startLineNumber === this.textModel?.getLineCount() && selection.startColumn === this.textModel?.getLineMaxColumn(selection.startLineNumber)) {
 			return true;
 		}
 

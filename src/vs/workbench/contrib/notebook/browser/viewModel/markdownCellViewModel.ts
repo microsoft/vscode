@@ -17,12 +17,12 @@ import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookCellStateChangedEvent, NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Markdown;
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
+	private _hasTextModelRef = false;
 
 	private _version = 0;
 
@@ -105,9 +105,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		readonly eventDispatcher: NotebookEventDispatcher,
 		private readonly _mdRenderer: MarkdownRenderer,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IModeService modeService: IModeService,
 	) {
-		super(viewType, model, UUID.generateUuid(), configurationService, modeService);
+		super(viewType, model, UUID.generateUuid(), configurationService);
 
 		this._layoutInfo = {
 			editorHeight: 0,
@@ -227,13 +226,12 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this.textModel) {
+		if (!this._hasTextModelRef || !this.textModel) {
+			this._hasTextModelRef = true;
 			const ref = await this.model.resolveTextModelRef();
-			this.textModel = ref.object.textEditorModel;
-			this._version = this.textModel.getVersionId();
-
+			this._version = this.textModel!.getVersionId();
 			this._register(ref);
-			this._register(this.textModel.onDidChangeContent(() => {
+			this._register(this.textModel!.onDidChangeContent(() => {
 				this._html = null;
 				if (this.textModel) {
 					this._version = this.textModel.getVersionId();
@@ -241,7 +239,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
-		return this.textModel;
+		return this.textModel!;
 	}
 
 	onDeselect() {
