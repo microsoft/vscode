@@ -42,7 +42,7 @@ suite('IndexTreeModel', () => {
 		const list: ITreeNode<number>[] = [];
 		const model = new IndexTreeModel<number>('test', toList(list), -1);
 		assert(model);
-		assert.equal(list.length, 0);
+		assert.strictEqual(list.length, 0);
 	});
 
 	test('insert', () => withSmartSplice(options => {

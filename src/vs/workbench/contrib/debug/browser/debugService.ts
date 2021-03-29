@@ -780,10 +780,8 @@ export class DebugService implements IDebugService {
 		const actions = [...errorActions, configureAction];
 		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length });
 		if (choice < actions.length) {
-			return actions[choice].run();
+			await actions[choice].run();
 		}
-
-		return undefined;
 	}
 
 	//---- focus management

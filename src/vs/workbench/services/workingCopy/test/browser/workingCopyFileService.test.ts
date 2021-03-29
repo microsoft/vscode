@@ -146,7 +146,7 @@ suite('WorkingCopyFileService', () => {
 		let dirty = accessor.workingCopyFileService.getDirty(model1.resource);
 		assert.strictEqual(dirty.length, 0);
 
-		await model1.load();
+		await model1.resolve();
 		model1.textEditorModel!.setValue('foo');
 
 		dirty = accessor.workingCopyFileService.getDirty(model1.resource);
@@ -157,7 +157,7 @@ suite('WorkingCopyFileService', () => {
 		assert.strictEqual(dirty.length, 1);
 		assert.strictEqual(dirty[0], model1);
 
-		await model2.load();
+		await model2.resolve();
 		model2.textEditorModel!.setValue('bar');
 
 		dirty = accessor.workingCopyFileService.getDirty(toResource.call(this, '/path'));
@@ -170,7 +170,7 @@ suite('WorkingCopyFileService', () => {
 	test('registerWorkingCopyProvider', async function () {
 		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
-		await model1.load();
+		await model1.resolve();
 		model1.textEditorModel!.setValue('foo');
 
 		const testWorkingCopy = new TestWorkingCopy(toResource.call(this, '/path/file-2.txt'), true);
@@ -327,11 +327,11 @@ suite('WorkingCopyFileService', () => {
 			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
 			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
 
-			await sourceModel.load();
+			await sourceModel.resolve();
 			sourceModel.textEditorModel!.setValue('foo' + i);
 			assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
 			if (targetDirty) {
-				await targetModel.load();
+				await targetModel.resolve();
 				targetModel.textEditorModel!.setValue('bar' + i);
 				assert.ok(accessor.textFileService.isDirty(targetModel.resource));
 			}
@@ -420,7 +420,7 @@ suite('WorkingCopyFileService', () => {
 			const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
 			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
-			await model.load();
+			await model.resolve();
 			model!.textEditorModel!.setValue('foo');
 			assert.ok(accessor.workingCopyService.isDirty(model.resource));
 			return model;
@@ -480,7 +480,7 @@ suite('WorkingCopyFileService', () => {
 		const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
-		await model.load();
+		await model.resolve();
 		model!.textEditorModel!.setValue('foo');
 		assert.ok(accessor.workingCopyService.isDirty(model.resource));
 

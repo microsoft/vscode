@@ -14,7 +14,6 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionWorkspaceTrustRequirement, getExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
@@ -22,8 +21,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -32,7 +32,7 @@ import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList
 import { ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
+import { trustedForegroundColor, trustEditorTileBackgroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -337,11 +337,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		if (this.workspaceTrustEditorModel) {
 			if (isArray(change.value)) {
 				if (change.key === 'trustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value.map(item => URI.file(item)));
+					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value);
 				}
 
 				if (change.key === 'untrustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value.map(item => URI.file(item)));
+					this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value);
 				}
 			}
 		}
@@ -364,3 +364,15 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.bodyScrollBar.scanDomNode();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const tileBackgroundColor = theme.getColor(trustEditorTileBackgroundColor);
+	if (tileBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container  { background: ${tileBackgroundColor}; }`);
+	}
+
+	const border = theme.getColor(contrastBorder);
+	if (border) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container { border: 1px solid ${border}; }`);
+	}
+});

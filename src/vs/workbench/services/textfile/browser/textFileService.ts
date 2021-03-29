@@ -326,7 +326,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			sourceModelEncoding = sourceModelWithEncodingSupport.getEncoding();
 		}
 
-		// Prefer an existing model if it is already loaded for the given target resource
+		// Prefer an existing model if it is already resolved for the given target resource
 		let targetExists: boolean = false;
 		let targetModel = this.files.get(target);
 		if (targetModel?.isResolved()) {
@@ -346,7 +346,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding });
 			} catch (error) {
 				// if the target already exists and was not created by us, it is possible
-				// that we cannot load the target as text model if it is binary or too
+				// that we cannot resolve the target as text model if it is binary or too
 				// large. in that case we have to delete the target file first and then
 				// re-run the operation.
 				if (targetExists) {

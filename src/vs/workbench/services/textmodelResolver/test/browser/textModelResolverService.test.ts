@@ -73,7 +73,7 @@ suite('Workbench - TextModelResolverService', () => {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
-		await textModel.load();
+		await textModel.resolve();
 
 		const ref = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
@@ -97,14 +97,14 @@ suite('Workbench - TextModelResolverService', () => {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
-		const loadedModel = await textModel.load();
+		await textModel.resolve();
 
-		loadedModel.updateTextEditorModel(createTextBufferFactory('make dirty'));
+		textModel.updateTextEditorModel(createTextBufferFactory('make dirty'));
 
 		const ref = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
 		let disposed = false;
-		Event.once(loadedModel.onWillDispose)(() => {
+		Event.once(textModel.onWillDispose)(() => {
 			disposed = true;
 		});
 
@@ -112,7 +112,7 @@ suite('Workbench - TextModelResolverService', () => {
 		await timeout(0);
 		assert.strictEqual(disposed, false); // not disposed because model still dirty
 
-		loadedModel.revert();
+		textModel.revert();
 
 		await timeout(0);
 		assert.strictEqual(disposed, true); // now disposed because model got reverted
@@ -122,14 +122,14 @@ suite('Workbench - TextModelResolverService', () => {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
 		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
-		const loadedModel = await textModel.load();
+		await textModel.resolve();
 
-		loadedModel.updateTextEditorModel(createTextBufferFactory('make dirty'));
+		textModel.updateTextEditorModel(createTextBufferFactory('make dirty'));
 
 		const ref1 = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
 		let disposed = false;
-		Event.once(loadedModel.onWillDispose)(() => {
+		Event.once(textModel.onWillDispose)(() => {
 			disposed = true;
 		});
 
@@ -139,7 +139,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 		const ref2 = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
-		loadedModel.revert();
+		textModel.revert();
 
 		await timeout(0);
 		assert.strictEqual(disposed, false); // not disposed because we got another ref meanwhile

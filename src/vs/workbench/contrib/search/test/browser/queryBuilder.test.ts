@@ -978,8 +978,8 @@ suite('QueryBuilder', () => {
 				},
 			);
 
-			assert.equal(query.folderQueries.length, 1);
-			assert.equal(query.cacheKey, cacheKey);
+			assert.strictEqual(query.folderQueries.length, 1);
+			assert.strictEqual(query.cacheKey, cacheKey);
 			assert(query.sortByScore);
 		});
 	});
@@ -1034,12 +1034,12 @@ export function assertEqualSearchPathResults(actual: ISearchPathsInfo, expected:
 	cleanUndefinedQueryValues(actual);
 	assert.deepEqual(actual.pattern, expected.pattern, message);
 
-	assert.equal(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
+	assert.strictEqual(actual.searchPaths && actual.searchPaths.length, expected.searchPaths && expected.searchPaths.length);
 	if (actual.searchPaths) {
 		actual.searchPaths.forEach((searchPath, i) => {
 			const expectedSearchPath = expected.searchPaths![i];
 			assert.deepEqual(searchPath.pattern, expectedSearchPath.pattern);
-			assert.equal(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
+			assert.strictEqual(searchPath.searchPath.toString(), expectedSearchPath.searchPath.toString());
 		});
 	}
 }

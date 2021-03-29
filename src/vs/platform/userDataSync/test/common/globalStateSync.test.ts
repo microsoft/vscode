@@ -50,7 +50,7 @@ suite('GlobalStateSync', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.equal(lastSyncUserData!.syncData, null);
+		assert.strictEqual(lastSyncUserData!.syncData, null);
 
 		manifest = await testClient.manifest();
 		server.reset();
@@ -89,7 +89,7 @@ suite('GlobalStateSync', () => {
 		await updateLocale(testClient);
 
 		await testObject.sync(await testClient.manifest());
-		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
 
 		const { content } = await testClient.read(testObject.resource);
@@ -104,11 +104,11 @@ suite('GlobalStateSync', () => {
 		await client2.sync();
 
 		await testObject.sync(await testClient.manifest());
-		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
 
-		assert.equal(readStorage('a', testClient), 'value1');
-		assert.equal(await readLocale(testClient), 'en');
+		assert.strictEqual(readStorage('a', testClient), 'value1');
+		assert.strictEqual(await readLocale(testClient), 'en');
 	});
 
 	test('first time sync when storage exists', async () => {
@@ -117,11 +117,11 @@ suite('GlobalStateSync', () => {
 
 		updateUserStorage('b', 'value2', testClient);
 		await testObject.sync(await testClient.manifest());
-		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
 
-		assert.equal(readStorage('a', testClient), 'value1');
-		assert.equal(readStorage('b', testClient), 'value2');
+		assert.strictEqual(readStorage('a', testClient), 'value1');
+		assert.strictEqual(readStorage('b', testClient), 'value2');
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -136,10 +136,10 @@ suite('GlobalStateSync', () => {
 		updateUserStorage('a', 'value2', client2);
 		await testObject.sync(await testClient.manifest());
 
-		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
 
-		assert.equal(readStorage('a', testClient), 'value1');
+		assert.strictEqual(readStorage('a', testClient), 'value1');
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -153,11 +153,11 @@ suite('GlobalStateSync', () => {
 
 		updateUserStorage('b', 'value2', testClient);
 		await testObject.sync(await testClient.manifest());
-		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
 
-		assert.equal(readStorage('a', testClient), 'value1');
-		assert.equal(readStorage('b', testClient), 'value2');
+		assert.strictEqual(readStorage('a', testClient), 'value1');
+		assert.strictEqual(readStorage('b', testClient), 'value2');
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -171,10 +171,10 @@ suite('GlobalStateSync', () => {
 
 		updateUserStorage('a', 'value2', testClient);
 		await testObject.sync(await testClient.manifest());
-		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
 
-		assert.equal(readStorage('a', testClient), 'value2');
+		assert.strictEqual(readStorage('a', testClient), 'value2');
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
@@ -189,11 +189,11 @@ suite('GlobalStateSync', () => {
 
 		removeStorage('b', testClient);
 		await testObject.sync(await testClient.manifest());
-		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.strictEqual(testObject.status, SyncStatus.Idle);
 		assert.deepEqual(testObject.conflicts, []);
 
-		assert.equal(readStorage('a', testClient), 'value1');
-		assert.equal(readStorage('b', testClient), undefined);
+		assert.strictEqual(readStorage('a', testClient), 'value1');
+		assert.strictEqual(readStorage('b', testClient), undefined);
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);

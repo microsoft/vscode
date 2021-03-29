@@ -226,7 +226,7 @@ suite('SmartSelect', () => {
 
 		modelService.destroyModel(model.uri);
 
-		assert.equal(expected.length, ranges!.length);
+		assert.strictEqual(expected.length, ranges!.length);
 		for (const range of ranges!) {
 			let exp = expected.shift() || null;
 			assert.ok(Range.equalsRange(range.range, exp), `A=${range.range} <> E=${exp}`);
