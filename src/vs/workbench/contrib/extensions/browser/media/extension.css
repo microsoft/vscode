@@ -152,6 +152,11 @@
 	padding-right: 11px;
 }
 
+.extension-list-item > .details > .workspace-trust-description {
+	display: none;
+	padding-right: 11px;
+}
+
 .extension-list-item > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
