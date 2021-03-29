@@ -6,7 +6,7 @@
 import 'vs/css!./walkthroughs';
 import { localize } from 'vs/nls';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { EditorInput, EditorOptions, IEditorInputFactory, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, reset } from 'vs/base/browser/dom';
@@ -610,7 +610,7 @@ export class WalkthroughsPage extends EditorPane {
 	}
 }
 
-export class WalkthroughsInputFactory implements IEditorInputFactory {
+export class WalkthroughsInputSerializer implements IEditorInputSerializer {
 	public canSerialize(editorInput: WalkthroughsInput): boolean {
 		return true;
 	}
