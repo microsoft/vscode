@@ -44,7 +44,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
+import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions, IExtensionsGridViewVirtualDelegate } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -143,6 +143,7 @@ const NavbarSection = {
 	Contributions: 'contributions',
 	Changelog: 'changelog',
 	Dependencies: 'dependencies',
+	ExtensionPack: 'extensionPack',
 };
 
 interface ILayoutParticipant {
@@ -489,6 +490,9 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.dependencies.length) {
 			template.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
 		}
+		if (manifest && manifest.extensionPack?.length && !this.shallRenderAsExensionPack(manifest)) {
+			template.navbar.push(NavbarSection.ExtensionPack, localize('extensionpack', "Extension Pack"), localize('extensionpacktooltip', "Lists extensions those will be installed together with this extension"));
+		}
 
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
@@ -581,7 +585,8 @@ export class ExtensionEditor extends EditorPane {
 			case NavbarSection.Readme: return this.openReadme(template, token);
 			case NavbarSection.Contributions: return this.openContributions(template, token);
 			case NavbarSection.Changelog: return this.openChangelog(template, token);
-			case NavbarSection.Dependencies: return this.openDependencies(extension, template, token);
+			case NavbarSection.Dependencies: return this.openExtensionDependencies(extension, template, token);
+			case NavbarSection.ExtensionPack: return this.openExtensionPack(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -857,10 +862,14 @@ export class ExtensionEditor extends EditorPane {
 
 	private async openReadme(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const manifest = await this.extensionManifest!.get().promise;
-		if (manifest && manifest.extensionPack && manifest.extensionPack.length) {
+		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
 			return this.openExtensionPackReadme(manifest, template, token);
 		}
 		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template, WebviewIndex.Readme, token);
+	}
+
+	private shallRenderAsExensionPack(manifest: IExtensionManifest): boolean {
+		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
 	}
 
 	private async openExtensionPackReadme(manifest: IExtensionManifest, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
@@ -961,7 +970,7 @@ export class ExtensionEditor extends EditorPane {
 			});
 	}
 
-	private openDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private openExtensionDependencies(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
@@ -994,6 +1003,39 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
+	private openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		if (token.isCancellationRequested) {
+			return Promise.resolve(null);
+		}
+
+		if (arrays.isFalsyOrEmpty(extension.extensionPack)) {
+			append(template.content, $('p.nocontent')).textContent = localize('noextensions', "No Extensions");
+			return Promise.resolve(template.content);
+		}
+
+		const content = $('div', { class: 'subcontent' });
+		const scrollableContent = new DomScrollableElement(content, {});
+		append(template.content, scrollableContent.getDomNode());
+		this.contentDisposables.add(scrollableContent);
+
+		const dependenciesTree = this.instantiationService.createInstance(ExtensionsTree,
+			new ExtensionData(extension, null, extension => extension.extensionPack || [], this.extensionsWorkbenchService), content,
+			{
+				listBackground: editorBackground
+			});
+		const layout = () => {
+			scrollableContent.scanDomNode();
+			const scrollDimensions = scrollableContent.getScrollDimensions();
+			dependenciesTree.layout(scrollDimensions.height);
+		};
+		const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
+
+		this.contentDisposables.add(dependenciesTree);
+		scrollableContent.scanDomNode();
+		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
+	}
+
 	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<void> {
 		if (token.isCancellationRequested) {
 			return;
@@ -1003,7 +1045,9 @@ export class ExtensionEditor extends EditorPane {
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new class ExtensionsGridViewVirtualDelegate extends Delegate implements IExtensionsGridViewVirtualDelegate {
+			getWidth() { return 275; }
+		});
 		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();

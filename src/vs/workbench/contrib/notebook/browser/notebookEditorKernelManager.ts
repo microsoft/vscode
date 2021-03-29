@@ -133,7 +133,11 @@ export class NotebookEditorKernelManager extends Disposable {
 		}
 
 		const addCellStateListener = (c: ICellViewModel) => {
-			return (c as CellViewModel).onDidChangeState(() => {
+			return (c as CellViewModel).onDidChangeState(e => {
+				if (!e.runStateChanged) {
+					return;
+				}
+
 				if (c.metadata?.runState === NotebookCellExecutionState.Pending) {
 					this._executionCount++;
 				} else if (c.metadata?.runState === NotebookCellExecutionState.Idle) {

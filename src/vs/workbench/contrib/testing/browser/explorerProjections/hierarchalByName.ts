@@ -120,10 +120,6 @@ export class HierarchicalByNameElement extends HierarchicalElement {
  * test root rather than the heirarchal parent.
  */
 export class HierarchicalByNameProjection extends HierarchicalByLocationProjection {
-	protected rootRevealDepth = Infinity;
-
-	private readonly addedOrRemoved = (node: HierarchicalByNameElement) => this.changes.addedOrRemoved(node);
-
 	constructor(listener: TestSubscriptionListener, @ITestResultService results: ITestResultService) {
 		super(listener, results);
 
@@ -145,11 +141,11 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 		const actualParent = item.parent ? this.items.get(item.parent) as HierarchicalByNameElement : undefined;
 		for (const testRoot of parent.children) {
 			if (testRoot.test.src.provider === item.src.provider) {
-				return new HierarchicalByNameElement(item, testRoot, this.addedOrRemoved, actualParent);
+				return new HierarchicalByNameElement(item, testRoot, r => this.changes.addedOrRemoved(r), actualParent);
 			}
 		}
 
-		return new HierarchicalByNameElement(item, parent, this.addedOrRemoved);
+		return new HierarchicalByNameElement(item, parent, r => this.changes.addedOrRemoved(r));
 	}
 
 	/**
@@ -163,5 +159,12 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 		}
 
 		return treeChildren;
+	}
+
+	/**
+	 * @override
+	 */
+	protected getRevealDepth(element: HierarchicalElement) {
+		return element.depth === 1 ? Infinity : undefined;
 	}
 }

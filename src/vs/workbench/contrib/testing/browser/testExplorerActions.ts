@@ -9,6 +9,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
+import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -588,7 +589,7 @@ abstract class RunOrDebugAtCursor extends Action2 {
 				for (const id of candidates) {
 					const candidate = collection.object.getNodeById(id);
 					if (candidate) {
-						if (depth > bestDepth && this.filter(candidate) && candidate.item.location?.range.containsPosition(position)) {
+						if (depth > bestDepth && this.filter(candidate) && candidate.item.range && Range.containsPosition(candidate.item.range, position)) {
 							bestDepth = depth;
 							bestNode = candidate;
 						}

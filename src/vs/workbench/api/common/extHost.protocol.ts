@@ -1657,6 +1657,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptProcessRequestCwd(id: number): void;
 	$acceptProcessRequestLatency(id: number): number;
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
+	// TODO: Change quickLaunchOnly to "includeAutoDetected" or something similar
 	$getAvailableProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;

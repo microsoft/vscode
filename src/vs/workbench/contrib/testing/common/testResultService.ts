@@ -119,6 +119,7 @@ const itemToNode = (
 		...item,
 		// shallow-clone the test to take a 'snapshot' of it at the point in time where tests run
 		item: { ...item.item },
+		children: new Set(item.children),
 		state: unsetState,
 		computedState: TestResult.Unset,
 		retired: false,
@@ -440,10 +441,7 @@ export class HydratedTestResult implements ITestResult {
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true, children: new Set(item.children) };
-			if (cast.item.location) {
-				cast.item.location.uri = URI.revive(cast.item.location.uri);
-				cast.item.location.range = Range.lift(cast.item.location.range);
-			}
+			cast.item.uri = URI.revive(cast.item.uri);
 
 			for (const message of cast.state.messages) {
 				if (message.location) {

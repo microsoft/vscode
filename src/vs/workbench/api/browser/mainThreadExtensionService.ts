@@ -122,7 +122,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				}
 			});
 		} else {
-			this._notificationService.error(localize('unknownDep', "Cannot activate the '{0}' extension because it depends on an unknown '{1}' extension .", extName, missingDependency));
+			this._notificationService.error(localize('unknownDep', "Cannot activate the '{0}' extension because it depends on an unknown '{1}' extension.", extName, missingDependency));
 		}
 	}
 

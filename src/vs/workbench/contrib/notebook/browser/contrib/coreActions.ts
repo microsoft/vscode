@@ -626,7 +626,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: EXECUTE_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.executeNotebook', "Execute Notebook (Run all cells)"),
@@ -634,10 +634,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: CANCEL_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.cancelNotebook', "Stop Notebook Execution"),
@@ -645,7 +645,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
 });
 
 registerAction2(class extends NotebookCellAction {
@@ -724,8 +724,18 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
+	if (!notebookEditor.viewModel.metadata.editable) {
+		return null;
+	}
+
 	const text = cell.getText();
 	const idx = notebookEditor.viewModel.getCellIndex(cell);
+
+	if (language === undefined) {
+		const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
+		language = availableLanguages[0] ?? 'plaintext';
+	}
+
 	notebookEditor.viewModel.notebookDocument.applyEdits([
 		{
 			editType: CellEditType.Replace,
@@ -1510,8 +1520,8 @@ registerAction2(class extends NotebookAction {
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
 			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
 			menu: {
-				id: MenuId.NotebookToolbar,
-				// when: NOTEBOOK_IS_ACTIVE_EDITOR,
+				id: MenuId.EditorTitle,
+				when: NOTEBOOK_IS_ACTIVE_EDITOR,
 				group: 'navigation',
 				order: 0
 			},

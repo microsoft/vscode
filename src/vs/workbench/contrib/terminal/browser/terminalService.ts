@@ -15,7 +15,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -32,7 +32,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { newQuickLaunchProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { equals } from 'vs/base/common/objects';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -153,12 +154,18 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
-				e.affectsConfiguration('terminal.integrated.showQuickLaunchWslProfiles')) {
+				e.affectsConfiguration('terminal.integrated.displayDetectedWslProfiles')) {
 				this._updateAvailableProfilesNow();
 			}
 		});
 
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+
+		const conn = this._remoteAgentService.getConnection();
+		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
+		this._whenExtHostReady(remoteAuthority).then(() => {
+			this._updateAvailableProfiles();
+		});
 
 		// Connect to the extension host if it's there, set the connection state to connected when
 		// it's done. This should happen even when there is no extension host.
@@ -339,10 +346,10 @@ export class TerminalService implements ITerminalService {
 	// when relevant config changes, update without debouncing
 	private async _updateAvailableProfilesNow(): Promise<void> {
 		const result = await this._detectProfiles(true);
-		if (result !== this._availableProfiles) {
-			for (const p of result) {
-				p.isWorkspaceProfile = await this._getWorkspaceProfilePermissions(p);
-			}
+		for (const p of result) {
+			p.isWorkspaceProfile = await this._getWorkspaceProfilePermissions(p);
+		}
+		if (!equals(result, this._availableProfiles)) {
 			this._availableProfiles = result;
 			this._onProfilesConfigChanged.fire();
 		}
@@ -366,7 +373,6 @@ export class TerminalService implements ITerminalService {
 
 	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
 		this._createExtHostReadyEntry(remoteAuthority);
-		this._updateAvailableProfiles();
 		return this._extHostsReady[remoteAuthority]!.promise;
 	}
 
@@ -837,21 +843,18 @@ export class TerminalService implements ITerminalService {
 		const profiles = await this._detectProfiles(false);
 		const platformKey = await this._getPlatformKey();
 
-		interface IProfileQuickPickItem extends IQuickPickItem {
-			profile: ITerminalProfile;
-		}
 		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your preferred terminal shell, you can change this later in your settings"),
+			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
 				const existingProfiles = configProfiles.userValue ? Object.keys(configProfiles.userValue) : [];
 				const name = await this._quickInputService.input({
-					prompt: nls.localize('enterTerminalProfileName', "Enter profile name"),
+					prompt: nls.localize('enterTerminalProfileName', "Enter terminal profile name"),
 					value: context.item.profile.profileName,
 					validateInput: async input => {
 						if (existingProfiles.includes(input)) {
-							return nls.localize('terminalProfileAlreadyExists', "A profile already exists with that name");
+							return nls.localize('terminalProfileAlreadyExists', "A terminal profile already exists with that name");
 						}
 						return undefined;
 					}
@@ -867,31 +870,46 @@ export class TerminalService implements ITerminalService {
 				await this._configurationService.updateValue(configKey, newConfigValue, ConfigurationTarget.USER);
 			}
 		};
-		const quickPickItems = profiles.map((profile): IProfileQuickPickItem => {
-			const buttons: IQuickInputButton[] = [{
-				iconClass: ThemeIcon.asClassName(newQuickLaunchProfileIcon),
-				tooltip: nls.localize('createQuickLaunchProfile', "Create a quick launch profile based on this shell")
-			}];
-			if (profile.args) {
-				if (typeof profile.args === 'string') {
-					return { label: profile.profileName, description: `${profile.path} ${profile.args}`, profile, buttons };
-				}
-				const argsString = profile.args.map(e => {
-					if (e.includes(' ')) {
-						return `"${e.replace('/"/g', '\\"')}"`;
-					}
-					return e;
-				}).join(' ');
-				return { label: profile.profileName, description: `${profile.path} ${argsString}`, profile, buttons };
-			}
-			return { label: profile.profileName, description: profile.path, profile, buttons };
-		});
+
+		// Build quick pick items
+		const quickPickItems: (IProfileQuickPickItem | IQuickPickSeparator)[] = [];
+		const configProfiles = profiles.filter(e => !e.isAutoDetected);
+		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
+		if (configProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
+			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e)));
+		}
+		if (configProfiles.length > 0) {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
+			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)));
+		}
+
 		const value = await this._quickInputService.pick(quickPickItems, options);
 		if (!value) {
 			return;
 		}
 		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
 		await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+	}
+
+	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
+		const buttons: IQuickInputButton[] = [{
+			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
+			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
+		}];
+		if (profile.args) {
+			if (typeof profile.args === 'string') {
+				return { label: profile.profileName, description: `${profile.path} ${profile.args}`, profile, buttons };
+			}
+			const argsString = profile.args.map(e => {
+				if (e.includes(' ')) {
+					return `"${e.replace('/"/g', '\\"')}"`;
+				}
+				return e;
+			}).join(' ');
+			return { label: profile.profileName, description: `${profile.path} ${argsString}`, profile, buttons };
+		}
+		return { label: profile.profileName, description: profile.path, profile, buttons };
 	}
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
@@ -996,4 +1014,8 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 	}
+}
+
+interface IProfileQuickPickItem extends IQuickPickItem {
+	profile: ITerminalProfile;
 }

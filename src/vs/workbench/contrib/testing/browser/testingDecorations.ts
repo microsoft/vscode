@@ -101,7 +101,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		}));
 
 		this._register(this.results.onTestChanged(({ item: result }) => {
-			if (this.currentUri && result.item.location?.uri.toString() === this.currentUri.toString()) {
+			if (this.currentUri && result.item.uri.toString() === this.currentUri.toString()) {
 				this.setDecorations(this.currentUri);
 			}
 		}));
@@ -125,18 +125,18 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			return;
 		}
 
-		const collection = this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, diff => {
+		this.collection.value = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri, diff => {
 			this.setDecorations(uri!);
 
 			for (const op of diff) {
 				if (op[0] === TestDiffOpType.Add && !op[1].parent) {
-					collection.object?.expand(op[1].item.extId, Infinity);
+					this.collection.value?.object.expand(op[1].item.extId, Infinity);
 				}
 			}
 		});
 
-		for (const root of collection.object.rootIds) {
-			collection.object.expand(root, Infinity);
+		for (const root of this.collection.value.object.rootIds) {
+			this.collection.value.object.expand(root, Infinity);
 		}
 
 		this.setDecorations(uri);
@@ -152,9 +152,9 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			const newDecorations: ITestDecoration[] = [];
 			for (const test of ref.object.all) {
 				const stateLookup = this.results.getStateById(test.item.extId);
-				if (hasValidLocation(uri, test.item)) {
+				if (test.item.range) {
 					newDecorations.push(this.instantiationService.createInstance(
-						RunTestDecoration, test, ref.object, test.item.location, this.editor, stateLookup?.[1]));
+						RunTestDecoration, test, ref.object, test.item.range, this.editor, stateLookup?.[1]));
 				}
 
 				if (!stateLookup) {
@@ -241,7 +241,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 	constructor(
 		private readonly test: IncrementalTestCollectionItem,
 		private readonly collection: IMainThreadTestCollection,
-		private readonly location: IRichLocation,
+		range: IRange,
 		private readonly editor: ICodeEditor,
 		stateItem: TestResultItem | undefined,
 		@ITestService private readonly testService: ITestService,
@@ -249,7 +249,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
-		this.line = location.range.startLineNumber;
+		this.line = range.startLineNumber;
 
 		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResult.Unset
 			? testingStatesToIcons.get(stateItem.computedState)!
@@ -267,7 +267,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		}
 
 		this.editorDecoration = {
-			range: firstLineRange(this.location.range),
+			range: firstLineRange(range),
 			options: {
 				isWholeLine: true,
 				hoverMessage,

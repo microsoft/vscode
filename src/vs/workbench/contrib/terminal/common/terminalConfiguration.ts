@@ -27,6 +27,10 @@ const terminalProfileSchema: IJSONSchema = {
 			items: {
 				type: 'string'
 			}
+		},
+		overrideName: {
+			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+			type: 'boolean'
 		}
 	}
 };
@@ -135,9 +139,14 @@ export const terminalConfiguration: IConfigurationNode = {
 							source: {
 								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
 								enum: ['PowerShell', 'Git Bash']
+							},
+							overrideName: {
+								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+								type: 'boolean'
 							}
 						}
 					},
+					{ type: 'null' },
 					terminalProfileSchema
 				]
 			}
@@ -163,9 +172,17 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
 		'terminal.integrated.profiles.linux': {
 			markdownDescription: localize(
@@ -188,12 +205,20 @@ export const terminalConfiguration: IConfigurationNode = {
 				},
 				'tmux': {
 					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
-		'terminal.integrated.showQuickLaunchWslProfiles': {
-			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
+		'terminal.integrated.displayDetectedWslProfiles': {
+			description: localize('terminal.integrated.displayDetectedWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
 			default: true
 		},

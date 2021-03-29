@@ -68,9 +68,9 @@ const kernel1 = new class implements vscode.NotebookKernel {
 			}
 
 			task.start();
-			await task.replaceOutput([new vscode.NotebookCellOutput([
+			await task.replaceOutput(new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
-			])]);
+			]));
 			task.end({ success: true });
 			return;
 		}
@@ -1249,24 +1249,25 @@ suite('Notebook API tests', function () {
 	});
 
 	test('#115855 onDidSaveNotebookDocument', async function () {
-		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const resource = await createRandomFile(undefined, undefined, '.vsctestnb');
+		const notebook = await vscode.notebook.openNotebookDocument(resource);
+		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
-		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
+		await editor.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
 		});
 
 		const cellChangeEventRet = await cellsChangeEvent;
-		assert.strictEqual(cellChangeEventRet.document === vscode.window.activeNotebookEditor?.document, true);
+		assert.strictEqual(cellChangeEventRet.document === notebook, true);
 		assert.strictEqual(cellChangeEventRet.document.isDirty, true);
 
-		await withEvent(vscode.notebook.onDidSaveNotebookDocument, async event => {
-			await vscode.commands.executeCommand('workbench.action.files.saveAll');
-			await event;
-			assert.strictEqual(cellChangeEventRet.document.isDirty, false);
-		});
-		await saveAllFilesAndCloseAll(resource);
+		const saveEvent = asPromise(vscode.notebook.onDidSaveNotebookDocument);
+
+		await notebook.save();
+
+		await saveEvent;
+		assert.strictEqual(notebook.isDirty, false);
 	});
 
 	test('#116808, active kernel should not be undefined', async function () {
