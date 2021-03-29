@@ -222,12 +222,12 @@ export class IconLabel extends Disposable {
 		let isHovering = false;
 		let tokenSource: CancellationTokenSource;
 		let hoverDisposable: IDisposable | undefined;
-		function mouseOver(this: HTMLElement, e: MouseEvent): any {
+		function mouseOver(this: HTMLElement, e: MouseEvent): void {
 			if (isHovering) {
 				return;
 			}
 			tokenSource = new CancellationTokenSource();
-			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): any {
+			function mouseLeaveOrDown(this: HTMLElement, e: MouseEvent): void {
 				const isMouseDown = e.type === dom.EventType.MOUSE_DOWN;
 				if (isMouseDown) {
 					hoverDisposable?.dispose();
@@ -245,7 +245,7 @@ export class IconLabel extends Disposable {
 			const mouseDownDisposable = domEvent(htmlElement, dom.EventType.MOUSE_DOWN, true)(mouseLeaveOrDown.bind(htmlElement));
 			isHovering = true;
 
-			function mouseMove(this: HTMLElement, e: MouseEvent): any {
+			function mouseMove(this: HTMLElement, e: MouseEvent): void {
 				mouseX = e.x;
 			}
 			const mouseMoveDisposable = domEvent(htmlElement, dom.EventType.MOUSE_MOVE, true)(mouseMove.bind(htmlElement));
