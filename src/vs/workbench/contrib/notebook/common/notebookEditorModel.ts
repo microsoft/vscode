@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { EditorModel, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorModel, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { CellEditType, CellKind, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -23,8 +23,11 @@ import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IFileWorkingCopyModel, IFileWorkingCopyModelContentChangedEvent, IFileWorkingCopyModelFactory, IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFileWorkingCopyManager, IFileWorkingCopySaveAsOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 
 //#region --- complex content provider
 
@@ -49,6 +52,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		readonly resource: URI,
 		readonly viewType: string,
 		private readonly _contentProvider: IMainNotebookController,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IBackupFileService private readonly _backupFileService: IBackupFileService,
@@ -343,32 +347,33 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		});
 	}
 
-	async saveAs(targetResource: URI): Promise<boolean> {
+	async saveAs(targetResource: URI): Promise<IEditorInput | undefined> {
 
 		if (!this.isResolved()) {
-			return false;
+			return undefined;
 		}
 
 		this._logService.debug(`[notebook editor model] saveAs - enter`, this.resource.toString(true));
 		const result = await this._assertStat();
 
 		if (result === 'none') {
-			return false;
+			return undefined;
 		}
 
 		if (result === 'revert') {
 			await this.revert();
-			return true;
+			return undefined;
 		}
 
 		const success = await this._contentProvider.saveAs(this.notebook.uri, targetResource, CancellationToken.None);
 		this._logService.debug(`[notebook editor model] saveAs - document saved, start updating file stats`, this.resource.toString(true), success);
 		this._lastResolvedFileStat = await this._resolveStats(this.resource);
-		if (success) {
-			this.setDirty(false);
-			this._onDidSave.fire();
+		if (!success) {
+			return undefined;
 		}
-		return true;
+		this.setDirty(false);
+		this._onDidSave.fire();
+		return this._instantiationService.createInstance(NotebookEditorInput, targetResource, this.viewType, {});
 	}
 
 	private async _resolveStats(resource: URI) {
@@ -393,40 +398,52 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 export class SimpleNotebookEditorModel extends EditorModel implements INotebookEditorModel {
 
-	readonly onDidChangeDirty: Event<void>;
-	readonly onDidSave: Event<void>;
+	private readonly _onDidChangeDirty = new Emitter<void>();
+	private readonly _onDidSave = new Emitter<void>();
 
-	readonly resource: URI;
-	readonly viewType: string;
-	readonly notebook: NotebookTextModel;
+	readonly onDidChangeDirty: Event<void> = this._onDidChangeDirty.event;
+	readonly onDidSave: Event<void> = this._onDidSave.event;
+
+	private _workingCopy?: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>;
+	private readonly _workingCopyListeners = new DisposableStore();
 
 	constructor(
-		private readonly _workingCopy: IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>
+		readonly resource: URI,
+		readonly viewType: string,
+		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this.resource = _workingCopy.resource;
-		this.viewType = _workingCopy.model.notebookModel.viewType;
-		this.notebook = _workingCopy.model.notebookModel;
-
-		this.onDidChangeDirty = Event.signal(_workingCopy.onDidChangeDirty);
-		this.onDidSave = Event.signal(_workingCopy.onDidSave);
 	}
 
 	dispose(): void {
-		this._workingCopy.dispose();
+		this._workingCopyListeners.dispose();
+		this._workingCopy?.dispose();
+		this._onDidChangeDirty.dispose();
+		this._onDidSave.dispose();
 		super.dispose();
 	}
 
+	get notebook(): NotebookTextModel | undefined {
+		return this._workingCopy?.model.notebookModel;
+	}
+
+	isResolved(): this is IResolvedNotebookEditorModel {
+		return Boolean(this._workingCopy);
+	}
+
 	isDirty(): boolean {
-		return this._workingCopy.isDirty();
+		return this._workingCopy?.isDirty() ?? false;
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {
-		return this._workingCopy.revert(options);
+		assertType(this.isResolved());
+		return this._workingCopy!.revert(options);
 	}
 
 	save(options?: ISaveOptions): Promise<boolean> {
-		return this._workingCopy.save(options);
+		assertType(this.isResolved());
+		return this._workingCopy!.save(options);
 	}
 
 	isUntitled(): boolean {
@@ -434,12 +451,25 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	}
 
 	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
-		await this._workingCopy.resolve(options);
+		const workingCopy = await this._workingCopyManager.resolve(this.resource, { reload: { async: !options?.forceReadFromFile } });
+		if (!this._workingCopy) {
+			this._workingCopy = <IResolvedFileWorkingCopy<NotebookFileWorkingCopyModel>>workingCopy;
+			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), this._workingCopyListeners);
+			this._workingCopy.onDidSave(() => this._onDidSave.fire(), this._workingCopyListeners);
+		}
+		assertType(this.isResolved());
 		return this;
 	}
 
-	saveAs(target: URI): Promise<boolean> {
-		throw new Error('Method not implemented.');
+	async saveAs(target: URI, options?: IFileWorkingCopySaveAsOptions): Promise<IEditorInput | undefined> {
+		const newWorkingCopy = await this._workingCopyManager.saveAs(this.resource, target, options);
+		if (!newWorkingCopy) {
+			return undefined;
+		}
+		assertType(newWorkingCopy.isResolved());
+		// this is a little hacky because we leave the new working copy alone. BUT
+		// the newly created editor input will pick it up and claim ownership of it.
+		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
 	}
 }
 

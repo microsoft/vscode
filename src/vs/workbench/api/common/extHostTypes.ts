@@ -2922,6 +2922,22 @@ export class NotebookCellRange {
 		this._start = start;
 		this._end = end;
 	}
+
+	with(change: { start?: number, end?: number }): NotebookCellRange {
+		let start = this._start;
+		let end = this._end;
+
+		if (change.start !== undefined) {
+			start = change.start;
+		}
+		if (change.end !== undefined) {
+			end = change.end;
+		}
+		if (start === this._start && end === this._end) {
+			return this;
+		}
+		return new NotebookCellRange(start, end);
+	}
 }
 
 export class NotebookCellMetadata {
