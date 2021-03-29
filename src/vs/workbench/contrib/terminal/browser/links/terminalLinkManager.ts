@@ -58,6 +58,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
+
 		// Protocol links
 		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
 		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback.bind(this));
