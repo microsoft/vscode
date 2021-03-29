@@ -73,8 +73,8 @@ export class EditorGroup extends Disposable {
 	private readonly _onDidCloseEditor = this._register(new Emitter<EditorCloseEvent>());
 	readonly onDidCloseEditor = this._onDidCloseEditor.event;
 
-	private readonly _onDidDisposeEditor = this._register(new Emitter<EditorInput>());
-	readonly onDidDisposeEditor = this._onDidDisposeEditor.event;
+	private readonly _onWillDisposeEditor = this._register(new Emitter<EditorInput>());
+	readonly onWillDisposeEditor = this._onWillDisposeEditor.event;
 
 	private readonly _onDidChangeEditorDirty = this._register(new Emitter<EditorInput>());
 	readonly onDidChangeEditorDirty = this._onDidChangeEditorDirty.event;
@@ -315,9 +315,9 @@ export class EditorGroup extends Disposable {
 		const listeners = new DisposableStore();
 
 		// Re-emit disposal of editor input as our own event
-		listeners.add(Event.once(editor.onDispose)(() => {
+		listeners.add(Event.once(editor.onWillDispose)(() => {
 			if (this.indexOf(editor) >= 0) {
-				this._onDidDisposeEditor.fire(editor);
+				this._onWillDisposeEditor.fire(editor);
 			}
 		}));
 

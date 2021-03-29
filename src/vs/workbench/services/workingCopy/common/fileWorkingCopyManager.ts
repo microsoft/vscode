@@ -626,7 +626,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 
 			// Create target file adhoc if it does not exist yet
 			if (!targetExists) {
-				await this.workingCopyFileService.create([{ resource: target }]);
+				await this.workingCopyFileService.create([{ resource: target }], CancellationToken.None);
 			}
 
 			// At this point we need to resolve the target working copy

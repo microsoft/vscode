@@ -1080,7 +1080,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// created the model initially, the lifecycle for
 				// untitled is tightly coupled with the editor
 				// lifecycle for now.
-				Event.once(input.onDispose)(() => untitledModel.dispose());
+				Event.once(input.onWillDispose)(() => untitledModel.dispose());
 
 				return input;
 			}) as EditorInput;
@@ -1196,7 +1196,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Otherwise create and add to cache
 		input = factoryFn();
 		this.editorInputCache.set(resource, input);
-		Event.once(input.onDispose)(() => this.editorInputCache.delete(resource));
+		Event.once(input.onWillDispose)(() => this.editorInputCache.delete(resource));
 
 		return input;
 	}

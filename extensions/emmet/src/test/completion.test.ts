@@ -14,7 +14,7 @@ const completionProvider = new DefaultCompletionItemProvider();
 suite('Tests for completion in CSS embedded in HTML', () => {
 	teardown(() => {
 		// close all editors
-		return closeAllEditors;
+		return closeAllEditors();
 	});
 
 	test('style attribute & attribute value in html', async () => {

@@ -51,19 +51,19 @@ import { ILogService } from 'vs/platform/log/common/log';
 export class SimpleModel implements IResolvedTextEditorModel {
 
 	private readonly model: ITextModel;
-	private readonly _onDispose: Emitter<void>;
+	private readonly _onWillDispose: Emitter<void>;
 
 	constructor(model: ITextModel) {
 		this.model = model;
-		this._onDispose = new Emitter<void>();
+		this._onWillDispose = new Emitter<void>();
 	}
 
-	public get onDispose(): Event<void> {
-		return this._onDispose.event;
+	public get onWillDispose(): Event<void> {
+		return this._onWillDispose.event;
 	}
 
-	public load(): Promise<SimpleModel> {
-		return Promise.resolve(this);
+	public resolve(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	public get textEditorModel(): ITextModel {
@@ -82,7 +82,7 @@ export class SimpleModel implements IResolvedTextEditorModel {
 	public dispose(): void {
 		this.disposed = true;
 
-		this._onDispose.fire();
+		this._onWillDispose.fire();
 	}
 
 	public isDisposed(): boolean {

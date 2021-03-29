@@ -47,7 +47,7 @@ export const content: GettingStartedContent = [
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'explorer.newFile',
+			command: 'workbench.action.files.newUntitledFile',
 		}
 	},
 	{
@@ -243,15 +243,15 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: {
 							dark: 'dark/settingsSync.png',
 							light: 'light/settingsSync.png',
-							hc: 'light/settingsSync.png',
+							hc: 'hc/settingsSync.png',
 						},
 					}
 				},
 				{
 					id: 'pickAFolderTask-Mac',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project"),
-					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to get started!"),
-					when: 'isMac',
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
+					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to start coding!"),
+					when: 'isMac && workspaceFolderCount == 0',
 					button: {
 						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
 						command: 'workbench.action.files.openFileFolder'
@@ -267,9 +267,9 @@ export const content: GettingStartedContent = [
 				},
 				{
 					id: 'pickAFolderTask-Other',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project"),
-					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a folder to get started!"),
-					when: '!isMac',
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
+					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a project folder to start coding!"),
+					when: '!isMac && workspaceFolderCount == 0',
 					button: {
 						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
 						command: 'workbench.action.files.openFolder'
@@ -277,6 +277,24 @@ export const content: GettingStartedContent = [
 					doneOn: { commandExecuted: 'workbench.action.files.openFolder' },
 					media: {
 						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
+							dark: 'dark/openFolder.png',
+							light: 'light/openFolder.png',
+							hc: 'hc/openFolder.png',
+						}
+					}
+				},
+				{
+					id: 'quickOpen',
+					title: localize('gettingStarted.quickOpen.title', "Quick open files"),
+					description: localize('gettingStarted.quickOpen.description', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key."),
+					when: 'workspaceFolderCount != 0',
+					button: {
+						title: localize('gettingStarted.quickOpen.button', "Quick Open a File"),
+						command: 'workbench.action.quickOpen'
+					},
+					doneOn: { commandExecuted: 'workbench.action.quickOpen' },
+					media: {
+						type: 'image', altText: 'Go to file in quick search.', path: {
 							dark: 'dark/openFolder.png',
 							light: 'light/openFolder.png',
 							hc: 'hc/openFolder.png',
@@ -308,7 +326,7 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
 							dark: 'dark/commandPalette.png',
 							light: 'light/commandPalette.png',
-							hc: 'light/commandPalette.png',
+							hc: 'hc/commandPalette.png',
 						}
 					},
 				},
@@ -316,7 +334,7 @@ export const content: GettingStartedContent = [
 					id: 'terminal',
 					title: localize('gettingStarted.terminal.title', "Convenient built-in terminal"),
 					description: localize('gettingStarted.terminal.description', "Quickly run shell commands and monitor build output, right next to your code."),
-					when: 'remoteName != codespaces',
+					when: 'remoteName != codespaces && !terminalIsOpen',
 					button: {
 						title: localize('gettingStarted.terminal.button', "Show Terminal Panel"),
 						command: 'workbench.action.terminal.toggleTerminal'
@@ -326,7 +344,7 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'Integrated terminal running a few npm commands', path: {
 							dark: 'dark/terminal.png',
 							light: 'light/terminal.png',
-							hc: 'light/terminal.png',
+							hc: 'hc/terminal.png',
 						}
 					},
 				},
@@ -343,14 +361,14 @@ export const content: GettingStartedContent = [
 						type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: {
 							dark: 'dark/extensions.png',
 							light: 'light/extensions.png',
-							hc: 'light/extensions.png',
+							hc: 'hc/extensions.png',
 						}
 					},
 				},
 				{
 					id: 'settings',
-					title: localize('gettingStarted.settings.title', "Everything is a setting"),
-					description: localize('gettingStarted.settings.description', "Optimize every part of VS Code's look & feel to your liking. Enabling Settings Sync lets you share your personal tweaks across machines."),
+					title: localize('gettingStarted.settings.title', "Tune your settings"),
+					description: localize('gettingStarted.settings.description', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started."),
 					button: {
 						title: localize('gettingStarted.settings.button', "Tweak my Settings"),
 						command: 'workbench.action.openSettings'

@@ -106,7 +106,7 @@ suite('Workbench editor groups', () => {
 		group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
 		group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
 		group.onDidMoveEditor(e => groupEvents.moved.push(e));
-		group.onDidDisposeEditor(e => groupEvents.disposed.push(e));
+		group.onWillDisposeEditor(e => groupEvents.disposed.push(e));
 
 		return groupEvents;
 	}

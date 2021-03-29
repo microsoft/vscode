@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { TaskSequentializer, timeout } from 'vs/base/common/async';
+import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DefaultEndOfLine, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -914,7 +914,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			// cancel the pending operation so that ours can run
 			// before the pending one finishes.
 			// Currently this will try to cancel pending save
-			// participants but never a pending save.
+			// participants and pending snapshots from the
+			// save operation, but not the actual save which does
+			// not support cancellation yet.
 			this.saveSequentializer.cancelPending();
 
 			// Register this as the next upcoming save and return
@@ -970,15 +972,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			}
 
 			// It is possible that a subsequent save is cancelling this
-			// running save. As such we return early when we detect that
-			// However, we do not pass the token into the file service
-			// because that is an atomic operation currently without
-			// cancellation support, so we dispose the cancellation if
-			// it was not cancelled yet.
+			// running save. As such we return early when we detect that.
 			if (saveCancellation.token.isCancellationRequested) {
 				return;
-			} else {
-				saveCancellation.dispose();
 			}
 
 			// We have to protect against being disposed at this point. It could be that the save() operation
@@ -1012,10 +1008,22 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 				try {
 
 					// Snapshot working copy model contents
-					const snapshot = await resolvedFileWorkingCopy.model.snapshot(CancellationToken.None);
+					const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
+
+					// It is possible that a subsequent save is cancelling this
+					// running save. As such we return early when we detect that
+					// However, we do not pass the token into the file service
+					// because that is an atomic operation currently without
+					// cancellation support, so we dispose the cancellation if
+					// it was not cancelled yet.
+					if (saveCancellation.token.isCancellationRequested) {
+						return;
+					} else {
+						saveCancellation.dispose();
+					}
 
 					// Write them to disk
-					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, snapshot, {
+					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), {
 						mtime: lastResolvedFileStat.mtime,
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock
@@ -1025,7 +1033,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 				} catch (error) {
 					this.handleSaveError(error, versionId, options);
 				}
-			})());
+			})(), () => saveCancellation.cancel());
 		})(), () => saveCancellation.cancel());
 	}
 
@@ -1248,8 +1256,12 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			return undefined;
 		}
 
-		const snapshot = await this.model.snapshot(token);
-		const contents = await streamToBuffer(snapshot);
+		const snapshot = await raceCancellation(this.model.snapshot(token), token);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const contents = await streamToBuffer(assertIsDefined(snapshot));
 
 		return stringToSnapshot(contents.toString());
 	}
