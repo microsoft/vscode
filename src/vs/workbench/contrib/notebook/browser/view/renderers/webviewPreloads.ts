@@ -748,8 +748,20 @@ function webviewPreloads() {
 
 		cellContainer.appendChild(previewContainerNode);
 
+		previewContainerNode.attachShadow({ mode: 'open' });
+		const previewRoot = previewContainerNode.shadowRoot! as any as HTMLElement;
+
+		// Add default webview style
+		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
+		previewRoot.appendChild(defaultStyles.cloneNode(true));
+
+		// Add default preview style
+		const previewStyles = document.getElementById('preview-styles') as HTMLTemplateElement;
+		previewRoot.appendChild(previewStyles.content.cloneNode(true));
+
 		const previewNode = document.createElement('div');
-		previewContainerNode.appendChild(previewNode);
+		previewNode.id = 'preview';
+		previewRoot.appendChild(previewNode);
 
 		updateMarkdownPreview(cellId, content);
 
@@ -773,6 +785,10 @@ function webviewPreloads() {
 			return;
 		}
 
+		const previewRoot = previewContainerNode.shadowRoot;
+
+		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
+
 		// TODO: handle namespace
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
@@ -781,7 +797,7 @@ function webviewPreloads() {
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
 				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-					element: previewContainerNode,
+					element: previewNode,
 					content: content
 				}]);
 			}

@@ -12,6 +12,7 @@ const styleHref = (document.currentScript as any).src.replace(/katex.js$/, 'kate
 
 const link = document.createElement('link');
 link.rel = 'stylesheet';
+link.classList.add('markdown-style');
 link.href = styleHref;
 
 document.head.append(link);
