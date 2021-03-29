@@ -8,7 +8,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
