@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
-import { NotebookClipboardContribution } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
+import { NotebookClipboardContribution, runCopyCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -177,6 +177,36 @@ suite('Notebook Clipboard', () => {
 				await viewModel.undo();
 				assert.strictEqual(viewModel.length, 3);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
+			});
+	});
+
+	test('copy cell from ui still works if the target cell is not part of a selection', async () => {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+			],
+			async (editor, accessor) => {
+				let _toCopy: NotebookCellTextModel[] = [];
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					setToCopy(toCopy: NotebookCellTextModel[]) { _toCopy = toCopy; }
+					getToCopy() {
+						return {
+							items: _toCopy,
+							isCopy: true
+						};
+					}
+				});
+
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
+				assert.ok(runCopyCells(accessor, editor, viewModel.viewCells[0]));
+				assert.deepStrictEqual(_toCopy, [editor.viewModel.viewCells[0].model, editor.viewModel.viewCells[1].model]);
+
+				assert.ok(runCopyCells(accessor, editor, viewModel.viewCells[2]));
+				assert.deepStrictEqual(_toCopy.length, 1);
+				assert.deepStrictEqual(_toCopy, [editor.viewModel.viewCells[2].model]);
 			});
 	});
 });

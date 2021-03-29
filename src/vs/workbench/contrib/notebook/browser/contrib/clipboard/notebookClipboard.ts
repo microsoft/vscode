@@ -9,11 +9,11 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { expandCellRangesWithHiddenCells, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { expandCellRangesWithHiddenCells, getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { cloneNotebookCellTextModel, NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, ICellEditOperation, ICellRange, ISelectionState, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as platform from 'vs/base/common/platform';
@@ -24,6 +24,106 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
+export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewModel | undefined, pasteCells: {
+	items: NotebookCellTextModel[];
+	isCopy: boolean;
+}): boolean {
+	const viewModel = editor.viewModel;
+
+	if (!viewModel || !viewModel.metadata.editable) {
+		return false;
+	}
+
+	const originalState: ISelectionState = {
+		kind: SelectionStateType.Index,
+		focus: viewModel.getFocus(),
+		selections: viewModel.getSelections()
+	};
+
+	if (activeCell) {
+		const currCellIndex = viewModel.getCellIndex(activeCell);
+		const newFocusIndex = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
+		viewModel.notebookDocument.applyEdits([
+			{
+				editType: CellEditType.Replace,
+				index: newFocusIndex,
+				count: 0,
+				cells: pasteCells.items.map(cell => cloneNotebookCellTextModel(cell))
+			}
+		], true, originalState, () => ({
+			kind: SelectionStateType.Index,
+			focus: { start: newFocusIndex, end: newFocusIndex + 1 },
+			selections: [{ start: newFocusIndex, end: newFocusIndex + pasteCells.items.length }]
+		}), undefined);
+	} else {
+		if (viewModel.length !== 0) {
+			return false;
+		}
+
+		viewModel.notebookDocument.applyEdits([
+			{
+				editType: CellEditType.Replace,
+				index: 0,
+				count: 0,
+				cells: pasteCells.items.map(cell => cloneNotebookCellTextModel(cell))
+			}
+		], true, originalState, () => ({
+			kind: SelectionStateType.Index,
+			focus: { start: 0, end: 1 },
+			selections: [{ start: 1, end: pasteCells.items.length + 1 }]
+		}), undefined);
+	}
+
+	return true;
+}
+
+function cellRangeToViewCells(viewModel: NotebookViewModel, ranges: ICellRange[]) {
+	const cells: ICellViewModel[] = [];
+	ranges.forEach(range => {
+		cells.push(...viewModel.viewCells.slice(range.start, range.end));
+	});
+
+	return cells;
+}
+export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor, targetCell: ICellViewModel | undefined): boolean {
+	if (!editor.hasModel()) {
+		return false;
+	}
+
+	if (editor.hasOutputTextSelection()) {
+		document.execCommand('copy');
+		return true;
+	}
+
+	const clipboardService = accessor.get<IClipboardService>(IClipboardService);
+	const notebookService = accessor.get<INotebookService>(INotebookService);
+	const viewModel = editor.viewModel;
+	const selections = viewModel.getSelections();
+
+	if (targetCell) {
+		const targetCellIndex = viewModel.getCellIndex(targetCell);
+		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
+
+		if (!containingSelection) {
+			clipboardService.writeText(targetCell.getText());
+			notebookService.setToCopy([targetCell.model], true);
+			return true;
+		}
+	}
+
+	const selectionRanges = expandCellRangesWithHiddenCells(editor, editor.viewModel, editor.viewModel.getSelections());
+	const selectedCells = cellRangeToViewCells(editor.viewModel, selectionRanges);
+
+	if (!selectedCells.length) {
+		return false;
+	}
+
+	clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
+	notebookService.setToCopy(selectedCells.map(cell => cell.model), true);
+
+	return true;
+}
 
 export class NotebookClipboardContribution extends Disposable {
 
@@ -72,28 +172,7 @@ export class NotebookClipboardContribution extends Disposable {
 			return false;
 		}
 
-		if (!editor.hasModel()) {
-			return false;
-		}
-
-		if (editor.hasOutputTextSelection()) {
-			document.execCommand('copy');
-			return true;
-		}
-
-		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
-		const notebookService = accessor.get<INotebookService>(INotebookService);
-		const selectionRanges = expandCellRangesWithHiddenCells(editor, editor.viewModel, editor.viewModel.getSelections());
-		const selectedCells = this._cellRangeToViewCells(editor.viewModel, selectionRanges);
-
-		if (!selectedCells.length) {
-			return false;
-		}
-
-		clipboardService.writeText(selectedCells.map(cell => cell.getText()).join('\n'));
-		notebookService.setToCopy(selectedCells.map(cell => cell.model), true);
-
-		return true;
+		return runCopyCells(accessor, editor, undefined);
 	}
 
 	runPasteAction(accessor: ServicesAccessor) {
@@ -114,53 +193,7 @@ export class NotebookClipboardContribution extends Disposable {
 			return false;
 		}
 
-		const viewModel = editor.viewModel;
-
-		if (!viewModel || !viewModel.metadata.editable) {
-			return false;
-		}
-
-		const originalState: ISelectionState = {
-			kind: SelectionStateType.Index,
-			focus: viewModel.getFocus(),
-			selections: viewModel.getSelections()
-		};
-
-		if (activeCell) {
-			const currCellIndex = viewModel.getCellIndex(activeCell);
-			const newFocusIndex = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-			viewModel.notebookDocument.applyEdits([
-				{
-					editType: CellEditType.Replace,
-					index: newFocusIndex,
-					count: 0,
-					cells: pasteCells.items.map(cell => cloneNotebookCellTextModel(cell))
-				}
-			], true, originalState, () => ({
-				kind: SelectionStateType.Index,
-				focus: { start: newFocusIndex, end: newFocusIndex + 1 },
-				selections: [{ start: newFocusIndex, end: newFocusIndex + pasteCells.items.length }]
-			}), undefined);
-		} else {
-			if (viewModel.length !== 0) {
-				return false;
-			}
-
-			viewModel.notebookDocument.applyEdits([
-				{
-					editType: CellEditType.Replace,
-					index: 0,
-					count: 0,
-					cells: pasteCells.items.map(cell => cloneNotebookCellTextModel(cell))
-				}
-			], true, originalState, () => ({
-				kind: SelectionStateType.Index,
-				focus: { start: 0, end: 1 },
-				selections: [{ start: 1, end: pasteCells.items.length + 1 }]
-			}), undefined);
-		}
-
-		return true;
+		return runPasteCells(editor, activeCell, pasteCells);
 	}
 
 	runCutAction(accessor: ServicesAccessor) {
@@ -253,27 +286,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
-		const notebookService = accessor.get<INotebookService>(INotebookService);
-		if (context.notebookEditor.hasOutputTextSelection()) {
-			document.execCommand('copy');
-			return;
-		}
-
-		const viewModel = context.notebookEditor.viewModel;
-		const selections = viewModel.getSelections();
-		const targetCellIndex = viewModel.getCellIndex(context.cell);
-		const containingSelection = selections.find(selection => selection.start <= targetCellIndex && targetCellIndex < selection.end);
-
-		if (containingSelection) {
-			const cells = viewModel.viewCells.slice(containingSelection.start, containingSelection.end);
-
-			clipboardService.writeText(cells.map(cell => cell.getText()).join('\n'));
-			notebookService.setToCopy(cells.map(cell => cell.model), true);
-		} else {
-			clipboardService.writeText(context.cell.getText());
-			notebookService.setToCopy([context.cell.model], true);
-		}
+		runCopyCells(accessor, context.notebookEditor, context.cell);
 	}
 });
 
@@ -379,32 +392,7 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		const currCellIndex = context.cell && viewModel.getCellIndex(context.cell);
-
-		let topPastedCell: CellViewModel | undefined = undefined;
-		pasteCells.items.reverse().map(cell => {
-			return {
-				source: cell.getValue(),
-				language: cell.language,
-				cellKind: cell.cellKind,
-				outputs: cell.outputs,
-				metadata: {
-					editable: cell.metadata?.editable,
-					breakpointMargin: cell.metadata?.breakpointMargin,
-					hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-					inputCollapsed: cell.metadata?.inputCollapsed,
-					outputCollapsed: cell.metadata?.outputCollapsed,
-					custom: cell.metadata?.custom
-				}
-			};
-		}).forEach(pasteCell => {
-			const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-			topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
-		});
-
-		if (topPastedCell) {
-			context.notebookEditor.focusNotebookCell(topPastedCell, 'container');
-		}
+		runPasteCells(context.notebookEditor, context.cell, pasteCells);
 	}
 });
 
@@ -439,22 +427,7 @@ registerAction2(class extends NotebookCellAction {
 		const currCellIndex = viewModel.getCellIndex(context.cell);
 
 		let topPastedCell: CellViewModel | undefined = undefined;
-		pasteCells.items.reverse().map(cell => {
-			return {
-				source: cell.getValue(),
-				language: cell.language,
-				cellKind: cell.cellKind,
-				outputs: cell.outputs,
-				metadata: {
-					editable: cell.metadata?.editable,
-					breakpointMargin: cell.metadata?.breakpointMargin,
-					hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-					inputCollapsed: cell.metadata?.inputCollapsed,
-					outputCollapsed: cell.metadata?.outputCollapsed,
-					custom: cell.metadata?.custom
-				}
-			};
-		}).forEach(pasteCell => {
+		pasteCells.items.reverse().map(cell => cloneNotebookCellTextModel(cell)).forEach(pasteCell => {
 			topPastedCell = viewModel.createCell(currCellIndex, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 			return;
 		});
