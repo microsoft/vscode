@@ -235,6 +235,15 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	}
 
 	/**
+	 * Removes the peek view if it's being displayed on the given test ID.
+	 */
+	public removeIfPeekingForTest(testId: string) {
+		if (this.peek.value?.currentTest()?.extId === testId) {
+			this.peek.clear();
+		}
+	}
+
+	/**
 	 * If the test we're currently showing has its state change to something
 	 * else, then clear the peek.
 	 */
@@ -243,10 +252,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
-		const displayed = this.peek.value?.currentTest();
-		if (displayed?.extId === evt.item.item.extId) {
-			this.peek.clear();
-		}
+		this.removeIfPeekingForTest(evt.item.item.extId);
 	}
 
 	private closePeekOnRunStart(evt: ResultChangeEvent) {
