@@ -410,7 +410,7 @@ suite('UserDataAutoSyncService', () => {
 		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
 
 		await testObject.triggerSync(['some reason'], true, true);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['Cache-Control'], 'no-cache');
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], 'no-cache');
 	});
 
 	test('test cache control header is not sent when triggered without disable cache option', async () => {
@@ -422,7 +422,7 @@ suite('UserDataAutoSyncService', () => {
 		const testObject: TestUserDataAutoSyncService = disposableStore.add(testClient.instantiationService.createInstance(TestUserDataAutoSyncService));
 
 		await testObject.triggerSync(['some reason'], true, false);
-		assert.equal(target.requestsWithAllHeaders[0].headers!['Cache-Control'], undefined);
+		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['Cache-Control'], undefined);
 	});
 
 });

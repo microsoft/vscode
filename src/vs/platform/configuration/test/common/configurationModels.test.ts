@@ -356,7 +356,7 @@ suite('CustomConfigurationModel', () => {
 				}
 			}
 		});
-		assert.equal(true, new DefaultConfigurationModel().getValue('a'));
+		assert.strictEqual(true, new DefaultConfigurationModel().getValue('a'));
 	});
 });
 
@@ -380,7 +380,7 @@ suite('Configuration', () => {
 
 		testObject.updateValue('a', 2);
 
-		assert.equal(testObject.getValue('a', {}, undefined), 2);
+		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
 	});
 
 	test('Test update value after inspect', () => {
@@ -391,7 +391,7 @@ suite('Configuration', () => {
 		testObject.inspect('a', {}, undefined);
 		testObject.updateValue('a', 2);
 
-		assert.equal(testObject.getValue('a', {}, undefined), 2);
+		assert.strictEqual(testObject.getValue('a', {}, undefined), 2);
 	});
 
 	test('Test compare and update default configuration', () => {

@@ -278,8 +278,8 @@ suite('CellUri', function () {
 		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
-		assert.equal(actual?.handle, id);
-		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.toString(), nb.toString());
 	});
 
 	test('parse, generate (foo-scheme)', function () {
@@ -290,8 +290,8 @@ suite('CellUri', function () {
 		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
-		assert.equal(actual?.handle, id);
-		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.toString(), nb.toString());
 	});
 });
 

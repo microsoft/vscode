@@ -64,8 +64,8 @@ suite('Emmet', () => {
 					assert.fail('langOutput not found');
 				}
 
-				assert.equal(langOutput.language, expectedLanguage);
-				assert.equal(langOutput.parentMode, expectedParentLanguage);
+				assert.strictEqual(langOutput.language, expectedLanguage);
+				assert.strictEqual(langOutput.parentMode, expectedParentLanguage);
 			}
 
 			// syntaxes mapped using the scope name of the grammar

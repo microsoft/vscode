@@ -27,7 +27,7 @@ suite('NotebookViewModel', () => {
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
-		assert.equal(viewModel.viewType, 'notebook');
+		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 
 	test('insert/delete', async function () {
@@ -38,18 +38,18 @@ suite('NotebookViewModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
-				assert.equal(viewModel.viewCells[1].metadata?.editable, false);
+				assert.strictEqual(viewModel.viewCells[0].metadata?.editable, true);
+				assert.strictEqual(viewModel.viewCells[1].metadata?.editable, false);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
-				assert.equal(viewModel.viewCells.length, 3);
-				assert.equal(viewModel.notebookDocument.cells.length, 3);
-				assert.equal(viewModel.getCellIndex(cell), 1);
+				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
+				assert.strictEqual(viewModel.getCellIndex(cell), 1);
 
 				viewModel.deleteCell(1, true);
-				assert.equal(viewModel.viewCells.length, 2);
-				assert.equal(viewModel.notebookDocument.cells.length, 2);
-				assert.equal(viewModel.getCellIndex(cell), -1);
+				assert.strictEqual(viewModel.viewCells.length, 2);
+				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
+				assert.strictEqual(viewModel.getCellIndex(cell), -1);
 			}
 		);
 	});
@@ -65,20 +65,20 @@ suite('NotebookViewModel', () => {
 				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(0, 1, 0, true);
 				// no-op
-				assert.equal(viewModel.viewCells[0].getText(), '//a');
-				assert.equal(viewModel.viewCells[1].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
 
 				viewModel.moveCellToIdx(0, 1, 1, true);
 				// b, a, c
-				assert.equal(viewModel.viewCells[0].getText(), '//b');
-				assert.equal(viewModel.viewCells[1].getText(), '//a');
-				assert.equal(viewModel.viewCells[2].getText(), '//c');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[2].getText(), '//c');
 
 				viewModel.moveCellToIdx(0, 1, 2, true);
 				// a, c, b
-				assert.equal(viewModel.viewCells[0].getText(), '//a');
-				assert.equal(viewModel.viewCells[1].getText(), '//c');
-				assert.equal(viewModel.viewCells[2].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//c');
+				assert.strictEqual(viewModel.viewCells[2].getText(), '//b');
 			}
 		);
 	});
@@ -94,14 +94,14 @@ suite('NotebookViewModel', () => {
 				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(1, 1, 0, true);
 				// b, a, c
-				assert.equal(viewModel.viewCells[0].getText(), '//b');
-				assert.equal(viewModel.viewCells[1].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
 
 				viewModel.moveCellToIdx(2, 1, 0, true);
 				// c, b, a
-				assert.equal(viewModel.viewCells[0].getText(), '//c');
-				assert.equal(viewModel.viewCells[1].getText(), '//b');
-				assert.equal(viewModel.viewCells[2].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//c');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[2].getText(), '//a');
 			}
 		);
 	});
@@ -126,9 +126,9 @@ suite('NotebookViewModel', () => {
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
 				const cell2 = viewModel.createCell(secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
 
-				assert.equal(viewModel.viewCells.length, 3);
-				assert.equal(viewModel.notebookDocument.cells.length, 3);
-				assert.equal(viewModel.getCellIndex(cell2), 2);
+				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
+				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
 			}
 		);
 	});
