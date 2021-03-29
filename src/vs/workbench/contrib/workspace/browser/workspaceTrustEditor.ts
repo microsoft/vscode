@@ -14,7 +14,6 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionWorkspaceTrustRequirement, getExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
@@ -338,11 +337,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		if (this.workspaceTrustEditorModel) {
 			if (isArray(change.value)) {
 				if (change.key === 'trustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value.map(item => URI.file(item)));
+					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value);
 				}
 
 				if (change.key === 'untrustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value.map(item => URI.file(item)));
+					this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value);
 				}
 			}
 		}
