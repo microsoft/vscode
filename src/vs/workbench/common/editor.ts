@@ -373,9 +373,9 @@ export interface IMoveResult {
 export interface IEditorInput extends IDisposable {
 
 	/**
-	 * Triggered when this input is disposed.
+	 * Triggered when this input is about to be disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Triggered when this input changes its dirty state.
@@ -520,8 +520,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed: boolean = false;
 
@@ -616,7 +616,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
-			this._onDispose.fire();
+			this._onWillDispose.fire();
 		}
 
 		super.dispose();
@@ -764,14 +764,14 @@ export class SideBySideEditorInput extends EditorInput {
 	private registerListeners(): void {
 
 		// When the primary or secondary input gets disposed, dispose this diff editor input
-		const onceSecondaryDisposed = Event.once(this.secondary.onDispose);
+		const onceSecondaryDisposed = Event.once(this.secondary.onWillDispose);
 		this._register(onceSecondaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		const oncePrimaryDisposed = Event.once(this.primary.onDispose);
+		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
 		this._register(oncePrimaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
@@ -873,8 +873,8 @@ export interface ITextEditorModel extends IEditorModel {
  */
 export class EditorModel extends Disposable implements IEditorModel {
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed = false;
 
@@ -904,7 +904,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	 */
 	dispose(): void {
 		this.disposed = true;
-		this._onDispose.fire();
+		this._onWillDispose.fire();
 
 		super.dispose();
 	}

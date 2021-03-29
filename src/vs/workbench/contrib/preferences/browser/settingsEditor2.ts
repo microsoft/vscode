@@ -264,7 +264,7 @@ export class SettingsEditor2 extends EditorPane {
 
 					this._setOptions(options);
 
-					this._register(input.onDispose(() => {
+					this._register(input.onWillDispose(() => {
 						this.searchWidget.setValue('');
 					}));
 

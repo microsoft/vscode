@@ -121,7 +121,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.modelListeners.add(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
 
 		// remove model association once it gets disposed
-		this.modelListeners.add(Event.once(model.onDispose)(() => {
+		this.modelListeners.add(Event.once(model.onWillDispose)(() => {
 			this.modelListeners.clear();
 			this.model = undefined;
 		}));

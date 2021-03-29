@@ -484,7 +484,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this._group.onDidChangeEditorSticky(editor => this.onDidChangeEditorSticky(editor)));
 		this._register(this._group.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
 		this._register(this._group.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
-		this._register(this._group.onDidDisposeEditor(editor => this.onDidDisposeEditor(editor)));
+		this._register(this._group.onWillDisposeEditor(editor => this.onWillDisposeEditor(editor)));
 		this._register(this._group.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
 		this._register(this._group.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
 
@@ -584,7 +584,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return descriptor;
 	}
 
-	private onDidDisposeEditor(editor: EditorInput): void {
+	private onWillDisposeEditor(editor: EditorInput): void {
 
 		// To prevent race conditions, we handle disposed editors in our worker with a timeout
 		// because it can happen that an input is being disposed with the intent to replace

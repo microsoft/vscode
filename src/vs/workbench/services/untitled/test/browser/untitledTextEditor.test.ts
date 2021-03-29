@@ -351,13 +351,13 @@ suite('Untitled text editors', () => {
 		model.dispose();
 	});
 
-	test('service#onDidDisposeModel', async () => {
+	test('service#onWillDispose', async () => {
 		const service = accessor.untitledTextEditorService;
 		const input = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 
 		let counter = 0;
 
-		service.onDidDispose(model => {
+		service.onWillDispose(model => {
 			counter++;
 			assert.strictEqual(model.resource.toString(), input.resource.toString());
 		});

@@ -80,9 +80,9 @@ export interface IUntitledTextEditorModelManager {
 	readonly onDidChangeLabel: Event<IUntitledTextEditorModel>;
 
 	/**
-	 * Events for when untitled text editors are disposed.
+	 * Events for when untitled text editors are about to be disposed.
 	 */
-	readonly onDidDispose: Event<IUntitledTextEditorModel>;
+	readonly onWillDispose: Event<IUntitledTextEditorModel>;
 
 	/**
 	 * Creates a new untitled editor model with the provided options. If the `untitledResource`
@@ -130,8 +130,8 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private readonly _onDidChangeEncoding = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
 
-	private readonly _onDidDispose = this._register(new Emitter<IUntitledTextEditorModel>());
-	readonly onDidDispose = this._onDidDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<IUntitledTextEditorModel>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private readonly _onDidChangeLabel = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
@@ -236,10 +236,10 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
 		modelListeners.add(model.onDidChangeName(() => this._onDidChangeLabel.fire(model)));
 		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
-		modelListeners.add(model.onDispose(() => this._onDidDispose.fire(model)));
+		modelListeners.add(model.onWillDispose(() => this._onWillDispose.fire(model)));
 
 		// Remove from cache on dispose
-		Event.once(model.onDispose)(() => {
+		Event.once(model.onWillDispose)(() => {
 
 			// Registry
 			this.mapResourceToModel.delete(model.resource);

@@ -262,7 +262,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
-		const toDispose = Event.once(editor.onDispose)(() => listener());
+		const toDispose = Event.once(editor.onWillDispose)(() => listener());
 
 		let disposables = mapEditorToDispose.get(editor);
 		if (!disposables) {

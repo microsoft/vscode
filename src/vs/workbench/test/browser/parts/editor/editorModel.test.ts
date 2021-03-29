@@ -67,7 +67,7 @@ suite('Workbench editor model', () => {
 
 		const model = new MyEditorModel();
 
-		model.onDispose(() => {
+		model.onWillDispose(() => {
 			assert(true);
 			counter++;
 		});
