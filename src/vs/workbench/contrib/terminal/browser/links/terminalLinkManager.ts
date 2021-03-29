@@ -116,7 +116,6 @@ export class TerminalLinkManager extends DisposableStore {
 		link?: TerminalLink
 	) {
 		if (this._widgetManager) {
-
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
 			if (attached) {
