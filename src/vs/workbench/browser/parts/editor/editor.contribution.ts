@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputSerializer, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -118,8 +118,8 @@ interface ISerializedUntitledTextEditorInput {
 	encoding: string | undefined;
 }
 
-// Register Editor Input Factory
-class UntitledTextEditorInputFactory implements IEditorInputFactory {
+// Register Editor Input Serializer
+class UntitledTextEditorInputSerializer implements IEditorInputSerializer {
 
 	constructor(
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
@@ -176,9 +176,9 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(UntitledTextEditorInput.ID, UntitledTextEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(UntitledTextEditorInput.ID, UntitledTextEditorInputSerializer);
 
-// Register SideBySide/DiffEditor Input Factory
+// Register SideBySide/DiffEditor Input Serializer
 interface ISerializedSideBySideEditorInput {
 	name: string;
 	description: string | undefined;
@@ -190,21 +190,21 @@ interface ISerializedSideBySideEditorInput {
 	secondaryTypeId: string;
 }
 
-export abstract class AbstractSideBySideEditorInputFactory implements IEditorInputFactory {
+export abstract class AbstractSideBySideEditorInputSerializer implements IEditorInputSerializer {
 
-	private getInputFactories(secondaryId: string, primaryId: string): [IEditorInputFactory | undefined, IEditorInputFactory | undefined] {
+	private getInputSerializers(secondaryId: string, primaryId: string): [IEditorInputSerializer | undefined, IEditorInputSerializer | undefined] {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 
-		return [registry.getEditorInputFactory(secondaryId), registry.getEditorInputFactory(primaryId)];
+		return [registry.getEditorInputSerializer(secondaryId), registry.getEditorInputSerializer(primaryId)];
 	}
 
 	canSerialize(editorInput: EditorInput): boolean {
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
 		if (input.primary && input.secondary) {
-			const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(input.secondary.getTypeId(), input.primary.getTypeId());
+			const [secondaryInputSerializer, primaryInputSerializer] = this.getInputSerializers(input.secondary.getTypeId(), input.primary.getTypeId());
 
-			return !!(secondaryInputFactory?.canSerialize(input.secondary) && primaryInputFactory?.canSerialize(input.primary));
+			return !!(secondaryInputSerializer?.canSerialize(input.secondary) && primaryInputSerializer?.canSerialize(input.primary));
 		}
 
 		return false;
@@ -214,10 +214,10 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
 		if (input.primary && input.secondary) {
-			const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(input.secondary.getTypeId(), input.primary.getTypeId());
-			if (primaryInputFactory && secondaryInputFactory) {
-				const primarySerialized = primaryInputFactory.serialize(input.primary);
-				const secondarySerialized = secondaryInputFactory.serialize(input.secondary);
+			const [secondaryInputSerializer, primaryInputSerializer] = this.getInputSerializers(input.secondary.getTypeId(), input.primary.getTypeId());
+			if (primaryInputSerializer && secondaryInputSerializer) {
+				const primarySerialized = primaryInputSerializer.serialize(input.primary);
+				const secondarySerialized = secondaryInputSerializer.serialize(input.secondary);
 
 				if (primarySerialized && secondarySerialized) {
 					const serializedEditorInput: ISerializedSideBySideEditorInput = {
@@ -240,10 +240,10 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const deserialized: ISerializedSideBySideEditorInput = JSON.parse(serializedEditorInput);
 
-		const [secondaryInputFactory, primaryInputFactory] = this.getInputFactories(deserialized.secondaryTypeId, deserialized.primaryTypeId);
-		if (primaryInputFactory && secondaryInputFactory) {
-			const primaryInput = primaryInputFactory.deserialize(instantiationService, deserialized.primarySerialized);
-			const secondaryInput = secondaryInputFactory.deserialize(instantiationService, deserialized.secondarySerialized);
+		const [secondaryInputSerializer, primaryInputSerializer] = this.getInputSerializers(deserialized.secondaryTypeId, deserialized.primaryTypeId);
+		if (primaryInputSerializer && secondaryInputSerializer) {
+			const primaryInput = primaryInputSerializer.deserialize(instantiationService, deserialized.primarySerialized);
+			const secondaryInput = secondaryInputSerializer.deserialize(instantiationService, deserialized.secondarySerialized);
 
 			if (primaryInput && secondaryInput) {
 				return this.createEditorInput(instantiationService, deserialized.name, deserialized.description, secondaryInput, primaryInput);
@@ -256,22 +256,22 @@ export abstract class AbstractSideBySideEditorInputFactory implements IEditorInp
 	protected abstract createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput;
 }
 
-class SideBySideEditorInputFactory extends AbstractSideBySideEditorInputFactory {
+class SideBySideEditorInputSerializer extends AbstractSideBySideEditorInputSerializer {
 
 	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
 		return new SideBySideEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 
-class DiffEditorInputFactory extends AbstractSideBySideEditorInputFactory {
+class DiffEditorInputSerializer extends AbstractSideBySideEditorInputSerializer {
 
 	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
 		return instantiationService.createInstance(DiffEditorInput, name, description, secondaryInput, primaryInput, undefined);
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(SideBySideEditorInput.ID, SideBySideEditorInputFactory);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(DiffEditorInput.ID, DiffEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(SideBySideEditorInput.ID, SideBySideEditorInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(DiffEditorInput.ID, DiffEditorInputSerializer);
 
 // Register Editor Contributions
 registerEditorContribution(OpenWorkspaceButtonContribution.ID, OpenWorkspaceButtonContribution);

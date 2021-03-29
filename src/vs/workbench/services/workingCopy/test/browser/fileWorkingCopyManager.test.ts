@@ -13,6 +13,7 @@ import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { timeout } from 'vs/base/common/async';
 import { TestFileWorkingCopyModel, TestFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/fileWorkingCopy.test';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('FileWorkingCopyManager', () => {
 
@@ -248,7 +249,7 @@ suite('FileWorkingCopyManager', () => {
 		workingCopy.model?.updateContents('hello create');
 		assert.strictEqual(workingCopy.isDirty(), true);
 
-		await accessor.workingCopyFileService.create([{ resource }]);
+		await accessor.workingCopyFileService.create([{ resource }], CancellationToken.None);
 		assert.strictEqual(workingCopy.isDirty(), false);
 	});
 
@@ -269,9 +270,9 @@ suite('FileWorkingCopyManager', () => {
 		assert.strictEqual(sourceWorkingCopy.isDirty(), true);
 
 		if (move) {
-			await accessor.workingCopyFileService.move([{ file: { source, target } }]);
+			await accessor.workingCopyFileService.move([{ file: { source, target } }], CancellationToken.None);
 		} else {
-			await accessor.workingCopyFileService.copy([{ file: { source, target } }]);
+			await accessor.workingCopyFileService.copy([{ file: { source, target } }], CancellationToken.None);
 		}
 
 		const targetWorkingCopy = await manager.resolve(target);
@@ -286,7 +287,7 @@ suite('FileWorkingCopyManager', () => {
 		workingCopy.model?.updateContents('hello delete');
 		assert.strictEqual(workingCopy.isDirty(), true);
 
-		await accessor.workingCopyFileService.delete([{ resource }]);
+		await accessor.workingCopyFileService.delete([{ resource }], CancellationToken.None);
 		assert.strictEqual(workingCopy.isDirty(), false);
 	});
 
@@ -297,7 +298,7 @@ suite('FileWorkingCopyManager', () => {
 		sourceWorkingCopy.model?.updateContents('hello move');
 		assert.strictEqual(sourceWorkingCopy.isDirty(), true);
 
-		await accessor.workingCopyFileService.move([{ file: { source, target: source } }]);
+		await accessor.workingCopyFileService.move([{ file: { source, target: source } }], CancellationToken.None);
 
 		assert.strictEqual(sourceWorkingCopy.isDirty(), true);
 		assert.strictEqual(sourceWorkingCopy.model?.contents, 'hello move');

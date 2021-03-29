@@ -61,7 +61,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
-	private _modifiedResourceDisposableStore = new DisposableStore();
+	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());
 	private _outputRenderer: OutputRenderer;
 
 	get textModel() {
@@ -74,7 +74,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>();
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
-	private _localStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _localStore = this._register(new DisposableStore());
 
 	private _isDisposed: boolean = false;
 
@@ -96,7 +96,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio());
 		this._revealFirst = true;
 
-		this._register(this._modifiedResourceDisposableStore);
 		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
 	}
 
@@ -299,6 +298,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._revealFirst = true;
 
+		this._modifiedResourceDisposableStore.clear();
+
 		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
 			if (this._model !== null) {
 				this.updateLayout();
@@ -306,7 +307,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 
 		await this._createOriginalWebview(generateUuid(), this._model.original.resource);
+		if (this._originalWebview) {
+			this._modifiedResourceDisposableStore.add(this._originalWebview);
+		}
 		await this._createModifiedWebview(generateUuid(), this._model.modified.resource);
+		if (this._modifiedWebview) {
+			this._modifiedResourceDisposableStore.add(this._modifiedWebview);
+		}
+
 		await this.updateLayout();
 	}
 
@@ -364,6 +372,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	};
 
 	private async _createModifiedWebview(id: string, resource: URI): Promise<void> {
+		if (this._modifiedWebview) {
+			this._modifiedWebview.dispose();
+		}
+
 		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this.webviewOptions) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
@@ -373,6 +385,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private async _createOriginalWebview(id: string, resource: URI): Promise<void> {
+		if (this._originalWebview) {
+			this._originalWebview.dispose();
+		}
+
 		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, resource, this.webviewOptions) as BackLayerWebView<IDiffCellInfo>;
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);

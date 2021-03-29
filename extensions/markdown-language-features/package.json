@@ -207,6 +207,12 @@
           "description": "%markdown.preview.linkify%",
           "scope": "resource"
         },
+        "markdown.preview.typographer": {
+          "type": "boolean",
+          "default": false,
+          "description": "%markdown.preview.typographer%",
+          "scope": "resource"
+        },
         "markdown.preview.fontFamily": {
           "type": "string",
           "default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",

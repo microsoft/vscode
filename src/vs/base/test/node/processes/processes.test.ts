@@ -46,11 +46,11 @@ suite('Processes', () => {
 				counter++;
 
 				if (counter === 1) {
-					assert.equal(msgFromChild, msg1);
+					assert.strictEqual(msgFromChild, msg1);
 				} else if (counter === 2) {
-					assert.equal(msgFromChild, msg2);
+					assert.strictEqual(msgFromChild, msg2);
 				} else if (counter === 3) {
-					assert.equal(msgFromChild, msg3);
+					assert.strictEqual(msgFromChild, msg3);
 
 					child.kill();
 					done();

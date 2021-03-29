@@ -556,7 +556,7 @@ function assertProblemPatterns(actual: ProblemPattern | ProblemPattern[], expect
 }
 
 function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) {
-	assert.equal(actual.regexp.toString(), expected.regexp.toString());
+	assert.strictEqual(actual.regexp.toString(), expected.regexp.toString());
 	assert.strictEqual(actual.file, expected.file);
 	assert.strictEqual(actual.message, expected.message);
 	if (typeof expected.location !== 'undefined') {

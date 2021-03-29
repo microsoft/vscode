@@ -19,7 +19,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { FileEditorInputFactory } from 'vs/workbench/contrib/files/browser/files';
+import { FileEditorInputSerializer } from 'vs/workbench/contrib/files/browser/files';
 
 suite('Files - FileEditorInput', () => {
 
@@ -261,37 +261,37 @@ suite('Files - FileEditorInput', () => {
 		resolved.dispose();
 	});
 
-	test('file editor input factory', async function () {
+	test('file editor input serializer', async function () {
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('workbench.editors.files.fileEditorInput', FileEditorInputFactory);
+		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer);
 
-		const factory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputFactory(input.getTypeId());
-		if (!factory) {
-			assert.fail('File Editor Input Factory missing');
+		const editorSerializer = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputSerializer(input.getTypeId());
+		if (!editorSerializer) {
+			assert.fail('File Editor Input Serializer missing');
 		}
 
-		assert.strictEqual(factory.canSerialize(input), true);
+		assert.strictEqual(editorSerializer.canSerialize(input), true);
 
-		const inputSerialized = factory.serialize(input);
+		const inputSerialized = editorSerializer.serialize(input);
 		if (!inputSerialized) {
 			assert.fail('Unexpected serialized file input');
 		}
 
-		const inputDeserialized = factory.deserialize(instantiationService, inputSerialized);
+		const inputDeserialized = editorSerializer.deserialize(instantiationService, inputSerialized);
 		assert.strictEqual(input.matches(inputDeserialized), true);
 
 		const preferredResource = toResource.call(this, '/foo/bar/UPDATEfile.js');
 		const inputWithPreferredResource = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), preferredResource);
 
-		const inputWithPreferredResourceSerialized = factory.serialize(inputWithPreferredResource);
+		const inputWithPreferredResourceSerialized = editorSerializer.serialize(inputWithPreferredResource);
 		if (!inputWithPreferredResourceSerialized) {
 			assert.fail('Unexpected serialized file input');
 		}
 
-		const inputWithPreferredResourceDeserialized = factory.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
+		const inputWithPreferredResourceDeserialized = editorSerializer.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
 		assert.strictEqual(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
 		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
 

@@ -479,10 +479,6 @@ class SimpleDiffEditorModel extends EditorModel {
 		super();
 	}
 
-	async load(): Promise<this> {
-		return this;
-	}
-
 	public dispose() {
 		super.dispose();
 		this._original.dispose();

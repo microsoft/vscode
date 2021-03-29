@@ -173,7 +173,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepEqual(actual.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
 		assert.deepEqual(actual.removed, [{ id: 'a', uuid: 'a' }, { id: 'd', uuid: 'd' }]);
 		assert.deepEqual(actual.updated, []);
-		assert.equal(actual.remote, null);
+		assert.strictEqual(actual.remote, null);
 	});
 
 	test('merge local and remote extensions when remote is moved forwarded with disabled extension', () => {
@@ -196,7 +196,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepEqual(actual.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
 		assert.deepEqual(actual.removed, [{ id: 'a', uuid: 'a' }]);
 		assert.deepEqual(actual.updated, [{ identifier: { id: 'd', uuid: 'd' }, disabled: true, installed: true, version: '1.0.0' }]);
-		assert.equal(actual.remote, null);
+		assert.strictEqual(actual.remote, null);
 	});
 
 	test('merge local and remote extensions when remote moved forwarded with ignored extensions', () => {
@@ -218,7 +218,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepEqual(actual.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
 		assert.deepEqual(actual.removed, [{ id: 'd', uuid: 'd' }]);
 		assert.deepEqual(actual.updated, []);
-		assert.equal(actual.remote, null);
+		assert.strictEqual(actual.remote, null);
 	});
 
 	test('merge local and remote extensions when remote is moved forwarded with skipped extensions', () => {
@@ -242,7 +242,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepEqual(actual.added, [{ identifier: { id: 'b', uuid: 'b' }, installed: true, version: '1.0.0' }, { identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
 		assert.deepEqual(actual.removed, [{ id: 'd', uuid: 'd' }]);
 		assert.deepEqual(actual.updated, []);
-		assert.equal(actual.remote, null);
+		assert.strictEqual(actual.remote, null);
 	});
 
 	test('merge local and remote extensions when remote is moved forwarded with skipped and ignored extensions', () => {
@@ -266,7 +266,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepEqual(actual.added, [{ identifier: { id: 'c', uuid: 'c' }, installed: true, version: '1.0.0' }]);
 		assert.deepEqual(actual.removed, [{ id: 'd', uuid: 'd' }]);
 		assert.deepEqual(actual.updated, []);
-		assert.equal(actual.remote, null);
+		assert.strictEqual(actual.remote, null);
 	});
 
 	test('merge local and remote extensions when local is moved forwarded', () => {

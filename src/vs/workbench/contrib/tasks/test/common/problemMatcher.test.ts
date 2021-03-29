@@ -152,8 +152,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test1', line: 4 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The loop property is only supported on the last line matcher.'));
 		});
 		test('forbids setting the kind outside of the first element of the array', () => {
@@ -162,8 +162,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test1', kind: 'file', line: 4 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. The kind property must be provided only in the first element'));
 		});
 
@@ -172,8 +172,8 @@ suite('ProblemPatternParser', () => {
 				{ file: 0, line: 1, column: 20, message: 0 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
 		});
 		test('kind: Location requires a regexp on every entry', () => {
@@ -184,8 +184,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test3', message: 6 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is missing a regular expression.'));
 		});
 		test('kind: Location requires a message', () => {
@@ -193,8 +193,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test', file: 0, line: 1, column: 20 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
 		});
 
@@ -203,8 +203,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test', line: 1, column: 20, message: 0 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must either have kind: "file" or have a line or location match group.'));
 		});
 
@@ -213,8 +213,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test', file: 1, column: 20, message: 0 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must either have kind: "file" or have a line or location match group.'));
 		});
 
@@ -239,8 +239,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test', kind: 'file', message: 6 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
 		});
 
@@ -249,8 +249,8 @@ suite('ProblemPatternParser', () => {
 				{ regexp: 'test', kind: 'file', file: 6 }
 			];
 			let parsed = parser.parse(problemPattern);
-			assert.equal(null, parsed);
-			assert.equal(ValidationState.Error, reporter.state);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
 		});
 	});
