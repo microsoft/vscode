@@ -13,7 +13,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
 
@@ -110,9 +109,9 @@ export interface IUntitledTextEditorModelManager {
 	 * property is provided and the untitled editor exists, it will return that existing
 	 * instance instead of creating a new one.
 	 */
-	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
-	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
-	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
+	resolve(options?: INewUntitledTextEditorWithAssociatedResourceOptions): Promise<IUntitledTextEditorModel>;
+	resolve(options?: IExistingUntitledTextEditorOptions): Promise<IUntitledTextEditorModel>;
 }
 
 export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
@@ -153,8 +152,11 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		return this.get(resource)?.textEditorModel?.getValue();
 	}
 
-	resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
-		return this.doCreateOrGet(options).load();
+	async resolve(options?: IInternalUntitledTextEditorOptions): Promise<UntitledTextEditorModel> {
+		const model = this.doCreateOrGet(options);
+		await model.resolve();
+
+		return model;
 	}
 
 	create(options?: IInternalUntitledTextEditorOptions): UntitledTextEditorModel {

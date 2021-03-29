@@ -14,9 +14,14 @@ export interface IEditorModel {
 	readonly onWillDispose: Event<void>;
 
 	/**
-	 * Loads the model.
+	 * Resolves the model.
 	 */
-	load(): Promise<IEditorModel>;
+	resolve(): Promise<void>;
+
+	/**
+	 * Find out if the editor model was resolved or not.
+	 */
+	isResolved(): boolean;
 
 	/**
 	 * Find out if this model has been disposed.

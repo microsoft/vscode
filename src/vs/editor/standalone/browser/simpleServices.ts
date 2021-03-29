@@ -62,8 +62,8 @@ export class SimpleModel implements IResolvedTextEditorModel {
 		return this._onWillDispose.event;
 	}
 
-	public load(): Promise<SimpleModel> {
-		return Promise.resolve(this);
+	public resolve(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	public get textEditorModel(): ITextModel {

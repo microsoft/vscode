@@ -868,8 +868,8 @@ export interface ITextEditorModel extends IEditorModel {
 
 /**
  * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
- * connects to the disk to retrieve content and may allow for saving it back or reverting it. Editor models
- * are typically cached for some while because they are expensive to construct.
+ * resolves from a file system retrieve content and may allow for saving it back or reverting it.
+ * Editor models are typically cached for some while because they are expensive to construct.
  */
 export class EditorModel extends Disposable implements IEditorModel {
 
@@ -877,19 +877,20 @@ export class EditorModel extends Disposable implements IEditorModel {
 	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed = false;
+	private resolved = false;
 
 	/**
-	 * Causes this model to load returning a promise when loading is completed.
+	 * Causes this model to resolve returning a promise when loading is completed.
 	 */
-	async load(): Promise<IEditorModel> {
-		return this;
+	async resolve(): Promise<void> {
+		this.resolved = true;
 	}
 
 	/**
 	 * Returns whether this model was loaded or not.
 	 */
 	isResolved(): boolean {
-		return true;
+		return this.resolved;
 	}
 
 	/**

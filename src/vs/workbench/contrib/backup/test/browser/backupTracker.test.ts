@@ -79,7 +79,7 @@ suite('BackupTracker (browser)', function () {
 		const untitledModel = await untitledEditor.resolve();
 
 		if (!untitled?.contents) {
-			untitledModel.textEditorModel.setValue('Super Good');
+			untitledModel.textEditorModel?.setValue('Super Good');
 		}
 
 		await backupFileService.joinBackupResource();
