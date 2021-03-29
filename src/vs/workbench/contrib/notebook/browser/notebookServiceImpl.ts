@@ -482,11 +482,8 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
 		const providers = this._notebookProviderInfoStore.getContributedNotebook(resource);
-		let selected = providers[0];
 		// If we have a viewtype specified we want that data provider, as the resource won't always map correctly
-		if (viewType) {
-			selected = providers.filter(provider => provider.id === viewType)[0];
-		}
+		const selected = viewType ? providers.find(p => p.id === viewType) : providers[0];
 		if (!selected) {
 			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
 		}
