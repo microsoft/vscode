@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
-import { NotebookClipboardContribution, runCopyCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
+import { NotebookClipboardContribution, runCopyCells, runCutCells } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import { CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -207,6 +207,48 @@ suite('Notebook Clipboard', () => {
 				assert.ok(runCopyCells(accessor, editor, viewModel.viewCells[2]));
 				assert.deepStrictEqual(_toCopy.length, 1);
 				assert.deepStrictEqual(_toCopy, [editor.viewModel.viewCells[2].model]);
+			});
+	});
+
+	test('cut cell from ui still works if the target cell is not part of a selection', async () => {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+			],
+			async (editor, accessor) => {
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					setToCopy() { }
+					getToCopy() {
+						return { items: [], isCopy: true };
+					}
+				});
+
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
+				assert.ok(runCutCells(accessor, editor, viewModel.viewCells[0]));
+				assert.strictEqual(viewModel.length, 2);
+				await viewModel.undo();
+				assert.strictEqual(viewModel.length, 4);
+
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 2 }]);
+				assert.ok(runCutCells(accessor, editor, viewModel.viewCells[2]));
+				assert.strictEqual(viewModel.length, 3);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.strictEqual(viewModel.viewCells[0].getText(), '# header 1');
+				assert.strictEqual(viewModel.viewCells[1].getText(), 'paragraph 1');
+				assert.strictEqual(viewModel.viewCells[2].getText(), 'paragraph 3');
+
+				await viewModel.undo();
+				assert.strictEqual(viewModel.length, 4);
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 2, end: 4 }] }, 'model');
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
+				assert.ok(runCutCells(accessor, editor, viewModel.viewCells[0]));
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
 			});
 	});
 });
