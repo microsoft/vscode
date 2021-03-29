@@ -6551,10 +6551,10 @@ napi-build-utils@^1.0.1:
   resolved "https://registry.yarnpkg.com/napi-build-utils/-/napi-build-utils-1.0.2.tgz#b1fddc0b2c46e380a0b7a76f984dd47c41a13806"
   integrity sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==
 
-native-is-elevated@0.4.1:
-  version "0.4.1"
-  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.1.tgz#f6391aafb13441f5b949b39ae0b466b06e7f3986"
-  integrity sha512-2vBXCXCXYKLDjP0WzrXs/AFjDb2njPR31EbGiZ1mR2fMJg211xClK1Xm19RXve35kvAL4dBKOFGCMIyc2+pPsw==
+native-is-elevated@0.4.3:
+  version "0.4.3"
+  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
+  integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
 native-keymap@2.2.1:
   version "2.2.1"
