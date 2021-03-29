@@ -95,6 +95,25 @@ suite('CellOperations', () => {
 			});
 	});
 
+	test('Copy/duplicate cells - target and selection are different, #119769', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
+				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1], ui: true }, 'down');
+				assert.strictEqual(viewModel.viewCells.length, 6);
+				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
+			});
+	});
+
 	test('Copy/duplicate cells - multiple cells in a selection', async function () {
 		await withTestNotebook(
 			[

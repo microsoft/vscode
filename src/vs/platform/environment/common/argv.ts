@@ -98,4 +98,5 @@ export interface NativeParsedArgs {
 	'ignore-certificate-errors'?: boolean;
 	'allow-insecure-localhost'?: boolean;
 	'log-net-log'?: string;
+	'vmodule'?: string;
 }

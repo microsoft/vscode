@@ -120,8 +120,8 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._onDidChangeState.fire({ languageChanged: true });
 		}));
 
-		this._register(model.onDidChangeMetadata(() => {
-			this._onDidChangeState.fire({ metadataChanged: true });
+		this._register(model.onDidChangeMetadata(e => {
+			this._onDidChangeState.fire({ metadataChanged: true, runStateChanged: e.runStateChanged });
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {

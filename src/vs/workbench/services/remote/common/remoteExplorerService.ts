@@ -76,6 +76,7 @@ export interface Tunnel {
 	closeable?: boolean;
 	privacy: TunnelPrivacy;
 	runningProcess: string | undefined;
+	hasRunningProcess?: boolean;
 	pid: number | undefined;
 	source?: string;
 	userForwarded: boolean;
@@ -357,6 +358,7 @@ export class TunnelModel extends Disposable {
 						localAddress: tunnel.localAddress,
 						localPort: tunnel.tunnelLocalPort,
 						runningProcess: matchingCandidate?.detail,
+						hasRunningProcess: !!matchingCandidate,
 						pid: matchingCandidate?.pid,
 						privacy: this.makeTunnelPrivacy(tunnel.public),
 						userForwarded: true
@@ -378,6 +380,7 @@ export class TunnelModel extends Disposable {
 					localPort: tunnel.tunnelLocalPort,
 					closeable: true,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
 					userForwarded: true
@@ -463,7 +466,7 @@ export class TunnelModel extends Disposable {
 
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
-				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), remote.host, remote.port);
+				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), remote.host, remote.port);
 				const newForward: Tunnel = {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
@@ -472,6 +475,7 @@ export class TunnelModel extends Disposable {
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					source,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
@@ -530,6 +534,7 @@ export class TunnelModel extends Disposable {
 					localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 					closeable: false,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					privacy: TunnelPrivacy.ConstantPrivate,
 					userForwarded: false
@@ -576,6 +581,7 @@ export class TunnelModel extends Disposable {
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = value.detail;
+				forwardedValue.hasRunningProcess = true;
 				forwardedValue.pid = value.pid;
 			}
 		});
@@ -587,11 +593,13 @@ export class TunnelModel extends Disposable {
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, parsedAddress.host, parsedAddress.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = undefined;
+				forwardedValue.hasRunningProcess = false;
 				forwardedValue.pid = undefined;
 			}
 			const detectedValue = mapHasAddressLocalhostOrAllInterfaces(this.detected, parsedAddress.host, parsedAddress.port);
 			if (detectedValue) {
 				detectedValue.runningProcess = undefined;
+				detectedValue.hasRunningProcess = false;
 				detectedValue.pid = undefined;
 			}
 		});
@@ -618,7 +626,7 @@ export class TunnelModel extends Disposable {
 
 	async getAttributes(ports: number[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
-		const pidToPortsMapping: Map<number, number[]> = new Map();
+		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
 		ports.forEach(port => {
 			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], port);
 			if (matchingCandidate) {
@@ -684,8 +692,8 @@ export class TunnelModel extends Disposable {
 export interface CandidatePort {
 	host: string;
 	port: number;
-	detail: string;
-	pid: number;
+	detail?: string;
+	pid?: number;
 }
 
 export interface IRemoteExplorerService {

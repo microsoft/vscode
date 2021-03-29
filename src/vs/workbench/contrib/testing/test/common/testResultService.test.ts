@@ -155,10 +155,11 @@ suite('Workbench - Test Results Service', () => {
 			);
 
 			const [rehydrated, actual] = results.getStateById('id-root')!;
-			const expected = r.getStateById('id-root')!;
+			const expected: any = { ...r.getStateById('id-root')! };
 			delete expected.state.duration; // delete undefined props that don't survive serialization
-			delete expected.item.location;
+			delete expected.item.range;
 			delete expected.item.description;
+			expected.item.uri = actual.item.uri;
 
 			assert.deepStrictEqual(actual, { ...expected, retired: true });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);

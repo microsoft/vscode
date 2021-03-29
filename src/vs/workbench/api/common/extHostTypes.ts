@@ -3322,17 +3322,23 @@ export class TestChildrenCollection implements vscode.TestChildrenCollection<vsc
 
 export class TestItem implements vscode.TestItem {
 	public id!: string;
-	public location!: Location | undefined;
+	public range!: vscode.Range | undefined;
 	public description!: string | undefined;
 	public runnable!: boolean;
 	public debuggable!: boolean;
 	public children!: TestChildrenCollection;
+	public uri!: vscode.Uri;
 	public [TestItemHookProperty]!: ITestItemHook | undefined;
 
-	constructor(id: string, public label: string, public expandable: boolean) {
+	constructor(id: string, public label: string, uri: vscode.Uri, public expandable: boolean) {
 		Object.defineProperties(this, {
 			id: {
 				value: id,
+				enumerable: true,
+				writable: false,
+			},
+			uri: {
+				value: uri,
 				enumerable: true,
 				writable: false,
 			},
@@ -3346,7 +3352,7 @@ export class TestItem implements vscode.TestItem {
 				writable: true,
 				configurable: false,
 			},
-			location: testItemPropAccessor(this, 'location', undefined),
+			range: testItemPropAccessor(this, 'range', undefined),
 			description: testItemPropAccessor(this, 'description', undefined),
 			runnable: testItemPropAccessor(this, 'runnable', true),
 			debuggable: testItemPropAccessor(this, 'debuggable', true),

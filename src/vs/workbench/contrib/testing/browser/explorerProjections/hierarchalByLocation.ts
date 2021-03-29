@@ -41,11 +41,6 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	private readonly locations = new TestLocationStore<HierarchicalElement>();
 
 	/**
-	 * Depth of root children which are expanded automatically.
-	 */
-	protected rootRevealDepth = 0;
-
-	/**
 	 * Map of test IDs to test item objects.
 	 */
 	protected readonly items = new Map<string, HierarchicalElement>();
@@ -109,6 +104,13 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	}
 
 	/**
+	 * Gets the depth of children to expanded automatically for the node,
+	 */
+	protected getRevealDepth(element: HierarchicalElement): number | undefined {
+		return element.depth === 1 ? 0 : undefined;
+	}
+
+	/**
 	 * @inheritdoc
 	 */
 	public getElementByTestId(testId: string): ITestTreeElement | undefined {
@@ -160,7 +162,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 						break;
 					}
 
-					const locationChanged = !!patch.item?.location;
+					const locationChanged = !!patch.item?.range;
 					if (locationChanged) { this.locations.remove(existing); }
 					existing.update(patch);
 					if (locationChanged) { this.locations.add(existing); }
@@ -206,7 +208,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 			return;
 		}
 
-		if (element.test.expand !== TestItemExpandState.Expandable) {
+		if (element.test.expand === TestItemExpandState.NotExpandable) {
 			return;
 		}
 
@@ -261,8 +263,9 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this.items.set(treeElement.test.item.extId, treeElement);
 		this.locations.add(treeElement);
 
-		if (treeElement.depth === 1) {
-			this.expandElement(treeElement, this.rootRevealDepth);
+		const reveal = this.getRevealDepth(treeElement);
+		if (reveal !== undefined) {
+			this.expandElement(treeElement, reveal);
 		}
 
 		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];

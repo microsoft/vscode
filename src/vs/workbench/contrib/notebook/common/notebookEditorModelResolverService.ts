@@ -13,6 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IResolvedFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
 
@@ -88,7 +89,8 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookService private readonly _notebookService: INotebookService
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
 	) {
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 		this.onDidSaveNotebook = this._data.onDidSaveNotebook;
@@ -104,6 +106,7 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 			if (existingViewType) {
 				viewType = existingViewType;
 			} else {
+				await this._extensionService.whenInstalledExtensionsRegistered();
 				const providers = this._notebookService.getContributedNotebookProviders(resource);
 				const exclusiveProvider = providers.find(provider => provider.exclusive);
 				viewType = exclusiveProvider?.id || providers[0]?.id;

@@ -285,6 +285,7 @@ export interface INotificationViewItem {
 	readonly progress: INotificationViewItemProgress;
 
 	readonly expanded: boolean;
+	readonly visible: boolean;
 	readonly canCollapse: boolean;
 	readonly hasProgress: boolean;
 
@@ -609,6 +610,10 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 	get actions(): INotificationActions | undefined {
 		return this._actions;
+	}
+
+	get visible(): boolean {
+		return this._visible;
 	}
 
 	updateSeverity(severity: Severity): void {

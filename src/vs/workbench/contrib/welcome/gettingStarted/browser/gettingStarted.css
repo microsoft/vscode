@@ -175,11 +175,18 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-container {
-	/* display: flex;
-	flex-wrap: wrap; */
 	justify-content: center;
 	max-width: 900px;
 	margin: 32px auto;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-container .no-categories {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-container .no-categories:first-child {
+	display: block;
+	padding-left: 6px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-scrolling-container {
@@ -204,7 +211,6 @@
 	position: relative;
 	border-radius: 6px;
 	overflow: hidden;
-	box-shadow: 0px 1px 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon {

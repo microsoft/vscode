@@ -414,7 +414,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const uri = URI.parse(details.url);
 
 			// Prevent loading of remote svgs
-			if (uri && uri.path.endsWith('.svg')) {
+			if (uri.path.endsWith('.svg')) {
 				const safeScheme = svgFileSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
 				if (!safeScheme) {
 					return callback({ cancel: true });
@@ -434,7 +434,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 				// https://github.com/microsoft/vscode/issues/97564
 				// ensure local svg files have Content-Type image/svg+xml
-				if (uri && uri.path.endsWith('.svg')) {
+				if (uri.path.endsWith('.svg')) {
 					if (svgFileSchemes.has(uri.scheme)) {
 						responseHeaders['Content-Type'] = ['image/svg+xml'];
 
