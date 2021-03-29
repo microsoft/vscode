@@ -60,10 +60,10 @@ suite('Objects', () => {
 
 		assert(foo.bar);
 		assert(Array.isArray(foo.bar));
-		assert.equal(foo.bar.length, 3);
-		assert.equal(foo.bar[0], 1);
-		assert.equal(foo.bar[1], 2);
-		assert.equal(foo.bar[2], 3);
+		assert.strictEqual(foo.bar.length, 3);
+		assert.strictEqual(foo.bar[0], 1);
+		assert.strictEqual(foo.bar[1], 2);
+		assert.strictEqual(foo.bar[2], 3);
 	});
 
 	test('mixin - no overwrite', function () {
@@ -77,7 +77,7 @@ suite('Objects', () => {
 
 		objects.mixin(foo, bar, false);
 
-		assert.equal(foo.bar, '123');
+		assert.strictEqual(foo.bar, '123');
 	});
 
 	test('cloneAndChange', () => {
@@ -219,10 +219,10 @@ suite('Objects', () => {
 			mIxEdCaSe: 456
 		};
 
-		assert.equal(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lowercase'));
-		assert.equal(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lOwErCaSe'));
+		assert.strictEqual(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lowercase'));
+		assert.strictEqual(obj1.lowercase, objects.getCaseInsensitive(obj1, 'lOwErCaSe'));
 
-		assert.equal(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
-		assert.equal(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
+		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
+		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
 	});
 });

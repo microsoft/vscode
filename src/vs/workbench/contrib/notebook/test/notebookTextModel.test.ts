@@ -30,10 +30,10 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 6);
+				assert.strictEqual(textModel.cells.length, 6);
 
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[4].getValue(), 'var f = 6;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[4].getValue(), 'var f = 6;');
 			}
 		);
 	});
@@ -54,10 +54,10 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 6);
+				assert.strictEqual(textModel.cells.length, 6);
 
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var f = 6;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var f = 6;');
 			}
 		);
 	});
@@ -77,8 +77,8 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var c = 3;');
 			}
 		);
 	});
@@ -99,10 +99,10 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells.length, 4);
 
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[2].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var e = 5;');
 			}
 		);
 	});
@@ -123,10 +123,10 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 4);
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
 			}
 		);
 	});
@@ -146,10 +146,10 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 4);
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
 			}
 		);
 	});
@@ -265,9 +265,9 @@ suite('NotebookTextModel', () => {
 					metadata: { editable: false },
 				}], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 1);
-				assert.equal(textModel.cells[0].metadata?.editable, false);
-				assert.equal(textModel.cells[0].metadata?.executionOrder, undefined);
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].metadata?.editable, false);
+				assert.strictEqual(textModel.cells[0].metadata?.executionOrder, undefined);
 			}
 		);
 	});
@@ -321,15 +321,15 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
-				assert.equal(textModel.cells.length, 4);
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
 
 				assert.notEqual(changeEvent, undefined);
-				assert.equal(changeEvent!.rawEvents.length, 2);
+				assert.strictEqual(changeEvent!.rawEvents.length, 2);
 				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
-				assert.equal(textModel.versionId, version + 1);
+				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
 		);
@@ -361,9 +361,9 @@ suite('NotebookTextModel', () => {
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.notEqual(changeEvent, undefined);
-				assert.equal(changeEvent!.rawEvents.length, 2);
+				assert.strictEqual(changeEvent!.rawEvents.length, 2);
 				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
-				assert.equal(textModel.versionId, version + 1);
+				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
 		);
