@@ -250,7 +250,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			DebugEditorContribution.MEMOIZER.clear();
 			await this.updateInlineValueDecorations(stackFrame);
 		}));
-		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
+		this.toDispose.push(this.editor.onDidScrollChange(() => {
+			this.hideHoverWidget();
+
+			// Inline value provider should get called on view port change
+			const model = this.editor.getModel();
+			if (model && InlineValuesProviderRegistry.has(model)) {
+				this.updateInlineValuesScheduler.schedule();
+			}
+		}));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
 			if (state !== State.Stopped) {
 				this.toggleExceptionWidget();
