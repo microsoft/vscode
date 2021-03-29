@@ -55,7 +55,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITunnelService private readonly _tunnelService: ITunnelService
+		@ITunnelService private readonly _tunnelService: ITunnelService,
 	) {
 		super();
 
@@ -116,6 +116,7 @@ export class TerminalLinkManager extends DisposableStore {
 		link?: TerminalLink
 	) {
 		if (this._widgetManager) {
+
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
 			if (attached) {
