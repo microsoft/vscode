@@ -55,7 +55,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITunnelService private readonly _tunnelService: ITunnelService,
+		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
 
