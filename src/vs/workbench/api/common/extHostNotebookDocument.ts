@@ -177,10 +177,17 @@ export class ExtHostNotebookDocument extends Disposable {
 				get viewType() { return that._viewType; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
-				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
+				get isClosed() { return that._disposed; },
 				get metadata() { return that._metadata; },
 				set metadata(_value: Required<vscode.NotebookDocumentMetadata>) { throw new Error('Use WorkspaceEdit to update metadata.'); },
-				save() { return that._save(); }
+				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
+				getCells(range) {
+					const cells = range ? that._getCells(range) : that._cells;
+					return cells.map(cell => cell.cell);
+				},
+				save() {
+					return that._save();
+				}
 			});
 		}
 		return this._notebook;
@@ -223,6 +230,25 @@ export class ExtHostNotebookDocument extends Disposable {
 				this._changeCellMetadata(rawEvent.index, rawEvent.metadata);
 			}
 		}
+	}
+
+	private _validateRange(range: vscode.NotebookCellRange): vscode.NotebookCellRange {
+		if (range.start < 0) {
+			range = range.with({ start: 0 });
+		}
+		if (range.end > this._cells.length) {
+			range = range.with({ end: this._cells.length });
+		}
+		return range;
+	}
+
+	private _getCells(range: vscode.NotebookCellRange): ExtHostCell[] {
+		range = this._validateRange(range);
+		const result: ExtHostCell[] = [];
+		for (let i = range.start; i < range.end; i++) {
+			result.push(this._cells[i]);
+		}
+		return result;
 	}
 
 	private async _save(): Promise<boolean> {
