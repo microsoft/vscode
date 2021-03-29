@@ -6064,6 +6064,11 @@ declare module 'vscode' {
 		 * other extensions in the host run in `ExtensionMode.Release`.
 		 */
 		readonly extensionMode: ExtensionMode;
+
+		/**
+		 * The current `Extension` instance.
+		 */
+		readonly extension: Extension<any>;
 	}
 
 	/**
