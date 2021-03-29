@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { EditorModel, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CellEditType, CellKind, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -218,16 +218,6 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 				conflictingNotebook.dispose();
 			}
 
-			// todo@jrieken@rebornix what about reload?
-			if (this.resource.scheme === Schemas.untitled && data.data.cells.length === 0) {
-				data.data.cells.push({
-					cellKind: CellKind.Code,
-					language: 'plaintext', //TODO@jrieken unsure what this is
-					outputs: [],
-					metadata: undefined,
-					source: ''
-				});
-			}
 
 			// this creates and caches a new notebook model so that notebookService.getNotebookTextModel(...)
 			// will return this one model
