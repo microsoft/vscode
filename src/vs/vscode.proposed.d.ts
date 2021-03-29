@@ -2380,7 +2380,7 @@ declare module 'vscode' {
 		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
-		 * automatically re-run after a short delay. Invoking this on a
+		 * automatically rerun after a short delay. Invoking this on a
 		 * test with children will mark the entire subtree as outdated.
 		 *
 		 * Extensions should generally not override this method.

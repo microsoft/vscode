@@ -887,7 +887,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 	constructor() {
 		super({
 			id: 'testing.reRunFailTests',
-			title: localize('testing.reRunFailTests', "Re-run Failed Tests"),
+			title: localize('testing.reRunFailTests', "Rerun Failed Tests"),
 			f1: true,
 			category,
 		});
@@ -931,7 +931,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 	constructor() {
 		super({
 			id: 'testing.reRunLastRun',
-			title: localize('testing.reRunLastRun', "Re-run Last Run"),
+			title: localize('testing.reRunLastRun', "Rerun Last Run"),
 			f1: true,
 			category,
 		});
