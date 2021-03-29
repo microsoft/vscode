@@ -8,7 +8,6 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -16,44 +15,6 @@ import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 
-export class NotebookTextModelSnapshot implements ITextSnapshot {
-
-	private _index: number = -1;
-
-	constructor(private _model: NotebookTextModel) { }
-
-	read(): string | null {
-
-		if (this._index === -1) {
-			this._index++;
-			return `{ "metadata": ${JSON.stringify(this._model.metadata)}, "cells": [`;
-		}
-
-		if (this._index < this._model.cells.length) {
-			const cell = this._model.cells[this._index];
-
-			const data = {
-				source: cell.getValue(),
-				metadata: cell.metadata,
-				cellKind: cell.cellKind,
-				language: cell.language,
-				outputs: cell.outputs
-			};
-
-			const rawStr = JSON.stringify(data);
-			const isLastCell = this._index === this._model.cells.length - 1;
-
-			this._index++;
-			return isLastCell ? rawStr : (rawStr + ',');
-		} else if (this._index === this._model.cells.length) {
-			this._index++;
-			return `]}`;
-		} else {
-			return null;
-		}
-	}
-
-}
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
@@ -426,10 +387,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// Broadcast changes
 		this._eventEmitter.endDeferredEmit(endSelections);
 		return true;
-	}
-
-	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
-		return new NotebookTextModelSnapshot(this);
 	}
 
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {
