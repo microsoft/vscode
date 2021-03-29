@@ -107,6 +107,10 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Opens the peek view on a test failure, based on user preferences.
 	 */
 	private openPeekOnFailure(evt: TestResultItemChange) {
+		if (evt.reason !== TestResultItemChangeReason.OwnStateChange) {
+			return;
+		}
+
 		if (!isFailedState(evt.item.state.state) || !evt.item.state.messages.length) {
 			return;
 		}
