@@ -390,7 +390,7 @@
 			}
 		},
 		{
-			"begin": "(?i)\\b((?:require|include)(?:_once)?)\\s+",
+			"begin": "(?i)\\b((?:require|include)(?:_once)?)[\\s\\(]+",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.import.include.php"
