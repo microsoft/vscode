@@ -14,6 +14,7 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { IReference } from 'vs/base/common/lifecycle';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { Schemas } from 'vs/base/common/network';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -69,7 +70,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	isUntitled(): boolean {
-		return this._editorModelReference?.object.isUntitled() || false;
+		return this.resource.scheme === Schemas.untitled;
 	}
 
 	isReadonly() {

@@ -7,7 +7,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { NotImplementedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -91,10 +90,6 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 	isDirty() {
 		return this._dirty;
-	}
-
-	isUntitled() {
-		return this._notebook.uri.scheme === Schemas.untitled;
 	}
 
 	getNotebook(): NotebookTextModel {

@@ -71,7 +71,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		const workingCopyAdapter = new class implements IWorkingCopy {
 			readonly resource = that._workingCopyResource;
 			get name() { return that._name; }
-			readonly capabilities = that.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
+			readonly capabilities = that._isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = that.onDidChangeDirty;
 			readonly onDidChangeContent = that._onDidChangeContent.event;
 			isDirty(): boolean { return that.isDirty(); }
@@ -106,7 +106,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		return this._dirty;
 	}
 
-	isUntitled(): boolean {
+	private _isUntitled(): boolean {
 		return this.resource.scheme === Schemas.untitled;
 	}
 
@@ -434,10 +434,6 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 	save(options?: ISaveOptions): Promise<boolean> {
 		assertType(this.isResolved());
 		return this._workingCopy!.save(options);
-	}
-
-	isUntitled(): boolean {
-		return this.resource.scheme === Schemas.untitled;
 	}
 
 	async load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel> {
