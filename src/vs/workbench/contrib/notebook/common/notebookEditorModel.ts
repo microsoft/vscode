@@ -514,7 +514,7 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 		const data = await this._notebookSerializer.dataToNotebook(bytes);
 
 		if (token.isCancellationRequested) {
-			return;
+			throw canceled();
 		}
 
 		this._notebookModel.metadata = data.metadata;
