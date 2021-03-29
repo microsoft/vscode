@@ -194,9 +194,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 			const detail = response.body[0];
 
 			if (!this.detail && detail.displayParts.length) {
-				this.detail = Previewer.plain(detail.displayParts);
+				this.detail = Previewer.plainWithLinks(detail.displayParts, client);
 			}
-			this.documentation = this.getDocumentation(detail, this);
+			this.documentation = this.getDocumentation(client, detail, this);
 
 			const codeAction = this.getCodeActions(detail, filepath);
 			const commands: vscode.Command[] = [{
@@ -237,16 +237,17 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 
 	private getDocumentation(
+		client: ITypeScriptServiceClient,
 		detail: Proto.CompletionEntryDetails,
 		item: MyCompletionItem
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
 		if (detail.source) {
-			const importPath = `'${Previewer.plain(detail.source)}'`;
+			const importPath = `'${Previewer.plainWithLinks(detail.source, client)}'`;
 			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
 			item.detail = `${autoImportLabel}\n${item.detail}`;
 		}
-		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags);
+		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
 
 		return documentation.value.length ? documentation : undefined;
 	}
