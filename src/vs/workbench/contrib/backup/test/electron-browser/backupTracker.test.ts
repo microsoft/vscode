@@ -135,7 +135,7 @@ flakySuite('BackupTracker (native)', function () {
 			configurationService
 		));
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -143,8 +143,6 @@ flakySuite('BackupTracker (native)', function () {
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-
-		await part.whenRestored;
 
 		const tracker = instantiationService.createInstance(TestBackupTracker);
 

@@ -100,12 +100,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#endregion
 
-	private readonly _group: EditorGroup;
-
 	private active: boolean | undefined;
 	private dimension: Dimension | undefined;
 
-	private readonly _whenRestored: Promise<void>;
 	private isRestored = false;
 
 	private readonly scopedInstantiationService: IInstantiationService;
@@ -213,9 +210,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 		//#endregion
 
-		this._whenRestored = this.restoreEditors(from);
-		this._whenRestored.then(() => this.isRestored = true);
+		// Restore editors if provided
+		this.restoreEditors(from);
 
+		// Register Listeners
 		this.registerListeners();
 	}
 
@@ -439,7 +437,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.titleAreaControl;
 	}
 
-	private async restoreEditors(from: IEditorGroupView | ISerializedEditorGroup | null): Promise<void> {
+	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup | null): void {
 		if (this._group.count === 0) {
 			return; // nothing to show
 		}
@@ -463,16 +461,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const activeElement = document.activeElement;
 
-		// Show active editor
-		await this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options);
+		// Show active editor (intentionally not using async to keep
+		// `restoreEditors` from executing in same stack)
+		this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options).then(() => {
 
-		// Set focused now if this is the active group and focus has
-		// not changed meanwhile. This prevents focus from being
-		// stolen accidentally on startup when the user already
-		// clicked somewhere.
-		if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
-			this.focus();
-		}
+			// Set focused now if this is the active group and focus has
+			// not changed meanwhile. This prevents focus from being
+			// stolen accidentally on startup when the user already
+			// clicked somewhere.
+			if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
+				this.focus();
+			}
+
+			// Signal restored
+			this.isRestored = true;
+		});
 	}
 
 	//#region event handling
@@ -683,6 +686,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//region IEditorGroupView
 
+	private readonly _group: EditorGroup;
 	get group(): EditorGroup {
 		return this._group;
 	}
@@ -702,10 +706,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _disposed = false;
 	get disposed(): boolean {
 		return this._disposed;
-	}
-
-	get whenRestored(): Promise<void> {
-		return this._whenRestored;
 	}
 
 	get isEmpty(): boolean {
@@ -977,10 +977,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return showEditorResult;
 	}
 
-	private async doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean }, options?: EditorOptions): Promise<IEditorPane | undefined> {
+	private doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean }, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditorPane | undefined> | undefined;
+		let openEditorPromise: Promise<IEditorPane | undefined>;
 		if (context.active) {
 			openEditorPromise = (async () => {
 				try {
@@ -1001,7 +1001,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 			})();
 		} else {
-			openEditorPromise = undefined; // inactive: return undefined as result to signal this
+			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it

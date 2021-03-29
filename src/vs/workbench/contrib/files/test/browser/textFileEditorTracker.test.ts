@@ -53,7 +53,7 @@ suite('Files - TextFileEditorTracker', () => {
 			));
 		}
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -62,8 +62,6 @@ suite('Files - TextFileEditorTracker', () => {
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
-
-		await part.whenRestored;
 
 		disposables.add(instantiationService.createInstance(TextFileEditorTracker));
 

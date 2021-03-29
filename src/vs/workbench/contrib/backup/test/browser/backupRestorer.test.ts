@@ -48,7 +48,7 @@ suite('BackupRestorer', () => {
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -56,8 +56,6 @@ suite('BackupRestorer', () => {
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-
-		await part.whenRestored;
 
 		disposables.add(instantiationService.createInstance(BrowserBackupTracker));
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
