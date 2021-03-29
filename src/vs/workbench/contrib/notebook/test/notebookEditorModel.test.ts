@@ -10,6 +10,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IFileService } from 'vs/platform/files/common/files';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,6 +22,7 @@ import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/working
 
 suite('NotebookEditorModel', function () {
 
+	const instaService = new InstantiationService();
 	const notebokService = new class extends mock<INotebookService>() { };
 	const backupService = new class extends mock<IBackupFileService>() { };
 	const notificationService = new class extends mock<INotificationService>() { };
@@ -49,8 +51,8 @@ suite('NotebookEditorModel', function () {
 			}
 		};
 
-		new ComplexNotebookEditorModel(r1, 'fff', notebookDataProvider, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
-		new ComplexNotebookEditorModel(r2, 'fff', notebookDataProvider, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new ComplexNotebookEditorModel(r1, 'fff', notebookDataProvider, instaService, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
+		new ComplexNotebookEditorModel(r2, 'fff', notebookDataProvider, instaService, notebokService, workingCopyService, backupService, fileService, notificationService, new NullLogService(), untitledTextEditorService, labelService);
 
 		assert.strictEqual(copies.length, 2);
 		assert.strictEqual(!isEqual(copies[0].resource, copies[1].resource), true);

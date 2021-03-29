@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Range } from 'vs/editor/common/core/range';
 import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -472,6 +473,19 @@ suite('NotebookTextModel', () => {
 				assert.ok(success);
 				assert.ok(event === undefined);
 			}
+		});
+	});
+
+	test('Cell text model update increases notebook model version id #119561', function () {
+		withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+			['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+		], async (editor) => {
+			const textModel = await editor.viewModel.viewCells[0].resolveTextModel();
+			assert.ok(textModel !== undefined);
+			assert.strictEqual(editor.viewModel.getVersionId(), 0);
+			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }], true);
+			assert.strictEqual(editor.viewModel.getVersionId(), 1);
 		});
 	});
 });
