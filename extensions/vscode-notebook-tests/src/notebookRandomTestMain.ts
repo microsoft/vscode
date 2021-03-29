@@ -33,14 +33,14 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 					{
 						source: 'code()',
 						language: 'typescript',
-						cellKind: vscode.NotebookCellKind.Code,
+						kind: vscode.NotebookCellKind.Code,
 						outputs: [],
 						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					},
 					{
 						source: 'Markdown Cell',
 						language: 'markdown',
-						cellKind: vscode.NotebookCellKind.Markdown,
+						kind: vscode.NotebookCellKind.Markdown,
 						outputs: [],
 						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
 					}
@@ -67,8 +67,8 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 				metadata: document.metadata,
 				cells: document.cells.map(docCell => (<vscode.NotebookCellData>{
 					source: docCell.document.getText(),
-					language: docCell.language,
-					cellKind: docCell.cellKind,
+					language: docCell.document.languageId,
+					kind: docCell.kind,
 					outputs: docCell.outputs,
 					metadata: docCell.metadata
 				}))
@@ -94,30 +94,19 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 	}));
 }
 
-class TestKernel {
+class TestKernel implements vscode.NotebookKernel {
 	readonly label = 'notebookRandomTest';
-	async executeAllCells(document: vscode.NotebookDocument) {
-		for (let i = 0; i < document.cells.length; i++) {
-			const edit = new vscode.WorkspaceEdit();
-			edit.appendNotebookCellOutput(document.uri, i, [new vscode.NotebookCellOutput([getRandomOutput()])]);
-			vscode.workspace.applyEdit(edit);
+
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]): Promise<void> {
+		for (let r in ranges) {
+			for (let i = ranges[r].start; i < ranges[r].end; i++) {
+				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, i, '')!;
+				task.start();
+				task.appendOutput([new vscode.NotebookCellOutput([getRandomOutput()])]);
+				task.end();
+			}
 		}
 	}
-
-	async cancelAllCellsExecution() { }
-
-	async executeCell(document: vscode.NotebookDocument, cell: vscode.NotebookCell | undefined) {
-		if (!cell) {
-			cell = document.cells[0];
-		}
-
-		const edit = new vscode.WorkspaceEdit();
-		edit.appendNotebookCellOutput(document.uri, cell.index, [new vscode.NotebookCellOutput([getRandomOutput()])]);
-		vscode.workspace.applyEdit(edit);
-		return;
-	}
-
-	async cancelCellExecution() { }
 }
 
 function getRandomOutput(): vscode.NotebookCellOutputItem {
