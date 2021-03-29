@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
+import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal, IDisposable } from 'xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isMacintosh } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
 export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
@@ -26,6 +28,8 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private readonly _onInvalidated = new Emitter<void>();
 	public get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
+	private _hoverDelegate: IHoverDelegate;
+
 	constructor(
 		private readonly _xterm: Terminal,
 		public readonly range: IBufferRange,
@@ -35,9 +39,16 @@ export class TerminalLink extends DisposableStore implements ILink {
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _isHighConfidenceLink: boolean,
 		public readonly label: string | undefined,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+		this._hoverDelegate = {
+			showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
+				return this._hoverService.showHover(options);
+			},
+			delay: <number>this._configurationService.getValue('workbench.hover.delay')
+		};
 		this.decorations = {
 			pointerCursor: false,
 			underline: this._isHighConfidenceLink
@@ -81,7 +92,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		// Only show the tooltip and highlight for high confidence links (not word/search workspace
 		// links). Feedback was that this makes using the terminal overly noisy.
 		if (this._isHighConfidenceLink) {
-			const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 			this._tooltipScheduler = new RunOnceScheduler(() => {
 				this._tooltipCallback(
 					this,
@@ -92,7 +102,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 				// Clear out scheduler until next hover event
 				this._tooltipScheduler?.dispose();
 				this._tooltipScheduler = undefined;
-			}, timeout);
+			}, this._hoverDelegate.delay);
 			this.add(this._tooltipScheduler);
 			this._tooltipScheduler.schedule();
 		}
