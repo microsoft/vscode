@@ -38,6 +38,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { disposableTimeout } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 
 export class WorkspaceTrustSettingsTreeEntry {
@@ -74,6 +75,7 @@ export interface IWorkspaceTrustUriDataItem extends UriComponents { }
 class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorkspaceTrustUriDataItem> {
 	constructor(
 		container: HTMLElement,
+		@ILabelService protected readonly labelService: ILabelService,
 		@IThemeService protected readonly themeService: IThemeService,
 		@IContextViewService protected readonly contextViewService: IContextViewService
 	) {
@@ -109,11 +111,11 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 
 	protected renderHeader() {
 		const header = $('.setting-list-row-header');
-		const authorityHeader = append(header, $('.setting-list-object-key'));
+		const hostHeader = append(header, $('.setting-list-object-key'));
 		const pathHeader = append(header, $('.setting-list-object-value'));
-		const { authorityHeaderText: schemeHeaderText, pathHeaderText } = this.getLocalizedStrings();
+		const { hostHeaderText, pathHeaderText } = this.getLocalizedStrings();
 
-		authorityHeader.textContent = schemeHeaderText;
+		hostHeader.textContent = hostHeaderText;
 		pathHeader.textContent = pathHeaderText;
 
 		return header;
@@ -123,10 +125,10 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 		const rowElement = $('.setting-list-row');
 		rowElement.classList.add('setting-list-object-row');
 
-		const authorityElement = append(rowElement, $('.setting-list-object-key'));
+		const hostElement = append(rowElement, $('.setting-list-object-key'));
 		const pathElement = append(rowElement, $('.setting-list-object-value'));
 
-		authorityElement.textContent = item.authority || localize('localAuthority', "Local");
+		hostElement.textContent = item.authority ? this.labelService.getHostLabel(item.scheme, item.authority) : localize('localAuthority', "Local");
 		pathElement.textContent = item.scheme === Schemas.file ? URI.revive(item).fsPath : item.path;
 
 		return rowElement;
@@ -135,6 +137,9 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 
 	protected renderEdit(item: IWorkspaceTrustUriDataItem, idx: number): HTMLElement {
 		const rowElement = $('.setting-list-edit-row');
+
+		const hostElement = append(rowElement, $('.setting-list-object-key'));
+		hostElement.textContent = item.authority ? this.labelService.getHostLabel(item.scheme, item.authority) : localize('localAuthority', "Local");
 
 		const updatedItem = () => {
 			if (item.scheme === Schemas.file) {
@@ -208,7 +213,7 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 			deleteActionTooltip: localize('removePath', "Remove Path"),
 			editActionTooltip: localize('editPath', "Edit Path"),
 			addButtonLabel: localize('addPath', "Add Path"),
-			authorityHeaderText: localize('authorityHeaderText', "Authority"),
+			hostHeaderText: localize('hostHeaderText', "Host"),
 			pathHeaderText: localize('pathHeaderText', "Path"),
 			inputPlaceholder: localize('pathInputPlaceholder', "Path Item..."),
 		};
