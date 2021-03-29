@@ -8,24 +8,6 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as assert from 'assert';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
-//
-// To run the emmet tests only change .vscode/launch.json
-// {
-// 	"name": "Stacks Tests",
-// 	"type": "node",
-// 	"request": "launch",
-// 	"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
-// 	"stopOnEntry": false,
-// 	"args": [
-// 		"--timeout",
-// 		"999999",
-// 		"--colors",
-// 		"-g",
-// 		"Stacks"   <<<--- Emmet
-// 	],
-// Select the 'Stacks Tests' launch config and F5
-//
-
 class MockGrammarContributions implements IGrammarContributions {
 	private scopeName: string;
 
@@ -64,8 +46,8 @@ suite('Emmet', () => {
 					assert.fail('langOutput not found');
 				}
 
-				assert.equal(langOutput.language, expectedLanguage);
-				assert.equal(langOutput.parentMode, expectedParentLanguage);
+				assert.strictEqual(langOutput.language, expectedLanguage);
+				assert.strictEqual(langOutput.parentMode, expectedParentLanguage);
 			}
 
 			// syntaxes mapped using the scope name of the grammar
@@ -73,6 +55,11 @@ suite('Emmet', () => {
 			testIsEnabled('handlebars', 'text.html.handlebars', 'handlebars', 'html');
 			testIsEnabled('nunjucks', 'text.html.nunjucks', 'nunjucks', 'html');
 			testIsEnabled('laravel-blade', 'text.html.php.laravel-blade', 'laravel-blade', 'html');
+
+			// jsx, tsx, jsx-tags
+			// testIsEnabled('typescriptreact', '', 'typescriptreact', 'tsx');
+			// testIsEnabled('javascriptreact', '', 'javascriptreact', 'jsx');
+			// testIsEnabled('jsx-tags', '', 'javascriptreact', 'jsx-tags');
 
 			// languages that have different Language Id and scopeName
 			// testIsEnabled('razor', 'text.html.cshtml', 'razor', 'html');

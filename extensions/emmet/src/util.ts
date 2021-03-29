@@ -150,17 +150,25 @@ export function getMappingForIncludedLanguages(): any {
 * @param excludedLanguages Array of language ids that user has chosen to exclude for emmet
 */
 export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
-	if (!language || excludedLanguages.indexOf(language) > -1) {
+	if (!language || excludedLanguages.includes(language)) {
 		return;
 	}
-	if (/\b(typescriptreact|javascriptreact|jsx-tags)\b/.test(language)) { // treat tsx like jsx
-		return 'jsx';
+	// note: remap react to js and jsx-tags to jsx so that only jsx gets Emmet suggestions
+	if (/\b(typescriptreact|javascriptreact)\b/.test(language)) {
+		language = 'js';
+	}
+	if (/\b(jsx-tags)\b/.test(language)) {
+		language = 'jsx';
 	}
 	if (language === 'sass-indented') { // map sass-indented to sass
-		return 'sass';
+		language = 'sass';
 	}
 	if (language === 'jade') {
-		return 'pug';
+		language = 'pug';
+	}
+	// check again, in case user is using the post-mapped name
+	if (excludedLanguages.includes(language)) {
+		return;
 	}
 	const syntaxes = getSyntaxes();
 	if (syntaxes.markup.includes(language) || syntaxes.stylesheet.includes(language)) {
