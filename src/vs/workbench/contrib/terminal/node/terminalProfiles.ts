@@ -64,7 +64,14 @@ async function detectAvailableWindowsProfiles(quickLaunchOnly: boolean, statProv
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), logService, statProvider, variableResolver, workspaceFolder);
 
 	if (!quickLaunchOnly || (quickLaunchOnly && useWslProfiles)) {
-		resultProfiles.push(... await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, useWslProfiles));
+		try {
+			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`, useWslProfiles);
+			if (result) {
+				resultProfiles.push(...result);
+			}
+		} catch (e) {
+			logService?.info('WSL is not installed, so could not detect WSL profiles');
+		}
 	}
 
 	return resultProfiles;
