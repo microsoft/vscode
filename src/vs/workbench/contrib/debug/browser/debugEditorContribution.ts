@@ -576,8 +576,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const separator = ', ';
 
 		const model = this.editor.getModel();
-		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
-			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
+		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
+		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && InlineValuesProviderRegistry.has(model));
+		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
 			}
