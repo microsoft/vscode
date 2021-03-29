@@ -233,9 +233,6 @@ suite('Notebook API tests', function () {
 				};
 				return dto;
 			},
-			resolveNotebook: async (_document: vscode.NotebookDocument) => {
-				return;
-			},
 			saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 				return;
 			},
