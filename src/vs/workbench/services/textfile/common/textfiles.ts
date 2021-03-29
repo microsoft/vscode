@@ -95,7 +95,7 @@ export interface ITextFileService extends IDisposable {
 	 * Create files. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Returns the readable that uses the appropriate encoding.
