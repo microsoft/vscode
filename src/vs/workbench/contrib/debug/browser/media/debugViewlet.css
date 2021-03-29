@@ -319,6 +319,7 @@
 	justify-content: center;
 }
 
+.debug-pane .debug-breakpoints .breakpoint > .access-type,
 .debug-pane .debug-breakpoints .breakpoint > .file-path,
 .debug-pane .debug-breakpoints .breakpoint > .condition {
 	opacity: 0.7;
