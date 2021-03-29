@@ -221,10 +221,10 @@ is-number@^7.0.0:
   resolved "https://registry.yarnpkg.com/is-number/-/is-number-7.0.0.tgz#7535345b896734d5f80c4d06c50955527a14f12b"
   integrity sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==
 
-jschardet@2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.2.1.tgz#03b0264669a90c7a5c436a68c5a7d4e4cb0c9823"
-  integrity sha512-Ks2JNuUJoc7PGaZ7bVFtSEvOcr0rBq6Q1J5/7+zKWLT+g+4zziL63O0jg7y2jxhzIa1LVsHUbPXrbaWmz9iwDw==
+jschardet@2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.3.0.tgz#06e2636e16c8ada36feebbdc08aa34e6a9b3ff75"
+  integrity sha512-6I6xT7XN/7sBB7q8ObzKbmv5vN+blzLcboDE1BNEsEfmRXJValMxO6OIRT69ylPBRemS3rw6US+CMCar0OBc9g==
 
 minimist@0.0.8:
   version "0.0.8"
@@ -290,10 +290,10 @@ normalize-path@^3.0.0, normalize-path@~3.0.0:
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-3.0.0.tgz#0dcd69ff23a1c9b11fd0978316644a0388216a65"
   integrity sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
 
-nsfw@^2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-2.1.1.tgz#3cc8cc9ebf567c0121364cd42bb26167242b4be0"
-  integrity sha512-DvkPpsIkw/DogPxI4vQugtrSc0AtuCoxiprLxTLVZrZuEe8H++0DHpV/081q0LOtUc+96yW3FBl0pEKiyMOfJg==
+nsfw@2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-2.1.2.tgz#4fa841e7f7122b60b2e1f61187d1b57ad3403428"
+  integrity sha512-zGPdt32aJ5b1laK9rvgXQmXGAagrx3VkcMt0JePtu6wBfzC1o4xLCM3kq7FxZxUnxyxYhODyBYzpt3H16FhaGA==
   dependencies:
     node-addon-api "*"
 

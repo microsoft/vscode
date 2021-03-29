@@ -5592,10 +5592,10 @@ jsbn@~0.1.0:
   resolved "https://registry.yarnpkg.com/jsbn/-/jsbn-0.1.1.tgz#a5e654c2e5a2deb5f201d96cefbca80c0ef2f513"
   integrity sha1-peZUwuWi3rXyAdls77yoDA7y9RM=
 
-jschardet@2.2.1:
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.2.1.tgz#03b0264669a90c7a5c436a68c5a7d4e4cb0c9823"
-  integrity sha512-Ks2JNuUJoc7PGaZ7bVFtSEvOcr0rBq6Q1J5/7+zKWLT+g+4zziL63O0jg7y2jxhzIa1LVsHUbPXrbaWmz9iwDw==
+jschardet@2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.3.0.tgz#06e2636e16c8ada36feebbdc08aa34e6a9b3ff75"
+  integrity sha512-6I6xT7XN/7sBB7q8ObzKbmv5vN+blzLcboDE1BNEsEfmRXJValMxO6OIRT69ylPBRemS3rw6US+CMCar0OBc9g==
 
 jsdoctypeparser@^6.1.0:
   version "6.1.0"
@@ -6551,10 +6551,10 @@ napi-build-utils@^1.0.1:
   resolved "https://registry.yarnpkg.com/napi-build-utils/-/napi-build-utils-1.0.2.tgz#b1fddc0b2c46e380a0b7a76f984dd47c41a13806"
   integrity sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==
 
-native-is-elevated@0.4.1:
-  version "0.4.1"
-  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.1.tgz#f6391aafb13441f5b949b39ae0b466b06e7f3986"
-  integrity sha512-2vBXCXCXYKLDjP0WzrXs/AFjDb2njPR31EbGiZ1mR2fMJg211xClK1Xm19RXve35kvAL4dBKOFGCMIyc2+pPsw==
+native-is-elevated@0.4.3:
+  version "0.4.3"
+  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
+  integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
 native-keymap@2.2.1:
   version "2.2.1"
@@ -6783,10 +6783,10 @@ npmlog@^4.0.1, npmlog@^4.1.2:
     gauge "~2.7.3"
     set-blocking "~2.0.0"
 
-nsfw@^2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-2.1.1.tgz#3cc8cc9ebf567c0121364cd42bb26167242b4be0"
-  integrity sha512-DvkPpsIkw/DogPxI4vQugtrSc0AtuCoxiprLxTLVZrZuEe8H++0DHpV/081q0LOtUc+96yW3FBl0pEKiyMOfJg==
+nsfw@2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/nsfw/-/nsfw-2.1.2.tgz#4fa841e7f7122b60b2e1f61187d1b57ad3403428"
+  integrity sha512-zGPdt32aJ5b1laK9rvgXQmXGAagrx3VkcMt0JePtu6wBfzC1o4xLCM3kq7FxZxUnxyxYhODyBYzpt3H16FhaGA==
   dependencies:
     node-addon-api "*"
 
@@ -9191,10 +9191,10 @@ stylehacks@^4.0.0:
     postcss "^7.0.0"
     postcss-selector-parser "^3.0.0"
 
-sudo-prompt@9.1.1:
-  version "9.1.1"
-  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.1.1.tgz#73853d729770392caec029e2470db9c221754db0"
-  integrity sha512-es33J1g2HjMpyAhz8lOR+ICmXXAqTuKbuXuUWLhOLew20oN9oUCgCJx615U/v7aioZg7IX5lIh9x34vwneu4pA==
+sudo-prompt@9.2.1:
+  version "9.2.1"
+  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-9.2.1.tgz#77efb84309c9ca489527a4e749f287e6bdd52afd"
+  integrity sha512-Mu7R0g4ig9TUuGSxJavny5Rv0egCEtpZRNMrZaYS1vxkiIxGiGUwoezU3LazIQ+KE04hTrTfNPgxU5gzi7F5Pw==
 
 sumchecker@^3.0.1:
   version "3.0.1"

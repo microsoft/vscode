@@ -374,9 +374,9 @@ export interface IMoveResult {
 export interface IEditorInput extends IDisposable {
 
 	/**
-	 * Triggered when this input is disposed.
+	 * Triggered when this input is about to be disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Triggered when this input changes its dirty state.
@@ -521,8 +521,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed: boolean = false;
 
@@ -617,7 +617,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
-			this._onDispose.fire();
+			this._onWillDispose.fire();
 		}
 
 		super.dispose();
@@ -765,14 +765,14 @@ export class SideBySideEditorInput extends EditorInput {
 	private registerListeners(): void {
 
 		// When the primary or secondary input gets disposed, dispose this diff editor input
-		const onceSecondaryDisposed = Event.once(this.secondary.onDispose);
+		const onceSecondaryDisposed = Event.once(this.secondary.onWillDispose);
 		this._register(onceSecondaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		const oncePrimaryDisposed = Event.once(this.primary.onDispose);
+		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
 		this._register(oncePrimaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
@@ -869,28 +869,29 @@ export interface ITextEditorModel extends IEditorModel {
 
 /**
  * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
- * connects to the disk to retrieve content and may allow for saving it back or reverting it. Editor models
- * are typically cached for some while because they are expensive to construct.
+ * resolves from a file system retrieve content and may allow for saving it back or reverting it.
+ * Editor models are typically cached for some while because they are expensive to construct.
  */
 export class EditorModel extends Disposable implements IEditorModel {
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed = false;
+	private resolved = false;
 
 	/**
-	 * Causes this model to load returning a promise when loading is completed.
+	 * Causes this model to resolve returning a promise when loading is completed.
 	 */
-	async load(): Promise<IEditorModel> {
-		return this;
+	async resolve(): Promise<void> {
+		this.resolved = true;
 	}
 
 	/**
 	 * Returns whether this model was loaded or not.
 	 */
 	isResolved(): boolean {
-		return true;
+		return this.resolved;
 	}
 
 	/**
@@ -905,7 +906,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	 */
 	dispose(): void {
 		this.disposed = true;
-		this._onDispose.fire();
+		this._onWillDispose.fire();
 
 		super.dispose();
 	}

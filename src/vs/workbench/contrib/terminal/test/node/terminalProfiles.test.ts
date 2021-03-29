@@ -12,8 +12,8 @@ import { detectAvailableProfiles, IStatProvider } from 'vs/workbench/contrib/ter
 suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
-			suite('detectAvailableWindowsProfiles', async () => {
-				test('should detect Git Bash and provide login args', async () => {
+			suite.skip('detectAvailableWindowsProfiles', async () => {
+				test.skip('should detect Git Bash and provide login args', async () => {
 					const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
 					const config: ITestTerminalConfig = {
 						profiles: {
@@ -23,30 +23,44 @@ suite('Workbench - TerminalProfiles', () => {
 							linux: {},
 							osx: {}
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'], isAutoDetected: undefined, overrideName: undefined }];
 					assert.deepStrictEqual(profiles, expected);
 				});
-				test.skip('should detect cmd prompt', async () => {
-					const _paths = ['C:\\WINDOWS\\System32\\cmd.exe'];
+				test.skip('should allow source to have args', async () => {
 					const config: ITestTerminalConfig = {
 						profiles: {
 							windows: {
-								'Command Prompt': { path: _paths }
+								'PowerShell NoProfile': { source: ProfileSource.Pwsh, args: ['-NoProfile'], overrideName: true }
 							},
 							linux: {},
 							osx: {},
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
-					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
-					const expected = [{ profileName: 'Command Prompt', path: _paths[0] }];
+					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, undefined);
+					const expected = [{ profileName: 'PowerShell NoProfile', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, isAutoDetected: undefined, args: ['-NoProfile'] }];
 					assert.deepStrictEqual(expected, profiles);
 				});
-			}
-			);
+				test.skip('configured args should override default source ones', async () => {
+					const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
+					const config: ITestTerminalConfig = {
+						profiles: {
+							windows: {
+								'Git Bash': { source: ProfileSource.GitBash, args: [] }
+							},
+							linux: {},
+							osx: {}
+						},
+						useWslProfiles: false
+					};
+					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
+					const expected = [{ profileName: 'Git Bash', path: _paths[0], args: [], isAutoDetected: undefined, overrideName: undefined }];
+					assert.deepStrictEqual(profiles, expected);
+				});
+			});
 		} else if (isMacintosh) {
 			suite.skip('detectAvailableOsxProfiles', async () => {
 				test('should detect bash, zsh, tmux, fish', async () => {
@@ -70,7 +84,7 @@ suite('Workbench - TerminalProfiles', () => {
 							},
 							linux: {}
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
@@ -101,7 +115,7 @@ suite('Workbench - TerminalProfiles', () => {
 							},
 							osx: {}
 						},
-						displayDetectedWslProfiles: false
+						useWslProfiles: false
 					};
 					const profiles = await detectAvailableProfiles(true, undefined, config as ITerminalConfiguration, undefined, undefined, createStatProvider(_paths));
 					const expected = [{ profileName: 'bash', path: _paths[0] }, { profileName: 'bash', path: _paths[0] }, { profileName: 'zsh', path: _paths[1] }, { profileName: 'tmux', path: _paths[2] }, { profileName: 'fish', path: _paths[3] }];
@@ -124,5 +138,5 @@ suite('Workbench - TerminalProfiles', () => {
 
 export interface ITestTerminalConfig {
 	profiles: ITerminalProfiles;
-	displayDetectedWslProfiles: boolean
+	useWslProfiles: boolean
 }

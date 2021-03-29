@@ -9272,7 +9272,7 @@ declare module 'vscode' {
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
-		env?: { [key: string]: string | null };
+		env?: { [key: string]: string | null | undefined };
 
 		/**
 		 * Whether the terminal process environment should be exactly as provided in

@@ -686,9 +686,8 @@ export class RawDebugSession implements IDisposable {
 		if (error && url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return errors.createErrorWithActions(userMessage, {
-				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
+				actions: [new Action('debug.moreInfo', label, undefined, true, async () => {
 					this.openerService.open(URI.parse(url));
-					return Promise.resolve(null);
 				})]
 			});
 		}

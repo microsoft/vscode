@@ -29,7 +29,7 @@ import { Schemas } from 'vs/base/common/network';
 import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISettingsGroup, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -539,8 +539,9 @@ export class SettingsTargetsWidget extends Widget {
 
 		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false,
-			(folder: IWorkspaceFolder | null) => this.updateTarget(folder ? folder.uri : ConfigurationTarget.USER_LOCAL));
+		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, async folder => {
+			this.updateTarget(isWorkspaceFolder(folder) ? folder.uri : ConfigurationTarget.USER_LOCAL);
+		});
 		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
 
 		this.update();

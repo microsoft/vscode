@@ -112,7 +112,7 @@ suite('Workbench EditorPane', () => {
 		e.setVisible(true, group);
 		assert(e.isVisible());
 		assert.strictEqual(e.group, group);
-		input.onDispose(() => {
+		input.onWillDispose(() => {
 			assert(false);
 		});
 		e.dispose();

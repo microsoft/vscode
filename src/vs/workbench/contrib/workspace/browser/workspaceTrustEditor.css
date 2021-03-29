@@ -116,12 +116,11 @@
 }
 
 .workspace-trust-editor .extensions-grid-view > .extension-container {
-	width: 310px;
+	width: 470px;
 	margin: 0 10px 20px 0;
 }
 
 .workspace-trust-editor .extensions-grid-view .extension-list-item {
-	padding-left: 0;
 	cursor: default;
 }
 
@@ -151,6 +150,10 @@
 }
 
 .workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .description {
+	display: none;
+}
+
+.workspace-trust-editor .extensions-grid-view .extension-list-item > .details > .workspace-trust-description {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 3;
@@ -192,6 +195,10 @@
 	left: initial;
 	margin-left: initial;
 	max-width: initial;
+}
+
+.workspace-trust-editor .settings-editor .settings-body .settings-tree-container .monaco-list-rows {
+	background: unset;
 }
 
 .workspace-trust-editor .settings-editor .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {

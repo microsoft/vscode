@@ -384,10 +384,8 @@ export class EditorsObserver extends Disposable {
 	private loadState(): void {
 		const serialized = this.storageService.get(EditorsObserver.STORAGE_KEY, StorageScope.WORKSPACE);
 
-		// Previous state:
+		// Previous state: Load editors map from persisted state
 		if (serialized) {
-
-			// Load editors map from persisted state
 			this.deserialize(JSON.parse(serialized));
 		}
 
