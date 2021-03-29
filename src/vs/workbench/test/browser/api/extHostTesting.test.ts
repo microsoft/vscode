@@ -13,7 +13,8 @@ import { TestItem } from 'vscode';
 const simplify = (item: TestItem) => ({
 	id: item.id,
 	label: item.label,
-	location: item.location,
+	uri: item.uri,
+	range: item.range,
 	runnable: item.runnable,
 	debuggable: item.debuggable,
 });

@@ -2419,13 +2419,13 @@ declare module 'vscode' {
 	/**
 	 * Information about where a symbol is defined.
 	 *
-	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
+	 * Provides additional metadata over normal {@link Location location} definitions, including the range of
 	 * the defining symbol
 	 */
 	export type DefinitionLink = LocationLink;
 
 	/**
-	 * The definition of a symbol represented as one or many [locations](#Location).
+	 * The definition of a symbol represented as one or many {@link Location locations}.
 	 * For most programming languages there is only one location at which a symbol is
 	 * defined.
 	 */
@@ -6064,6 +6064,11 @@ declare module 'vscode' {
 		 * other extensions in the host run in `ExtensionMode.Release`.
 		 */
 		readonly extensionMode: ExtensionMode;
+
+		/**
+		 * The current `Extension` instance.
+		 */
+		readonly extension: Extension<any>;
 	}
 
 	/**
@@ -7800,6 +7805,13 @@ declare module 'vscode' {
 		 * from the user's workspace.
 		 */
 		readonly backupId?: string;
+
+		/**
+		 * If the URI is an untitled file, this will be populated with the byte data of that file
+		 *
+		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
+		 */
+		readonly untitledDocumentData?: Uint8Array;
 	}
 
 	/**
@@ -9265,7 +9277,7 @@ declare module 'vscode' {
 		/**
 		 * Object with environment variables that will be added to the VS Code process.
 		 */
-		env?: { [key: string]: string | null };
+		env?: { [key: string]: string | null | undefined };
 
 		/**
 		 * Whether the terminal process environment should be exactly as provided in

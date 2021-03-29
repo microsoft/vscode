@@ -978,7 +978,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 
 	async run(): Promise<void> {
 		if (this.extension) {
-			return this.action.run(this.extension.identifier.id);
+			await this.action.run(this.extension.identifier.id);
 		}
 	}
 }

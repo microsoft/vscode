@@ -129,13 +129,15 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				const hadTerminals = !!this._terminalService.terminalTabs.length;
-				if (this._terminalsInitialized) {
-					if (!hadTerminals) {
-						this._terminalService.createTerminal();
+				if (this._terminalService.isProcessSupportRegistered) {
+					if (this._terminalsInitialized) {
+						if (!hadTerminals) {
+							this._terminalService.createTerminal();
+						}
+					} else {
+						this._terminalsInitialized = true;
+						this._terminalService.initializeTerminals();
 					}
-				} else {
-					this._terminalsInitialized = true;
-					this._terminalService.initializeTerminals();
 				}
 
 				this._updateTheme();
@@ -380,7 +382,6 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onTabDisposed(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(_terminalService.onProfilesConfigChanged(() => this._updateItems(), this));
-		this._register(_terminalService.onRequestAvailableProfiles(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -416,7 +417,9 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 		items.push({ text: contributed.title });
 	}
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
-	items.push({ text: selectDefaultProfileTitle });
+	if (terminalService.isProcessSupportRegistered) {
+		items.push({ text: selectDefaultProfileTitle });
+	}
 	items.push({ text: configureTerminalSettingsTitle });
 	return items;
 }

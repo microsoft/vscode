@@ -312,7 +312,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 					'type': 'string'
 				},
 				'default': [],
-				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
+				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`).'),
 				'included': isMacintosh
 			}
 		}

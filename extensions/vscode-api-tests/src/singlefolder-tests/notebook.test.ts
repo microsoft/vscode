@@ -68,9 +68,9 @@ const kernel1 = new class implements vscode.NotebookKernel {
 			}
 
 			task.start();
-			await task.replaceOutput([new vscode.NotebookCellOutput([
+			await task.replaceOutput(new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
-			])]);
+			]));
 			task.end({ success: true });
 			return;
 		}
@@ -309,6 +309,25 @@ suite('Notebook API tests', function () {
 
 		await closeAllEditors();
 		assert.strictEqual(count, 0);
+	});
+
+	test('correct cell selection on undo/redo of cell creation', async function () {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		await vscode.commands.executeCommand('undo');
+		const selectionUndo = [...vscode.window.activeNotebookEditor!.selections];
+		await vscode.commands.executeCommand('redo');
+		const selectionRedo = vscode.window.activeNotebookEditor!.selections;
+
+		// On undo, the selected cell must be the upper cell, ie the first one
+		assert.strictEqual(selectionUndo.length, 1);
+		assert.strictEqual(selectionUndo[0].start, 0);
+		assert.strictEqual(selectionUndo[0].end, 1);
+		// On redo, the selected cell must be the new cell, ie the second one
+		assert.strictEqual(selectionRedo.length, 1);
+		assert.strictEqual(selectionRedo[0].start, 1);
+		assert.strictEqual(selectionRedo[0].end, 2);
 	});
 
 	test('editor editing event 2', async function () {
@@ -1249,24 +1268,25 @@ suite('Notebook API tests', function () {
 	});
 
 	test('#115855 onDidSaveNotebookDocument', async function () {
-		const resource = await createRandomFile('', undefined, '.vsctestnb');
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const resource = await createRandomFile(undefined, undefined, '.vsctestnb');
+		const notebook = await vscode.notebook.openNotebookDocument(resource);
+		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
-		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
+		await editor.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
 		});
 
 		const cellChangeEventRet = await cellsChangeEvent;
-		assert.strictEqual(cellChangeEventRet.document === vscode.window.activeNotebookEditor?.document, true);
+		assert.strictEqual(cellChangeEventRet.document === notebook, true);
 		assert.strictEqual(cellChangeEventRet.document.isDirty, true);
 
-		await withEvent(vscode.notebook.onDidSaveNotebookDocument, async event => {
-			await vscode.commands.executeCommand('workbench.action.files.saveAll');
-			await event;
-			assert.strictEqual(cellChangeEventRet.document.isDirty, false);
-		});
-		await saveAllFilesAndCloseAll(resource);
+		const saveEvent = asPromise(vscode.notebook.onDidSaveNotebookDocument);
+
+		await notebook.save();
+
+		await saveEvent;
+		assert.strictEqual(notebook.isDirty, false);
 	});
 
 	test('#116808, active kernel should not be undefined', async function () {

@@ -90,11 +90,11 @@ suite('Folding Model', () => {
 	}
 
 	function assertRegion(actual: FoldingRegion | null, expected: ExpectedRegion | null, message?: string) {
-		assert.equal(!!actual, !!expected, message);
+		assert.strictEqual(!!actual, !!expected, message);
 		if (actual && expected) {
-			assert.equal(actual.startLineNumber, expected.startLineNumber, message);
-			assert.equal(actual.endLineNumber, expected.endLineNumber, message);
-			assert.equal(actual.isCollapsed, expected.isCollapsed, message);
+			assert.strictEqual(actual.startLineNumber, expected.startLineNumber, message);
+			assert.strictEqual(actual.endLineNumber, expected.endLineNumber, message);
+			assert.strictEqual(actual.isCollapsed, expected.isCollapsed, message);
 		}
 	}
 

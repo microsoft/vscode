@@ -220,7 +220,7 @@ export class SearchView extends ViewPane {
 		this.viewletState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 		this._register(this.fileService.onDidFilesChange(e => this.onFilesChanged(e)));
-		this._register(this.textFileService.untitled.onDidDispose(model => this.onUntitledDidDispose(model.resource)));
+		this._register(this.textFileService.untitled.onWillDispose(model => this.onUntitledDidDispose(model.resource)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
 		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
@@ -834,7 +834,9 @@ export class SearchView extends ViewPane {
 			if (next === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([next], getSelectionKeyboardEvent(undefined, false, false));
+			const event = getSelectionKeyboardEvent(undefined, false, false);
+			this.tree.setFocus([next], event);
+			this.tree.setSelection([next], event);
 			this.tree.reveal(next);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
 			if (ariaLabel) { aria.alert(ariaLabel); }
@@ -875,7 +877,9 @@ export class SearchView extends ViewPane {
 			if (prev === selected) {
 				this.tree.setFocus([]);
 			}
-			this.tree.setFocus([prev], getSelectionKeyboardEvent(undefined, false, false));
+			const event = getSelectionKeyboardEvent(undefined, false, false);
+			this.tree.setFocus([prev], event);
+			this.tree.setSelection([prev], event);
 			this.tree.reveal(prev);
 			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
 			if (ariaLabel) { aria.alert(ariaLabel); }
@@ -1102,7 +1106,9 @@ export class SearchView extends ViewPane {
 			this.tree.domFocus();
 			const selection = this.tree.getSelection();
 			if (selection.length === 0) {
-				this.tree.focusNext(undefined, undefined, getSelectionKeyboardEvent());
+				const event = getSelectionKeyboardEvent();
+				this.tree.focusNext(undefined, undefined, event);
+				this.tree.setSelection(this.tree.getFocus(), event);
 			}
 		}
 	}

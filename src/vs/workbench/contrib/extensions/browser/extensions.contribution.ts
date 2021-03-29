@@ -156,7 +156,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.confirmedUriHandlerExtensionIds': {
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
-				default: []
+				default: [],
+				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.webWorker': {
 				type: 'boolean',

@@ -476,9 +476,9 @@ suite('Filters', () => {
 		// assertTopScore(fuzzyScore, 'Editor.r', 0, 'diffEditor.renderSideBySide', 'editor.overviewRulerlanes', 'editor.renderControlCharacter', 'editor.renderWhitespace');
 
 		assertTopScore(fuzzyScore, '-mo', 1, '-ms-ime-mode', '-moz-columns');
-		// // dupe, issue #14861
+		// dupe, issue #14861
 		assertTopScore(fuzzyScore, 'convertModelPosition', 0, 'convertModelPositionToViewPosition', 'convertViewToModelPosition');
-		// // dupe, issue #14942
+		// dupe, issue #14942
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');

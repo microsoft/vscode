@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_CONTENT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -67,7 +67,7 @@ const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
 
-const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellContent';
+const COLLAPSE_CELL_INPUT_COMMAND_ID = 'notebook.cell.collapseCellInput';
 const COLLAPSE_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.collapseCellOutput';
 const EXPAND_CELL_OUTPUT_COMMAND_ID = 'notebook.cell.expandCellOutput';
 
@@ -626,7 +626,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	when: NOTEBOOK_EDITOR_FOCUSED
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: EXECUTE_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.executeNotebook', "Execute Notebook (Run all cells)"),
@@ -634,10 +634,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
 });
 
-MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: CANCEL_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.cancelNotebook', "Stop Notebook Execution"),
@@ -645,7 +645,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -1,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
+	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
 });
 
 registerAction2(class extends NotebookCellAction {
@@ -724,8 +724,18 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
+	if (!notebookEditor.viewModel.metadata.editable) {
+		return null;
+	}
+
 	const text = cell.getText();
 	const idx = notebookEditor.viewModel.getCellIndex(cell);
+
+	if (language === undefined) {
+		const availableLanguages = notebookEditor.activeKernel?.supportedLanguages ?? [];
+		language = availableLanguages[0] ?? 'plaintext';
+	}
+
 	notebookEditor.viewModel.notebookDocument.applyEdits([
 		{
 			editType: CellEditType.Replace,
@@ -761,10 +771,7 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
-		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
-		}
+		context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
 	}
 }
 
@@ -1510,8 +1517,8 @@ registerAction2(class extends NotebookAction {
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
 			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
 			menu: {
-				id: MenuId.NotebookToolbar,
-				// when: NOTEBOOK_IS_ACTIVE_EDITOR,
+				id: MenuId.EditorTitle,
+				when: NOTEBOOK_IS_ACTIVE_EDITOR,
 				group: 'navigation',
 				order: 0
 			},
@@ -1619,8 +1626,8 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 registerAction2(class extends ChangeNotebookCellMetadataAction {
 	constructor() {
 		super({
-			id: EXPAND_CELL_CONTENT_COMMAND_ID,
-			title: localize('notebookActions.expandCellContent', "Expand Cell Content"),
+			id: EXPAND_CELL_INPUT_COMMAND_ID,
+			title: localize('notebookActions.expandCellInput', "Expand Cell Input"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),

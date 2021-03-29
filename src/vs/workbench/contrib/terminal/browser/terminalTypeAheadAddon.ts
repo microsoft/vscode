@@ -45,7 +45,7 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
 const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
 const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
-const flushOutput = (terminal: Terminal) => core(terminal).writeSync('');
+const flushOutput = (terminal: Terminal) => core(terminal).writeSync('', 0);
 
 const enum CursorMoveDirection {
 	Back = 'D',

@@ -16,7 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
-import { WindowError } from 'vs/platform/windows/electron-main/windows';
+import { toWindowUrl, WindowError } from 'vs/platform/windows/electron-main/windows';
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
@@ -189,11 +189,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		};
 
 		// Load with config
-		this.window.loadURL(FileAccess
-			.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require)
-			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
-			.toString(true)
-		);
+		this.window.loadURL(toWindowUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html', config));
 	}
 
 	private registerWindowListeners(): void {

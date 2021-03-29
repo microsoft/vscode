@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, append, EventType, $, createStyleSheet, trackFocus } from 'vs/base/browser/dom';
+import { addDisposableListener, append, EventType, $, createStyleSheet, trackFocus, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
@@ -23,12 +23,22 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NonCollapsibleObjectTreeModel } from 'vs/workbench/contrib/preferences/browser/settingsTree';
-import { focusedRowBackground, focusedRowBorder, IListDataItem, ISettingListChangeEvent, ListSettingWidget, rowHoverBackground, settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { attachStyler } from 'vs/platform/theme/common/styler';
+import { AbstractListSettingWidget, focusedRowBackground, focusedRowBorder, ISettingListChangeEvent, rowHoverBackground, settingsHeaderForeground, settingsSelectBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { attachButtonStyler, attachInputBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IWorkspaceTrustStateInfo, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IAction } from 'vs/base/common/actions';
+import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { disposableTimeout } from 'vs/base/common/async';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 
 export class WorkspaceTrustSettingsTreeEntry {
@@ -38,9 +48,9 @@ export class WorkspaceTrustSettingsTreeEntry {
 		key: string;
 		description: string;
 	};
-	value: string[];
+	value: URI[];
 
-	constructor(key: string, displayLabel: string, description: string, value: string[]) {
+	constructor(key: string, displayLabel: string, description: string, value: URI[]) {
 		this.setting = { key, description };
 		this.displayLabel = displayLabel;
 		this.value = value;
@@ -60,14 +70,164 @@ export interface IWorkspaceTrustSettingItemTemplate<T = any> {
 	elementDisposables: DisposableStore;
 }
 
-interface IWorkspaceTrustSettingListItemTemplate extends IWorkspaceTrustSettingItemTemplate<string[] | undefined> {
-	listWidget: ListSettingWidget;
+export interface IWorkspaceTrustUriDataItem extends UriComponents { }
+
+class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorkspaceTrustUriDataItem> {
+	constructor(
+		container: HTMLElement,
+		@ILabelService protected readonly labelService: ILabelService,
+		@IThemeService protected readonly themeService: IThemeService,
+		@IContextViewService protected readonly contextViewService: IContextViewService
+	) {
+		super(container, themeService, contextViewService);
+	}
+
+	protected getEmptyItem(): IWorkspaceTrustUriDataItem {
+		return URI.file('');
+	}
+
+	protected getContainerClasses() {
+		return ['workspace-trust-uri-setting-widget', 'setting-list-object-widget'];
+	}
+
+	protected getActionsForItem(item: IWorkspaceTrustUriDataItem, idx: number): IAction[] {
+		return [
+			{
+				class: ThemeIcon.asClassName(settingsEditIcon),
+				enabled: true,
+				id: 'workbench.action.editListItem',
+				tooltip: this.getLocalizedStrings().editActionTooltip,
+				run: () => this.editSetting(idx)
+			},
+			{
+				class: ThemeIcon.asClassName(settingsRemoveIcon),
+				enabled: true,
+				id: 'workbench.action.removeListItem',
+				tooltip: this.getLocalizedStrings().deleteActionTooltip,
+				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
+			}
+		] as IAction[];
+	}
+
+	protected renderHeader() {
+		const header = $('.setting-list-row-header');
+		const hostHeader = append(header, $('.setting-list-object-key'));
+		const pathHeader = append(header, $('.setting-list-object-value'));
+		const { hostHeaderText, pathHeaderText } = this.getLocalizedStrings();
+
+		hostHeader.textContent = hostHeaderText;
+		pathHeader.textContent = pathHeaderText;
+
+		return header;
+	}
+
+	protected renderItem(item: IWorkspaceTrustUriDataItem): HTMLElement {
+		const rowElement = $('.setting-list-row');
+		rowElement.classList.add('setting-list-object-row');
+
+		const hostElement = append(rowElement, $('.setting-list-object-key'));
+		const pathElement = append(rowElement, $('.setting-list-object-value'));
+
+		hostElement.textContent = item.authority ? this.labelService.getHostLabel(item.scheme, item.authority) : localize('localAuthority', "Local");
+		pathElement.textContent = item.scheme === Schemas.file ? URI.revive(item).fsPath : item.path;
+
+		return rowElement;
+	}
+
+
+	protected renderEdit(item: IWorkspaceTrustUriDataItem, idx: number): HTMLElement {
+		const rowElement = $('.setting-list-edit-row');
+
+		const hostElement = append(rowElement, $('.setting-list-object-key'));
+		hostElement.textContent = item.authority ? this.labelService.getHostLabel(item.scheme, item.authority) : localize('localAuthority', "Local");
+
+		const updatedItem = () => {
+			if (item.scheme === Schemas.file) {
+				return URI.file(pathInput.value);
+			} else {
+				return URI.revive(item).with({ path: pathInput.value });
+			}
+		};
+
+		const onKeyDown = (e: StandardKeyboardEvent) => {
+			if (e.equals(KeyCode.Enter)) {
+				this.handleItemChange(item, updatedItem(), idx);
+			} else if (e.equals(KeyCode.Escape)) {
+				this.cancelEdit();
+				e.preventDefault();
+			}
+			rowElement?.focus();
+		};
+
+		const pathInput = new InputBox(rowElement, this.contextViewService, {
+			placeholder: this.getLocalizedStrings().inputPlaceholder
+		});
+
+		pathInput.element.classList.add('setting-list-valueInput');
+		this.listDisposables.add(attachInputBoxStyler(pathInput, this.themeService, {
+			inputBackground: settingsSelectBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		this.listDisposables.add(pathInput);
+		pathInput.value = item.scheme === Schemas.file ? URI.revive(item).fsPath : item.path;
+
+		this.listDisposables.add(
+			addStandardDisposableListener(pathInput.inputElement, EventType.KEY_DOWN, onKeyDown)
+		);
+
+		const okButton = this._register(new Button(rowElement));
+		okButton.label = localize('okButton', "OK");
+		okButton.element.classList.add('setting-list-ok-button');
+
+		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
+		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, updatedItem(), idx)));
+
+		const cancelButton = this._register(new Button(rowElement));
+		cancelButton.label = localize('cancelButton', "Cancel");
+		cancelButton.element.classList.add('setting-list-cancel-button');
+
+		this.listDisposables.add(attachButtonStyler(cancelButton, this.themeService));
+		this.listDisposables.add(cancelButton.onDidClick(() => this.cancelEdit()));
+
+		this.listDisposables.add(
+			disposableTimeout(() => {
+				pathInput.focus();
+				pathInput.select();
+			})
+		);
+
+		return rowElement;
+	}
+
+	protected isItemNew(item: IWorkspaceTrustUriDataItem): boolean {
+		return item.path === '';
+	}
+
+	protected getLocalizedRowTitle(item: IWorkspaceTrustUriDataItem): string {
+		return item.toString();
+	}
+
+	protected getLocalizedStrings() {
+		return {
+			deleteActionTooltip: localize('removePath', "Remove Path"),
+			editActionTooltip: localize('editPath', "Edit Path"),
+			addButtonLabel: localize('addPath', "Add Path"),
+			hostHeaderText: localize('hostHeaderText', "Host"),
+			pathHeaderText: localize('pathHeaderText', "Path"),
+			inputPlaceholder: localize('pathInputPlaceholder', "Path Item..."),
+		};
+	}
+}
+
+interface IWorkspaceTrustSettingListItemTemplate extends IWorkspaceTrustSettingItemTemplate<URI[] | undefined> {
+	listWidget: WorkspaceTrustFolderSettingWidget;
 	validationErrorMessageElement: HTMLElement;
 }
 
 export interface IWorkspaceTrustSettingChangeEvent {
 	key: string;
-	value: any; // undefined => reset/unconfigure
+	value: URI[] | undefined; // undefined => reset/unconfigure
 }
 
 
@@ -165,7 +325,7 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		descriptionElement.after(validationErrorMessageElement);
 
-		const listWidget = this._instantiationService.createInstance(ListSettingWidget, common.controlElement);
+		const listWidget = this._instantiationService.createInstance(WorkspaceTrustFolderSettingWidget, common.controlElement);
 		listWidget.domNode.classList.add(WorkspaceTrustSettingArrayRenderer.CONTROL_CLASS);
 		common.toDispose.add(listWidget);
 
@@ -189,32 +349,32 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 		return template;
 	}
 
-	private computeNewList(template: IWorkspaceTrustSettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined | null {
+	private computeNewList(template: IWorkspaceTrustSettingListItemTemplate, e: ISettingListChangeEvent<IWorkspaceTrustUriDataItem>): URI[] | undefined | null {
 		if (template.context) {
-			let newValue: string[] = [];
+			let newValue: URI[] = [];
 			if (isArray(template.context.value)) {
 				newValue = [...template.context.value];
 			}
 
 			if (e.targetIndex !== undefined) {
 				// Delete value
-				if (!e.item?.value && e.originalItem.value && e.targetIndex > -1) {
+				if (!e.item?.path && e.originalItem.path && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
 				}
 				// Update value
-				else if (e.item?.value && e.originalItem.value) {
+				else if (e.item?.path && e.originalItem.path) {
 					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.item.value;
+						newValue[e.targetIndex] = URI.revive(e.item);
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
-						newValue.push(e.item.value);
+						newValue.push(URI.revive(e.item));
 					}
 				}
 				// Add value
-				else if (e.item?.value && !e.originalItem.value && e.targetIndex >= newValue.length) {
-					newValue.push(e.item.value);
+				else if (e.item?.path && !e.originalItem.path && e.targetIndex >= newValue.length) {
+					newValue.push(URI.revive(e.item));
 				}
 			}
 
@@ -239,7 +399,7 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 		this.renderValue(element, template, onChange);
 	}
 
-	protected renderValue(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
+	protected renderValue(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, onChange: (value: URI[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
 		template.listWidget.setValue(value);
 		template.context = dataElement;
@@ -249,7 +409,7 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 			renderArrayValidations(dataElement, template, v, false);
 		};
 
-		renderArrayValidations(dataElement, template, value.map(v => v.value), true);
+		renderArrayValidations(dataElement, template, value.map(v => URI.revive(v)), true);
 	}
 
 	disposeTemplate(template: IWorkspaceTrustSettingItemTemplate): void {
@@ -407,9 +567,9 @@ export class WorkspaceTrustTreeModel {
 
 	update(trustInfo: IWorkspaceTrustStateInfo): void {
 		this.settings = [];
-		if (trustInfo.localFolders) {
-			const trustedFolders = trustInfo.localFolders.filter(folder => folder.trustState === WorkspaceTrustState.Trusted).map(folder => folder.uri);
-			const untrustedFolders = trustInfo.localFolders.filter(folder => folder.trustState === WorkspaceTrustState.Untrusted).map(folder => folder.uri);
+		if (trustInfo.uriTrustInfo) {
+			const trustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trustState === WorkspaceTrustState.Trusted).map(folder => folder.uri);
+			const untrustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trustState === WorkspaceTrustState.Untrusted).map(folder => folder.uri);
 
 			this.settings.push(new WorkspaceTrustSettingsTreeEntry(
 				'trustedFolders',
@@ -455,18 +615,14 @@ class WorkspaceTrustTreeDelegate extends CachedListVirtualDelegate<WorkspaceTrus
 	}
 }
 
-function getListDisplayValue(element: WorkspaceTrustSettingsTreeEntry): IListDataItem[] {
+function getListDisplayValue(element: WorkspaceTrustSettingsTreeEntry): IWorkspaceTrustUriDataItem[] {
 	if (!element.value || !isArray(element.value)) {
 		return [];
 	}
 
-	return element.value.map((key: string) => {
-		return {
-			value: key
-		};
-	});
+	return element.value;
 }
 
-function renderArrayValidations(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, v: string[] | undefined, arg3: boolean) {
+function renderArrayValidations(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, v: URI[] | undefined, arg3: boolean) {
 }
 

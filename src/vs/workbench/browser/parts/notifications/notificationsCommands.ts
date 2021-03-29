@@ -90,7 +90,9 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		handler: accessor => {
 			const telemetryService = accessor.get(ITelemetryService);
 			model.notifications.forEach(n => {
-				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(n.message.original, n.sourceId, n.silent));
+				if (n.visible) {
+					telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(n.message.original, n.sourceId, n.silent));
+				}
 			});
 
 			center.hide();
@@ -171,7 +173,9 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	CommandsRegistry.registerCommand(HIDE_NOTIFICATION_TOAST, accessor => {
 		const telemetryService = accessor.get(ITelemetryService);
 		model.notifications.forEach(n => {
-			telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(n.message.original, n.sourceId, n.silent));
+			if (n.visible) {
+				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(n.message.original, n.sourceId, n.silent));
+			}
 		});
 		toasts.hide();
 	});

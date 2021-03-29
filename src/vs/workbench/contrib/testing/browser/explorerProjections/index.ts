@@ -9,7 +9,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IRange } from 'vs/editor/common/core/range';
 import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
@@ -63,9 +63,14 @@ export interface ITestTreeElement {
 	readonly treeId: string;
 
 	/**
+	 * URI associated with the test item.
+	 */
+	readonly uri: URI;
+
+	/**
 	 * Location of the test, if any.
 	 */
-	readonly location?: { uri: URI; range: ITextEditorSelection };
+	readonly range?: IRange;
 
 	/**
 	 * Test item, if any.

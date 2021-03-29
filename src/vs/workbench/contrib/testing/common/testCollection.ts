@@ -5,7 +5,7 @@
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
@@ -70,7 +70,8 @@ export interface ITestItem {
 	extId: string;
 	label: string;
 	children?: never;
-	location: IRichLocation | undefined;
+	uri: URI;
+	range: IRange | undefined;
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;

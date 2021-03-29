@@ -402,18 +402,13 @@ export class TestItemFilteredWrapper<T extends vscode.TestItem = vscode.TestItem
 		private filterDocument: vscode.TextDocument,
 		public readonly parent?: TestItemFilteredWrapper<T>,
 	) {
-		super(actual.id, actual.label, actual.expandable);
+		super(actual.id, actual.label, actual.uri, actual.expandable);
 		if (!(actual instanceof TestItemImpl)) {
 			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
 		}
 
 		(actual as TestItemImpl)[TestItemHookProperty] = {
-			setProp: (key, value) => {
-				(this as Record<string, unknown>)[key] = value;
-				if (key === 'location') {
-					this.refreshMatch();
-				}
-			},
+			setProp: (key, value) => (this as Record<string, unknown>)[key] = value,
 			created: child => TestItemFilteredWrapper.getWrapperForTestItem(child, this.filterDocument, this).refreshMatch(),
 			invalidate: () => this.invalidate(),
 			delete: child => this.children.delete(child),
@@ -439,7 +434,7 @@ export class TestItemFilteredWrapper<T extends vscode.TestItem = vscode.TestItem
 			}
 		}
 
-		const nowMatches = this.children.size > 0 || this.actual.location?.uri.toString() === this.filterDocument.uri.toString();
+		const nowMatches = this.children.size > 0 || this.actual.uri.toString() === this.filterDocument.uri.toString();
 		this._cachedMatchesFilter = nowMatches;
 
 		if (nowMatches !== didMatch) {
