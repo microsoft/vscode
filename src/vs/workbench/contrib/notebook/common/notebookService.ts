@@ -71,7 +71,7 @@ export interface INotebookService {
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
-	withNotebookDataProvider(resource: URI): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
+	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
 
 	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[];
 
