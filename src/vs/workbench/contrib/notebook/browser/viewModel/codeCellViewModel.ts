@@ -50,6 +50,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
 	}
 
+	private _focusOnOutput: boolean = false;
+	public get outputIsFocused(): boolean {
+		return this._focusOnOutput;
+	}
+
+	public set outputIsFocused(v: boolean) {
+		this._focusOnOutput = v;
+		this._onDidChangeState.fire({ outputIsFocusedChanged: true });
+	}
+
 	private _outputMinHeight: number = 0;
 
 	get outputMinHeight() {

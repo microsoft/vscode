@@ -129,6 +129,7 @@ export interface IGenericCellViewModel {
 	uri: URI;
 	metadata: NotebookCellMetadata | undefined;
 	outputIsHovered: boolean;
+	outputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
 	getOutputOffset(index: number): number;
 	updateOutputHeight(index: number, height: number): void;
@@ -811,6 +812,7 @@ export interface CellViewModelStateChangeEvent {
 	readonly foldingStateChanged?: boolean;
 	readonly contentChanged?: boolean;
 	readonly outputIsHoveredChanged?: boolean;
+	readonly outputIsFocusedChanged?: boolean;
 	readonly cellIsHoveredChanged?: boolean;
 }
 

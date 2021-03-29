@@ -73,6 +73,15 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._hoveringOutput = v;
 	}
 
+	private _focusOnOutput: boolean = false;
+	public get outputIsFocused(): boolean {
+		return this._focusOnOutput;
+	}
+
+	public set outputIsFocused(v: boolean) {
+		this._focusOnOutput = v;
+	}
+
 	private _hoveringCell = false;
 	public get cellIsHovered(): boolean {
 		return this._hoveringCell;

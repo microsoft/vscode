@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -257,6 +257,75 @@ function webviewPreloads() {
 				id: outputId,
 			});
 		});
+	}
+
+	function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
+		while (testChild) {
+			if (testChild === testAncestor) {
+				return true;
+			}
+			testChild = testChild.parentNode;
+		}
+
+		return false;
+	}
+
+	class FocusTracker {
+		private _outputId: string;
+		private _hasFocus: boolean = false;
+		private _loosingFocus: boolean = false;
+		private _element: HTMLElement | Window;
+		constructor(element: HTMLElement | Window, outputId: string) {
+			this._element = element;
+			this._outputId = outputId;
+			this._hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			this._loosingFocus = false;
+
+			element.addEventListener('focus', this._onFocus.bind(this), true);
+			element.addEventListener('blur', this._onBlur.bind(this), true);
+		}
+
+		private _onFocus() {
+			this._loosingFocus = false;
+			if (!this._hasFocus) {
+				this._hasFocus = true;
+				postNotebookMessage<IOutputFocusMessage>('outputFocus', {
+					id: this._outputId,
+				});
+			}
+		}
+
+		private _onBlur() {
+			if (this._hasFocus) {
+				this._loosingFocus = true;
+				window.setTimeout(() => {
+					if (this._loosingFocus) {
+						this._loosingFocus = false;
+						this._hasFocus = false;
+						postNotebookMessage<IOutputBlurMessage>('outputBlur', {
+							id: this._outputId,
+						});
+					}
+				}, 0);
+			}
+		}
+
+		dispose() {
+			if (this._element) {
+				this._element.removeEventListener('focus', this._onFocus, true);
+				this._element.removeEventListener('blur', this._onBlur, true);
+			}
+		}
+	}
+
+	const focusTrackers = new Map<string, FocusTracker>();
+
+	function addFocusTracker(element: HTMLElement, outputId: string): void {
+		if (focusTrackers.has(outputId)) {
+			focusTrackers.get(outputId)?.dispose();
+		}
+
+		focusTrackers.set(outputId, new FocusTracker(element, outputId));
 	}
 
 	const dontEmit = Symbol('dontEmit');
@@ -513,6 +582,7 @@ function webviewPreloads() {
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
+					addFocusTracker(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
@@ -617,6 +687,10 @@ function webviewPreloads() {
 					ob.disconnect();
 				});
 				outputObservers.clear();
+				focusTrackers.forEach(ft => {
+					ft.dispose();
+				});
+				focusTrackers.clear();
 				break;
 			case 'clearOutput':
 				const output = document.getElementById(event.data.outputId);
