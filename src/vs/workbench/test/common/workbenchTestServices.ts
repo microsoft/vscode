@@ -136,9 +136,6 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
-
 	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.resource);
@@ -176,12 +173,6 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		return {};
-	}
-
-	dispose(): void {
-		this._onDispose.fire();
-
-		super.dispose();
 	}
 }
 

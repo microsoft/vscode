@@ -9,9 +9,9 @@ import { Event } from 'vs/base/common/event';
 export interface IEditorModel {
 
 	/**
-	 * Emitted when the model is disposed.
+	 * Emitted when the model is about to be disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Loads the model.

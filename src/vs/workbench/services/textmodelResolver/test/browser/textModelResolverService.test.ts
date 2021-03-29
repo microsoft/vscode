@@ -57,7 +57,7 @@ suite('Workbench - TextModelResolverService', () => {
 		assert.strictEqual(snapshotToString(((model as ResourceEditorModel).createSnapshot()!)), 'Hello Test');
 		let disposed = false;
 		let disposedPromise = new Promise<void>(resolve => {
-			Event.once(model.onDispose)(() => {
+			Event.once(model.onWillDispose)(() => {
 				disposed = true;
 				resolve();
 			});
@@ -84,7 +84,7 @@ suite('Workbench - TextModelResolverService', () => {
 		assert.strictEqual(editorModel.getValue(), 'Hello Html');
 
 		let disposed = false;
-		Event.once(model.onDispose)(() => {
+		Event.once(model.onWillDispose)(() => {
 			disposed = true;
 		});
 
@@ -104,7 +104,7 @@ suite('Workbench - TextModelResolverService', () => {
 		const ref = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
 		let disposed = false;
-		Event.once(loadedModel.onDispose)(() => {
+		Event.once(loadedModel.onWillDispose)(() => {
 			disposed = true;
 		});
 
@@ -129,7 +129,7 @@ suite('Workbench - TextModelResolverService', () => {
 		const ref1 = await accessor.textModelResolverService.createModelReference(textModel.resource);
 
 		let disposed = false;
-		Event.once(loadedModel.onDispose)(() => {
+		Event.once(loadedModel.onWillDispose)(() => {
 			disposed = true;
 		});
 
