@@ -480,15 +480,17 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		});
 	}
 
-	async withNotebookDataProvider(resource: URI): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
-		const [first] = this._notebookProviderInfoStore.getContributedNotebook(resource);
-		if (!first) {
+	async withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo> {
+		const providers = this._notebookProviderInfoStore.getContributedNotebook(resource);
+		// If we have a viewtype specified we want that data provider, as the resource won't always map correctly
+		const selected = viewType ? providers.find(p => p.id === viewType) : providers[0];
+		if (!selected) {
 			throw new Error(`NO contribution for resource: '${resource.toString()}'`);
 		}
-		await this.canResolve(first.id);
-		const result = this._notebookProviders.get(first.id);
+		await this.canResolve(selected.id);
+		const result = this._notebookProviders.get(selected.id);
 		if (!result) {
-			throw new Error(`NO provider registered for view type: '${first.id}'`);
+			throw new Error(`NO provider registered for view type: '${selected.id}'`);
 		}
 		return result;
 	}

@@ -2034,14 +2034,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/116906
-
-	export interface ExtensionContext {
-		readonly extension: Extension<any>;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/102091
 
 	export interface TextDocument {

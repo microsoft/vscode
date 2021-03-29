@@ -304,10 +304,8 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<boolean> {
+	async run(): Promise<void> {
 		await this.hostService.reload();
-
-		return true;
 	}
 }
 

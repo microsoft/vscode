@@ -362,9 +362,9 @@ export class EditorsObserver extends Disposable {
 				let serializableEditorsOfGroup = mapGroupToSerializableEditorsOfGroup.get(group);
 				if (!serializableEditorsOfGroup) {
 					serializableEditorsOfGroup = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-						const factory = registry.getEditorInputFactory(editor.getTypeId());
+						const editorSerializer = registry.getEditorInputSerializer(editor.getTypeId());
 
-						return factory?.canSerialize(editor);
+						return editorSerializer?.canSerialize(editor);
 					});
 					mapGroupToSerializableEditorsOfGroup.set(group, serializableEditorsOfGroup);
 				}
@@ -384,10 +384,8 @@ export class EditorsObserver extends Disposable {
 	private loadState(): void {
 		const serialized = this.storageService.get(EditorsObserver.STORAGE_KEY, StorageScope.WORKSPACE);
 
-		// Previous state:
+		// Previous state: Load editors map from persisted state
 		if (serialized) {
-
-			// Load editors map from persisted state
 			this.deserialize(JSON.parse(serialized));
 		}
 

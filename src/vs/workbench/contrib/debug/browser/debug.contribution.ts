@@ -379,9 +379,15 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'debug.inlineValues': {
-			type: 'boolean',
+			type: ['boolean', 'string'],
+			'enum': [true, false, 'auto'],
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging."),
-			default: false
+			'enumDescriptions': [
+				nls.localize('inlineValues.on', 'Always show variable values inline in editor while debugging.'),
+				nls.localize('inlineValues.off', 'Never show variable values inline in editor while debugging.'),
+				nls.localize('inlineValues.focusNoScroll', 'Show variable values inline in editor while debugging when the language supports inline value locations.'),
+			],
+			default: 'auto'
 		},
 		'debug.toolBarLocation': {
 			enum: ['floating', 'docked', 'hidden'],
