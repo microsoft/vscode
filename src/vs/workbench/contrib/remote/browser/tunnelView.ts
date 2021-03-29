@@ -77,6 +77,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 		label: nls.localize('remote.tunnelsView.addPort', "Add Port"),
 		icon: undefined,
 		tunnelType: TunnelType.Add,
+		hasRunningProcess: false,
 		remoteHost: '',
 		remotePort: 0,
 		processDescription: '',
@@ -477,6 +478,7 @@ class TunnelItem implements ITunnelItem {
 			tunnel.remotePort,
 			tunnel.source ?? (tunnel.userForwarded ? nls.localize('tunnel.user', "User Forwarded") :
 				(type === TunnelType.Detected ? nls.localize('tunnel.staticallyForwarded', "Statically Forwarded") : nls.localize('tunnel.automatic', "Auto Forwarded"))),
+			!!tunnel.hasRunningProcess,
 			tunnel.localAddress,
 			tunnel.localPort,
 			closeable === undefined ? tunnel.closeable : closeable,
@@ -492,6 +494,7 @@ class TunnelItem implements ITunnelItem {
 		public remoteHost: string,
 		public remotePort: number,
 		public source: string,
+		public hasRunningProcess: boolean,
 		public localAddress?: string,
 		public localPort?: number,
 		public closeable?: boolean,
@@ -528,6 +531,8 @@ class TunnelItem implements ITunnelItem {
 			if (this.pid) {
 				description += ` (${this.pid})`;
 			}
+		} else if (this.hasRunningProcess) {
+			description = nls.localize('tunnelView.runningProcess.inacessable', "Command line unavailable");
 		}
 
 		return description;

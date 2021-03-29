@@ -162,6 +162,10 @@ export interface ICellOutput {
 	appendData(items: IOutputItemDto[]): void;
 }
 
+export interface CellMetadataChangedEvent {
+	readonly runStateChanged?: boolean;
+}
+
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
@@ -171,7 +175,7 @@ export interface ICell {
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
-	onDidChangeMetadata: Event<void>;
+	onDidChangeMetadata: Event<CellMetadataChangedEvent>;
 }
 
 export interface INotebookTextModel {

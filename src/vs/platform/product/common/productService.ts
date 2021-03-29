@@ -113,6 +113,7 @@ export interface IProductConfiguration {
 	readonly telemetryOptOutUrl?: string;
 
 	readonly npsSurveyUrl?: string;
+	readonly cesSurveyUrl?: string;
 	readonly surveys?: readonly ISurveyData[];
 
 	readonly checksums?: { [path: string]: string; };

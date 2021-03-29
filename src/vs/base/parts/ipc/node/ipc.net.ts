@@ -18,13 +18,31 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Platform, platform } from 'vs/base/common/platform';
 
 export class NodeSocket implements ISocket {
+
 	public readonly socket: Socket;
+	private readonly _errorListener: (err: any) => void;
 
 	constructor(socket: Socket) {
 		this.socket = socket;
+		this._errorListener = (err: any) => {
+			if (err) {
+				if (err.code === 'EPIPE') {
+					// An EPIPE exception at the wrong time can lead to a renderer process crash
+					// so ignore the error since the socket will fire the close event soon anyways:
+					// > https://nodejs.org/api/errors.html#errors_common_system_errors
+					// > EPIPE (Broken pipe): A write on a pipe, socket, or FIFO for which there is no
+					// > process to read the data. Commonly encountered at the net and http layers,
+					// > indicative that the remote side of the stream being written to has been closed.
+					return;
+				}
+				onUnexpectedError(err);
+			}
+		};
+		this.socket.on('error', this._errorListener);
 	}
 
 	public dispose(): void {
+		this.socket.off('error', this._errorListener);
 		this.socket.destroy();
 	}
 

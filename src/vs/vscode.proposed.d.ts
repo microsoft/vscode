@@ -942,20 +942,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Provide a way for custom editors to process untitled files without relying on textDocument https://github.com/microsoft/vscode/issues/115631
-	/**
-	 * Additional information about the opening custom document.
-	 */
-	interface CustomDocumentOpenContext {
-		/**
-		 * If the URI is an untitled file, this will be populated with the byte data of that file
-		 *
-		 * If this is provided, your extension should utilize this byte data rather than executing fs APIs on the URI passed in
-		 */
-		readonly untitledDocumentData?: Uint8Array;
-	}
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum NotebookCellKind {
@@ -1573,10 +1559,10 @@ declare module 'vscode' {
 		readonly token: CancellationToken;
 
 		clearOutput(cellIndex?: number): Thenable<void>;
-		appendOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
-		replaceOutput(out: NotebookCellOutput[], cellIndex?: number): Thenable<void>;
-		appendOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
-		replaceOutputItems(items: NotebookCellOutputItem[], outputId: string): Thenable<void>;
+		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
 	}
 
 	export enum NotebookCellExecutionState {
@@ -2326,6 +2312,11 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri: Uri;
+
+		/**
 		 * A set of children this item has. You can add new children to it, which
 		 * will propagate to the editor UI.
 		 */
@@ -2342,10 +2333,10 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Location of the test in the workspace. This is used to show line
-		 * decorations and code lenses for the test.
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
 		 */
-		location?: Location;
+		range?: Range;
 
 		/**
 		 * Whether this test item can be run individually, defaults to `true`.
@@ -2374,10 +2365,11 @@ declare module 'vscode' {
 		 * Creates a new TestItem instance.
 		 * @param id Value of the "id" property
 		 * @param label Value of the "label" property.
+		 * @param uri Value of the "uri" property.
 		 * @param parent Parent of this item. This should only be defined for the
 		 * test root.
 		 */
-		constructor(id: string, label: string, expandable: boolean);
+		constructor(id: string, label: string, uri: Uri, expandable: boolean);
 
 		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
@@ -2550,6 +2542,11 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
+		 * URI this TestItem is associated with. May be a file or file.
+		 */
+		readonly uri: Uri;
+
+		/**
 		 * Display name describing the test case.
 		 */
 		readonly label: string;
@@ -2560,10 +2557,10 @@ declare module 'vscode' {
 		readonly description?: string;
 
 		/**
-		 * Location of the test in the workspace. This is used to show line
-		 * decorations and code lenses for the test.
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
 		 */
-		readonly location?: Location;
+		readonly range?: Range;
 
 		/**
 		 * Current result of the test.

@@ -677,6 +677,8 @@ class UserKeybindings extends Disposable {
 		super();
 
 		this._register(fileService.watch(dirname(keybindingsResource)));
+		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
+		this._register(this.fileService.watch(this.keybindingsResource));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(changed => {
 			if (changed) {
 				this._onDidChange.fire();

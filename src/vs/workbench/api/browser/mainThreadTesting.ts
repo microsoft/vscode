@@ -18,9 +18,11 @@ const reviveDiff = (diff: TestsDiff) => {
 	for (const entry of diff) {
 		if (entry[0] === TestDiffOpType.Add || entry[0] === TestDiffOpType.Update) {
 			const item = entry[1];
-			if (item.item?.location) {
-				item.item.location.uri = URI.revive(item.item.location.uri);
-				item.item.location.range = Range.lift(item.item.location.range);
+			if (item.item?.uri) {
+				item.item.uri = URI.revive(item.item.uri);
+			}
+			if (item.item?.range) {
+				item.item.range = Range.lift(item.item.range);
 			}
 		}
 	}

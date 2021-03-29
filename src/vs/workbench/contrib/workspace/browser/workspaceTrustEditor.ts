@@ -16,7 +16,8 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ExtensionWorkspaceTrustRequirement, getExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -77,7 +78,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDialogService private readonly dialogService: IDialogService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
@@ -214,8 +216,19 @@ export class WorkspaceTrustEditor extends EditorPane {
 			this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
 		};
 
+		const setTrustState = async (state: WorkspaceTrustState) => {
+			if (state !== WorkspaceTrustState.Trusted) {
+				const message = localize('workspaceTrustTransitionMessage', "Deny Workspace Trust");
+				const detail = localize('workspaceTrustTransitionDetail', "In order to safely complete this action, all affected windows will have to be reloaded. Are you sure you want to proceed with this action?");
+				const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
+				const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
 
-		const setTrustState = (state: WorkspaceTrustState) => {
+				const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
+				if (!result.confirmed) {
+					return;
+				}
+			}
+
 			this.workspaceService.getWorkspace().folders.forEach(folder => {
 				this.workspaceTrustEditorModel.dataModel.setFolderTrustState(folder.uri, state);
 			});
@@ -248,7 +261,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private async getExtensionsByTrustRequirement(extensions: IExtensionStatus[], trustRequirement: ExtensionWorkspaceTrustRequirement): Promise<IExtension[]> {
-		const filtered = extensions.filter(ext => ext.local.manifest.workspaceTrust?.required === trustRequirement);
+		const filtered = extensions.filter(ext => getExtensionWorkspaceTrustRequirement(ext.local.manifest) === trustRequirement);
 		const ids = filtered.map(ext => ext.identifier.id);
 
 		return getExtensions(ids, this.extensionWorkbenchService);

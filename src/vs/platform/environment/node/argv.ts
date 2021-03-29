@@ -132,6 +132,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'ignore-certificate-errors': { type: 'boolean' },
 	'allow-insecure-localhost': { type: 'boolean' },
 	'log-net-log': { type: 'string' },
+	'vmodule': { type: 'string' },
 	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments

@@ -478,15 +478,10 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const location = item?.location;
-		if (!location) {
-			return;
-		}
-
 		const pane = await this.editorService.openEditor({
-			resource: location.uri,
+			resource: item.uri,
 			options: {
-				selection: { startColumn: location.range.startColumn, startLineNumber: location.range.startLineNumber },
+				selection: item.range && { startColumn: item.range.startColumn, startLineNumber: item.range.startLineNumber },
 				preserveFocus,
 			},
 		});
@@ -677,11 +672,7 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 		}
 
 		for (let e: ITestTreeElement | null = element; e; e = e!.parentItem) {
-			if (!e.location) {
-				continue;
-			}
-
-			return e.location.uri.toString() === this._filterToUri
+			return e.uri.toString() === this._filterToUri
 				? FilterResult.Include
 				: FilterResult.Exclude;
 		}
@@ -696,7 +687,7 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 
 		for (let e: ITestTreeElement | null = element; e; e = e.parentItem) {
 			// start as included if the first glob is a negation
-			let included = this.filters[0][0] === false ? FilterResult.Exclude : FilterResult.Inherit;
+			let included = this.filters[0][0] === false ? FilterResult.Include : FilterResult.Inherit;
 			const data = e.label.toLowerCase();
 
 			for (const [include, filter] of this.filters) {
@@ -723,8 +714,8 @@ class TreeSorter implements ITreeSorter<ITestTreeElement> {
 			return delta;
 		}
 
-		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByLocation && a.location && b.location && a.location.uri.toString() === b.location.uri.toString()) {
-			delta = a.location.range.startLineNumber - b.location.range.startLineNumber;
+		if (this.viewModel.viewSorting === TestExplorerViewSorting.ByLocation && a.range && b.range && a.uri.toString() === b.uri.toString()) {
+			delta = a.range.startLineNumber - b.range.startLineNumber;
 			if (delta !== 0) {
 				return delta;
 			}
@@ -847,9 +838,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 
 		const test = element.test;
 		if (test) {
-			if (test.item.location) {
-				label.resource = test.item.location.uri;
-			}
+			label.resource = test.item.uri;
 
 			let title = element.label;
 			for (let p = element.parentItem; p; p = p.parentItem) {

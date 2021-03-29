@@ -96,7 +96,12 @@ class FileServiceBasedConfiguration extends Disposable {
 	) {
 		super();
 		this.allResources = [this.settingsResource, ...this.standAloneConfigurationResources.map(([, resource]) => resource)];
-		this._register(combinedDisposable(...this.allResources.map(resource => this.fileService.watch(uriIdentityService.extUri.dirname(resource)))));
+		this._register(combinedDisposable(...this.allResources.map(resource => combinedDisposable(
+			this.fileService.watch(uriIdentityService.extUri.dirname(resource)),
+			// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
+			this.fileService.watch(resource)
+		))));
+
 		this._folderSettingsModelParser = new ConfigurationModelParser(name, this.scopes);
 		this._standAloneConfigurations = [];
 		this._cache = new ConfigurationModel();
