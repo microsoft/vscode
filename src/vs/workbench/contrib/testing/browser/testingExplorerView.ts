@@ -725,25 +725,29 @@ class TreeSorter implements ITreeSorter<ITestTreeElement> {
 	}
 }
 
+const getLabelForTestTreeElement = (element: ITestTreeElement) => {
+	let label = localize({
+		key: 'testing.treeElementLabel',
+		comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
+	}, '{0} ({1})', element.label, testStateNames[element.state]);
+
+	if (element.retired) {
+		label = localize({
+			key: 'testing.treeElementLabelOutdated',
+			comment: ['{0} is the original label in testing.treeElementLabel'],
+		}, '{0}, outdated result', label, testStateNames[element.state]);
+	}
+
+	return label;
+};
+
 class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeElement> {
 	getWidgetAriaLabel(): string {
 		return localize('testExplorer', "Test Explorer");
 	}
 
 	getAriaLabel(element: ITestTreeElement): string {
-		let label = localize({
-			key: 'testing.treeElementLabel',
-			comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
-		}, '{0} ({1})', element.label, testStateNames[element.state]);
-
-		if (element.retired) {
-			label = localize({
-				key: 'testing.treeElementLabelOutdated',
-				comment: ['{0} is the original label in testing.treeElementLabel'],
-			}, '{0}, outdated result', label, testStateNames[element.state]);
-		}
-
-		return label;
+		return getLabelForTestTreeElement(element);
 	}
 }
 
@@ -839,13 +843,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const test = element.test;
 		if (test) {
 			label.resource = test.item.uri;
-
-			let title = element.label;
-			for (let p = element.parentItem; p; p = p.parentItem) {
-				title = `${p.label}, ${title}`;
-			}
-
-			options.title = title;
+			options.title = getLabelForTestTreeElement(element);
 			options.fileKind = FileKind.FILE;
 			label.description = element.description;
 		} else {
