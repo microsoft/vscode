@@ -324,7 +324,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
 		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Recording Keys. Press Escape to exit");
 
-		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, () => { this.clearSearchResults(); return Promise.resolve(null); });
+		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, {
@@ -1056,14 +1056,19 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		const _onDidReject: Emitter<void> = disposables.add(new Emitter<void>());
 		const onDidReject: Event<void> = _onDidReject.event;
 
+		const hideInputBox = () => {
+			element.classList.remove('input-mode');
+			container.style.paddingLeft = '10px';
+		};
+
 		disposables.add(DOM.addStandardDisposableListener(whenInput.inputElement, DOM.EventType.KEY_DOWN, e => {
 			let handled = false;
 			if (e.equals(KeyCode.Enter)) {
-				element.classList.remove('input-mode');
+				hideInputBox();
 				_onDidAccept.fire();
 				handled = true;
 			} else if (e.equals(KeyCode.Escape)) {
-				element.classList.remove('input-mode');
+				hideInputBox();
 				_onDidReject.fire();
 				handled = true;
 			}
@@ -1073,7 +1078,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			}
 		}));
 		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.BLUR, () => {
-			element.classList.remove('input-mode');
+			hideInputBox();
 			_onDidReject.fire();
 		})));
 
@@ -1099,6 +1104,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 				templateData.element.classList.add('input-mode');
 				templateData.whenInput.focus();
 				templateData.whenInput.select();
+				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
 		}));
 

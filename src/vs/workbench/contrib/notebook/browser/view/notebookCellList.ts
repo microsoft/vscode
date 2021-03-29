@@ -53,6 +53,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
 	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
 	private _viewModel: NotebookViewModel | null = null;
+	get viewModel(): NotebookViewModel | null {
+		return this._viewModel;
+	}
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 
@@ -193,6 +196,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			const top = this.getViewScrollTop();
 			const bottom = this.getViewScrollBottom();
+			if (top >= bottom) {
+				return;
+			}
+
 			const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
 			const topElement = this.view.element(topViewIndex);
 			const topModelIndex = this._viewModel!.getCellIndex(topElement);
@@ -686,6 +693,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.setSelection(indexes, browserEvent);
 	}
 
+	/**
+	 * The range will be revealed with as little scrolling as possible.
+	 */
 	revealElementsInView(range: ICellRange) {
 		const startIndex = this._getViewIndexUpperBound2(range.start);
 
@@ -705,6 +715,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			const endElementTop = this.view.elementTop(endIndex);
 			const endElementHeight = this.view.elementHeight(endIndex);
+
+			if (endElementTop + endElementHeight <= wrapperBottom) {
+				// fully visible
+				return;
+			}
 
 			if (endElementTop >= wrapperBottom) {
 				return this._revealInternal(endIndex, false, CellRevealPosition.Bottom);
@@ -1079,8 +1094,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				this.view.setScrollTop(this.view.elementTop(viewIndex) - this.view.renderHeight / 2);
 				break;
 			case CellRevealPosition.Bottom:
-				this.view.setScrollTop(elementBottom - this.view.renderHeight);
-				this.view.setScrollTop(this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.view.renderHeight);
+				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
+				this.view.setScrollTop(this.scrollTop + (this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.getViewScrollBottom()));
 				break;
 			default:
 				break;

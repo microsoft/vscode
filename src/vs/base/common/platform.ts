@@ -27,6 +27,13 @@ export interface IProcessEnvironment {
 	[key: string]: string;
 }
 
+/**
+ * This interface is intentionally not identical to node.js
+ * process because it also works in sandboxed environments
+ * where the process object is implemented differently. We
+ * define the properties here that we need for `platform`
+ * to work and nothing else.
+ */
 export interface INodeProcess {
 	platform: string;
 	env: IProcessEnvironment;
@@ -38,26 +45,20 @@ export interface INodeProcess {
 	type?: string;
 	cwd: () => string;
 }
+
 declare const process: INodeProcess;
-declare const global: any;
+declare const global: unknown;
+declare const self: unknown;
 
-interface INavigator {
-	userAgent: string;
-	language: string;
-	maxTouchPoints?: number;
-}
-declare const navigator: INavigator;
-declare const self: any;
-
-const _globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {} as any);
+export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 let nodeProcess: INodeProcess | undefined = undefined;
 if (typeof process !== 'undefined') {
 	// Native environment (non-sandboxed)
 	nodeProcess = process;
-} else if (typeof _globals.vscode !== 'undefined') {
+} else if (typeof globals.vscode !== 'undefined') {
 	// Native environment (sandboxed)
-	nodeProcess = _globals.vscode.process;
+	nodeProcess = globals.vscode.process;
 }
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
@@ -82,6 +83,13 @@ export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck
 	return undefined;
 })();
 export const isPreferringBrowserCodeLoad = typeof browserCodeLoadingCacheStrategy === 'string';
+
+interface INavigator {
+	userAgent: string;
+	language: string;
+	maxTouchPoints?: number;
+}
+declare const navigator: INavigator;
 
 // Web environment
 if (typeof navigator === 'object' && !isElectronRenderer) {
@@ -197,10 +205,8 @@ export const locale = _locale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-export const globals: any = _globals;
-
 interface ISetImmediate {
-	(callback: (...args: any[]) => void): void;
+	(callback: (...args: unknown[]) => void): void;
 }
 
 export const setImmediate: ISetImmediate = (function defineSetImmediate() {
@@ -239,7 +245,7 @@ export const setImmediate: ISetImmediate = (function defineSetImmediate() {
 		return nodeProcess.nextTick.bind(nodeProcess);
 	}
 	const _promise = Promise.resolve();
-	return (callback: (...args: any[]) => void) => _promise.then(callback);
+	return (callback: (...args: unknown[]) => void) => _promise.then(callback);
 })();
 
 export const enum OperatingSystem {

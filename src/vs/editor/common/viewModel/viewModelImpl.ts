@@ -898,6 +898,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getCursorColumnSelectData(): IColumnSelectData {
 		return this._cursor.getCursorColumnSelectData();
 	}
+	public getCursorAutoClosedCharacters(): Range[] {
+		return this._cursor.getAutoClosedCharacters();
+	}
 	public setCursorColumnSelectData(columnSelectData: IColumnSelectData): void {
 		this._cursor.setCursorColumnSelectData(columnSelectData);
 	}

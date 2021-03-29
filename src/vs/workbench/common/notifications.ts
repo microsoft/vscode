@@ -280,10 +280,12 @@ export interface INotificationViewItem {
 	readonly silent: boolean;
 	readonly message: INotificationMessage;
 	readonly source: string | undefined;
+	readonly sourceId: string | undefined;
 	readonly actions: INotificationActions | undefined;
 	readonly progress: INotificationViewItemProgress;
 
 	readonly expanded: boolean;
+	readonly visible: boolean;
 	readonly canCollapse: boolean;
 	readonly hasProgress: boolean;
 
@@ -502,7 +504,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _sticky: boolean | undefined,
 		private _silent: boolean | undefined,
 		private _message: INotificationMessage,
-		private _source: string | undefined,
+		private _source: string | { label: string, id: string } | undefined,
 		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {
@@ -599,11 +601,19 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	}
 
 	get source(): string | undefined {
-		return this._source;
+		return typeof this._source === 'string' ? this._source : (this._source ? this._source.label : undefined);
+	}
+
+	get sourceId(): string | undefined {
+		return (this._source && typeof this._source !== 'string' && 'id' in this._source) ? this._source.id : undefined;
 	}
 
 	get actions(): INotificationActions | undefined {
 		return this._actions;
+	}
+
+	get visible(): boolean {
+		return this._visible;
 	}
 
 	updateSeverity(severity: Severity): void {

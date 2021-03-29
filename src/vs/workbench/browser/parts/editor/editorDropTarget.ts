@@ -12,7 +12,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { GroupDirection, IEditorGroupsService, MergeGroupMode, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -26,7 +26,6 @@ import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { ByteSize } from 'vs/platform/files/common/files';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -285,18 +284,17 @@ class DropOverlay extends Themable {
 					const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({
 						pinned: true,										// always pin dropped editor
 						sticky: sourceGroup.isSticky(draggedEditor.editor),	// preserve sticky state
-						override: EditorOverride.DISABLED 					// preserve editor type
 					}));
+
 					const copyEditor = this.isCopyOperation(event, draggedEditor);
-					targetGroup.openEditor(draggedEditor.editor, options, copyEditor ? OpenEditorContext.COPY_EDITOR : OpenEditorContext.MOVE_EDITOR);
+					if (!copyEditor) {
+						sourceGroup.moveEditor(draggedEditor.editor, targetGroup, options);
+					} else {
+						sourceGroup.copyEditor(draggedEditor.editor, targetGroup, options);
+					}
 
 					// Ensure target has focus
 					targetGroup.focus();
-
-					// Close in source group unless we copy
-					if (!copyEditor) {
-						sourceGroup.closeEditor(draggedEditor.editor);
-					}
 				}
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);

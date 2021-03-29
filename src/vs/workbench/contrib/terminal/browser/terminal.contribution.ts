@@ -125,7 +125,7 @@ if (platform.isWindows) {
 if (isIPad) {
 	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
 		when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS),
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_C
+		primary: KeyMod.WinCtrl | KeyCode.KEY_C
 	});
 }
 

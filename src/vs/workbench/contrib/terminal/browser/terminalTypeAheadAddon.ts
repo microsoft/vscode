@@ -32,15 +32,20 @@ const statsMinAccuracyToTurnOn = 0.3;
 const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * this`, turn off
 
 /**
- * Codes that should be omitted from sending to the prediction engine and
- * insted omitted directly:
- *  - cursor hide/show
- *  - mode set/reset
+ * Codes that should be omitted from sending to the prediction engine and instead omitted directly:
+ * - Hide cursor (DECTCEM): We wrap the local echo sequence in hide and show
+ *   CSI ? 2 5 l
+ * - Show cursor (DECTCEM): We wrap the local echo sequence in hide and show
+ *   CSI ? 2 5 h
+ * - Device Status Report (DSR): These sequence fire report events from xterm which could cause
+ *   double reporting and potentially a stack overflow (#119472)
+ *   CSI Ps n
+ *   CSI ? Ps n
  */
-const PREDICTION_OMIT_RE = /^(\x1b\[\??25[hl])+/;
+const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
 const core = (terminal: Terminal): XTermCore => (terminal as any)._core;
-const flushOutput = (terminal: Terminal) => core(terminal).writeSync('');
+const flushOutput = (terminal: Terminal) => core(terminal).writeSync('', 0);
 
 const enum CursorMoveDirection {
 	Back = 'D',
@@ -1330,10 +1335,8 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 	}
 
-	public reset(processManager: ITerminalProcessManager) {
+	public reset() {
 		this.lastRow = undefined;
-		this.processManager = processManager;
-		this._register(this.processManager.onBeforeProcessData(e => this.onBeforeProcessData(e)));
 	}
 
 	private deferClearingPredictions() {

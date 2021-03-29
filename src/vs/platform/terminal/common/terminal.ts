@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export enum WindowsShellType {
@@ -282,8 +282,17 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 }
 
+export interface IShellLaunchConfigDto {
+	name?: string;
+	executable?: string;
+	args?: string[] | string;
+	cwd?: string | UriComponents;
+	env?: ITerminalEnvironment;
+	hideFromUser?: boolean;
+}
+
 export interface ITerminalEnvironment {
-	[key: string]: string | null;
+	[key: string]: string | null | undefined;
 }
 
 export interface ITerminalLaunchError {
@@ -395,15 +404,15 @@ export interface ITerminalDimensions {
 	/**
 	 * The columns of the terminal.
 	 */
-	readonly cols: number;
+	cols: number;
 
 	/**
 	 * The rows of the terminal.
 	 */
-	readonly rows: number;
+	rows: number;
 }
 
-export interface ITerminalDimensionsOverride extends ITerminalDimensions {
+export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
 	/**
 	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
 	 */

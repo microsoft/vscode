@@ -39,23 +39,23 @@ function withWebview(accessor: ServicesAccessor, f: (webviewe: ElectronWebviewBa
 
 const PRIORITY = 105;
 
-UndoCommand.addImplementation(PRIORITY, accessor => {
+UndoCommand.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.undo());
 });
 
-RedoCommand.addImplementation(PRIORITY, accessor => {
+RedoCommand.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.redo());
 });
 
-CopyAction?.addImplementation(PRIORITY, accessor => {
+CopyAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.copy());
 });
 
-PasteAction?.addImplementation(PRIORITY, accessor => {
+PasteAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.paste());
 });
 
-CutAction?.addImplementation(PRIORITY, accessor => {
+CutAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.cut());
 });
 

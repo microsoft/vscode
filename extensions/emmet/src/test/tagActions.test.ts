@@ -16,7 +16,7 @@ import { mergeLines } from '../mergeLines';
 suite('Tests for Emmet actions on html tags', () => {
 	teardown(() => {
 		// close all editors
-		return closeAllEditors;
+		return closeAllEditors();
 	});
 
 	const contents = `

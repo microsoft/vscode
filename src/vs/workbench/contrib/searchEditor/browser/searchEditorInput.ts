@@ -311,7 +311,7 @@ export const getOrMakeSearchEditorInput = (
 	const input = instantiationService.createInstance(SearchEditorInput, modelUri, existingData.backingUri, model);
 
 	inputs.set(cacheKey, input);
-	input.onDispose(() => inputs.delete(cacheKey));
+	input.onWillDispose(() => inputs.delete(cacheKey));
 
 	return input;
 };
