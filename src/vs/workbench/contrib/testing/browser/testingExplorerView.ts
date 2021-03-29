@@ -869,16 +869,20 @@ const getTestItemActions = (
 
 	try {
 		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
 		const running = element.state === TestResult.Running;
 		if (!Iterable.isEmpty(element.runnable)) {
-			primary.push(instantionService.createInstance(RunAction, element.runnable, running));
+			const run = instantionService.createInstance(RunAction, element.runnable, running);
+			primary.push(run);
+			secondary.push(run);
 		}
 
 		if (!Iterable.isEmpty(element.debuggable)) {
-			primary.push(instantionService.createInstance(DebugAction, element.debuggable, running));
+			const debug = instantionService.createInstance(DebugAction, element.debuggable, running);
+			primary.push(debug);
+			secondary.push(debug);
 		}
 
-		const secondary: IAction[] = [];
 		if (element.test) {
 			secondary.push(instantionService.createInstance(HideOrShowTestAction, element.test.item.extId));
 		}
