@@ -59,9 +59,6 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 				return defaultData;
 			}
 		},
-		resolveNotebook: async (_document: vscode.NotebookDocument) => {
-			return;
-		},
 		saveNotebook: async (document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			const notebookData: vscode.NotebookData = {
 				metadata: document.metadata,
