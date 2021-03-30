@@ -105,7 +105,7 @@ suite('RipgrepTextSearchEngine', () => {
 			inputData.forEach(d => testParser.handleData(d));
 			testParser.flush();
 
-			assert.deepEqual(actualResults, expectedResults);
+			assert.deepStrictEqual(actualResults, expectedResults);
 		}
 
 		function makeRgMatch(relativePath: string, text: string, lineNumber: number, matchRanges: { start: number, end: number }[]): string {

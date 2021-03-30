@@ -329,7 +329,7 @@ suite('NotebookTextModel', () => {
 
 				assert.notStrictEqual(changeEvent, undefined);
 				assert.strictEqual(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
 				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
@@ -363,7 +363,7 @@ suite('NotebookTextModel', () => {
 
 				assert.notStrictEqual(changeEvent, undefined);
 				assert.strictEqual(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
 				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}

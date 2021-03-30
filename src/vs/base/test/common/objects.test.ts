@@ -86,7 +86,7 @@ suite('Objects', () => {
 			o1: o1,
 			o2: o1
 		};
-		assert.deepEqual(objects.cloneAndChange(o, () => { }), o);
+		assert.deepStrictEqual(objects.cloneAndChange(o, () => { }), o);
 	});
 
 	test('safeStringify', () => {
@@ -121,7 +121,7 @@ suite('Objects', () => {
 
 		let result = objects.safeStringify(circular);
 
-		assert.deepEqual(JSON.parse(result), {
+		assert.deepStrictEqual(JSON.parse(result), {
 			a: 42,
 			b: '[Circular]',
 			c: [

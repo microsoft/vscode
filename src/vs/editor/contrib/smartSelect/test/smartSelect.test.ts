@@ -77,7 +77,7 @@ suite('SmartSelect', () => {
 		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
 
-		assert.deepEqual(actualStr, desiredStr, `\nA: ${actualStr} VS \nE: ${desiredStr}`);
+		assert.deepStrictEqual(actualStr, desiredStr, `\nA: ${actualStr} VS \nE: ${desiredStr}`);
 		modelService.destroyModel(uri);
 	}
 

@@ -141,11 +141,12 @@ suite('CodeActionModel', () => {
 
 				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
 				const selection = <Selection>e.rangeOrSelection;
-				assert.deepEqual(selection.selectionStartLineNumber, 1);
-				assert.deepEqual(selection.selectionStartColumn, 1);
-				assert.deepEqual(selection.endLineNumber, 4);
-				assert.deepEqual(selection.endColumn, 1);
-				assert.deepEqual(e.position, { lineNumber: 3, column: 1 });
+				assert.strictEqual(selection.selectionStartLineNumber, 1);
+				assert.strictEqual(selection.selectionStartColumn, 1);
+				assert.strictEqual(selection.endLineNumber, 4);
+				assert.strictEqual(selection.endColumn, 1);
+				assert.strictEqual(e.position.lineNumber, 3);
+				assert.strictEqual(e.position.column, 1);
 				model.dispose();
 				resolve(undefined);
 			}, 5));

@@ -129,7 +129,7 @@ suite('CodeAction', () => {
 
 		const { validActions: actions } = await getCodeActions(model, new Range(1, 1, 2, 1), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 6);
-		assert.deepEqual(actions, expected);
+		assert.deepStrictEqual(actions, expected);
 	});
 
 	test('getCodeActions should filter by scope', async function () {

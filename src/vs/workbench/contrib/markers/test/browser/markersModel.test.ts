@@ -182,8 +182,8 @@ suite('MarkersModel Test', () => {
 
 		assert.strictEqual(model.total, 3);
 		const markers = model.getResourceMarkers(document)?.markers;
-		assert.deepEqual(markers?.map(m => m.marker.severity), [MarkerSeverity.Error, MarkerSeverity.Error, MarkerSeverity.Warning]);
-		assert.deepEqual(markers?.map(m => m.marker.resource.toString()), [frag1.toString(), frag2.toString(), frag1.toString()]);
+		assert.deepStrictEqual(markers?.map(m => m.marker.severity), [MarkerSeverity.Error, MarkerSeverity.Error, MarkerSeverity.Warning]);
+		assert.deepStrictEqual(markers?.map(m => m.marker.resource.toString()), [frag1.toString(), frag2.toString(), frag1.toString()]);
 	});
 
 	function compareResource(a: ResourceMarkers, b: string): boolean {

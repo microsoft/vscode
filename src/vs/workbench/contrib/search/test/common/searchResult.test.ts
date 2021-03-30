@@ -241,7 +241,7 @@ suite('SearchResult', () => {
 		testObject.remove(objectToRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
+		assert.deepStrictEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
 	});
 
 	test('remove array triggers change event', function () {
@@ -258,7 +258,7 @@ suite('SearchResult', () => {
 		testObject.remove(arrayToRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{ elements: arrayToRemove, removed: true }], target.args[0]);
+		assert.deepStrictEqual([{ elements: arrayToRemove, removed: true }], target.args[0]);
 	});
 
 	test('remove triggers change event', function () {
@@ -273,7 +273,7 @@ suite('SearchResult', () => {
 		testObject.remove(objectToRemove);
 
 		assert.ok(target.calledOnce);
-		assert.deepEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
+		assert.deepStrictEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
 	});
 
 	test('Removing all line matches and adding back will add file back to result', function () {
@@ -320,7 +320,7 @@ suite('SearchResult', () => {
 
 		return voidPromise.then(() => {
 			assert.ok(target.calledOnce);
-			assert.deepEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
+			assert.deepStrictEqual([{ elements: [objectToRemove], removed: true }], target.args[0]);
 		});
 	});
 

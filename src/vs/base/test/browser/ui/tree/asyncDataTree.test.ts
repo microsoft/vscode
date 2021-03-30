@@ -422,7 +422,7 @@ suite('AsyncDataTree', function () {
 
 		await tree.setInput(model.root);
 		await tree.expand(model.get('a'));
-		assert.deepEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b1']);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b1']);
 
 		const a = model.get('a');
 		const b = model.get('b');
@@ -433,6 +433,6 @@ suite('AsyncDataTree', function () {
 			tree.updateChildren(b, true, true)
 		]);
 
-		assert.deepEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
 	});
 });

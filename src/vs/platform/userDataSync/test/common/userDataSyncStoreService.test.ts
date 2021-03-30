@@ -63,7 +63,7 @@ suite('UserDataSyncStoreManagementService', () => {
 
 		assert.strictEqual(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
 		assert.strictEqual(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
-		assert.deepEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
+		assert.deepStrictEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
 	});
 
 });
@@ -388,7 +388,7 @@ suite('UserDataSyncStoreService', () => {
 			assert.fail('should fail');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncStoreError);
-			assert.deepEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
+			assert.deepStrictEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
 			await promise;
 			assert.ok(!!testObject.donotMakeRequestsUntil);
 		}

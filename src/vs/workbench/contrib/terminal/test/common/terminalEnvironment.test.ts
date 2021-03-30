@@ -126,7 +126,7 @@ suite('Workbench - TerminalEnvironment', () => {
 				c: 'd'
 			};
 			mergeEnvironments(parent, other);
-			assert.deepEqual(parent, {
+			assert.deepStrictEqual(parent, {
 				a: 'b',
 				c: 'd'
 			});
@@ -140,7 +140,7 @@ suite('Workbench - TerminalEnvironment', () => {
 				A: 'c'
 			};
 			mergeEnvironments(parent, other);
-			assert.deepEqual(parent, {
+			assert.deepStrictEqual(parent, {
 				a: 'c'
 			});
 		});
@@ -154,7 +154,7 @@ suite('Workbench - TerminalEnvironment', () => {
 				a: null
 			};
 			mergeEnvironments(parent, other);
-			assert.deepEqual(parent, {
+			assert.deepStrictEqual(parent, {
 				c: 'd'
 			});
 		});
@@ -168,7 +168,7 @@ suite('Workbench - TerminalEnvironment', () => {
 				A: null
 			};
 			mergeEnvironments(parent, other);
-			assert.deepEqual(parent, {
+			assert.deepStrictEqual(parent, {
 				c: 'd'
 			});
 		});

@@ -30,7 +30,7 @@ function assertValidParse(input: string, expected: any, options?: ParseOptions):
 	if (errors.length !== 0) {
 		assert(false, getParseErrorMessage(errors[0].error));
 	}
-	assert.deepEqual(actual, expected);
+	assert.deepStrictEqual(actual, expected);
 }
 
 function assertInvalidParse(input: string, expected: any, options?: ParseOptions): void {
@@ -38,14 +38,14 @@ function assertInvalidParse(input: string, expected: any, options?: ParseOptions
 	let actual = parse(input, errors, options);
 
 	assert(errors.length > 0);
-	assert.deepEqual(actual, expected);
+	assert.deepStrictEqual(actual, expected);
 }
 
 function assertTree(input: string, expected: any, expectedErrors: number[] = [], options?: ParseOptions): void {
 	let errors: ParseError[] = [];
 	let actual = parseTree(input, errors, options);
 
-	assert.deepEqual(errors.map(e => e.error, expected), expectedErrors);
+	assert.deepStrictEqual(errors.map(e => e.error, expected), expectedErrors);
 	let checkParent = (node: Node) => {
 		if (node.children) {
 			for (let child of node.children) {
@@ -57,7 +57,7 @@ function assertTree(input: string, expected: any, expectedErrors: number[] = [],
 	};
 	checkParent(actual);
 
-	assert.deepEqual(actual, expected);
+	assert.deepStrictEqual(actual, expected);
 }
 
 suite('JSON', () => {

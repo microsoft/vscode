@@ -12,7 +12,7 @@ suite('IssueReporter', () => {
 
 	test('sets defaults to include all data', () => {
 		const issueReporterModel = new IssueReporterModel();
-		assert.deepEqual(issueReporterModel.getData(), {
+		assert.deepStrictEqual(issueReporterModel.getData(), {
 			allExtensions: [],
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,

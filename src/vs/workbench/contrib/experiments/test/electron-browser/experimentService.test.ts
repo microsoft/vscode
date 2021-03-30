@@ -444,7 +444,7 @@ suite('Experiment Service', () => {
 		let rec = getCurrentActivationRecord();
 
 		// good default:
-		assert.deepEqual(rec, {
+		assert.deepStrictEqual(rec, {
 			count: [0, 0, 0, 0, 0, 0, 0],
 			mostRecentBucket: Date.now(),
 		});
@@ -454,7 +454,7 @@ suite('Experiment Service', () => {
 		rec = getCurrentActivationRecord(rec);
 
 		// does not advance unnecessarily
-		assert.deepEqual(getCurrentActivationRecord(rec), {
+		assert.deepStrictEqual(getCurrentActivationRecord(rec), {
 			count: [1, 0, 0, 0, 0, 0, 0],
 			mostRecentBucket: Date.now() - 1,
 		});
@@ -462,7 +462,7 @@ suite('Experiment Service', () => {
 		// advances time
 		timers.tick(oneDay * 3);
 		rec = getCurrentActivationRecord(rec);
-		assert.deepEqual(getCurrentActivationRecord(rec), {
+		assert.deepStrictEqual(getCurrentActivationRecord(rec), {
 			count: [0, 0, 0, 1, 0, 0, 0],
 			mostRecentBucket: Date.now() - 1,
 		});
@@ -471,7 +471,7 @@ suite('Experiment Service', () => {
 		timers.tick(oneDay * 4);
 		rec.count[0] = 2;
 		rec = getCurrentActivationRecord(rec);
-		assert.deepEqual(getCurrentActivationRecord(rec), {
+		assert.deepStrictEqual(getCurrentActivationRecord(rec), {
 			count: [0, 0, 0, 0, 2, 0, 0],
 			mostRecentBucket: Date.now() - 1,
 		});
@@ -504,7 +504,7 @@ suite('Experiment Service', () => {
 			if (key.includes('experimentEventRecord')) {
 				didGetCall = true;
 				assert.strictEqual(key, 'experimentEventRecord-my-event');
-				assert.deepEqual(JSON.parse(value).count, [1, 0, 10, 0, 0, 0, 0]);
+				assert.deepStrictEqual(JSON.parse(value).count, [1, 0, 10, 0, 0, 0, 0]);
 				assert.strictEqual(scope, StorageScope.GLOBAL);
 			}
 		});
