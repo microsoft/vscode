@@ -258,7 +258,7 @@ suite('Notebook API tests', function () {
 		testDisposables.length = 0;
 	});
 
-	test.only('shared document in notebook editors', async function () {
+	test('shared document in notebook editors', async function () {
 		const resource = await createRandomFile(undefined, undefined, '.vsctestnb');
 		let counter = 0;
 		const disposables: vscode.Disposable[] = [];

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-suite('Notebook Editor', function () {
+suite.skip('Notebook Editor', function () {
 
 	const contentProvider = new class implements vscode.NotebookContentProvider {
 		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
@@ -47,7 +47,7 @@ suite('Notebook Editor', function () {
 	});
 
 
-	test.skip('showNotebookDocment', async function () {
+	test('showNotebookDocment', async function () {
 
 		const count1 = vscode.notebook.notebookDocuments.length;
 
