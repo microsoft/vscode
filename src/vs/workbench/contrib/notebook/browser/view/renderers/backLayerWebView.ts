@@ -25,6 +25,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as nls from 'vs/nls';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -425,6 +426,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-ms-user-select: none;
 						white-space: initial;
 						cursor: grab;
+					}
+
+					#container > div > div.preview.emptyMarkdownCell::before {
+						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
+						font-style: italic;
+						opacity: 0.6;
 					}
 
 					/* markdown */

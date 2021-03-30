@@ -751,22 +751,9 @@ function webviewPreloads() {
 		const previewNode = document.createElement('div');
 		previewContainerNode.appendChild(previewNode);
 
-		// TODO: handle namespace
-		onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-			element: previewNode,
-			content: content
-		}]);
+		updateMarkdownPreview(cellId, content);
 
 		resizeObserve(previewContainerNode, `${cellId}_preview`, false);
-
-		postNotebookMessage<IDimensionMessage>('dimension', {
-			id: `${cellId}_preview`,
-			init: true,
-			data: {
-				height: previewContainerNode.clientHeight,
-			},
-			isOutput: false
-		});
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -788,10 +775,16 @@ function webviewPreloads() {
 
 		// TODO: handle namespace
 		if (typeof content === 'string') {
-			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-				element: previewContainerNode,
-				content: content
-			}]);
+			if (content.trim().length === 0) {
+				previewContainerNode.classList.add('emptyMarkdownCell');
+				previewContainerNode.innerText = '';
+			} else {
+				previewContainerNode.classList.remove('emptyMarkdownCell');
+				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+					element: previewContainerNode,
+					content: content
+				}]);
+			}
 		}
 
 		postNotebookMessage<IDimensionMessage>('dimension', {
