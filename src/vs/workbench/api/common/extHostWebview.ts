@@ -128,7 +128,7 @@ export function shouldSerializeBuffersForPostMessage(extension: IExtensionDescri
 
 	try {
 		const version = normalizeVersion(parseVersion(extension.engines.vscode));
-		return !!version && version.majorBase >= 1 && version.minorBase >= 55;
+		return !!version && version.majorBase >= 1 && version.minorBase >= 56;
 	} catch {
 		return false;
 	}
