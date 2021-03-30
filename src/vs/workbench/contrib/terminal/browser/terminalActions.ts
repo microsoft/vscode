@@ -133,13 +133,13 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
-				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal With Profile"), original: 'Create New Integrated Terminal With Profile' },
+				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
 				f1: true,
 				category,
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).selectDefaultProfile(true);
+			await accessor.get(ITerminalService).showProfileQuickPick('createInstance');
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1358,7 +1358,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).selectDefaultProfile();
+			await accessor.get(ITerminalService).showProfileQuickPick('setDefault');
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1466,7 +1466,7 @@ export function registerTerminalActions() {
 			}
 			if (item === selectDefaultProfileTitle) {
 				terminalService.refreshActiveTab();
-				return terminalService.selectDefaultProfile();
+				return terminalService.showProfileQuickPick('setDefault');
 			}
 			if (item === configureTerminalSettingsTitle) {
 				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
