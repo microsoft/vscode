@@ -547,10 +547,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
-		if (this.environmentService.remoteAuthority) {
-			return this._taskSystemInfos.get(key);
-		}
-		return undefined;
+		return this._taskSystemInfos.get(key);
 	}
 
 	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
