@@ -116,7 +116,9 @@ const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, fail
 	}
 
 	if (running) {
-		if (skipped === 0) {
+		if (runSoFar === 0) {
+			return localize('testProgress.runningInitial', 'Running {0} tests...', totalWillBeRun, passed, runSoFar, percent.toPrecision(3));
+		} else if (skipped === 0) {
 			return localize('testProgress.running', 'Running {0} tests, {1}/{2} passed ({3}%)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3));
 		} else {
 			return localize('testProgressWithSkip.running', 'Running {0} tests, {1}/{2} tests passed ({3}%, {4} skipped)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3), skipped);
