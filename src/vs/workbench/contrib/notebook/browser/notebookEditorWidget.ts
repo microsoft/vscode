@@ -1772,21 +1772,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	private _nearestCodeCellIndex(index: number /* exclusive */, direction: 'above' | 'below') {
+	private _nearestCodeCellIndex(index: number /* exclusive */) {
 		if (!this.viewModel) {
 			return -1;
 		}
 
-		const nearest = this.viewModel.viewCells.slice(0, index).reverse().findIndex(cell => cell.cellKind === CellKind.Code);
-		if (nearest > -1) {
-			return index - nearest - 1;
-		} else {
-			const nearestCellTheOtherDirection = this.viewModel.viewCells.slice(index + 1).findIndex(cell => cell.cellKind === CellKind.Code);
-			if (nearestCellTheOtherDirection > -1) {
-				return index + nearestCellTheOtherDirection;
-			}
-			return -1;
-		}
+		return this.viewModel.nearestCodeCellIndex(index);
 	}
 
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = '', ui: boolean = false): CellViewModel | null {
@@ -1807,7 +1798,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (cell?.cellKind === CellKind.Code) {
 				language = cell.language;
 			} else if (cell?.cellKind === CellKind.Markdown) {
-				const nearestCodeCellIndex = this._nearestCodeCellIndex(index, direction);
+				const nearestCodeCellIndex = this._nearestCodeCellIndex(index);
 				if (nearestCodeCellIndex > -1) {
 					language = this.viewModel.viewCells[nearestCodeCellIndex].language;
 				} else {

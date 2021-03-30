@@ -395,3 +395,43 @@ suite('NotebookViewModel Decorations', () => {
 
 	});
 });
+
+suite('NotebookViewModel API', () => {
+	test('#115432, get nearest code cell', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['b = 2;', 'python', CellKind.Code, [], {}],
+				['var c = 3', 'javascript', CellKind.Code, [], {}],
+				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['var e = 4;', 'TypeScript', CellKind.Code, [], {}],
+				['# header f', 'markdown', CellKind.Markdown, [], {}]
+			],
+			(editor) => {
+				const viewModel = editor.viewModel;
+				assert.strictEqual(viewModel.nearestCodeCellIndex(0), 1);
+				// find the nearest code cell from above
+				assert.strictEqual(viewModel.nearestCodeCellIndex(2), 1);
+				assert.strictEqual(viewModel.nearestCodeCellIndex(4), 3);
+				assert.strictEqual(viewModel.nearestCodeCellIndex(5), 4);
+				assert.strictEqual(viewModel.nearestCodeCellIndex(6), 4);
+			}
+		);
+	});
+
+	test('#108464, get nearest code cell', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markdown, [], {}]
+			],
+			(editor) => {
+				const viewModel = editor.viewModel;
+				assert.strictEqual(viewModel.nearestCodeCellIndex(2), 1);
+			}
+		);
+	});
+});
