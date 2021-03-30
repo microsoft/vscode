@@ -1048,17 +1048,35 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly version: number;
 
+		/** @deprecated Use `uri` instead */
 		// todo@API don't have this...
 		readonly fileName: string;
 
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
-		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * `true` if the notebook has been closed. A closed notebook isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
 
 		readonly metadata: NotebookDocumentMetadata;
 
 		// todo@API should we really expose this?
 		readonly viewType: string;
+
+		/** @deprecated Use `getCells(<...>) instead */
+		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * Get the cells of this notebook. A subset can be retrieved by providing
+		 * a range. The range will be adjuset to the notebook.
+		 *
+		 * @param range A notebook range.
+		 * @returns The cells contained by the range or all cells.
+		 */
+		getCells(range?: NotebookCellRange): ReadonlyArray<NotebookCell>;
 
 		/**
 		 * Save the document. The saving will be handled by the corresponding content provider
@@ -1070,6 +1088,7 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 	}
 
+	// todo@API RENAME to NotebookRange
 	// todo@API maybe have a NotebookCellPosition sibling
 	export class NotebookCellRange {
 		readonly start: number;
@@ -1081,6 +1100,8 @@ declare module 'vscode' {
 		readonly isEmpty: boolean;
 
 		constructor(start: number, end: number);
+
+		with(change: { start?: number, end?: number }): NotebookCellRange;
 	}
 
 	export enum NotebookEditorRevealType {
@@ -1434,13 +1455,6 @@ declare module 'vscode' {
 
 		readonly options?: NotebookDocumentContentOptions;
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
-
-		// todo@API remove! against separation of data provider and renderer
-		/**
-		 * @deprecated
-		 */
-		// eslint-disable-next-line vscode-dts-cancellation
-		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
 
 		/**
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
@@ -2366,7 +2380,7 @@ declare module 'vscode' {
 		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
-		 * automatically re-run after a short delay. Invoking this on a
+		 * automatically rerun after a short delay. Invoking this on a
 		 * test with children will mark the entire subtree as outdated.
 		 *
 		 * Extensions should generally not override this method.

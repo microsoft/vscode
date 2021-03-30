@@ -189,7 +189,7 @@ suite('Marker Service', () => {
 			endLineNumber: 1,
 			endColumn: 5,
 			message: 'test',
-			severity: 0,
+			severity: 0 as MarkerSeverity,
 			source: 'me'
 		};
 		let service = new markerService.MarkerService();

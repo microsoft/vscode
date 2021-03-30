@@ -33,7 +33,7 @@ suite('File Service', () => {
 			capabilityChanges.push(e);
 		});
 
-		let registrationDisposable: IDisposable | undefined = undefined;
+		let registrationDisposable: IDisposable | undefined;
 		let callCount = 0;
 		service.onWillActivateFileSystemProvider(e => {
 			callCount++;

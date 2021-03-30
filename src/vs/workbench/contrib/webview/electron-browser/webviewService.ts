@@ -27,7 +27,7 @@ export class ElectronWebviewService extends WebviewService {
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement {
-		const useIframes = this._configService.getValue<string>('webview.experimental.useIframes');
+		const useIframes = this._configService.getValue<string>('webview.experimental.useIframes') ?? !options.enableFindWidget;
 		const webview = this._instantiationService.createInstance(useIframes ? ElectronIframeWebview : ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		this.addWebviewListeners(webview);
 		return webview;

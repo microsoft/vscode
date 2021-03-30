@@ -94,9 +94,13 @@ class IPCRunner extends events.EventEmitter {
 		super();
 
 		this.didFail = false;
+		this.didEnd = false;
 
 		ipcMain.on('start', () => this.emit('start'));
-		ipcMain.on('end', () => this.emit('end'));
+		ipcMain.on('end', () => {
+			this.didEnd = true;
+			this.emit('end');
+		});
 		ipcMain.on('suite', (e, suite) => this.emit('suite', deserializeSuite(suite)));
 		ipcMain.on('suite end', (e, suite) => this.emit('suite end', deserializeSuite(suite)));
 		ipcMain.on('test', (e, test) => this.emit('test', deserializeRunnable(test)));
@@ -153,6 +157,14 @@ app.on('ready', () => {
 
 	const runner = new IPCRunner();
 	createStatsCollector(runner);
+
+	// Handle renderer crashes, #117068
+	win.webContents.on('render-process-gone', (evt, details) => {
+		if (!runner.didEnd) {
+			console.error(`Renderer process crashed with: ${JSON.stringify(details)}`);
+			app.exit(1);
+		}
+	});
 
 	if (argv.tfs) {
 		new mocha.reporters.Spec(runner);
