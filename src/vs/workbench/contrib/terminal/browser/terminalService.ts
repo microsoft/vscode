@@ -905,8 +905,8 @@ export class TerminalService implements ITerminalService {
 			} else {
 				instance = this.createTerminal(launchConfig);
 			}
-			this.showPanel(true);
 			if (instance) {
+				this.showPanel(true);
 				this.setActiveInstance(instance);
 			}
 		} else {
