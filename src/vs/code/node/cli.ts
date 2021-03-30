@@ -14,7 +14,7 @@ import product from 'vs/platform/product/common/product';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isString } from 'vs/base/common/types';
 import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
@@ -116,7 +116,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Just Code
 	else {
-		const env: NodeJS.ProcessEnv = {
+		const env: IProcessEnvironment = {
 			...process.env,
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		};
