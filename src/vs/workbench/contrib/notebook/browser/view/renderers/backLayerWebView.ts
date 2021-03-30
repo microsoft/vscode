@@ -25,6 +25,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as nls from 'vs/nls';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -427,6 +428,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						cursor: grab;
 					}
 
+					#container > div > div.preview.emptyMarkdownCell::before {
+						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
+						font-style: italic;
+						opacity: 0.6;
+					}
+
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
@@ -793,7 +800,8 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined }) => {
+		this._register(this.webview.onMessage((message) => {
+			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {
 				return;
 			}
@@ -1013,7 +1021,8 @@ var requirejs = (function() {
 			resolveFunc = resolve;
 		});
 
-		const dispose = webview.onMessage((data: FromWebviewMessage) => {
+		const dispose = webview.onMessage((message) => {
+			const data: FromWebviewMessage = message.message;
 			if (data.__vscode_notebook_message && data.type === 'initialized') {
 				resolveFunc();
 				dispose.dispose();
@@ -1223,7 +1232,7 @@ var requirejs = (function() {
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
 			this.webview?.onMessage(e => {
-				if (e.type === 'initializedMarkdownPreview') {
+				if (e.message.type === 'initializedMarkdownPreview') {
 					resolve();
 				}
 			});

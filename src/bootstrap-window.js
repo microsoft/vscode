@@ -39,14 +39,16 @@
 	 */
 	function load(modulePaths, resultCallback, options) {
 
-		// Apply zoom level early to avoid glitches
-		const zoomLevel = configuration.zoomLevel;
-		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-			webFrame.setZoomLevel(zoomLevel);
-		}
+		// Apply zoom level early before even building the
+		// window DOM elements to avoid UI flicker. We always
+		// have to set the zoom level from within the window
+		// because Chrome has it's own way of remembering zoom
+		// settings per origin (if vscode-file:// is used) and
+		// we want to ensure that the user configuration wins.
+		webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
 
 		// Error handler
-		safeProcess.on('uncaughtException', function (error) {
+		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
 			onUnexpectedError(error, enableDeveloperTools);
 		});
 
@@ -183,6 +185,7 @@
 	 * is passed into the URL from the `electron-main` side.
 	 *
 	 * @returns {{
+	 * isInitialStartup?: boolean,
 	 * zoomLevel?: number,
 	 * extensionDevelopmentPath?: string[],
 	 * extensionTestsPath?: string,

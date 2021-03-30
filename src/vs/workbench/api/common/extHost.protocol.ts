@@ -671,10 +671,39 @@ export interface CustomTextEditorCapabilities {
 	readonly supportsMove?: boolean;
 }
 
+export const enum WebviewMessageArrayBufferViewType {
+	Int8Array = 1,
+	Uint8Array = 2,
+	Uint8ClampedArray = 3,
+	Int16Array = 4,
+	Uint16Array = 5,
+	Int32Array = 6,
+	Uint32Array = 7,
+	Float32Array = 8,
+	Float64Array = 9,
+	BigInt64Array = 10,
+	BigUint64Array = 11,
+}
+
+export interface WebviewMessageArrayBufferReference {
+	readonly $$vscode_array_buffer_reference$$: true,
+
+	readonly index: number;
+
+	/**
+	 * Tracks if the reference is to a view instead of directly to an ArrayBuffer.
+	 */
+	readonly view?: {
+		readonly type: WebviewMessageArrayBufferViewType;
+		readonly byteLength: number;
+		readonly byteOffset: number;
+	};
+}
+
 export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewHandle, value: string): void;
 	$setOptions(handle: WebviewHandle, options: IWebviewOptions): void;
-	$postMessage(handle: WebviewHandle, value: any): Promise<boolean>
+	$postMessage(handle: WebviewHandle, value: any, ...buffers: VSBuffer[]): Promise<boolean>
 }
 
 export interface MainThreadWebviewPanelsShape extends IDisposable {
@@ -686,6 +715,7 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 			title: string;
 			webviewOptions: IWebviewOptions;
 			panelOptions: IWebviewPanelOptions;
+			serializeBuffersForPostMessage: boolean;
 		},
 		showOptions: WebviewPanelShowOptions,
 	): void;
@@ -694,13 +724,13 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 	$setTitle(handle: WebviewHandle, value: string): void;
 	$setIconPath(handle: WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void;
 
-	$registerSerializer(viewType: string): void;
+	$registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void;
 	$unregisterSerializer(viewType: string): void;
 }
 
 export interface MainThreadCustomEditorsShape extends IDisposable {
-	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities): void;
-	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean): void;
+	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomTextEditorCapabilities, serializeBuffersForPostMessage: boolean): void;
+	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
@@ -708,7 +738,7 @@ export interface MainThreadCustomEditorsShape extends IDisposable {
 }
 
 export interface MainThreadWebviewViewsShape extends IDisposable {
-	$registerWebviewViewProvider(extension: WebviewExtensionDescription, viewType: string, options?: { retainContextWhenHidden?: boolean }): void;
+	$registerWebviewViewProvider(extension: WebviewExtensionDescription, viewType: string, options: { retainContextWhenHidden?: boolean, serializeBuffersForPostMessage: boolean }): void;
 	$unregisterWebviewViewProvider(viewType: string): void;
 
 	$setWebviewViewTitle(handle: WebviewHandle, value: string | undefined): void;
@@ -726,7 +756,7 @@ export interface WebviewPanelViewStateData {
 }
 
 export interface ExtHostWebviewsShape {
-	$onMessage(handle: WebviewHandle, message: any): void;
+	$onMessage(handle: WebviewHandle, jsonSerializedMessage: string, ...buffers: VSBuffer[]): void;
 	$onMissingCsp(handle: WebviewHandle, extensionId: string): void;
 }
 

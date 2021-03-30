@@ -463,12 +463,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			webComm = new ExtHostWebviewCommWrapper(editorId, revivedUri, this._proxy, this._webviewInitData, document);
 			this._webviewComm.set(editorId, webComm);
 		}
-
-		if (!provider.provider.resolveNotebook) {
-			return;
-		}
-
-		await provider.provider.resolveNotebook(document.notebookDocument, webComm.contentProviderComm);
 	}
 
 	async $executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellRange: ICellRange[]): Promise<void> {

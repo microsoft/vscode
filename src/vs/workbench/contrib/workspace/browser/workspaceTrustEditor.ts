@@ -6,33 +6,40 @@
 import { $, append, clearNode, Dimension, EventHelper } from 'vs/base/browser/dom';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
+import { splitName } from 'vs/base/common/labels';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
+import { Schemas } from 'vs/base/common/network';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionWorkspaceTrustRequirement, getExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
+import { trustedForegroundColor, trustEditorTileBackgroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -79,6 +86,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IDialogService private readonly dialogService: IDialogService
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
@@ -198,44 +206,81 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.headerContainer.className = this.getHeaderContainerClass(model.currentWorkspaceTrustState);
 
+		// Buttons
 		clearNode(this.headerButtons);
-		const buttonBar = this.rerenderDisposables.add(new ButtonBar(this.headerButtons));
+		const workspaceFolders = this.workspaceService.getWorkspace().folders;
 
-		const createButton = (label: string, enabled: boolean, callback: () => void) => {
-			const button = buttonBar.addButton();
-			button.label = label;
-			button.enabled = enabled;
-			this.rerenderDisposables.add(button.onDidClick(e => {
-				if (e) {
-					EventHelper.stop(e);
+		if (workspaceFolders.length) {
+			const buttonBar = this.rerenderDisposables.add(new ButtonBar(this.headerButtons));
+
+			const createButton = (action: Action, enabled?: boolean) => {
+
+				const button =
+					action instanceof ChoiceAction && action.menu?.length ?
+						buttonBar.addButtonWithDropdown({
+							title: true,
+							actions: action.menu ?? [],
+							contextMenuProvider: this.contextMenuService
+						}) :
+						buttonBar.addButton();
+
+				button.label = action.label;
+				button.enabled = enabled !== undefined ? enabled : action.enabled;
+
+				this.rerenderDisposables.add(button.onDidClick(e => {
+					if (e) {
+						EventHelper.stop(e, true);
+					}
+
+					action.run();
+				}));
+
+				this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
+			};
+
+			const setTrustState = async (state: WorkspaceTrustState, uris?: URI[]) => {
+				if (state !== WorkspaceTrustState.Trusted) {
+					const message = localize('workspaceTrustTransitionMessage', "Deny Workspace Trust");
+					const detail = localize('workspaceTrustTransitionDetail', "In order to safely complete this action, all affected windows will have to be reloaded. Are you sure you want to proceed with this action?");
+					const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
+					const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
+
+					const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
+					if (!result.confirmed) {
+						return;
+					}
 				}
 
-				callback();
-			}));
+				(uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri)).forEach(uri => {
+					this.workspaceTrustEditorModel.dataModel.setFolderTrustState(uri, state);
+				});
+			};
 
-			this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
-		};
 
-		const setTrustState = async (state: WorkspaceTrustState) => {
-			if (state !== WorkspaceTrustState.Trusted) {
-				const message = localize('workspaceTrustTransitionMessage', "Deny Workspace Trust");
-				const detail = localize('workspaceTrustTransitionDetail', "In order to safely complete this action, all affected windows will have to be reloaded. Are you sure you want to proceed with this action?");
-				const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
-				const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
+			const trustChoiceWithMenu: IPromptChoiceWithMenu = {
+				isSecondary: false,
+				label: localize('trustButton', "Trust"),
+				menu: [],
+				run: () => {
+					setTrustState(WorkspaceTrustState.Trusted);
+				}
+			};
 
-				const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
-				if (!result.confirmed) {
-					return;
+			if (workspaceFolders.length === 1 && workspaceFolders[0].uri.scheme === Schemas.file) {
+				const { parentPath } = splitName(workspaceFolders[0].uri.fsPath);
+				if (parentPath) {
+					trustChoiceWithMenu.menu.push({
+						label: localize('trustParentButton', "Trust Parent"),
+						run: () => {
+							setTrustState(WorkspaceTrustState.Trusted, [URI.file(parentPath)]);
+						}
+					});
 				}
 			}
 
-			this.workspaceService.getWorkspace().folders.forEach(folder => {
-				this.workspaceTrustEditorModel.dataModel.setFolderTrustState(folder.uri, state);
-			});
-		};
-
-		createButton(localize('trustButton', "Trust"), model.currentWorkspaceTrustState !== WorkspaceTrustState.Trusted, () => setTrustState(WorkspaceTrustState.Trusted));
-		createButton(localize('doNotTrustButton', "Don't Trust"), model.currentWorkspaceTrustState !== WorkspaceTrustState.Untrusted, () => setTrustState(WorkspaceTrustState.Untrusted));
+			createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), model.currentWorkspaceTrustState !== WorkspaceTrustState.Trusted);
+			createButton(new Action('workspace.trust.button.deny', localize('doNotTrustButton', "Don't Trust"), undefined, model.currentWorkspaceTrustState !== WorkspaceTrustState.Untrusted, async () => { setTrustState(WorkspaceTrustState.Untrusted); }));
+		}
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
@@ -337,11 +382,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		if (this.workspaceTrustEditorModel) {
 			if (isArray(change.value)) {
 				if (change.key === 'trustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value.map(item => URI.file(item)));
+					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value);
 				}
 
 				if (change.key === 'untrustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value.map(item => URI.file(item)));
+					this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value);
 				}
 			}
 		}
@@ -364,3 +409,15 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.bodyScrollBar.scanDomNode();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const tileBackgroundColor = theme.getColor(trustEditorTileBackgroundColor);
+	if (tileBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container  { background: ${tileBackgroundColor}; }`);
+	}
+
+	const border = theme.getColor(contrastBorder);
+	if (border) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container { border: 1px solid ${border}; }`);
+	}
+});

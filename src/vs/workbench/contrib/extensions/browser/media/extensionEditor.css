@@ -501,7 +501,7 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container {
-	height: 275px;
+	width: 275px;
 	margin: 0 10px 20px 0;
 }
 

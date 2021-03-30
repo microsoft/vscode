@@ -371,7 +371,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -400,7 +400,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -436,7 +436,7 @@ suite('Configuration Resolver Service', () => {
 				}
 			});
 
-			assert.equal(2, mockCommandService.callCount);
+			assert.strictEqual(2, mockCommandService.callCount);
 		});
 	});
 
@@ -462,7 +462,7 @@ suite('Configuration Resolver Service', () => {
 				'value': 'Value for key1'
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -490,7 +490,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(0, mockCommandService.callCount);
+			assert.strictEqual(0, mockCommandService.callCount);
 		});
 	});
 
@@ -518,7 +518,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(0, mockCommandService.callCount);
+			assert.strictEqual(0, mockCommandService.callCount);
 		});
 	});
 
@@ -546,7 +546,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -576,7 +576,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(2, mockCommandService.callCount);
+			assert.strictEqual(2, mockCommandService.callCount);
 		});
 	});
 
@@ -604,7 +604,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(0, mockCommandService.callCount);
+			assert.strictEqual(0, mockCommandService.callCount);
 		});
 	});
 

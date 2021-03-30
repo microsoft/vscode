@@ -89,7 +89,7 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 
 		// Ensure all links are provided
 		const links = (await new Promise<ILink[] | undefined>(r => provider.provideLinks(1, r)))!;
-		assert.equal(links.length, expected.length);
+		assert.strictEqual(links.length, expected.length);
 		const actual = links.map(e => ({
 			text: e.text,
 			range: e.range

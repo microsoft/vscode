@@ -16,9 +16,6 @@ suite('Notebook Document', function () {
 				new vscode.NotebookDocumentMetadata()
 			);
 		}
-		async resolveNotebook(_document: vscode.NotebookDocument, _webview: vscode.NotebookCommunication) {
-			//
-		}
 		async saveNotebook(_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {
 			//
 		}

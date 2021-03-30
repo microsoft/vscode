@@ -1048,17 +1048,35 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly version: number;
 
+		/** @deprecated Use `uri` instead */
 		// todo@API don't have this...
 		readonly fileName: string;
 
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
-		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * `true` if the notebook has been closed. A closed notebook isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
 
 		readonly metadata: NotebookDocumentMetadata;
 
 		// todo@API should we really expose this?
 		readonly viewType: string;
+
+		/** @deprecated Use `getCells(<...>) instead */
+		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * Get the cells of this notebook. A subset can be retrieved by providing
+		 * a range. The range will be adjuset to the notebook.
+		 *
+		 * @param range A notebook range.
+		 * @returns The cells contained by the range or all cells.
+		 */
+		getCells(range?: NotebookCellRange): ReadonlyArray<NotebookCell>;
 
 		/**
 		 * Save the document. The saving will be handled by the corresponding content provider
@@ -1070,6 +1088,7 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 	}
 
+	// todo@API RENAME to NotebookRange
 	// todo@API maybe have a NotebookCellPosition sibling
 	export class NotebookCellRange {
 		readonly start: number;
@@ -1081,6 +1100,8 @@ declare module 'vscode' {
 		readonly isEmpty: boolean;
 
 		constructor(start: number, end: number);
+
+		with(change: { start?: number, end?: number }): NotebookCellRange;
 	}
 
 	export enum NotebookEditorRevealType {
@@ -1434,13 +1455,6 @@ declare module 'vscode' {
 
 		readonly options?: NotebookDocumentContentOptions;
 		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
-
-		// todo@API remove! against separation of data provider and renderer
-		/**
-		 * @deprecated
-		 */
-		// eslint-disable-next-line vscode-dts-cancellation
-		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Thenable<void>;
 
 		/**
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
@@ -2034,14 +2048,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/116906
-
-	export interface ExtensionContext {
-		readonly extension: Extension<any>;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/102091
 
 	export interface TextDocument {
@@ -2374,7 +2380,7 @@ declare module 'vscode' {
 		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
-		 * automatically re-run after a short delay. Invoking this on a
+		 * automatically rerun after a short delay. Invoking this on a
 		 * test with children will mark the entire subtree as outdated.
 		 *
 		 * Extensions should generally not override this method.
@@ -2844,6 +2850,28 @@ declare module 'vscode' {
 		 */
 		readonly triggerKind: CodeActionTriggerKind;
 	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/115807
+
+	export interface Webview {
+		/**
+		 * @param message A json serializable message to send to the webview.
+		 *
+		 *   For older versions of vscode, if an `ArrayBuffer` is included in `message`,
+		 *   it will not be serialized properly and will not be received by the webview.
+		 *   Similarly any TypedArrays, such as a `Uint8Array`, will be very inefficiently
+		 *   serialized and will also not be recreated as a typed array inside the webview.
+		 *
+		 *   However if your extension targets vscode 1.55+ in the `engines` field of its
+		 *   `package.json` any `ArrayBuffer` values that appear in `message` will be more
+		 *   efficiently transferred to the webview and will also be recreated inside of
+		 *   the webview.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+	}
+
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/115616 @alexr00

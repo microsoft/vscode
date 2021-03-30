@@ -47,6 +47,11 @@ interface ITouchBarSegment extends SegmentedControlSegment {
 	id: string;
 }
 
+interface ILoadOptions {
+	isReload?: boolean;
+	disableExtensions?: boolean;
+}
+
 const enum ReadyState {
 
 	/**
@@ -683,7 +688,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 	}
 
-	load(configuration: INativeWindowConfiguration, { isReload, disableExtensions }: { isReload?: boolean, disableExtensions?: boolean } = Object.create(null)): void {
+	load(configuration: INativeWindowConfiguration, options: ILoadOptions = Object.create(null)): void {
 
 		// If this window was loaded before from the command line
 		// (as indicated by VSCODE_CLI environment), make sure to
@@ -721,13 +726,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Clear Document Edited if needed
 		if (this.isDocumentEdited()) {
-			if (!isReload || !this.backupMainService.isHotExitEnabled()) {
+			if (!options.isReload || !this.backupMainService.isHotExitEnabled()) {
 				this.setDocumentEdited(false);
 			}
 		}
 
 		// Clear Title and Filename if needed
-		if (!isReload) {
+		if (!options.isReload) {
 			if (this.getRepresentedFilename()) {
 				this.setRepresentedFilename('');
 			}
@@ -737,7 +742,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Load URL
 		mark('code/willOpenNewWindow');
-		this._win.loadURL(this.getUrl(configuration, disableExtensions));
+		this._win.loadURL(this.getUrl(configuration, options));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
@@ -812,15 +817,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return configuration.workspace;
 	}
 
-	private getUrl(baseConfig: INativeWindowConfiguration, disableExtensions: boolean | undefined): string {
+	private getUrl(baseConfig: INativeWindowConfiguration, options: ILoadOptions): string {
 
 		// Config is a combination of native CLI args and window configuration
 		const configuration: { [key: string]: unknown } = { ...this.environmentMainService.args, ...baseConfig };
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or
 		// pendingLoadConfig so that it is applied only on this load
-		if (disableExtensions !== undefined) {
-			configuration['disable-extensions'] = disableExtensions;
+		if (options.disableExtensions !== undefined) {
+			configuration['disable-extensions'] = options.disableExtensions;
 		}
 
 		// Set window ID
