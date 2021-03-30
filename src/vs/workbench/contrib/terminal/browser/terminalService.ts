@@ -848,7 +848,7 @@ export class TerminalService implements ITerminalService {
 		const platformKey = await this._getPlatformKey();
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: 'createInstance' ? nls.localize('terminal.integrated.chooseQuickCreateProfile', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
+			placeHolder: 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
@@ -873,9 +873,7 @@ export class TerminalService implements ITerminalService {
 				};
 				await this._configurationService.updateValue(configKey, newConfigValue, ConfigurationTarget.USER);
 			},
-			onKeyMods: (mods: IKeyMods) => {
-				keyMods = mods;
-			}
+			onKeyMods: mods => keyMods = mods,
 		};
 
 		// Build quick pick items
@@ -899,6 +897,7 @@ export class TerminalService implements ITerminalService {
 			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
 			let instance;
 			if (keyMods?.alt) {
+				// create split
 				const activeInstance = this.getActiveInstance();
 				if (activeInstance) {
 					instance = this.splitInstance(activeInstance, instance);
@@ -911,6 +910,7 @@ export class TerminalService implements ITerminalService {
 				this.setActiveInstance(instance);
 			}
 		} else {
+			// setDefault
 			await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
 			await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
 		}
