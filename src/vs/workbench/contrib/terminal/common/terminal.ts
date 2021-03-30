@@ -102,7 +102,7 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: ITerminalProfiles;
-	displayDetectedWslProfiles: boolean;
+	useWslProfiles: boolean;
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -256,13 +256,14 @@ export interface ITerminalProfileSource {
 	source: ProfileSource;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
+	args?: string | string[] | undefined;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
 
 export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;
-	quickLaunchOnly: boolean;
+	configuredProfilesOnly: boolean;
 }
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/d3c203d25a1df5def83082a47d1fe20fda2e80df",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/10e222a5ac8f4f45b40bd03a76131d07562e5c3e",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -2507,13 +2507,13 @@
 						},
 						{
 							"name": "string.regexp.js",
-							"begin": "(?<=\\))\\s*\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([gimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
+							"begin": "(?<=\\))\\s*\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([dgimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
 							"beginCaptures": {
 								"0": {
 									"name": "punctuation.definition.string.begin.js"
 								}
 							},
-							"end": "(/)([gimsuy]*)",
+							"end": "(/)([dgimsuy]*)",
 							"endCaptures": {
 								"1": {
 									"name": "punctuation.definition.string.end.js"
@@ -4264,9 +4264,12 @@
 		"type-fn-type-parameters": {
 			"patterns": [
 				{
-					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(new)\\b(?=\\s*\\<)",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(abstract)\\s+)?(new)\\b(?=\\s*\\<)",
 					"beginCaptures": {
 						"1": {
+							"name": "meta.type.constructor.js storage.modifier.js"
+						},
+						"2": {
 							"name": "meta.type.constructor.js keyword.control.new.js"
 						}
 					},
@@ -4282,9 +4285,12 @@
 				},
 				{
 					"name": "meta.type.constructor.js",
-					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(new)\\b\\s*(?=\\()",
+					"begin": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(?:(abstract)\\s+)?(new)\\b\\s*(?=\\()",
 					"beginCaptures": {
 						"1": {
+							"name": "storage.modifier.js"
+						},
+						"2": {
 							"name": "keyword.control.new.js"
 						}
 					},
@@ -4779,13 +4785,13 @@
 			"patterns": [
 				{
 					"name": "string.regexp.js",
-					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[\\()]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\]|\\(([^\\)\\\\]|\\\\.)+\\))+\\/([gimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "(?<!\\+\\+|--|})(?<=[=(:,\\[?+!]|^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case|=>|&&|\\|\\||\\*\\/)\\s*(\\/)(?![\\/*])(?=(?:[^\\/\\\\\\[\\()]|\\\\.|\\[([^\\]\\\\]|\\\\.)+\\]|\\(([^\\)\\\\]|\\\\.)+\\))+\\/([dgimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.begin.js"
 						}
 					},
-					"end": "(/)([gimsuy]*)",
+					"end": "(/)([dgimsuy]*)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.end.js"
@@ -4802,13 +4808,13 @@
 				},
 				{
 					"name": "string.regexp.js",
-					"begin": "((?<![_$[:alnum:])\\]]|\\+\\+|--|}|\\*\\/)|((?<=^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case))\\s*)\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([gimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
+					"begin": "((?<![_$[:alnum:])\\]]|\\+\\+|--|}|\\*\\/)|((?<=^return|[^\\._$[:alnum:]]return|^case|[^\\._$[:alnum:]]case))\\s*)\\/(?![\\/*])(?=(?:[^\\/\\\\\\[]|\\\\.|\\[([^\\]\\\\]|\\\\.)*\\])+\\/([dgimsuy]+|(?![\\/\\*])|(?=\\/\\*))(?!\\s*[a-zA-Z0-9_$]))",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.js"
 						}
 					},
-					"end": "(/)([gimsuy]*)",
+					"end": "(/)([dgimsuy]*)",
 					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.string.end.js"

@@ -149,7 +149,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return [bufferStream, decoder];
 	}
 
-	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
 		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async o => {
 			const contents = await this.getEncodedReadable(o.resource, o.value);
 			return {
@@ -159,7 +159,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			};
 		}));
 
-		return this.workingCopyFileService.create(operationsWithContents, undoInfo, token);
+		return this.workingCopyFileService.create(operationsWithContents, CancellationToken.None, undoInfo);
 	}
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
@@ -251,7 +251,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// However, this will only work if the source exists
 		// and is not orphaned, so we need to check that too.
 		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
-			await this.workingCopyFileService.move([{ file: { source, target } }]);
+			await this.workingCopyFileService.move([{ file: { source, target } }], CancellationToken.None);
 
 			// At this point we don't know whether we have a
 			// model for the source or the target URI so we
@@ -326,7 +326,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			sourceModelEncoding = sourceModelWithEncodingSupport.getEncoding();
 		}
 
-		// Prefer an existing model if it is already loaded for the given target resource
+		// Prefer an existing model if it is already resolved for the given target resource
 		let targetExists: boolean = false;
 		let targetModel = this.files.get(target);
 		if (targetModel?.isResolved()) {
@@ -346,7 +346,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				targetModel = await this.files.resolve(target, { encoding: sourceModelEncoding });
 			} catch (error) {
 				// if the target already exists and was not created by us, it is possible
-				// that we cannot load the target as text model if it is binary or too
+				// that we cannot resolve the target as text model if it is binary or too
 				// large. in that case we have to delete the target file first and then
 				// re-run the operation.
 				if (targetExists) {

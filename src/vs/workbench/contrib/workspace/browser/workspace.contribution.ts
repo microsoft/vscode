@@ -29,7 +29,7 @@ import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } fro
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -145,10 +145,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
-		this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => {
-			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
-				this.toggleRequestBadge(false);
-			}
+		this._register(this.workspaceTrustService.onDidChangeTrustState(async (trustState) => {
+			type WorkspaceTrustStateChangedEvent = {
+				workspaceId: string,
+				previousState: WorkspaceTrustState,
+				newState: WorkspaceTrustState
+			};
 
 			type WorkspaceTrustStateChangedEventClassification = {
 				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -156,17 +158,21 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				newState: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			};
 
-			type WorkspaceTrustStateChangedEvent = {
-				workspaceId: string,
-				previousState: WorkspaceTrustState,
-				newState: WorkspaceTrustState
-			};
-
 			this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
 				workspaceId: this.workspaceContextService.getWorkspace().id,
 				previousState: trustState.previousTrustState,
 				newState: trustState.currentTrustState
 			});
+
+			// Transition from Trusted -> Untrusted/Unknown
+			if (trustState.previousTrustState === WorkspaceTrustState.Trusted && trustState.currentTrustState !== WorkspaceTrustState.Trusted) {
+				this.hostService.reload();
+			}
+
+			// Hide soft request badge
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+				this.toggleRequestBadge(false);
+			}
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -255,7 +261,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 /**
  * Trusted Workspace GUI Editor
  */
-class WorkspaceTrustEditorInputFactory implements IEditorInputFactory {
+class WorkspaceTrustEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -271,7 +277,7 @@ class WorkspaceTrustEditorInputFactory implements IEditorInputFactory {
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerEditorInputFactory(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputFactory);
+	.registerEditorInputSerializer(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputSerializer);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(

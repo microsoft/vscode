@@ -180,8 +180,8 @@ export class ProgressService extends Disposable implements IProgressService {
 			private readonly _onDidReport = this._register(new Emitter<IProgressStep>());
 			readonly onDidReport = this._onDidReport.event;
 
-			private readonly _onDispose = this._register(new Emitter<void>());
-			readonly onDispose = this._onDispose.event;
+			private readonly _onWillDispose = this._register(new Emitter<void>());
+			readonly onWillDispose = this._onWillDispose.event;
 
 			private _step: IProgressStep | undefined = undefined;
 			get step() { return this._step; }
@@ -215,7 +215,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			dispose(): void {
 				this._done = true;
-				this._onDispose.fire();
+				this._onWillDispose.fire();
 
 				super.dispose();
 			}
@@ -252,7 +252,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				promise.finally(() => onDidReportListener.dispose());
 
 				// When the progress model gets disposed, we are done as well
-				Event.once(progressStateModel.onDispose)(() => promiseResolve());
+				Event.once(progressStateModel.onWillDispose)(() => promiseResolve());
 
 				return promise;
 			});
@@ -381,7 +381,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		// Show initially
 		updateNotification(progressStateModel.step);
 		const listener = progressStateModel.onDidReport(step => updateNotification(step));
-		Event.once(progressStateModel.onDispose)(() => listener.dispose());
+		Event.once(progressStateModel.onWillDispose)(() => listener.dispose());
 
 		// Clean up eventually
 		(async () => {

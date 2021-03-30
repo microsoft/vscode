@@ -53,7 +53,7 @@ suite('Files - TextFileEditorTracker', () => {
 			));
 		}
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -62,8 +62,6 @@ suite('Files - TextFileEditorTracker', () => {
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
-
-		await part.whenRestored;
 
 		disposables.add(instantiationService.createInstance(TextFileEditorTracker));
 
@@ -149,7 +147,7 @@ suite('Files - TextFileEditorTracker', () => {
 
 		assert.ok(!accessor.editorService.isOpen(untitledEditor));
 
-		model.textEditorModel.setValue('Super Good');
+		model.textEditorModel?.setValue('Super Good');
 
 		await awaitEditorOpening(accessor.editorService);
 		assert.ok(accessor.editorService.isOpen(untitledEditor));
@@ -169,12 +167,12 @@ suite('Files - TextFileEditorTracker', () => {
 		accessor.hostService.setFocus(false);
 		accessor.hostService.setFocus(true);
 
-		await awaitModelLoadEvent(accessor.textFileService, resource);
+		await awaitModelResolveEvent(accessor.textFileService, resource);
 	});
 
-	function awaitModelLoadEvent(textFileService: ITextFileService, resource: URI): Promise<void> {
+	function awaitModelResolveEvent(textFileService: ITextFileService, resource: URI): Promise<void> {
 		return new Promise(resolve => {
-			const listener = textFileService.files.onDidLoad(e => {
+			const listener = textFileService.files.onDidResolve(e => {
 				if (isEqual(e.model.resource, resource)) {
 					listener.dispose();
 					resolve();

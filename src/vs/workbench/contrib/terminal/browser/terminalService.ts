@@ -154,7 +154,7 @@ export class TerminalService implements ITerminalService {
 			if (e.affectsConfiguration('terminal.integrated.profiles.windows') ||
 				e.affectsConfiguration('terminal.integrated.profiles.osx') ||
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
-				e.affectsConfiguration('terminal.integrated.displayDetectedWslProfiles')) {
+				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
 				this._updateAvailableProfilesNow();
 			}
 		});
@@ -338,7 +338,10 @@ export class TerminalService implements ITerminalService {
 		} else if ((one as ITerminalProfileSource).source && (two as ITerminalProfileSource).source) {
 			const oneSource = (one as ITerminalProfileSource);
 			const twoSource = (two as ITerminalProfileSource);
-			return oneSource.source === twoSource.source;
+			return oneSource.source === twoSource.source
+				&& ((Array.isArray(oneSource.args) && Array.isArray(twoSource.args) && oneSource.args?.every((a, index) => a === twoSource.args?.[index])) ||
+					(oneSource.args === twoSource.args)
+				);
 		}
 		return false;
 	}
@@ -361,14 +364,14 @@ export class TerminalService implements ITerminalService {
 		return this._updateAvailableProfilesNow();
 	}
 
-	private async _detectProfiles(quickLaunchOnly: boolean): Promise<ITerminalProfile[]> {
+	private async _detectProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		// Wait for the remoteAuthority to be ready (and listening for events) before firing
 		// the event to spawn the ext host process
 		const conn = this._remoteAgentService.getConnection();
 		const remoteAuthority = conn ? conn.remoteAuthority : 'null';
 		await this._whenExtHostReady(remoteAuthority);
-		return new Promise(r => this._onRequestAvailableProfiles.fire({ callback: r, quickLaunchOnly: quickLaunchOnly }));
+		return new Promise(r => this._onRequestAvailableProfiles.fire({ callback: r, configuredProfilesOnly: configuredProfilesOnly }));
 	}
 
 	private async _whenExtHostReady(remoteAuthority: string): Promise<void> {
