@@ -138,7 +138,7 @@ export class Application {
 				this.logger.log('*** Screenshot recorded:', screenshotPath);
 			}
 
-			await util.promisify(mkdirp)(path.dirname(screenshotPath));
+			await util.promisify(mkdirp)(path.dirname(screenshotPath), undefined);
 			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}
