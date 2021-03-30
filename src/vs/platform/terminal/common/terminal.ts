@@ -93,7 +93,6 @@ export interface IOffProcessTerminalService {
 	onPtyHostRestart: Event<void>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
-	processBinary(id: number, data: string): void;
 	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;

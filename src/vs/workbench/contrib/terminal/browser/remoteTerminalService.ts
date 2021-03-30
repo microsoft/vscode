@@ -49,6 +49,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = channel;
 
 			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+			channel.onProcessBinary(e => this._ptys.get(e.id)?.handleBinary(e.event));
 			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
@@ -117,9 +118,6 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		} else {
 			this._remoteTerminalChannel = null;
 		}
-	}
-	processBinary(id: number, data: string): void {
-		throw new Error('Method not implemented.');
 	}
 
 	public async createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
