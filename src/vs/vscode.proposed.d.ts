@@ -2756,7 +2756,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/106488
+	//#region https://github.com/microsoft/vscode/issues/120173
 
 	export enum WorkspaceTrustState {
 		/**
