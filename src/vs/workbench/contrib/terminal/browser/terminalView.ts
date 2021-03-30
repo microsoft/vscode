@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { configureTerminalSettingsTitle, selectDefaultShellTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { configureTerminalSettingsTitle, selectDefaultProfileTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -34,7 +34,6 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { equals } from 'vs/base/common/arrays';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
@@ -50,6 +49,7 @@ export class TerminalViewPane extends ViewPane {
 	private _findWidget: TerminalFindWidget | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
+	private _isWelcomeShowing: boolean = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -76,13 +76,21 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._onDidChangeViewWelcomeState.fire();
 		});
+		this._terminalService.onInstanceCreated(() => {
+			if (!this._isWelcomeShowing) {
+				return;
+			}
+			this._isWelcomeShowing = true;
+			this._onDidChangeViewWelcomeState.fire();
+			if (this._terminalContainer) {
+				this._terminalContainer.style.display = 'block';
+				this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
+			}
+		});
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		if (this.shouldShowWelcome()) {
-			return;
-		}
 
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
@@ -90,6 +98,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._terminalContainer = document.createElement('div');
 		this._terminalContainer.classList.add('terminal-outer-container');
+		this._terminalContainer.style.display = this.shouldShowWelcome() ? 'none' : 'block';
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
@@ -120,13 +129,15 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
 				const hadTerminals = !!this._terminalService.terminalTabs.length;
-				if (this._terminalsInitialized) {
-					if (!hadTerminals) {
-						this._terminalService.createTerminal();
+				if (this._terminalService.isProcessSupportRegistered) {
+					if (this._terminalsInitialized) {
+						if (!hadTerminals) {
+							this._terminalService.createTerminal();
+						}
+					} else {
+						this._terminalsInitialized = true;
+						this._terminalService.initializeTerminals();
 					}
-				} else {
-					this._terminalsInitialized = true;
-					this._terminalService.initializeTerminals();
 				}
 
 				this._updateTheme();
@@ -136,6 +147,7 @@ export class TerminalViewPane extends ViewPane {
 					// TODO@Tyriar - this call seems unnecessary
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
+				this._terminalService.showPanel(true);
 			} else {
 				this._terminalService.getActiveTab()?.setVisible(false);
 				this._terminalService.terminalInstances.forEach(instance => {
@@ -150,9 +162,6 @@ export class TerminalViewPane extends ViewPane {
 
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		if (this.shouldShowWelcome()) {
-			return;
-		}
 
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
@@ -339,7 +348,8 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return !this._terminalService.isProcessSupportRegistered;
+		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.terminalInstances.length === 0;
+		return this._isWelcomeShowing;
 	}
 }
 
@@ -358,22 +368,20 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 
 class SwitchTerminalActionViewItem extends SelectActionViewItem {
-	private _lastOptions: ISelectOptionItem[] = [];
-	private _lastActiveTab: number = 0;
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
-		@IContextViewService contextViewService: IContextViewService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
-
-		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
-		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
-		this._register(_terminalService.onInstanceTitleChanged(this._updateItems, this));
-		this._register(_terminalService.onTabDisposed(this._updateItems, this));
-		this._register(_terminalService.onDidChangeConnectionState(this._updateItems, this));
+		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onActiveTabChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onTabDisposed(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
+		this._register(_terminalService.onProfilesConfigChanged(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
@@ -387,18 +395,12 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	private _updateItems(): void {
 		const options = getTerminalSelectOpenItems(this._terminalService, this._contributions);
-		// only update options if they've changed
-		if (!equals(Object.values(options), Object.values(this._lastOptions)) || this._lastActiveTab !== this._terminalService.activeTabIndex) {
-			this.setOptions(options, this._terminalService.activeTabIndex);
-			this._lastOptions = options;
-			this._lastActiveTab = this._terminalService.activeTabIndex;
-		}
+		this.setOptions(options, this._terminalService.activeTabIndex);
 	}
 }
 
 function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
 	let items: ISelectOptionItem[];
-
 	if (terminalService.connectionState === TerminalConnectionState.Connected) {
 		items = terminalService.getTabLabels().map(label => {
 			return { text: label };
@@ -409,11 +411,20 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, contribut
 
 	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
 
+	items.push(...getProfileSelectOptionItems(terminalService));
+
 	for (const contributed of contributions.terminalTypes) {
 		items.push({ text: contributed.title });
 	}
-
-	items.push({ text: selectDefaultShellTitle });
+	items.push({ text: switchTerminalActionViewItemSeparator, isDisabled: true });
+	if (terminalService.isProcessSupportRegistered) {
+		items.push({ text: selectDefaultProfileTitle });
+	}
 	items.push({ text: configureTerminalSettingsTitle });
 	return items;
+}
+
+function getProfileSelectOptionItems(terminalService: ITerminalService): ISelectOptionItem[] {
+	const detectedProfiles = terminalService.getAvailableProfiles();
+	return detectedProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
 }

@@ -38,7 +38,7 @@ export function createMockSession(model: DebugModel, name = 'mockSession', optio
 				}
 			};
 		}
-	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
+	} as IDebugService, undefined!, undefined!, new TestConfigurationService({ debug: { console: { collapseIdenticalLines: true } } }), undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService, undefined!);
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
@@ -311,15 +311,15 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
-		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range, true);
-		assert.strictEqual(decorations.length, 2);
+		let decorations = createDecorationsForStackFrame(firstStackFrame, true);
+		assert.strictEqual(decorations.length, 3);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
 		assert.deepStrictEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
 		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range, true);
+		decorations = createDecorationsForStackFrame(secondStackFrame, true);
 		assert.strictEqual(decorations.length, 2);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
@@ -327,7 +327,7 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(decorations[1].options.className, 'debug-focused-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6), true);
+		decorations = createDecorationsForStackFrame(firstStackFrame, true);
 		assert.strictEqual(decorations.length, 3);
 		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
@@ -378,7 +378,7 @@ suite('Debug - CallStack', () => {
 			get state(): State {
 				return State.Stopped;
 			}
-		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService, undefined!);
 
 		const runningSession = createMockSession(model);
 		model.addSession(runningSession);

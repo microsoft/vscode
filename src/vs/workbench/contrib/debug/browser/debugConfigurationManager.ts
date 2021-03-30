@@ -410,6 +410,11 @@ export class ConfigurationManager implements IConfigurationManager {
 			this.setSelectedLaunchName(nameToSet);
 		}
 
+		if (!config && launch && this.selectedName) {
+			config = launch.getConfiguration(this.selectedName);
+			type = config?.type;
+		}
+
 		this.selectedType = dynamicConfig?.type || config?.type;
 		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		if (type) {

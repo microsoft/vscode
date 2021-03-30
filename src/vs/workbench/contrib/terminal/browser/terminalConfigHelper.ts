@@ -8,7 +8,7 @@ import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -139,7 +139,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			this._lastFontMeasurement.charHeight = Math.ceil(rect.height);
 			// Char width is calculated differently for DOM and the other renderer types. Refer to
 			// how each renderer updates their dimensions in xterm.js
-			if (this.config.rendererType === 'dom') {
+			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
 				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);
@@ -214,64 +214,75 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
 	}
 
-	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS): boolean {
+	public checkIsProcessLaunchSafe(osOverride: platform.OperatingSystem = platform.OS, profile?: ITerminalProfile): boolean {
 		// Check whether there is a workspace setting
 		const platformKey = osOverride === platform.OperatingSystem.Windows ? 'windows' : osOverride === platform.OperatingSystem.Macintosh ? 'osx' : 'linux';
 		const shellConfigValue = this._configurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
 		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
 
-		// Check if workspace setting exists and whether it's allowed
-		let isWorkspaceShellAllowed: boolean | undefined = false;
-		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
-			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
+		// Check if the workspace terminals are allowed:
+		// - undefined: Unknown - always ask
+		// - false: Disallowed - never ask
+		// - true: Allowed - never ask
+		let isTerminalLaunchSafe: boolean | undefined = false;
+
+		// Check whether the shell is defined in workspace settings
+		const workspaceDefinedShell = profile?.isWorkspaceProfile ? profile.path : shellConfigValue.workspaceValue;
+
+		// Check whether the shell args is defined in workspace settings
+		let workspaceDefinedShellArgs = profile?.isWorkspaceProfile ? profile.args : shellArgsConfigValue.workspaceValue;
+		if (typeof workspaceDefinedShellArgs === 'string') {
+			workspaceDefinedShellArgs = [workspaceDefinedShellArgs];
 		}
 
-		// Always allow [] args as it would lead to an odd error message and should not be dangerous
-		if (shellConfigValue.workspaceValue === undefined && envConfigValue.workspaceValue === undefined &&
-			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0) {
-			isWorkspaceShellAllowed = true;
+		// Check whether the environment is defined in workspace settings
+		const workspaceDefinedEnv = envConfigValue.workspaceValue;
+
+		// Return safe if no workspace settings are used
+		if (
+			workspaceDefinedShell === undefined &&
+			workspaceDefinedShellArgs === undefined &&
+			workspaceDefinedEnv === undefined
+		) {
+			return true;
 		}
 
-		// Check if the value is neither on the blocklist (false) or allowlist (true) and ask for
-		// permission
-		if (isWorkspaceShellAllowed === undefined) {
-			let shellString: string | undefined;
-			if (shellConfigValue.workspaceValue) {
-				shellString = `shell: "${shellConfigValue.workspaceValue}"`;
-			}
-			let argsString: string | undefined;
-			if (shellArgsConfigValue.workspaceValue) {
-				argsString = `shellArgs: [${shellArgsConfigValue.workspaceValue.map(v => '"' + v + '"').join(', ')}]`;
-			}
-			let envString: string | undefined;
-			if (envConfigValue.workspaceValue) {
-				envString = `env: {${Object.keys(envConfigValue.workspaceValue).map(k => `${k}:${envConfigValue.workspaceValue![k]}`).join(', ')}}`;
-			}
-			// Should not be localized as it's json-like syntax referencing settings keys
-			const workspaceConfigStrings: string[] = [];
-			if (shellString) {
-				workspaceConfigStrings.push(shellString);
-			}
-			if (argsString) {
-				workspaceConfigStrings.push(argsString);
-			}
-			if (envString) {
-				workspaceConfigStrings.push(envString);
-			}
-			const workspaceConfigString = workspaceConfigStrings.join(', ');
-			this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow this workspace to modify your terminal shell? {0}", workspaceConfigString),
-				[{
-					label: nls.localize('allow', "Allow"),
-					run: () => this.setWorkspaceShellAllowed(true)
-				},
-				{
-					label: nls.localize('disallow', "Disallow"),
-					run: () => this.setWorkspaceShellAllowed(false)
-				}]
-			);
+		// Check whether the user has already been prompted about this workspace's permissions
+		isTerminalLaunchSafe = this.isWorkspaceShellAllowed(undefined);
+
+		// If the user has already answered, return the response
+		if (isTerminalLaunchSafe !== undefined) {
+			return isTerminalLaunchSafe;
 		}
-		return !!isWorkspaceShellAllowed;
+
+		// Format string message for workspace settings, note that this is not localized because
+		// they reference settings keys
+		const shellString = workspaceDefinedShell ? `shell: "${workspaceDefinedShell}"` : undefined;
+		const argsString = workspaceDefinedShellArgs ? `shellArgs: [${workspaceDefinedShellArgs.map(v => '"' + v + '"').join(', ')}]` : undefined;
+		const envString = workspaceDefinedEnv ? `env: {${Object.keys(workspaceDefinedEnv).map(k => `${k}:${workspaceDefinedEnv![k]}`).join(', ')}}` : undefined;
+		const workspaceConfigStrings: string[] = [];
+		if (shellString) { workspaceConfigStrings.push(shellString); }
+		if (argsString) { workspaceConfigStrings.push(argsString); }
+		if (envString) { workspaceConfigStrings.push(envString); }
+		const workspaceConfigString = workspaceConfigStrings.join(', ');
+
+		// Ask the user's permissions whether to allow or disallow this workspace and remember their
+		// selection
+		this._notificationService.prompt(Severity.Info, nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow this workspace to modify your terminal shell? {0}", workspaceConfigString),
+			[{
+				label: nls.localize('allow', "Allow"),
+				run: () => this.setWorkspaceShellAllowed(true)
+			},
+			{
+				label: nls.localize('disallow', "Disallow"),
+				run: () => this.setWorkspaceShellAllowed(false)
+			}]
+		);
+
+		// TODO: We should await this instead when trusted workspaces modal is adopted
+		// Always return false when asking, since we don't await the notification
+		return false;
 	}
 
 	private _clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {

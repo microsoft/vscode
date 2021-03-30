@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import * as os from 'os';
-import product from 'vs/platform/product/common/product';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
+import { arch, release, type } from 'os';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
@@ -14,7 +13,7 @@ import { IDiagnosticsService, PerformanceInfo, isRemoteDiagnosticError } from 'v
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { IWindowState, toWindowUrl } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -43,7 +42,8 @@ export class IssueMainService implements ICommonIssueService {
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
+		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		this.registerListeners();
 	}
@@ -279,7 +279,7 @@ export class IssueMainService implements ICommonIssueService {
 				};
 
 				this._processExplorerWindow.loadURL(
-					toWindowUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
+					toWindowUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration, true));
 
 				this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
@@ -405,35 +405,20 @@ export class IssueMainService implements ICommonIssueService {
 			features,
 			disableExtensions: this.environmentMainService.disableExtensions,
 			os: {
-				type: os.type(),
-				arch: os.arch(),
-				release: os.release(),
+				type: type(),
+				arch: arch(),
+				release: release(),
 			},
 			product: {
-				nameShort: product.nameShort,
-				version: !!product.darwinUniversalAssetId ? `${product.version} (Universal)` : product.version,
-				commit: product.commit,
-				date: product.date,
-				reportIssueUrl: product.reportIssueUrl
+				nameShort: this.productService.nameShort,
+				version: !!this.productService.darwinUniversalAssetId ? `${this.productService.version} (Universal)` : this.productService.version,
+				commit: this.productService.commit,
+				date: this.productService.date,
+				reportIssueUrl: this.productService.reportIssueUrl,
+				reportMarketplaceIssueUrl: this.productService.reportMarketplaceIssueUrl
 			}
 		};
 
-		return toWindowUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration);
+		return toWindowUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration, true);
 	}
-}
-
-function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): string {
-	const environment = parseArgs(process.argv, OPTIONS);
-	const config = Object.assign(environment, windowConfiguration);
-	for (const keyValue of Object.keys(config)) {
-		const key = keyValue as keyof typeof config;
-		if (config[key] === undefined || config[key] === null || config[key] === '') {
-			delete config[key]; // only send over properties that have a true value
-		}
-	}
-
-	return FileAccess
-		.asBrowserUri(modulePathToHtml, require, true)
-		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
-		.toString(true);
 }

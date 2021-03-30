@@ -5,7 +5,8 @@
 
 // Scrollable Element
 
-export const SCROLLABLE_ELEMENT_PADDING_TOP = 22;
+export const SCROLLABLE_ELEMENT_PADDING_TOP = 20;
+// export const SCROLLABLE_ELEMENT_PADDING_TOP_WITH_TOOLBAR = 8;
 
 // Cell sizing related
 export const CELL_MARGIN = 8;
@@ -32,3 +33,5 @@ export const EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR = 12;
 export const CELL_OUTPUT_PADDING = 14;
 
 export const COLLAPSED_INDICATOR_HEIGHT = 24;
+
+export const MARKDOWN_PREVIEW_PADDING = 8;

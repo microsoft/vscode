@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, ISaveOptions, IRevertOptions, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
+import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, IRevertOptions, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -164,9 +164,9 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 	}
 
 	isUntitled(): boolean {
-		//  anyFile: is never untitled as it can be saved
-		// untitled: is untitled by definition
-		// anyOther: is untitled because it cannot be saved, as such we expect a "Save As" dialog
+		//  any file: is never untitled as it can be saved
+		//  untitled: is untitled by definition
+		// any other: is untitled because it cannot be saved, as such we expect a "Save As" dialog
 		return !this.fileService.canHandleResource(this.resource);
 	}
 
@@ -206,7 +206,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this.doSave(options, true);
 	}
 
-	private async doSave(options: ISaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
+	private async doSave(options: ITextFileSaveOptions | undefined, saveAs: boolean): Promise<IEditorInput | undefined> {
 
 		// Save / Save As
 		let target: URI | undefined;

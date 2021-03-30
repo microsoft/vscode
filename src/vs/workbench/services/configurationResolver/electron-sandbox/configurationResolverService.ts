@@ -11,9 +11,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { env } from 'vs/base/common/process';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
@@ -34,7 +33,7 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 			getExecPath: (): string | undefined => {
 				return environmentService.execPath;
 			}
-		}, process.env as IProcessEnvironment, editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+		}, env, editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
 

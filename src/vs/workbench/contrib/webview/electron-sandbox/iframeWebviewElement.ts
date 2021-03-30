@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -30,7 +29,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 export class ElectronIframeWebview extends IFrameWebview {
 
 	private readonly _resourceRequestManager: WebviewResourceRequestManager;
-	private _messagePromise = Promise.resolve();
+
+	private _isWebviewReadyForMessages = false;
+	private readonly _pendingMessages: Array<{ channel: string, data: any }> = [];
 
 	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
 
@@ -57,6 +58,15 @@ export class ElectronIframeWebview extends IFrameWebview {
 			noficationService, tunnelService, fileService, requestService, telemetryService, environmentService, configurationService, _remoteAuthorityResolverService, logService);
 
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options));
+		this._resourceRequestManager.ensureReady()
+			.then(() => {
+				this._isWebviewReadyForMessages = true;
+
+				while (this._pendingMessages.length) {
+					const { channel, data } = this._pendingMessages.shift()!;
+					this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
+				}
+			});
 
 		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, nativeHostService);
 
@@ -70,8 +80,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 	}
 
 	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
-		// The extensionId and purpose in the URL are used for filtering in js-debug:
-		this.element!.setAttribute('src', `${Schemas.vscodeWebview}://${this.id}/index.html?id=${this.id}&platform=electron&extensionId=${extension?.id.value ?? ''}&purpose=${options.purpose}`);
+		super.initElement(extension, options, { platform: 'electron' });
 	}
 
 	public set contentOptions(options: WebviewContentOptions) {
@@ -92,11 +101,12 @@ export class ElectronIframeWebview extends IFrameWebview {
 	}
 
 	protected async doPostMessage(channel: string, data?: any): Promise<void> {
-		this._messagePromise = this._messagePromise
-			.then(() => this._resourceRequestManager.ensureReady())
-			.then(() => {
-				this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
-			});
+		if (!this._isWebviewReadyForMessages) {
+			this._pendingMessages.push({ channel, data });
+			return;
+		}
+
+		this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
 	}
 
 	protected preprocessHtml(value: string): string {

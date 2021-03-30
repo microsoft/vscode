@@ -48,7 +48,7 @@ suite('BackupRestorer', () => {
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -56,8 +56,6 @@ suite('BackupRestorer', () => {
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-
-		await part.whenRestored;
 
 		disposables.add(instantiationService.createInstance(BrowserBackupTracker));
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
@@ -78,7 +76,7 @@ suite('BackupRestorer', () => {
 			const resource = editor.resource;
 			if (isEqual(resource, untitledFile1)) {
 				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
-				if (model.textEditorModel.getValue() !== 'untitled-1') {
+				if (model.textEditorModel?.getValue() !== 'untitled-1') {
 					const backupContents = await backupFileService.getBackupContents(untitledFile1);
 					assert.fail(`Unable to restore backup for resource ${untitledFile1.toString()}. Backup contents: ${backupContents}`);
 				}
@@ -86,21 +84,23 @@ suite('BackupRestorer', () => {
 				counter++;
 			} else if (isEqual(resource, untitledFile2)) {
 				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
-				if (model.textEditorModel.getValue() !== 'untitled-2') {
+				if (model.textEditorModel?.getValue() !== 'untitled-2') {
 					const backupContents = await backupFileService.getBackupContents(untitledFile2);
 					assert.fail(`Unable to restore backup for resource ${untitledFile2.toString()}. Backup contents: ${backupContents}`);
 				}
 				model.dispose();
 				counter++;
 			} else if (isEqual(resource, fooFile)) {
-				const model = await accessor.textFileService.files.get(fooFile!)?.load();
+				const model = accessor.textFileService.files.get(fooFile);
+				await model?.resolve();
 				if (model?.textEditorModel?.getValue() !== 'fooFile') {
 					const backupContents = await backupFileService.getBackupContents(fooFile);
 					assert.fail(`Unable to restore backup for resource ${fooFile.toString()}. Backup contents: ${backupContents}`);
 				}
 				counter++;
 			} else {
-				const model = await accessor.textFileService.files.get(barFile!)?.load();
+				const model = accessor.textFileService.files.get(barFile);
+				await model?.resolve();
 				if (model?.textEditorModel?.getValue() !== 'barFile') {
 					const backupContents = await backupFileService.getBackupContents(barFile);
 					assert.fail(`Unable to restore backup for resource ${barFile.toString()}. Backup contents: ${backupContents}`);

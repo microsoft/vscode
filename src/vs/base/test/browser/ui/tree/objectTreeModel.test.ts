@@ -28,8 +28,8 @@ suite('ObjectTreeModel', function () {
 		const list: ITreeNode<number>[] = [];
 		const model = new ObjectTreeModel<number>('test', toList(list));
 		assert(model);
-		assert.equal(list.length, 0);
-		assert.equal(model.size, 0);
+		assert.strictEqual(list.length, 0);
+		assert.strictEqual(model.size, 0);
 	});
 
 	test('flat', () => {
@@ -43,7 +43,7 @@ suite('ObjectTreeModel', function () {
 		]);
 
 		assert.deepEqual(toArray(list), [0, 1, 2]);
-		assert.equal(model.size, 3);
+		assert.strictEqual(model.size, 3);
 
 		model.setChildren(null, [
 			{ element: 3 },
@@ -52,11 +52,11 @@ suite('ObjectTreeModel', function () {
 		]);
 
 		assert.deepEqual(toArray(list), [3, 4, 5]);
-		assert.equal(model.size, 3);
+		assert.strictEqual(model.size, 3);
 
 		model.setChildren(null);
 		assert.deepEqual(toArray(list), []);
-		assert.equal(model.size, 0);
+		assert.strictEqual(model.size, 0);
 	});
 
 	test('nested', () => {
@@ -76,7 +76,7 @@ suite('ObjectTreeModel', function () {
 		]);
 
 		assert.deepEqual(toArray(list), [0, 10, 11, 12, 1, 2]);
-		assert.equal(model.size, 6);
+		assert.strictEqual(model.size, 6);
 
 		model.setChildren(12, [
 			{ element: 120 },
@@ -84,15 +84,15 @@ suite('ObjectTreeModel', function () {
 		]);
 
 		assert.deepEqual(toArray(list), [0, 10, 11, 12, 120, 121, 1, 2]);
-		assert.equal(model.size, 8);
+		assert.strictEqual(model.size, 8);
 
 		model.setChildren(0);
 		assert.deepEqual(toArray(list), [0, 1, 2]);
-		assert.equal(model.size, 3);
+		assert.strictEqual(model.size, 3);
 
 		model.setChildren(null);
 		assert.deepEqual(toArray(list), []);
-		assert.equal(model.size, 0);
+		assert.strictEqual(model.size, 0);
 	});
 
 	test('setChildren on collapsed node', () => {

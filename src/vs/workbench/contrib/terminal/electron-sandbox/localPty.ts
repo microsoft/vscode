@@ -39,12 +39,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
-
-		if (this._localPtyService.onPtyHostExit) {
-			this._localPtyService.onPtyHostExit(() => {
-				this._onProcessExit.fire(undefined);
-			});
-		}
 	}
 
 	start(): Promise<ITerminalLaunchError | undefined> {

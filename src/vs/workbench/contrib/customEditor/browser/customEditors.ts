@@ -6,9 +6,9 @@
 import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -25,7 +25,6 @@ import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupI
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -56,7 +55,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWebviewService private readonly webviewService: IWebviewService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
@@ -79,10 +77,10 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}));
 
 		const PRIORITY = 105;
-		this._register(UndoCommand.addImplementation(PRIORITY, () => {
+		this._register(UndoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
 			return this.withActiveCustomEditor(editor => editor.undo());
 		}));
-		this._register(RedoCommand.addImplementation(PRIORITY, () => {
+		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
 			return this.withActiveCustomEditor(editor => editor.redo());
 		}));
 
@@ -155,27 +153,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}
 		}
 
-		const input = this.createInput(resource, viewType, group?.id);
+		const input = CustomEditorInput.create(this.instantiationService, resource, viewType, group?.id);
 		return this.openEditorForResource(resource, input, options, group);
-	}
-
-	public createInput(
-		resource: URI,
-		viewType: string,
-		group: GroupIdentifier | undefined,
-		options?: { readonly customClasses: string; },
-	): IEditorInput {
-		if (viewType === defaultCustomEditor.id) {
-			return this.editorService.createEditorInput({ resource, forceFile: true });
-		}
-
-		const id = generateUuid();
-		const webview = this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
-		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, {});
-		if (typeof group !== 'undefined') {
-			input.updateGroup(group);
-		}
-		return input;
 	}
 
 	private async openEditorForResource(
@@ -197,6 +176,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				await this.editorService.replaceEditors([{
 					editor: existing,
 					replacement: input,
+					forceReplaceDirty: existing.resource?.scheme === Schemas.untitled,
 					options: options ? EditorOptions.create(options) : undefined,
 				}], targetGroup);
 
@@ -275,7 +255,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				let replacement: IEditorInput;
 				if (possibleEditors.defaultEditor) {
 					const viewType = possibleEditors.defaultEditor.id;
-					replacement = this.createInput(newResource, viewType!, group);
+					replacement = CustomEditorInput.create(this.instantiationService, newResource, viewType!, group);
 				} else {
 					replacement = this.editorService.createEditorInput({ resource: newResource });
 				}
@@ -529,7 +509,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			if (!subInput.resource) {
 				return;
 			}
-			const input = this.customEditorService.createInput(subInput.resource, editor.id, group.id, { customClasses });
+			const input = CustomEditorInput.create(this.instantiationService, subInput.resource, editor.id, group.id, { customClasses });
 			return input instanceof EditorInput ? input : undefined;
 		};
 

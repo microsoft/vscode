@@ -79,6 +79,8 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { ICustomEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
@@ -100,6 +102,7 @@ registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
+registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
 
 //#endregion
 

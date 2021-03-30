@@ -17,7 +17,7 @@ suite('Preferences Validation', () => {
 		}
 
 		public accepts(input: string) {
-			assert.equal(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${input}\`. Got ${this.validator(input)}.`);
+			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${input}\`. Got ${this.validator(input)}.`);
 		}
 
 		public rejects(input: string) {
@@ -259,7 +259,7 @@ suite('Preferences Validation', () => {
 		}
 
 		public accepts(input: string[]) {
-			assert.equal(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
+			assert.strictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to accept \`${JSON.stringify(input)}\`. Got ${this.validator(input)}.`);
 		}
 
 		public rejects(input: any[]) {

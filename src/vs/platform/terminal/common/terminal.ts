@@ -6,8 +6,8 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export enum WindowsShellType {
 	CommandPrompt = 'cmd',
@@ -76,8 +76,6 @@ export enum TerminalIpcChannels {
 export interface IOffProcessTerminalService {
 	readonly _serviceBrand: undefined;
 
-	/** Fired when the ptyHost process goes down, losing all connections to the service's ptys. */
-	onPtyHostExit: Event<void>;
 	/**
 	 * Fired when the ptyHost process becomes non-responsive, this should disable stdin for all
 	 * terminals using this pty host connection and mark them as disconnected.
@@ -94,17 +92,19 @@ export interface IOffProcessTerminalService {
 	 */
 	onPtyHostRestart: Event<void>;
 
-	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	processBinary(id: number, data: string): void;
-	setTerminalLayoutInfo(args?: ISetTerminalLayoutInfoArgs): void;
-	setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): void;
+	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
+	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
-export interface ILocalTerminalService extends IOffProcessTerminalService { }
+export interface ILocalTerminalService extends IOffProcessTerminalService {
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean, shouldPersist: boolean): Promise<ITerminalChildProcess>;
+}
 
+export const IPtyService = createDecorator<IPtyService>('ptyService');
 export interface IPtyService {
 	readonly _serviceBrand: undefined;
 
@@ -121,6 +121,7 @@ export interface IPtyService {
 	readonly onProcessOverrideDimensions: Event<{ id: number, event: ITerminalDimensionsOverride | undefined }>;
 	readonly onProcessResolvedShellLaunchConfig: Event<{ id: number, event: IShellLaunchConfig }>;
 	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
+	readonly onProcessOrphanQuestion: Event<{ id: number }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -140,6 +141,13 @@ export interface IPtyService {
 	attachToProcess(id: number): Promise<void>;
 	detachFromProcess(id: number): Promise<void>;
 
+	/**
+	 * Lists all orphaned processes, ie. those without a connected frontend.
+	 * @param reduceGraceTime Whether to reduce the reconnection grace time for all orphaned
+	 * terminals.
+	 */
+	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]>;
+
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
@@ -149,8 +157,10 @@ export interface IPtyService {
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
 	processBinary(id: number, data: string): void;
+	/** Confirm the process is _not_ an orphan. */
+	orphanQuestionReply(id: number): Promise<void>;
 
-	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): void;
+	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 }
 
@@ -274,8 +284,17 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 }
 
+export interface IShellLaunchConfigDto {
+	name?: string;
+	executable?: string;
+	args?: string[] | string;
+	cwd?: string | UriComponents;
+	env?: ITerminalEnvironment;
+	hideFromUser?: boolean;
+}
+
 export interface ITerminalEnvironment {
-	[key: string]: string | null;
+	[key: string]: string | null | undefined;
 }
 
 export interface ITerminalLaunchError {
@@ -349,7 +368,7 @@ export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 30000, // 30 seconds
+	ReconnectionGraceTime = 60000, // 60 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
@@ -388,15 +407,15 @@ export interface ITerminalDimensions {
 	/**
 	 * The columns of the terminal.
 	 */
-	readonly cols: number;
+	cols: number;
 
 	/**
 	 * The rows of the terminal.
 	 */
-	readonly rows: number;
+	rows: number;
 }
 
-export interface ITerminalDimensionsOverride extends ITerminalDimensions {
+export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
 	/**
 	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
 	 */

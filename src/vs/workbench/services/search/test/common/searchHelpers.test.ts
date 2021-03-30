@@ -19,8 +19,8 @@ suite('SearchHelpers', () => {
 
 		test('simple', () => {
 			const results = editorMatchesToTextSearchResults([new FindMatch(new Range(6, 1, 6, 2), null)], mockTextModel);
-			assert.equal(results.length, 1);
-			assert.equal(results[0].preview.text, '6\n');
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].preview.text, '6\n');
 			assert.deepEqual(results[0].preview.matches, [new Range(0, 0, 0, 1)]);
 			assert.deepEqual(results[0].ranges, [new Range(5, 0, 5, 1)]);
 		});
@@ -33,7 +33,7 @@ suite('SearchHelpers', () => {
 					new FindMatch(new Range(9, 1, 10, 3), null),
 				],
 				mockTextModel);
-			assert.equal(results.length, 2);
+			assert.strictEqual(results.length, 2);
 			assert.deepEqual(results[0].preview.matches, [
 				new Range(0, 0, 0, 1),
 				new Range(0, 3, 2, 1),
@@ -42,7 +42,7 @@ suite('SearchHelpers', () => {
 				new Range(5, 0, 5, 1),
 				new Range(5, 3, 7, 1),
 			]);
-			assert.equal(results[0].preview.text, '6\n7\n8\n');
+			assert.strictEqual(results[0].preview.text, '6\n7\n8\n');
 
 			assert.deepEqual(results[1].preview.matches, [
 				new Range(0, 0, 1, 2),
@@ -50,7 +50,7 @@ suite('SearchHelpers', () => {
 			assert.deepEqual(results[1].ranges, [
 				new Range(8, 0, 9, 2),
 			]);
-			assert.equal(results[1].preview.text, '9\n10\n');
+			assert.strictEqual(results[1].preview.text, '9\n10\n');
 		});
 	});
 

@@ -312,7 +312,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 					'type': 'string'
 				},
 				'default': [],
-				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
+				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`).'),
 				'included': isMacintosh
 			}
 		}
@@ -361,6 +361,10 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				items: {
 					type: 'string'
 				}
+			},
+			'log-level': {
+				type: 'string',
+				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}
 	};

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 
@@ -32,12 +31,10 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		this.updateTextDiffEditorModel();
 	}
 
-	async load(): Promise<EditorModel> {
-		await super.load();
+	async resolve(): Promise<void> {
+		await super.resolve();
 
 		this.updateTextDiffEditorModel();
-
-		return this;
 	}
 
 	private updateTextDiffEditorModel(): void {

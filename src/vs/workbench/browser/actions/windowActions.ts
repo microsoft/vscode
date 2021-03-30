@@ -304,10 +304,8 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<boolean> {
+	async run(): Promise<void> {
 		await this.hostService.reload();
-
-		return true;
 	}
 }
 
@@ -343,7 +341,7 @@ export class NewWindowAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.hostService.openWindow();
+		return this.hostService.openWindow({ remoteAuthority: null });
 	}
 }
 

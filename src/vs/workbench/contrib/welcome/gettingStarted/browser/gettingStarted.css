@@ -18,6 +18,7 @@
 	width: 100%;
 	user-select: initial;
 	-webkit-user-select: initial;
+	outline: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer img {
@@ -25,10 +26,53 @@
 	max-height: 100%;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer {
+	font-size: 13px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer h1 {
+	padding: 0;
+	margin: 0;
+	border: none;
+	font-weight: normal;
+	font-size: 2.7em;
+	white-space: nowrap;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .title {
+	margin-top: 1em;
+	margin-bottom: 1em;
+	flex: 1 100%;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .subtitle {
+	margin-top: .6em;
+	font-size: 2em;
+	display: block;
+}
+
+.monaco-workbench.hc-black .part.editor > .content .gettingStartedContainer .subtitle {
+	font-weight: 200;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer h2 {
+	font-weight: 200;
+	margin-top: 17px;
+	margin-bottom: 5px;
+	font-size: 1.5em;
+	line-height: initial;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer a:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide {
 	width: 100%;
 	height: 100%;
 	position: absolute;
+	box-sizing: border-box;
 	left: 0;
 	top: 0;
 }
@@ -41,7 +85,15 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories {
 	display: flex;
 	flex-direction: column;
+	align-items: center;
+	justify-content: center;
 	overflow: hidden;
+	padding: 20px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-slide-container {
+	width: 90%;
+	max-width: 1200px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .gap {
@@ -50,70 +102,140 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .header {
 	display: flex;
-	align-items: center;
 	justify-content: center;
 	flex-direction: column;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .category-title {
-	margin-bottom: 4px;
-	font-weight: 600;
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlide.categories .header {
+	display: none;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .category-description-container {
-	width: 100%
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .category-title {
+	margin: 4px 0 4px;
+	font-size: 14px;
+	font-weight: 500;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .category-progress {
-	margin-top: 12px;
-	font-size: 12px;
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view {
+	display: flex;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .categories-left,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .categories-right {
+	flex: 1 1 0;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view ul {
+	list-style: none;
+	margin: 0;
+	line-height: 24px;
+	padding-left: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view li {
+	list-style: none;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .path {
+	padding-left: 1em;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .codicon {
+	padding-right: 8px;
+	position: relative;
+	top: 3px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .start-container .codicon {
+	left: 1px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .categories-split-view .keybinding-label {
+	padding-left: 1em;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-outer {
-	height: 8px;
-	border-radius: 4px;
+	height: 4px;
 	margin-top: 4px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .progress-bar-inner {
 	height: 100%;
-	border-radius: 4px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-container {
-	display: flex;
-	flex-wrap: wrap;
 	justify-content: center;
 	max-width: 900px;
 	margin: 32px auto;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-container .no-categories {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-container .no-categories:first-child {
+	display: block;
+	padding-left: 6px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-categories-scrolling-container {
 	overflow: scroll;
 	height: 100%;
+	width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category {
-	width: 330px;
-	min-height: 80px;
+	width: 92%;
 	font-size: 13px;
+	box-sizing: border-box;
 	line-height: normal;
-	margin: 12px;
+	margin: 8px;
+	padding: 6px 12px 6px;
+	left: 1px;
 	text-align: left;
 	display: flex;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-category {
-	padding-right: 46px;
+	position: relative;
+	border-radius: 6px;
+	overflow: hidden;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon {
-	margin-right: 10px;
-	font-size: 32px;
+	font-size: 20px;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category img.category-icon {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .codicon.hide-category-button {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	font-size: 16px;
+	padding-right: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.categories .getting-started-category img.category-icon {
+	padding-right: 8px;
+	max-width: 20px;
+	max-height: 20px;
+	position: relative;
+	top: 2px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category img.category-icon {
 	margin-right: 10px;
+	margin-left: 10px;
 	max-width: 32px;
 	max-height: 32px;
 }
@@ -141,8 +263,8 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-category .codicon {
-	margin-left:0;
-	font-size: 22pt;
+	margin-right: 8px;
+	font-size: 28px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-detail-columns {
@@ -155,6 +277,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task {
 	display: flex;
 	width: 100%;
+	margin: 4px 0;
 	overflow: hidden;
 	transition: height .1s linear;
 }
@@ -189,6 +312,15 @@
 	margin-top: 12px;
 	display: flex;
 	align-items: center;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .shortcut-message {
+	opacity: 0.8;
+	font-size: 8pt;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .shortcut-message .keybinding {
+	font-weight: bold;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .getting-started-task .task-next {
@@ -295,38 +427,30 @@
 	text-align: center;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide h1 {
-	font-size: 32px;
-	font-weight: normal;
-	border-bottom: none;
-	margin: 0;
-	padding: 0;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide h2 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail h2 {
 	font-weight: normal;
 	line-height: 26px;
 	margin: 0 0 4px 0;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide h3 {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail h3 {
 	font-size: 13px;
 	font-weight: 700;
 	margin: 0;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .subtitle {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide.detail .subtitle {
 	font-size: 16px;
 	margin: 0;
 	padding: 0;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showCategories .detail {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showCategories .gettingStartedSlideDetails {
 	left: 100%;
 	opacity: 0;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showDetails .categories {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showDetails .gettingStartedSlideCategory {
 	left: -100%;
 	opacity: 0;
 }
@@ -336,13 +460,33 @@
 	background: transparent;
 	margin: 2px;
 	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link:hover {
-	text-decoration: underline;
 	background: transparent;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
 	text-align: center;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup label {
+	position: relative;
+	top: -2px;
+	left: 5px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon {
+	top: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon-close {
+	visibility: hidden;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category:hover .codicon-close {
+	visibility: visible;
 }

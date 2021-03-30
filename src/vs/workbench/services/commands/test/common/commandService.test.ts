@@ -56,7 +56,7 @@ suite('CommandService', function () {
 		await extensionService.whenInstalledExtensionsRegistered();
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
-			assert.equal(err.message, 'bad_activate');
+			assert.strictEqual(err.message, 'bad_activate');
 		});
 	});
 
@@ -72,7 +72,7 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		service.executeCommand('bar');
-		assert.equal(callCounter, 1);
+		assert.strictEqual(callCounter, 1);
 		reg.dispose();
 	});
 
@@ -89,14 +89,14 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		let r = service.executeCommand('bar');
-		assert.equal(callCounter, 0);
+		assert.strictEqual(callCounter, 0);
 
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 		resolveFunc!(true);
 
 		return r.then(() => {
 			reg.dispose();
-			assert.equal(callCounter, 1);
+			assert.strictEqual(callCounter, 1);
 		});
 	});
 
@@ -129,7 +129,7 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		return service.executeCommand('farboo').then(() => {
-			assert.equal(callCounter, 1);
+			assert.strictEqual(callCounter, 1);
 			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
 		}).finally(() => {
 			disposable.dispose();
