@@ -237,6 +237,10 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$listProcesses', [reduceGraceTime]);
 	}
 
+	public reduceGraceTime(): Promise<void> {
+		return this._channel.call('$reduceGracetime');
+	}
+
 	public start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}

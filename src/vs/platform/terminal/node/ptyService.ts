@@ -114,11 +114,15 @@ export class PtyService extends Disposable implements IPtyService {
 		this._throwIfNoPty(id).detach();
 	}
 
+	reduceConnectionGraceTime(): void {
+		for (const pty of this._ptys.values()) {
+			pty.reduceGraceTime();
+		}
+	}
+
 	async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
 		if (reduceGraceTime) {
-			for (const pty of this._ptys.values()) {
-				pty.reduceGraceTime();
-			}
+			this.reduceConnectionGraceTime();
 		}
 
 		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);

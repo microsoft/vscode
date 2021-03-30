@@ -190,8 +190,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
 	}
 
+	public reduceConnectionGraceTime(): void {
+		if (!this._remoteTerminalChannel) {
+			throw new Error('Cannot reduce grace time when there is no remote');
+		}
+		this._remoteTerminalChannel.reduceGraceTime();
+	}
+
 	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		await this._remoteTerminalChannel?.listProcesses(true);
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
 		}

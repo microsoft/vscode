@@ -189,6 +189,7 @@ export class TerminalService implements ITerminalService {
 	private async _reconnectToRemoteTerminals(): Promise<void> {
 		// Reattach to all remote terminals
 		const layoutInfo = await this._remoteTerminalService.getTerminalLayoutInfo();
+		await this._remoteTerminalService.reduceConnectionGraceTime();
 		const reconnectCounter = this._recreateTerminalTabs(layoutInfo);
 		/* __GDPR__
 			"terminalReconnection" : {

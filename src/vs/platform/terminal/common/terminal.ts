@@ -96,6 +96,7 @@ export interface IOffProcessTerminalService {
 	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	reduceConnectionGraceTime(): void;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
@@ -146,6 +147,7 @@ export interface IPtyService {
 	 * terminals.
 	 */
 	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]>;
+	reduceConnectionGraceTime(): void;
 
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
@@ -160,6 +162,7 @@ export interface IPtyService {
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
+	reduceConnectionGraceTime(): void;
 }
 
 export enum HeartbeatConstants {
