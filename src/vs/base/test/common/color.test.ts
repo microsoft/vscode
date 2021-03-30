@@ -190,7 +190,7 @@ suite('Color', () => {
 		test('Keep hue value when saturation is 0', () => {
 			assert.deepStrictEqual(HSVA.toRGBA(new HSVA(10, 0, 0, 0)), HSVA.toRGBA(new HSVA(20, 0, 0, 0)));
 			assert.deepStrictEqual(new Color(new HSVA(10, 0, 0, 0)).rgba, new Color(new HSVA(20, 0, 0, 0)).rgba);
-			assert.notDeepEqual(new Color(new HSVA(10, 0, 0, 0)).hsva, new Color(new HSVA(20, 0, 0, 0)).hsva);
+			assert.notDeepStrictEqual(new Color(new HSVA(10, 0, 0, 0)).hsva, new Color(new HSVA(20, 0, 0, 0)).hsva);
 		});
 
 		test('bug#36240', () => {
