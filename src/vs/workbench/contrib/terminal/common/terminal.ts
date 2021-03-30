@@ -401,6 +401,7 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW_LOCAL = 'workbench.action.terminal.newLocal',
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
 	NEW_WITH_PROFILE = 'workbench.action.terminal.newWithProfile',
+	NEW_SPLIT_WITH_PROFILE = 'workbench.action.terminal.newSplitWithProfile',
 	SPLIT = 'workbench.action.terminal.split',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',

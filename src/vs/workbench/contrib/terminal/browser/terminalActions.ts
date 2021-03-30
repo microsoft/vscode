@@ -135,7 +135,7 @@ export function registerTerminalActions() {
 				id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
 				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
 				f1: true,
-				category,
+				category
 			});
 		}
 		async run(accessor: ServicesAccessor) {

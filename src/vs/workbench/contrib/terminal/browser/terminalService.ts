@@ -15,7 +15,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -843,6 +843,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public async showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void> {
+		let keyMods: IKeyMods | undefined;
 		const profiles = await this._detectProfiles(false);
 		const platformKey = await this._getPlatformKey();
 
@@ -871,6 +872,9 @@ export class TerminalService implements ITerminalService {
 					args: context.item.profile.args
 				};
 				await this._configurationService.updateValue(configKey, newConfigValue, ConfigurationTarget.USER);
+			},
+			onKeyMods: (mods: IKeyMods) => {
+				keyMods = mods;
 			}
 		};
 
@@ -891,11 +895,21 @@ export class TerminalService implements ITerminalService {
 		if (!value) {
 			return;
 		}
-
 		if ('createInstance' && value.profile) {
-			const instance = this.createTerminal({ executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined });
+			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
+			let instance;
+			if (keyMods?.alt) {
+				const activeInstance = this.getActiveInstance();
+				if (activeInstance) {
+					instance = this.splitInstance(activeInstance, instance);
+				}
+			} else {
+				instance = this.createTerminal(launchConfig);
+			}
 			this.showPanel(true);
-			this.setActiveInstance(instance);
+			if (instance) {
+				this.setActiveInstance(instance);
+			}
 		} else {
 			await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
 			await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
