@@ -136,15 +136,15 @@ registerThemingParticipant((theme, collector) => {
 	//#region active buttons
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
 	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.testing-filter-button.checked { border-color: ${inputActiveOptionBorderColor}; }`);
+		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { border-color: ${inputActiveOptionBorderColor}; }`);
 	}
 	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
 	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.testing-filter-button.checked { color: ${inputActiveOptionForegroundColor}; }`);
+		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { color: ${inputActiveOptionForegroundColor}; }`);
 	}
 	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
 	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.testing-filter-button.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
+		collector.addRule(`.testing-filter-action-item > .monaco-action-bar .testing-filter-button.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
 	}
 	const badgeColor = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
 	collector.addRule(`.monaco-workbench .part > .title > .title-actions .action-label.codicon-testing-autorun::after { background-color: ${badgeColor}; }`);
