@@ -45,7 +45,7 @@ registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionServic
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
-	title: localize('test', "Test"),
+	title: localize('test', "Testing"),
 	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,

@@ -107,6 +107,10 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Opens the peek view on a test failure, based on user preferences.
 	 */
 	private openPeekOnFailure(evt: TestResultItemChange) {
+		if (evt.reason !== TestResultItemChangeReason.OwnStateChange) {
+			return;
+		}
+
 		if (!isFailedState(evt.item.state.state) || !evt.item.state.messages.length) {
 			return;
 		}
@@ -235,6 +239,15 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	}
 
 	/**
+	 * Removes the peek view if it's being displayed on the given test ID.
+	 */
+	public removeIfPeekingForTest(testId: string) {
+		if (this.peek.value?.currentTest()?.extId === testId) {
+			this.peek.clear();
+		}
+	}
+
+	/**
 	 * If the test we're currently showing has its state change to something
 	 * else, then clear the peek.
 	 */
@@ -243,10 +256,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
-		const displayed = this.peek.value?.currentTest();
-		if (displayed?.extId === evt.item.item.extId) {
-			this.peek.clear();
-		}
+		this.removeIfPeekingForTest(evt.item.item.extId);
 	}
 
 	private closePeekOnRunStart(evt: ResultChangeEvent) {
@@ -477,10 +487,6 @@ class SimpleDiffEditorModel extends EditorModel {
 		private readonly _modified: IReference<IResolvedTextEditorModel>,
 	) {
 		super();
-	}
-
-	async load(): Promise<this> {
-		return this;
 	}
 
 	public dispose() {

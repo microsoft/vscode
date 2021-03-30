@@ -110,13 +110,12 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		return element;
 	}
 
-	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
+	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions, extraParams?: object) {
 		const params = {
 			id: this.id,
-
-			// The extensionId and purpose in the URL are used for filtering in js-debug:
-			extensionId: extension?.id.value ?? '',
+			extensionId: extension?.id.value ?? '', // The extensionId and purpose in the URL are used for filtering in js-debug:
 			purpose: options.purpose,
+			...extraParams
 		} as const;
 
 		const queryString = (Object.keys(params) as Array<keyof typeof params>)

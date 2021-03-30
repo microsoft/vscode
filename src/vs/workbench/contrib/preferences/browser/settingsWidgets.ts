@@ -236,7 +236,7 @@ export interface ISettingListChangeEvent<TDataItem extends object> {
 	targetIndex?: number;
 }
 
-abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
+export abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
 	private rowElements: HTMLElement[] = [];
 

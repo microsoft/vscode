@@ -11,18 +11,45 @@ import { basename } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { decorateFileEditorLabel } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
+
+	static create(
+		instantiationService: IInstantiationService,
+		resource: URI,
+		viewType: string,
+		group: GroupIdentifier | undefined,
+		options?: { readonly customClasses?: string },
+	): IEditorInput {
+		return instantiationService.invokeFunction(accessor => {
+			if (viewType === defaultCustomEditor.id) {
+				return accessor.get(IEditorService).createEditorInput({ resource, forceFile: true });
+			}
+			// If it's an untitled file we must populate the untitledDocumentData
+			const untitledString = accessor.get(IUntitledTextEditorService).getValue(resource);
+			let untitledDocumentData = untitledString ? VSBuffer.fromString(untitledString) : undefined;
+			const id = generateUuid();
+			const webview = accessor.get(IWebviewService).createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
+			const input = instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, { untitledDocumentData: untitledDocumentData });
+			if (typeof group !== 'undefined') {
+				input.updateGroup(group);
+			}
+			return input;
+		});
+	}
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
@@ -143,7 +170,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 
 		if (!isEqual(target, this.resource)) {
-			return this.customEditorService.createInput(target, this.viewType, groupId);
+			return CustomEditorInput.create(this.instantiationService, target, this.viewType, groupId);
 		}
 
 		return this;
@@ -207,7 +234,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
 		if (!this._moveHandler) {
-			return this.customEditorService.createInput(newResource, this.viewType, group);
+			return CustomEditorInput.create(this.instantiationService, newResource, this.viewType, group);
 		}
 
 		this._moveHandler(newResource);

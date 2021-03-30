@@ -215,7 +215,7 @@ suite('ExtHostSearch', () => {
 
 			const { results, stats } = await runFileSearch(getSimpleQuery());
 			assert(!stats.limitHit);
-			assert.equal(results.length, 3);
+			assert.strictEqual(results.length, 3);
 			compareURIs(results, reportedResults);
 		});
 
@@ -492,7 +492,7 @@ suite('ExtHostSearch', () => {
 
 			const { results, stats } = await runFileSearch(query);
 			assert(stats.limitHit, 'Expected to return limitHit');
-			assert.equal(results.length, 1);
+			assert.strictEqual(results.length, 1);
 			compareURIs(results, reportedResults.slice(0, 1));
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
@@ -528,7 +528,7 @@ suite('ExtHostSearch', () => {
 
 			const { results, stats } = await runFileSearch(query);
 			assert(stats.limitHit, 'Expected to return limitHit');
-			assert.equal(results.length, 2);
+			assert.strictEqual(results.length, 2);
 			compareURIs(results, reportedResults.slice(0, 2));
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
@@ -563,7 +563,7 @@ suite('ExtHostSearch', () => {
 
 			const { results, stats } = await runFileSearch(query);
 			assert(!stats.limitHit, 'Expected not to return limitHit');
-			assert.equal(results.length, 2);
+			assert.strictEqual(results.length, 2);
 			compareURIs(results, reportedResults);
 			assert(!wasCanceled, 'Expected not to be canceled when just reaching limit');
 		});
@@ -601,8 +601,8 @@ suite('ExtHostSearch', () => {
 			};
 
 			const { results } = await runFileSearch(query);
-			assert.equal(results.length, 2); // Don't care which 2 we got
-			assert.equal(cancels, 2, 'Expected all invocations to be canceled when hitting limit');
+			assert.strictEqual(results.length, 2); // Don't care which 2 we got
+			assert.strictEqual(cancels, 2, 'Expected all invocations to be canceled when hitting limit');
 		});
 
 		test('works with non-file schemes', async () => {
@@ -756,8 +756,8 @@ suite('ExtHostSearch', () => {
 		test('all provider calls get global include/excludes', async () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					assert.equal(options.includes.length, 1);
-					assert.equal(options.excludes.length, 1);
+					assert.strictEqual(options.includes.length, 1);
+					assert.strictEqual(options.excludes.length, 1);
 					return Promise.resolve(null!);
 				}
 			});
@@ -1184,8 +1184,8 @@ suite('ExtHostSearch', () => {
 			};
 
 			const { results } = await runTextSearch(query);
-			assert.equal(results.length, 2);
-			assert.equal(cancels, 2);
+			assert.strictEqual(results.length, 2);
+			assert.strictEqual(cancels, 2);
 		});
 
 		test('works with non-file schemes', async () => {

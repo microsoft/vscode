@@ -14,7 +14,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { inWalkthroughsContext, WalkthroughsInput, WalkthroughsInputFactory, WalkthroughsPage } from 'vs/workbench/contrib/welcome/walkthroughs/browser/walkthroughs';
+import { inWalkthroughsContext, WalkthroughsInput, WalkthroughsInputSerializer, WalkthroughsPage } from 'vs/workbench/contrib/welcome/walkthroughs/browser/walkthroughs';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -37,7 +37,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(WalkthroughsInput.ID, WalkthroughsInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(WalkthroughsInput.ID, WalkthroughsInputSerializer);
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		WalkthroughsPage,

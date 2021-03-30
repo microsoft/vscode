@@ -404,26 +404,27 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDirty(), false);
 
 		// multiple saves in parallel are fine and result
-		// in individual save operations when content changes
+		// in just one save operation (the second one
+		// cancels the first)
 		workingCopy.model?.updateContents('hello save');
 		const firstSave = workingCopy.save();
 		workingCopy.model?.updateContents('hello save more');
 		const secondSave = workingCopy.save();
 
 		await Promises.settled([firstSave, secondSave]);
-		assert.strictEqual(savedCounter, 5);
+		assert.strictEqual(savedCounter, 4);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
 
 		// no save when not forced and not dirty
 		await workingCopy.save();
-		assert.strictEqual(savedCounter, 5);
+		assert.strictEqual(savedCounter, 4);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
 
 		// save when forced even when not dirty
 		await workingCopy.save({ force: true });
-		assert.strictEqual(savedCounter, 6);
+		assert.strictEqual(savedCounter, 5);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
 
@@ -437,7 +438,7 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.ORPHAN), true);
 
 		await workingCopy.save({ force: true });
-		assert.strictEqual(savedCounter, 7);
+		assert.strictEqual(savedCounter, 6);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.ORPHAN), false);

@@ -31,7 +31,7 @@ import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEdito
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
 import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { FileEditorInputFactory, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { FileEditorInputSerializer, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -76,8 +76,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	}
 });
 
-// Register Editor Input Factory
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
+// Register Editor Input Serializer
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(FILE_EDITOR_INPUT_ID, FileEditorInputSerializer);
 
 // Register Explorer views
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExplorerViewletViewsContribution, LifecyclePhase.Starting);

@@ -44,7 +44,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions, IExtensionsGridViewVirtualDelegate } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
+import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -1045,9 +1045,7 @@ export class ExtensionEditor extends EditorPane {
 		const scrollableContent = new DomScrollableElement(content, { useShadows: false });
 		append(parent, scrollableContent.getDomNode());
 
-		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new class ExtensionsGridViewVirtualDelegate extends Delegate implements IExtensionsGridViewVirtualDelegate {
-			getWidth() { return 275; }
-		});
+		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
 		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
 		extensionsGridView.setExtensions(extensions);
 		scrollableContent.scanDomNode();

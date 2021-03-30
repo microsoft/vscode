@@ -27,7 +27,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -542,9 +542,10 @@ registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.executeNotebook', "Execute Notebook"),
+			title: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
+			icon: icons.executeAllIcon,
 			description: {
-				description: localize('notebookActions.executeNotebook', "Execute Notebook"),
+				description: localize('notebookActions.executeNotebook', "Execute Notebook (Run all cells)"),
 				args: [
 					{
 						name: 'uri',
@@ -553,6 +554,12 @@ registerAction2(class extends NotebookAction {
 					}
 				]
 			},
+			menu: {
+				id: MenuId.EditorTitle,
+				order: -1,
+				group: 'navigation',
+				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated())),
+			}
 		});
 	}
 
@@ -589,9 +596,10 @@ registerAction2(class CancelNotebook extends NotebookAction {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
-			title: localize('notebookActions.cancelNotebook', "Cancel Notebook Execution"),
+			title: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
+			icon: icons.stopIcon,
 			description: {
-				description: localize('notebookActions.cancelNotebook', "Cancel Notebook Execution"),
+				description: localize('notebookActions.cancelNotebook', "Stop Notebook Execution"),
 				args: [
 					{
 						name: 'uri',
@@ -600,6 +608,12 @@ registerAction2(class CancelNotebook extends NotebookAction {
 					}
 				]
 			},
+			menu: {
+				id: MenuId.EditorTitle,
+				order: -1,
+				group: 'navigation',
+				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
+			}
 		});
 	}
 
@@ -624,28 +638,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	title: localize('notebookMenu.cellTitle', "Notebook Cell"),
 	group: CellOverflowToolbarGroups.Insert,
 	when: NOTEBOOK_EDITOR_FOCUSED
-});
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: EXECUTE_NOTEBOOK_COMMAND_ID,
-		title: localize('notebookActions.menu.executeNotebook', "Execute Notebook (Run all cells)"),
-		icon: icons.executeAllIcon,
-	},
-	order: -1,
-	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, executeNotebookCondition, ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()))
-});
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
-		id: CANCEL_NOTEBOOK_COMMAND_ID,
-		title: localize('notebookActions.menu.cancelNotebook', "Stop Notebook Execution"),
-		icon: icons.stopIcon,
-	},
-	order: -1,
-	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL)
 });
 
 registerAction2(class extends NotebookCellAction {
@@ -771,10 +763,7 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
-		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, 'editor');
-		}
+		context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
 	}
 }
 

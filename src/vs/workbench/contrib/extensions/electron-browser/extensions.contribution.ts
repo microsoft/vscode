@@ -16,7 +16,7 @@ import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } fro
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, IExtensionHostProfileService, StartExtensionHostProfileAction, StopExtensionHostProfileAction, CONTEXT_PROFILE_SESSION_STATE, CONTEXT_EXTENSION_HOST_PROFILE_RECORDED, SaveExtensionHostProfileAction } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { DebugExtensionHostAction } from 'vs/workbench/contrib/extensions/electron-browser/debugExtensionHostAction';
-import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ActiveEditorContext } from 'vs/workbench/common/editor';
 import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-browser/extensionProfileService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -40,7 +40,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	[new SyncDescriptor(RuntimeExtensionsInput)]
 );
 
-class RuntimeExtensionsInputFactory implements IEditorInputFactory {
+class RuntimeExtensionsInputSerializer implements IEditorInputSerializer {
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
 	}
@@ -52,7 +52,7 @@ class RuntimeExtensionsInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(RuntimeExtensionsInput.ID, RuntimeExtensionsInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(RuntimeExtensionsInput.ID, RuntimeExtensionsInputSerializer);
 
 
 // Global actions
