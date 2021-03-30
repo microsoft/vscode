@@ -18,9 +18,7 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { CATEGORIES } from 'vs/workbench/common/actions';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, ICellEditOperation, ICellRange, INotebookDocumentFilter, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, TransientMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -1681,53 +1679,6 @@ registerAction2(class extends ChangeNotebookCellMetadataAction {
 
 	getMetadataDelta(): NotebookCellMetadata {
 		return { outputCollapsed: false };
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.inspectLayout',
-			title: localize('notebookActions.inspectLayout', "Inspect Notebook Layout"),
-			category: CATEGORIES.Developer,
-			f1: true
-		});
-	}
-
-	protected getActiveEditorContext(accessor: ServicesAccessor): INotebookActionContext | undefined {
-		const editorService = accessor.get(IEditorService);
-
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!editor) {
-			return;
-		}
-
-		if (!editor.hasModel()) {
-			return;
-		}
-
-		const activeCell = editor.getActiveCell();
-		return {
-			cell: activeCell,
-			notebookEditor: editor
-		};
-	}
-
-	run(accessor: ServicesAccessor) {
-		const activeEditorContext = this.getActiveEditorContext(accessor);
-
-		if (activeEditorContext) {
-			const viewModel = activeEditorContext.notebookEditor.viewModel;
-			console.log('--- notebook ---');
-			console.log(viewModel.layoutInfo);
-			console.log('--- cells ---');
-			for (let i = 0; i < viewModel.length; i++) {
-				const cell = viewModel.viewCells[i] as CellViewModel;
-				console.log(`--- cell: ${cell.handle} ---`);
-				console.log(cell.layoutInfo);
-			}
-
-		}
 	}
 });
 

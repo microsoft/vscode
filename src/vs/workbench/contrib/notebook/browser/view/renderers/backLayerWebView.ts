@@ -833,7 +833,7 @@ var requirejs = (function() {
 							const resolvedResult = this.resolveOutputId(data.id);
 							if (resolvedResult) {
 								const { cellInfo, output } = resolvedResult;
-								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
+								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init, 'webview#dimension');
 							}
 						} else {
 							const cellId = data.id.substr(0, data.id.length - '_preview'.length);

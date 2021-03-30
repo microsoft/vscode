@@ -67,6 +67,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
+import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 
 
 // Diff Editor Contribution

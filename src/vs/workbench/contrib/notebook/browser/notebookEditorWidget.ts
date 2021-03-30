@@ -136,6 +136,14 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.getViewIndex(cell) ?? -1;
 	}
 
+	getViewHeight(cell: ICellViewModel): number {
+		if (!this.list.viewModel) {
+			return -1;
+		}
+
+		return this.list.elementHeight(cell);
+	}
+
 	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
 		if (!this.list.viewModel) {
 			return undefined;
@@ -1592,6 +1600,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._listViewInfoAccessor.getViewIndex(cell);
 	}
 
+	getViewHeight(cell: ICellViewModel): number {
+		if (!this._listViewInfoAccessor) {
+			return -1;
+		}
+
+		return this._listViewInfoAccessor.getViewHeight(cell);
+	}
+
 	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
 		return this._listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex);
 	}
@@ -2237,14 +2253,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.viewCells.find(vc => vc.id === cellId);
 	}
 
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean): void {
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean, source?: string): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
 			if (isInit && outputHeight !== 0) {
-				cell.outputMinHeight = 0;
+				cell.updateOutputMinHeight(0);
 			}
-			cell.updateOutputHeight(outputIndex, outputHeight);
+			cell.updateOutputHeight(outputIndex, outputHeight, source);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 		}
 	}
