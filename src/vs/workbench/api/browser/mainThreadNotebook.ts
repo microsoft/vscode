@@ -10,8 +10,6 @@ import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -29,7 +27,6 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class NotebookAndEditorState {
@@ -119,7 +116,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -176,21 +172,13 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 	private _registerListeners(): void {
 
-		// forward changes to dirty state
-		// todo@rebornix todo@mjbvz this seem way too complicated... is there an easy way to
-		// the actual resource from a working copy?
-		this._disposables.add(this._workingCopyService.onDidChangeDirty(e => {
-			if (e.resource.scheme !== Schemas.vscodeNotebook) {
-				return;
-			}
-			for (const notebook of this._notebookService.getNotebookTextModels()) {
-				if (isEqual(notebook.uri.with({ scheme: Schemas.vscodeNotebook }), e.resource)) {
-					this._proxy.$acceptDirtyStateChanged(notebook.uri, e.isDirty());
-					break;
-				}
-			}
-		}));
+		this._notebookEditorModelResolverService.onDidChangeDirty(model => {
+			this._proxy.$acceptDirtyStateChanged(model.resource, model.isDirty);
+		});
 
+		this._disposables.add(this._notebookEditorModelResolverService.onDidSaveNotebook(e => {
+			this._proxy.$acceptModelSaved(e);
+		}));
 
 		this._disposables.add(this._editorService.onDidActiveEditorChange(e => {
 			this._updateState();
@@ -334,9 +322,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			this._proxy.$acceptNotebookActiveKernelChange(e);
 		}));
 
-		this._disposables.add(this._notebookEditorModelResolverService.onDidSaveNotebook(e => {
-			this._proxy.$acceptModelSaved(e);
-		}));
 
 		const notebookEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 		this._updateState(notebookEditor);
