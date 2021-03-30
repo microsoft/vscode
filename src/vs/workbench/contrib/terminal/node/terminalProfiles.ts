@@ -148,12 +148,12 @@ async function initializeWindowsProfiles(): Promise<void> {
 }
 
 async function getPowershellPaths(): Promise<string[]> {
-	const profiles: string[] = [];
+	const paths: string[] = [];
 	// Add all of the different kinds of PowerShells
 	for await (const pwshExe of enumeratePowerShellInstallations()) {
-		profiles.push(pwshExe.exePath);
+		paths.push(pwshExe.exePath);
 	}
-	return profiles;
+	return paths;
 }
 
 async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promise<ITerminalProfile[]> {
