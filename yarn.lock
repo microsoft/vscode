@@ -9713,10 +9713,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.3.0-dev.20210305:
-  version "4.3.0-dev.20210305"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210305.tgz#5e354b303c435f84a25fa82f45e9c412bfd5bd8f"
-  integrity sha512-OTALeeen7kl6FU1tcXRk3h+WY1NnE5lwyTGAZUCt9hw6tdaifgLXqEkfw9NHJc0xKV6PnU8GgnYFFVVyHLPSHg==
+typescript@^4.3.0-dev.20210330:
+  version "4.3.0-dev.20210330"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210330.tgz#d8ac321a4083b30159b47c9aa21d9026d66bc3c5"
+  integrity sha512-QvcevtZWd2yflF5499EUAxao78bIHRzvzoZdPZKB0V+nh5RkTPQzrQXPxd76pv/cIaumqUhvlB+SEI8KB2COIw==
 
 typical@^4.0.0:
   version "4.0.0"
