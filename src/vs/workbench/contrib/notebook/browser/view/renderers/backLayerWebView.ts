@@ -800,7 +800,8 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined }) => {
+		this._register(this.webview.onMessage((message) => {
+			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {
 				return;
 			}
@@ -1020,7 +1021,8 @@ var requirejs = (function() {
 			resolveFunc = resolve;
 		});
 
-		const dispose = webview.onMessage((data: FromWebviewMessage) => {
+		const dispose = webview.onMessage((message) => {
+			const data: FromWebviewMessage = message.message;
 			if (data.__vscode_notebook_message && data.type === 'initialized') {
 				resolveFunc();
 				dispose.dispose();
@@ -1230,7 +1232,7 @@ var requirejs = (function() {
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
 			this.webview?.onMessage(e => {
-				if (e.type === 'initializedMarkdownPreview') {
+				if (e.message.type === 'initializedMarkdownPreview') {
 					resolve();
 				}
 			});

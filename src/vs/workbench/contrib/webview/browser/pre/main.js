@@ -150,13 +150,13 @@
 	 */
 	function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
-		return `
+		return /* js */`
 			globalThis.acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent['${useParentPostMessage ? 'postMessage' : vscodePostMessageFuncName}'].bind(window.parent);
-				const doPostMessage = (channel, data) => {
+				const doPostMessage = (channel, data, transfer) => {
 					${useParentPostMessage
-				? `originalPostMessage({ command: channel, data: data }, '*');`
-				: `originalPostMessage(channel, data);`
+				? `originalPostMessage({ command: channel, data: data }, '*', transfer);`
+				: `originalPostMessage(channel, data, transfer);`
 			}
 				};
 
@@ -170,8 +170,8 @@
 					}
 					acquired = true;
 					return Object.freeze({
-						postMessage: function(msg) {
-							doPostMessage('onmessage', msg);
+						postMessage: function(message, transfer) {
+							doPostMessage('onmessage', { message, transfer }, transfer);
 						},
 						setState: function(newState) {
 							state = newState;
@@ -197,6 +197,7 @@
 		// state
 		let firstLoad = true;
 		let loadTimeout;
+		/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
 		let pendingMessages = [];
 
 		const initData = {
@@ -622,8 +623,8 @@
 							contentWindow.focus();
 						}
 
-						pendingMessages.forEach((data) => {
-							contentWindow.postMessage(data, '*');
+						pendingMessages.forEach((message) => {
+							contentWindow.postMessage(message.message, '*', message.transfer);
 						});
 						pendingMessages = [];
 					}
@@ -678,12 +679,12 @@
 			});
 
 			// Forward message to the embedded iframe
-			host.onMessage('message', (_event, data) => {
+			host.onMessage('message', (_event, /** @type {{message: any, transfer?: ArrayBuffer[] }} */ data) => {
 				const pending = getPendingFrame();
 				if (!pending) {
 					const target = getActiveFrame();
 					if (target) {
-						target.contentWindow.postMessage(data, '*');
+						target.contentWindow.postMessage(data.message, '*', data.transfer);
 						return;
 					}
 				}
@@ -707,7 +708,7 @@
 				onBlur: () => host.postMessage('did-blur')
 			});
 
-			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (command, data) => {
+			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (command, data, transfer) => {
 				switch (command) {
 					case 'onmessage':
 					case 'do-update-state':
