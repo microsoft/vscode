@@ -873,7 +873,7 @@ export class TerminalService implements ITerminalService {
 				};
 				await this._configurationService.updateValue(configKey, newConfigValue, ConfigurationTarget.USER);
 			},
-			onKeyMods: mods => keyMods = mods,
+			onKeyMods: mods => keyMods = mods
 		};
 
 		// Build quick pick items
@@ -893,14 +893,14 @@ export class TerminalService implements ITerminalService {
 		if (!value) {
 			return;
 		}
-		if ('createInstance' && value.profile) {
+		if ('createInstance') {
 			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
 			let instance;
 			if (keyMods?.alt) {
 				// create split
 				const activeInstance = this.getActiveInstance();
 				if (activeInstance) {
-					instance = this.splitInstance(activeInstance, instance);
+					instance = this.splitInstance(activeInstance, launchConfig);
 				}
 			} else {
 				instance = this.createTerminal(launchConfig);
