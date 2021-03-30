@@ -146,7 +146,6 @@ export interface IPtyService {
 	 * terminals.
 	 */
 	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]>;
-	reduceConnectionGraceTime(): void;
 
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
