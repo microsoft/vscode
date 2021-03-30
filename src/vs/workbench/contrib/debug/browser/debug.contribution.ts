@@ -414,7 +414,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
-			default: 'openOnFirstSessionStart',
+			default: 'openOnDebugBreak',
 			description: nls.localize('openDebug', "Controls when the debug view should open.")
 		},
 		'debug.showSubSessionsInToolBar': {
