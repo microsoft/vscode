@@ -2864,7 +2864,7 @@ declare module 'vscode' {
 		 *   Similarly any TypedArrays, such as a `Uint8Array`, will be very inefficiently
 		 *   serialized and will also not be recreated as a typed array inside the webview.
 		 *
-		 *   However if your extension targets vscode 1.55+ in the `engines` field of its
+		 *   However if your extension targets vscode 1.56+ in the `engines` field of its
 		 *   `package.json` any `ArrayBuffer` values that appear in `message` will be more
 		 *   efficiently transferred to the webview and will also be recreated inside of
 		 *   the webview.
