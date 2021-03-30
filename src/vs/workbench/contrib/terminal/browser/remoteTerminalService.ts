@@ -118,6 +118,9 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = null;
 		}
 	}
+	processBinary(id: number, data: string): void {
+		throw new Error('Method not implemented.');
+	}
 
 	public async createProcess(shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, shouldPersist: boolean, configHelper: ITerminalConfigHelper): Promise<ITerminalChildProcess> {
 		if (!this._remoteTerminalChannel) {
