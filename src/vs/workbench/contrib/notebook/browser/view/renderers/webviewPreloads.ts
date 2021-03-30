@@ -812,8 +812,6 @@ function webviewPreloads() {
 		});
 	}
 
-	const markdownCellDragDataType = 'x-vscode-markdown-cell-drag';
-
 	const markdownPreviewDragManager = new class MarkdownPreviewDragManager {
 
 		private currentDrag: { cellId: string, clientY: number } | undefined;
@@ -826,16 +824,15 @@ function webviewPreloads() {
 
 			document.addEventListener('drop', e => {
 				e.preventDefault();
-				this.currentDrag = undefined;
 
-				const data = e.dataTransfer?.getData(markdownCellDragDataType);
-				if (!data) {
+				const drag = this.currentDrag;
+				if (!drag) {
 					return;
 				}
 
-				const { cellId } = JSON.parse(data);
+				this.currentDrag = undefined;
 				postNotebookMessage<ICellDropMessage>('cell-drop', {
-					cellId: cellId,
+					cellId: drag.cellId,
 					ctrlKey: e.ctrlKey,
 					altKey: e.altKey,
 					position: { clientY: e.clientY },
@@ -849,8 +846,6 @@ function webviewPreloads() {
 			}
 
 			this.currentDrag = { cellId, clientY: e.clientY };
-
-			e.dataTransfer.setData(markdownCellDragDataType, JSON.stringify({ cellId }));
 
 			(e.target as HTMLElement).classList.add('dragging');
 
