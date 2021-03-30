@@ -896,9 +896,9 @@ export class TerminalService implements ITerminalService {
 		if ('createInstance') {
 			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
 			let instance;
-			if (keyMods?.alt) {
-				// create split
-				const activeInstance = this.getActiveInstance();
+			const activeInstance = this.getActiveInstance();
+			if (keyMods?.alt && activeInstance) {
+				// create split, only valid if there's an active instance
 				if (activeInstance) {
 					instance = this.splitInstance(activeInstance, launchConfig);
 				}
