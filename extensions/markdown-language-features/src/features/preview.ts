@@ -437,8 +437,8 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		if (hrefPath[0] !== '/') {
 			// We perviously already resolve absolute paths.
 			// Now make sure we handle relative file paths
-			const dirname = path.dirname(this.resource.path);
-			hrefPath = vscode.Uri.file(path.join(dirname, hrefPath)).path;
+			const dirnameUri = vscode.Uri.parse(path.dirname(this.resource.path));
+			hrefPath = vscode.Uri.joinPath(dirnameUri, hrefPath).path;
 		} else {
 			// Handle any normalized file paths
 			hrefPath = vscode.Uri.parse(hrefPath.replace('/file', '')).path;
