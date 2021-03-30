@@ -48,7 +48,7 @@ function webviewPreloads() {
 			return;
 		}
 
-		for (let node = event.target as HTMLElement | null; node; node = node.parentNode as HTMLElement) {
+		for (const node of event.composedPath()) {
 			if (node instanceof HTMLAnchorElement && node.href) {
 				if (node.href.startsWith('blob:')) {
 					handleBlobUrlClick(node.href, node.download);
@@ -56,7 +56,7 @@ function webviewPreloads() {
 					handleDataUrl(node.href, node.download);
 				}
 				event.preventDefault();
-				break;
+				return;
 			}
 		}
 	};
