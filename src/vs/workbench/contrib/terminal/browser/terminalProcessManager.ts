@@ -500,9 +500,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	public processBinary(data: string): void {
-		if (this._process) {
-			this._process?.processBinary(data);
-		}
+		this._process?.processBinary(data);
 	}
 
 	public getInitialCwd(): Promise<string> {
