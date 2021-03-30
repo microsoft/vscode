@@ -36,7 +36,7 @@ export interface IWorkspaceTrustModel {
 	readonly onDidChangeTrustState: Event<void>;
 
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
-	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustFolderInfo;
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo;
 
 	setTrustedFolders(folders: URI[]): void;
 	setUntrustedFolders(folders: URI[]): void;
@@ -87,14 +87,11 @@ export interface IWorkspaceTrustService {
 	requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState>;
 }
 
-export interface IWorkspaceTrustFolderInfo {
-	uri: string,
+export interface IWorkspaceTrustUriInfo {
+	uri: URI,
 	trustState: WorkspaceTrustState
 }
 
 export interface IWorkspaceTrustStateInfo {
-	localFolders: IWorkspaceTrustFolderInfo[]
-
-	// Removing complexity of remote items
-	//trustedRemoteItems: { uri: string }[]
+	uriTrustInfo: IWorkspaceTrustUriInfo[]
 }

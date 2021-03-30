@@ -23,7 +23,6 @@ import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/com
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -52,7 +51,7 @@ import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/b
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { ITestingPeekOpener, TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestIdPath, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -62,7 +61,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DebugAction, HideOrShowTestAction, RunAction } from './testExplorerActions';
+import { DebugAction, EditFocusedTest, HideOrShowTestAction, RunAction } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -278,7 +277,7 @@ export class TestingExplorerViewModel extends Disposable {
 		@ITestService private readonly testService: ITestService,
 		@ITestExplorerFilterState private readonly filterState: TestExplorerFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
@@ -368,10 +367,12 @@ export class TestingExplorerViewModel extends Disposable {
 		this.updatePreferredProjection();
 
 		this.onDidChangeSelection = this.tree.onDidChangeSelection;
-		this._register(this.tree.onDidChangeSelection(evt => {
+		this._register(this.tree.onDidChangeSelection(async evt => {
 			const selected = evt.elements[0];
-			if (selected && evt.browserEvent && !selected.children.size) {
-				this.openEditorForItem(selected);
+			if (selected && evt.browserEvent && selected.expandable === TestItemExpandState.NotExpandable) {
+				if (!(await this.tryPeekError(selected)) && selected?.test) {
+					this.instantiationService.invokeFunction(accessor => new EditFocusedTest().run(accessor, selected.test!.item, true));
+				}
 			}
 		}));
 
@@ -467,30 +468,6 @@ export class TestingExplorerViewModel extends Disposable {
 	 */
 	public async collapseAll() {
 		this.tree.collapseAll();
-	}
-
-	/**
-	 * Opens an editor for the item. If there is a failure associated with the
-	 * test item, it will be shown.
-	 */
-	public async openEditorForItem(item: ITestTreeElement, preserveFocus = true) {
-		if (await this.tryPeekError(item)) {
-			return;
-		}
-
-		const pane = await this.editorService.openEditor({
-			resource: item.uri,
-			options: {
-				selection: item.range && { startColumn: item.range.startColumn, startLineNumber: item.range.startLineNumber },
-				preserveFocus,
-			},
-		});
-
-		// if the user selected a failed test and now they didn't, hide the peek
-		const control = pane?.getControl();
-		if (isCodeEditor(control)) {
-			TestingOutputPeekController.get(control).removePeek();
-		}
 	}
 
 	/**
@@ -725,25 +702,29 @@ class TreeSorter implements ITreeSorter<ITestTreeElement> {
 	}
 }
 
+const getLabelForTestTreeElement = (element: ITestTreeElement) => {
+	let label = localize({
+		key: 'testing.treeElementLabel',
+		comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
+	}, '{0} ({1})', element.label, testStateNames[element.state]);
+
+	if (element.retired) {
+		label = localize({
+			key: 'testing.treeElementLabelOutdated',
+			comment: ['{0} is the original label in testing.treeElementLabel'],
+		}, '{0}, outdated result', label, testStateNames[element.state]);
+	}
+
+	return label;
+};
+
 class ListAccessibilityProvider implements IListAccessibilityProvider<ITestTreeElement> {
 	getWidgetAriaLabel(): string {
 		return localize('testExplorer', "Test Explorer");
 	}
 
 	getAriaLabel(element: ITestTreeElement): string {
-		let label = localize({
-			key: 'testing.treeElementLabel',
-			comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
-		}, '{0} ({1})', element.label, testStateNames[element.state]);
-
-		if (element.retired) {
-			label = localize({
-				key: 'testing.treeElementLabelOutdated',
-				comment: ['{0} is the original label in testing.treeElementLabel'],
-			}, '{0}, outdated result', label, testStateNames[element.state]);
-		}
-
-		return label;
+		return getLabelForTestTreeElement(element);
 	}
 }
 
@@ -839,13 +820,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const test = element.test;
 		if (test) {
 			label.resource = test.item.uri;
-
-			let title = element.label;
-			for (let p = element.parentItem; p; p = p.parentItem) {
-				title = `${p.label}, ${title}`;
-			}
-
-			options.title = title;
+			options.title = getLabelForTestTreeElement(element);
 			options.fileKind = FileKind.FILE;
 			label.description = element.description;
 		} else {
@@ -894,23 +869,27 @@ const getTestItemActions = (
 
 	try {
 		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
 		const running = element.state === TestResult.Running;
 		if (!Iterable.isEmpty(element.runnable)) {
-			primary.push(instantionService.createInstance(RunAction, element.runnable, running));
+			const run = instantionService.createInstance(RunAction, element.runnable, running);
+			primary.push(run);
+			secondary.push(run);
 		}
 
 		if (!Iterable.isEmpty(element.debuggable)) {
-			primary.push(instantionService.createInstance(DebugAction, element.debuggable, running));
+			const debug = instantionService.createInstance(DebugAction, element.debuggable, running);
+			primary.push(debug);
+			secondary.push(debug);
 		}
 
-		const secondary: IAction[] = [];
 		if (element.test) {
 			secondary.push(instantionService.createInstance(HideOrShowTestAction, element.test.item.extId));
 		}
 
 		const result = { primary, secondary };
 		const actionsDisposable = createAndFillInActionBarActions(menu, {
-			arg: element.test?.item.extId,
+			arg: element.test?.item,
 			shouldForwardArgs: true,
 		}, result, 'inline');
 

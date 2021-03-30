@@ -1033,7 +1033,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 						return undefined;
 					}
 
-					return editorModel!.load();
+					return editorModel!.resolve();
 				})
 				.then(editorModel => {
 					if (token.isCancellationRequested) {

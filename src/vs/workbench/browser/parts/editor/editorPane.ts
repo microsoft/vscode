@@ -274,7 +274,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 
 		if (!this.editorDisposables.has(editor)) {
-			this.editorDisposables.set(editor, Event.once(editor.onDispose)(() => {
+			this.editorDisposables.set(editor, Event.once(editor.onWillDispose)(() => {
 				this.clearEditorState(resource);
 				this.editorDisposables?.delete(editor);
 			}));

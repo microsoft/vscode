@@ -46,7 +46,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	const oldValueForInlcudeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
 	teardown(() => {
 		// close all editors
-		return closeAllEditors;
+		return closeAllEditors();
 	});
 
 	test('Expand snippets (HTML)', () => {

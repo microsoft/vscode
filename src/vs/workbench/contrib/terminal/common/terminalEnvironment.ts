@@ -33,12 +33,16 @@ export function mergeEnvironments(parent: platform.IProcessEnvironment, other: I
 				}
 			}
 			const value = other[configKey];
-			_mergeEnvironmentValue(parent, actualKey, value);
+			if (value !== undefined) {
+				_mergeEnvironmentValue(parent, actualKey, value);
+			}
 		}
 	} else {
 		Object.keys(other).forEach((key) => {
 			const value = other[key];
-			_mergeEnvironmentValue(parent, key, value);
+			if (value !== undefined) {
+				_mergeEnvironmentValue(parent, key, value);
+			}
 		});
 	}
 }

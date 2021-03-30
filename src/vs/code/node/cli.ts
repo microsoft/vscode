@@ -118,7 +118,6 @@ export async function main(argv: string[]): Promise<any> {
 	else {
 		const env: NodeJS.ProcessEnv = {
 			...process.env,
-			'VSCODE_CLI': '1', // this will signal Code that it was spawned from this module
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		};
 

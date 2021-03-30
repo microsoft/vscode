@@ -25,6 +25,7 @@ import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { localize } from 'vs/nls';
 
 export const EXTENSION_LIST_ELEMENT_HEIGHT = 62;
 
@@ -42,6 +43,7 @@ export interface ITemplateData {
 	ratings: HTMLElement;
 	author: HTMLElement;
 	description: HTMLElement;
+	workspaceTrustDescription: HTMLElement;
 	extension: IExtension | null;
 	disposables: IDisposable[];
 	extensionDisposables: IDisposable[];
@@ -86,6 +88,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const syncIgnore = append(header, $('span.sync-ignored'));
 		const headerRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, header, false);
 		const description = append(details, $('.description.ellipsis'));
+		const workspaceTrustDescription = append(details, $('.workspace-trust-description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, {
@@ -138,7 +141,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers, extensionTooltipAction);
 
 		return {
-			root, element, icon, name, installCount, ratings, author, description, disposables: [disposable], actionbar,
+			root, element, icon, name, installCount, ratings, author, description, workspaceTrustDescription, disposables: [disposable], actionbar,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				extensionContainers.extension = extension;
@@ -199,6 +202,18 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
+
+		if (extension.local?.manifest.workspaceTrust?.required) {
+			const trustRequirement = extension.local.manifest.workspaceTrust;
+			if (trustRequirement.description) {
+				data.workspaceTrustDescription.textContent = trustRequirement.description;
+			} else if (trustRequirement.required === 'onDemand') {
+				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
+			} else if (trustRequirement.required === 'onStart') {
+				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
+			}
+		}
+
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;

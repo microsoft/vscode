@@ -273,7 +273,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const disposables = new DisposableStore();
 		disposables.add(primary.webview.onDidFocus(() => this.updateWebviewViewStates(primary)));
 		disposables.add(secondary.webview.onDidFocus(() => this.updateWebviewViewStates(secondary)));
-		disposables.add(diffEditorInput.onDispose(() => {
+		disposables.add(diffEditorInput.onWillDispose(() => {
 			this._webviewFromDiffEditorHandles.delete(primary.id);
 			this._webviewFromDiffEditorHandles.delete(secondary.id);
 			dispose(disposables);

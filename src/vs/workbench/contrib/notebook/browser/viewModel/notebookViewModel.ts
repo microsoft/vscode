@@ -559,6 +559,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook.versionId;
 	}
 
+	getAlternativeId() {
+		return this._notebook.alternativeVersionId;
+	}
+
 	getTrackedRange(id: string): ICellRange | null {
 		return this._getDecorationRange(id);
 	}
@@ -695,6 +699,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[], synchronous: boolean, pushUndoStop: boolean = true, previouslyPrimary: number | null = null, previouslyFocused: ICellViewModel[] = []): CellViewModel {
 		const beforeSelections = previouslyFocused.map(e => e.handle);
+		const endSelections: ISelectionState = { kind: SelectionStateType.Index, focus: { start: index, end: index + 1 }, selections: [{ start: index, end: index + 1 }] };
 		this._notebook.applyEdits([
 			{
 				editType: CellEditType.Replace,
@@ -710,7 +715,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					}
 				]
 			}
-		], synchronous, { kind: SelectionStateType.Handle, primary: previouslyPrimary, selections: beforeSelections }, () => undefined, undefined);
+		], synchronous, { kind: SelectionStateType.Handle, primary: previouslyPrimary, selections: beforeSelections }, () => endSelections, undefined);
 		return this._viewCells[index];
 	}
 
