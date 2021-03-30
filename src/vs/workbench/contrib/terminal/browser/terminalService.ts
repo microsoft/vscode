@@ -453,12 +453,10 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _updateLocalState(): void {
-		if (!!this._localTerminalService) {
-			const state: ITerminalsLayoutInfoById = {
-				tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
-			};
-			this._localTerminalService.setTerminalLayoutInfo(state);
-		}
+		const state: ITerminalsLayoutInfoById = {
+			tabs: this.terminalTabs.map(t => t.getLayoutInfo(t === this.getActiveTab()))
+		};
+		this._localTerminalService!.setTerminalLayoutInfo(state);
 	}
 
 	private _removeTab(tab: ITerminalTab): void {
