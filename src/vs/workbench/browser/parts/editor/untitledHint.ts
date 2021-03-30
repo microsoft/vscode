@@ -9,7 +9,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { localize } from 'vs/nls';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ChangeModeAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -29,7 +29,7 @@ export class UntitledHintContribution implements IEditorContribution {
 	private toDispose: IDisposable[];
 	private untitledHintContentWidget: UntitledHintContentWidget | undefined;
 	private button: FloatingClickWidget | undefined;
-	private experimentTreatment: 'text' | 'button' | undefined;
+	private experimentTreatment: 'text' | 'button' | 'hidden' | undefined;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -56,8 +56,8 @@ export class UntitledHintContribution implements IEditorContribution {
 	private update(): void {
 		this.untitledHintContentWidget?.dispose();
 		this.button?.dispose();
-		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden'>(untitledHintSetting);
-		const untitledHintMode = configValue === 'hidden' ? configValue : (this.experimentTreatment || configValue);
+		const configValue = this.configurationService.getValue<'text' | 'button' | 'hidden' | 'default'>(untitledHintSetting);
+		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'hidden') : configValue;
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {
@@ -118,7 +118,8 @@ class UntitledHintContentWidget implements IContentWidget {
 		if (!this.domNode) {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
-			const language = $('span.language-mode.detected-link-active');
+			const language = $('a.language-mode');
+			language.style.cursor = 'pointer';
 			const keybinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
 			const keybindingLabel = keybinding?.getLabel();
 			const keybindingWithBrackets = keybindingLabel ? `(${keybindingLabel})` : '';
@@ -128,7 +129,8 @@ class UntitledHintContentWidget implements IContentWidget {
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
 			this.domNode.appendChild(toGetStarted);
 
-			const dontShow = $('span.detected-link-active');
+			const dontShow = $('a');
+			dontShow.style.cursor = 'pointer';
 			dontShow.innerText = localize('dontshow', "don't show");
 			this.domNode.appendChild(dontShow);
 
@@ -179,5 +181,9 @@ registerThemingParticipant((theme, collector) => {
 	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
 	if (inputPlaceholderForegroundColor) {
 		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint { color: ${inputPlaceholderForegroundColor}; }`);
+	}
+	const textLinkForegroundColor = theme.getColor(textLinkForeground);
+	if (textLinkForegroundColor) {
+		collector.addRule(`.monaco-editor .contentWidgets .untitled-hint a { color: ${textLinkForegroundColor}; }`);
 	}
 });

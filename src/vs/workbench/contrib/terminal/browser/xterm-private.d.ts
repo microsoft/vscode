@@ -35,7 +35,7 @@ export interface XTermCore {
 		_onIntersectionChange: any;
 	};
 
-	writeSync(data: string | Uint8Array): void;
+	writeSync(data: string | Uint8Array, maxSubsequentCalls?: number): void;
 }
 
 export interface IEventEmitter<T> {

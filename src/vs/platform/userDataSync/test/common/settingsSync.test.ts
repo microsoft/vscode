@@ -66,7 +66,7 @@ suite('SettingsSync - Auto', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.equal(lastSyncUserData!.syncData, null);
+		assert.strictEqual(lastSyncUserData!.syncData, null);
 
 		manifest = await client.manifest();
 		server.reset();
@@ -88,9 +88,9 @@ suite('SettingsSync - Auto', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.equal(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
-		assert.equal(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, '{}');
-		assert.equal((await fileService.readFile(settingsResource)).value.toString(), '');
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
+		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, '{}');
+		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), '');
 	});
 
 	test('when settings file is empty and remote has changes', async () => {
@@ -129,9 +129,9 @@ suite('SettingsSync - Auto', () => {
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.equal(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, content);
-		assert.equal(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, content);
-		assert.equal((await fileService.readFile(settingsResource)).value.toString(), content);
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, content);
+		assert.strictEqual(parseSettingsSyncContent(remoteUserData!.syncData!.content!)?.settings, content);
+		assert.strictEqual((await fileService.readFile(settingsResource)).value.toString(), content);
 	});
 
 	test('when settings file is created after first sync', async () => {
@@ -154,7 +154,7 @@ suite('SettingsSync - Auto', () => {
 		const remoteUserData = await testObject.getRemoteUserData(null);
 		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
 		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
-		assert.equal(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
+		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
 	});
 
 	test('sync for first time to the server', async () => {
@@ -483,8 +483,8 @@ suite('SettingsSync - Auto', () => {
 		}), client);
 		await testObject.sync(await client.manifest());
 
-		assert.equal(testObject.status, SyncStatus.HasConflicts);
-		assert.equal(testObject.conflicts[0].localResource.toString(), testObject.localResource);
+		assert.strictEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.strictEqual(testObject.conflicts[0].localResource.toString(), testObject.localResource.toString());
 
 		const fileService = client.instantiationService.get(IFileService);
 		const mergeContent = (await fileService.readFile(testObject.conflicts[0].previewResource)).value.toString();
@@ -537,7 +537,7 @@ suite('SettingsSync - Manual', () => {
 		await updateSettings(settingsContent, client);
 
 		let preview = await testObject.preview(await client.manifest());
-		assert.equal(testObject.status, SyncStatus.Syncing);
+		assert.strictEqual(testObject.status, SyncStatus.Syncing);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 

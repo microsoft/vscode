@@ -27,93 +27,93 @@ suite('NotebookViewModel', () => {
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService);
-		assert.equal(viewModel.viewType, 'notebook');
+		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 
 	test('insert/delete', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
-			(editor, viewModel) => {
-				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
-				assert.equal(viewModel.viewCells[1].metadata?.editable, false);
+			(editor) => {
+				const viewModel = editor.viewModel;
+				assert.strictEqual(viewModel.viewCells[0].metadata?.editable, true);
+				assert.strictEqual(viewModel.viewCells[1].metadata?.editable, false);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
-				assert.equal(viewModel.viewCells.length, 3);
-				assert.equal(viewModel.notebookDocument.cells.length, 3);
-				assert.equal(viewModel.getCellIndex(cell), 1);
+				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
+				assert.strictEqual(viewModel.getCellIndex(cell), 1);
 
 				viewModel.deleteCell(1, true);
-				assert.equal(viewModel.viewCells.length, 2);
-				assert.equal(viewModel.notebookDocument.cells.length, 2);
-				assert.equal(viewModel.getCellIndex(cell), -1);
+				assert.strictEqual(viewModel.viewCells.length, 2);
+				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
+				assert.strictEqual(viewModel.getCellIndex(cell), -1);
 			}
 		);
 	});
 
 	test('move cells down', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
 				['//b', 'javascript', CellKind.Code, [], { editable: true }],
 				['//c', 'javascript', CellKind.Code, [], { editable: true }],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(0, 1, 0, true);
 				// no-op
-				assert.equal(viewModel.viewCells[0].getText(), '//a');
-				assert.equal(viewModel.viewCells[1].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
 
 				viewModel.moveCellToIdx(0, 1, 1, true);
 				// b, a, c
-				assert.equal(viewModel.viewCells[0].getText(), '//b');
-				assert.equal(viewModel.viewCells[1].getText(), '//a');
-				assert.equal(viewModel.viewCells[2].getText(), '//c');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[2].getText(), '//c');
 
 				viewModel.moveCellToIdx(0, 1, 2, true);
 				// a, c, b
-				assert.equal(viewModel.viewCells[0].getText(), '//a');
-				assert.equal(viewModel.viewCells[1].getText(), '//c');
-				assert.equal(viewModel.viewCells[2].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//c');
+				assert.strictEqual(viewModel.viewCells[2].getText(), '//b');
 			}
 		);
 	});
 
 	test('move cells up', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['//a', 'javascript', CellKind.Code, [], { editable: true }],
 				['//b', 'javascript', CellKind.Code, [], { editable: true }],
 				['//c', 'javascript', CellKind.Code, [], { editable: true }],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(1, 1, 0, true);
 				// b, a, c
-				assert.equal(viewModel.viewCells[0].getText(), '//b');
-				assert.equal(viewModel.viewCells[1].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
 
 				viewModel.moveCellToIdx(2, 1, 0, true);
 				// c, b, a
-				assert.equal(viewModel.viewCells[0].getText(), '//c');
-				assert.equal(viewModel.viewCells[1].getText(), '//b');
-				assert.equal(viewModel.viewCells[2].getText(), '//a');
+				assert.strictEqual(viewModel.viewCells[0].getText(), '//c');
+				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
+				assert.strictEqual(viewModel.viewCells[2].getText(), '//a');
 			}
 		);
 	});
 
 	test('index', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const firstViewCell = viewModel.viewCells[0];
 				const lastViewCell = viewModel.viewCells[viewModel.viewCells.length - 1];
 
@@ -126,16 +126,15 @@ suite('NotebookViewModel', () => {
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
 				const cell2 = viewModel.createCell(secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
 
-				assert.equal(viewModel.viewCells.length, 3);
-				assert.equal(viewModel.notebookDocument.cells.length, 3);
-				assert.equal(viewModel.getCellIndex(cell2), 2);
+				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
+				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
 			}
 		);
 	});
 
 	test('metadata', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -143,7 +142,8 @@ suite('NotebookViewModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
 				const defaults = { hasExecutionOrder: true };
@@ -237,11 +237,8 @@ function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 }
 
 suite('NotebookViewModel Decorations', () => {
-	const instantiationService = setupInstantiationService();
-
 	test('tracking range', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -249,7 +246,8 @@ suite('NotebookViewModel Decorations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var e = 5;', 'javascript', CellKind.Code, [], { editable: false }],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
@@ -297,7 +295,6 @@ suite('NotebookViewModel Decorations', () => {
 
 	test('tracking range 2', async function () {
 		await withTestNotebook(
-			instantiationService,
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 				['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }],
@@ -307,7 +304,8 @@ suite('NotebookViewModel Decorations', () => {
 				['var e = 6;', 'javascript', CellKind.Code, [], { editable: false }],
 				['var e = 7;', 'javascript', CellKind.Code, [], { editable: false }],
 			],
-			(editor, viewModel) => {
+			(editor) => {
+				const viewModel = editor.viewModel;
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 3 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,

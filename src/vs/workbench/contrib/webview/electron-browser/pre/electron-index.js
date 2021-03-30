@@ -65,8 +65,8 @@
 
 	document.addEventListener('DOMContentLoaded', e => {
 		// Forward messages from the embedded iframe
-		window.onmessage = (message) => {
-			ipcRenderer.sendToHost(message.data.command, message.data.data);
+		window.onmessage = (/** @type {MessageEvent} */ event) => {
+			ipcRenderer.sendToHost(event.data.command, event.data.data);
 		};
 	});
 

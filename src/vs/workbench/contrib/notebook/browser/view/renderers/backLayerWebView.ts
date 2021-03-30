@@ -25,6 +25,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as nls from 'vs/nls';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -75,9 +76,13 @@ export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	downloadName?: string;
 }
 
-export interface IFocusMarkdownPreviewMessage extends BaseToWebviewMessage {
-	type: 'focusMarkdownPreview';
-	cellId: string;
+export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'clickMarkdownPreview';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly shiftKey: boolean;
 }
 
 export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
@@ -97,26 +102,35 @@ export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 
 export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
 export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
+}
+
+export interface ICellDropMessage extends BaseToWebviewMessage {
+	readonly type: 'cell-drop';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
 export interface ICellDragEndMessage extends BaseToWebviewMessage {
 	readonly type: 'cell-drag-end';
 	readonly cellId: string;
-	readonly ctrlKey: boolean
-	readonly altKey: boolean;
-	readonly position: {
-		readonly clientX: number;
-		readonly clientY: number;
-	};
 }
+
 export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkdownPreview';
 }
@@ -284,12 +298,13 @@ export type FromWebviewMessage =
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
-	| IFocusMarkdownPreviewMessage
+	| IClickMarkdownPreviewMessage
 	| IMouseEnterMarkdownPreviewMessage
 	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
+	| ICellDropMessage
 	| ICellDragEndMessage
 	| IInitializedMarkdownPreviewMessage
 	;
@@ -406,17 +421,23 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
-						user-select: text;
-						-webkit-user-select: text;
-						-ms-user-select: text;
+						user-select: none;
+						-webkit-user-select: none;
+						-ms-user-select: none;
 						white-space: initial;
 						cursor: grab;
+					}
+
+					#container > div > div.preview.emptyMarkdownCell::before {
+						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
+						font-style: italic;
+						opacity: 0.6;
 					}
 
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
-						width: calc(100% - ${this.options.cellMargin}px);
+						width: 100%;
 						padding-left: ${this.options.leftMargin}px;
 						padding-top: ${this.options.previewNodePadding}px;
 						padding-bottom: ${this.options.previewNodePadding}px;
@@ -779,7 +800,8 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined }) => {
+		this._register(this.webview.onMessage((message) => {
+			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {
 				return;
 			}
@@ -872,7 +894,7 @@ var requirejs = (function() {
 						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 						break;
 					}
-				case 'focusMarkdownPreview':
+				case 'clickMarkdownPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -915,17 +937,21 @@ var requirejs = (function() {
 						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
 						break;
 					}
-				case 'cell-drag-end':
+				case 'cell-drop':
 					{
-						this.notebookEditor.markdownCellDragEnd(data.cellId, {
+						this.notebookEditor.markdownCellDrop(data.cellId, {
 							clientY: data.position.clientY,
 							ctrlKey: data.ctrlKey,
 							altKey: data.altKey,
 						});
 						break;
 					}
+				case 'cell-drag-end':
+					{
+						this.notebookEditor.markdownCellDragEnd(data.cellId);
+						break;
+					}
 			}
-
 		}));
 	}
 
@@ -995,7 +1021,8 @@ var requirejs = (function() {
 			resolveFunc = resolve;
 		});
 
-		const dispose = webview.onMessage((data: FromWebviewMessage) => {
+		const dispose = webview.onMessage((message) => {
+			const data: FromWebviewMessage = message.message;
 			if (data.__vscode_notebook_message && data.type === 'initialized') {
 				resolveFunc();
 				dispose.dispose();
@@ -1205,7 +1232,7 @@ var requirejs = (function() {
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
 			this.webview?.onMessage(e => {
-				if (e.type === 'initializedMarkdownPreview') {
+				if (e.message.type === 'initializedMarkdownPreview') {
 					resolve();
 				}
 			});

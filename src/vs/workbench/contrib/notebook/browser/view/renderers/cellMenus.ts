@@ -12,6 +12,10 @@ export class CellMenus {
 		@IMenuService private readonly menuService: IMenuService,
 	) { }
 
+	getNotebookToolbar(contextKeyService: IContextKeyService): IMenu {
+		return this.getMenu(MenuId.NotebookToolbar, contextKeyService);
+	}
+
 	getCellTitleMenu(contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.NotebookCellTitle, contextKeyService);
 	}

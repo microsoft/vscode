@@ -76,6 +76,7 @@ export interface Tunnel {
 	closeable?: boolean;
 	privacy: TunnelPrivacy;
 	runningProcess: string | undefined;
+	hasRunningProcess?: boolean;
 	pid: number | undefined;
 	source?: string;
 	userForwarded: boolean;
@@ -154,7 +155,7 @@ interface PortAttributes extends Attributes {
 
 export class PortsAttributes extends Disposable {
 	private static SETTING = 'remote.portsAttributes';
-	private static DEFAULTS = 'remote.portsAttributes.defaults';
+	private static DEFAULTS = 'remote.otherPortsAttributes';
 	private static RANGE = /^(\d+)\-(\d+)$/;
 	private portsAttributes: PortAttributes[] = [];
 	private defaultPortAttributes: Attributes | undefined;
@@ -164,7 +165,7 @@ export class PortsAttributes extends Disposable {
 	constructor(private readonly configurationService: IConfigurationService) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(PortsAttributes.SETTING)) {
+			if (e.affectsConfiguration(PortsAttributes.SETTING) || e.affectsConfiguration(PortsAttributes.DEFAULTS)) {
 				this.updateAttributes();
 			}
 		}));
@@ -343,6 +344,7 @@ export class TunnelModel extends Disposable {
 		super();
 		this.configPortsAttributes = new PortsAttributes(configurationService);
 		this.tunnelRestoreValue = this.getTunnelRestoreValue();
+		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 		this.forwarded = new Map();
 		this.remoteTunnels = new Map();
 		this.tunnelService.tunnels.then(tunnels => {
@@ -356,6 +358,7 @@ export class TunnelModel extends Disposable {
 						localAddress: tunnel.localAddress,
 						localPort: tunnel.tunnelLocalPort,
 						runningProcess: matchingCandidate?.detail,
+						hasRunningProcess: !!matchingCandidate,
 						pid: matchingCandidate?.pid,
 						privacy: this.makeTunnelPrivacy(tunnel.public),
 						userForwarded: true
@@ -377,6 +380,7 @@ export class TunnelModel extends Disposable {
 					localPort: tunnel.tunnelLocalPort,
 					closeable: true,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
 					userForwarded: true
@@ -394,8 +398,6 @@ export class TunnelModel extends Disposable {
 				this._onClosePort.fire(address);
 			}
 		}));
-
-		this._register(this.configPortsAttributes.onDidChangeAttributes(this.updateAttributes, this));
 	}
 
 	private makeTunnelPrivacy(isPublic: boolean) {
@@ -453,26 +455,27 @@ export class TunnelModel extends Disposable {
 
 	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean, isPublic?: boolean, restore: boolean = true): Promise<RemoteTunnel | void> {
 		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
+		const port = local !== undefined ? local : remote.port;
+		const attributes = (await this.getAttributes([port]))?.get(port);
+
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
-			const port = local !== undefined ? local : remote.port;
-			const attributes = (await this.getAttributes([port]))?.get(port);
-
 			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
 			if (tunnel && tunnel.localAddress) {
-				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), remote.host, remote.port);
+				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), remote.host, remote.port);
 				const newForward: Tunnel = {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localPort: tunnel.tunnelLocalPort,
-					name: name ?? attributes?.label,
+					name: attributes?.label ?? name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					source,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
@@ -486,8 +489,8 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			if (name) {
-				existingTunnel.name = name;
+			if (attributes?.label ?? name) {
+				existingTunnel.name = attributes?.label ?? name;
 			}
 			this._onForwardPort.fire();
 			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
@@ -531,6 +534,7 @@ export class TunnelModel extends Disposable {
 					localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 					closeable: false,
 					runningProcess: matchingCandidate?.detail,
+					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
 					privacy: TunnelPrivacy.ConstantPrivate,
 					userForwarded: false
@@ -577,6 +581,7 @@ export class TunnelModel extends Disposable {
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, value.host, value.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = value.detail;
+				forwardedValue.hasRunningProcess = true;
 				forwardedValue.pid = value.pid;
 			}
 		});
@@ -588,11 +593,13 @@ export class TunnelModel extends Disposable {
 			const forwardedValue = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, parsedAddress.host, parsedAddress.port);
 			if (forwardedValue) {
 				forwardedValue.runningProcess = undefined;
+				forwardedValue.hasRunningProcess = false;
 				forwardedValue.pid = undefined;
 			}
 			const detectedValue = mapHasAddressLocalhostOrAllInterfaces(this.detected, parsedAddress.host, parsedAddress.port);
 			if (detectedValue) {
 				detectedValue.runningProcess = undefined;
+				detectedValue.hasRunningProcess = false;
 				detectedValue.pid = undefined;
 			}
 		});
@@ -619,7 +626,7 @@ export class TunnelModel extends Disposable {
 
 	async getAttributes(ports: number[], checkProviders: boolean = true): Promise<Map<number, Attributes> | undefined> {
 		const matchingCandidates: Map<number, CandidatePort> = new Map();
-		const pidToPortsMapping: Map<number, number[]> = new Map();
+		const pidToPortsMapping: Map<number | undefined, number[]> = new Map();
 		ports.forEach(port => {
 			const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), LOCALHOST_ADDRESSES[0], port);
 			if (matchingCandidate) {
@@ -646,7 +653,7 @@ export class TunnelModel extends Disposable {
 		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
 			return Array.from(pidToPortsMapping.entries()).map(entry => {
 				const portGroup = entry[1];
-				const matchingCandidate = matchingCandidates.get(portGroup[1]);
+				const matchingCandidate = matchingCandidates.get(portGroup[0]);
 				return provider.providePortAttributes(portGroup,
 					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
 			});
@@ -685,8 +692,8 @@ export class TunnelModel extends Disposable {
 export interface CandidatePort {
 	host: string;
 	port: number;
-	detail: string;
-	pid: number;
+	detail?: string;
+	pid?: number;
 }
 
 export interface IRemoteExplorerService {

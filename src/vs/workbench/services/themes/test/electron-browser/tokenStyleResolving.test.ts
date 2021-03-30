@@ -42,12 +42,12 @@ function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 }
 
 function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
-	assert.equal(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
+	assert.strictEqual(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
 function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | undefined, expected: TokenStyle | undefined | null, message = '') {
 	if (expected === undefined || expected === null || actual === undefined) {
-		assert.equal(actual, expected, message);
+		assert.strictEqual(actual, expected, message);
 		return;
 	}
 	assert.strictEqual(actual.bold, expected.bold, 'bold ' + message);
@@ -56,9 +56,9 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 
 	const actualForegroundIndex = actual.foreground;
 	if (actualForegroundIndex && expected.foreground) {
-		assert.equal(colorIndex[actualForegroundIndex], Color.Format.CSS.formatHexA(expected.foreground, true).toUpperCase(), 'foreground ' + message);
+		assert.strictEqual(colorIndex[actualForegroundIndex], Color.Format.CSS.formatHexA(expected.foreground, true).toUpperCase(), 'foreground ' + message);
 	} else {
-		assert.equal(actualForegroundIndex, expected.foreground || 0, 'foreground ' + message);
+		assert.strictEqual(actualForegroundIndex, expected.foreground || 0, 'foreground ' + message);
 	}
 }
 
@@ -91,7 +91,7 @@ suite('Themes - TokenStyleResolving', () => {
 		themeData.location = FileAccess.asFileUri('./color-theme.json', require);
 		await themeData.ensureLoaded(extensionResourceLoaderService);
 
-		assert.equal(themeData.isLoaded, true);
+		assert.strictEqual(themeData.isLoaded, true);
 
 		assertTokenStyles(themeData, {
 			'comment': ts('#000000', undefinedStyle),
@@ -335,7 +335,7 @@ suite('Themes - TokenStyleResolving', () => {
 			registry.deregisterTokenStyleDefault(registry.parseTokenSelector('type', 'typescript1'));
 			registry.deregisterTokenStyleDefault(registry.parseTokenSelector('type:javascript1'));
 
-			assert.equal(registry.getTokenStylingDefaultRules().length, numberOfDefaultRules);
+			assert.strictEqual(registry.getTokenStylingDefaultRules().length, numberOfDefaultRules);
 		}
 	});
 });

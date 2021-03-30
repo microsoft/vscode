@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellKind, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -28,7 +28,7 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.viewModel?.viewCells[index];
 
-			if (cell?.cellKind === CellKind.Markdown) {
+			if (cell?.cellKind === CellKind.Markdown && cell?.editState === CellEditState.Preview) {
 				this._notebookEditor.createMarkdownPreview(cell);
 			}
 		});

@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellOutput, IOrderedMimeType, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellOutput, IOrderedMimeType, mimeTypeIsMergeable, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 let handle = 0;
@@ -34,8 +34,8 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	}
 
 	supportAppend() {
-		// if there is any mime type other than `application/x.notebook.stream`, then it's not mergeable.
-		return !this._outputRawData.outputs.find(op => op.mime !== 'application/x.notebook.stream');
+		// if there is any mime type that's not mergeable then the whole output is not mergeable.
+		return this._outputRawData.outputs.every(op => mimeTypeIsMergeable(op.mime));
 	}
 
 	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number] {

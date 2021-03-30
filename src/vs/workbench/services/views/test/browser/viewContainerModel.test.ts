@@ -63,7 +63,7 @@ suite('ViewContainerModel', () => {
 	test('empty model', function () {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 	});
 
 	test('register/unregister', () => {
@@ -71,8 +71,8 @@ suite('ViewContainerModel', () => {
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -82,23 +82,23 @@ suite('ViewContainerModel', () => {
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
-		assert.equal(testObject.visibleViewDescriptors.length, 1);
-		assert.equal(target.elements.length, 1);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 1);
+		assert.strictEqual(target.elements.length, 1);
 		assert.deepEqual(testObject.visibleViewDescriptors[0], viewDescriptor);
 		assert.deepEqual(target.elements[0], viewDescriptor);
 
 		ViewsRegistry.deregisterViews([viewDescriptor], container);
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 	test('when contexts', async function () {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -108,33 +108,33 @@ suite('ViewContainerModel', () => {
 		};
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
+		assert.strictEqual(target.elements.length, 0);
 
 		const key = contextKeyService.createKey('showview1', false);
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
+		assert.strictEqual(target.elements.length, 0);
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(testObject.visibleViewDescriptors.length, 1, 'view should appear');
-		assert.equal(target.elements.length, 1);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 1, 'view should appear');
+		assert.strictEqual(target.elements.length, 1);
 		assert.deepEqual(testObject.visibleViewDescriptors[0], viewDescriptor);
-		assert.equal(target.elements[0], viewDescriptor);
+		assert.strictEqual(target.elements[0], viewDescriptor);
 
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should disappear');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should disappear');
+		assert.strictEqual(target.elements.length, 0);
 
 		ViewsRegistry.deregisterViews([viewDescriptor], container);
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
+		assert.strictEqual(target.elements.length, 0);
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 	test('when contexts - multiple', async function () {
@@ -263,8 +263,8 @@ suite('ViewContainerModel', () => {
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -273,8 +273,8 @@ suite('ViewContainerModel', () => {
 		};
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not appear since it was set not visible in view state');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since it was set not visible in view state');
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 	test('view states and when contexts', async function () {
@@ -283,8 +283,8 @@ suite('ViewContainerModel', () => {
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -294,17 +294,17 @@ suite('ViewContainerModel', () => {
 		};
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
+		assert.strictEqual(target.elements.length, 0);
 
 		const key = contextKeyService.createKey('showview1', false);
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
+		assert.strictEqual(target.elements.length, 0);
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since it was set not visible in view state');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since it was set not visible in view state');
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 	test('view states and when contexts multiple views', async function () {
@@ -313,8 +313,8 @@ suite('ViewContainerModel', () => {
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const view1: IViewDescriptor = {
 			id: 'view1',
@@ -369,12 +369,12 @@ suite('ViewContainerModel', () => {
 
 		const key = contextKeyService.createKey('showview1', true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(testObject.visibleViewDescriptors.length, 1, 'view should appear after context is set');
-		assert.equal(target.elements.length, 1);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 1, 'view should appear after context is set');
+		assert.strictEqual(target.elements.length, 1);
 
 		testObject.setVisible('view1', false);
-		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
+		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy(testObject.onDidRemoveVisibleViewDescriptors);
 		key.set(false);
@@ -398,14 +398,14 @@ suite('ViewContainerModel', () => {
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is already visible');
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 	test('remove event is not triggered if view was hidden and not active', async function () {
@@ -424,14 +424,14 @@ suite('ViewContainerModel', () => {
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
 		testObject.setVisible('view1', false);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 	test('add event is not triggered if view was set visible (when not visible) and not active', async function () {
@@ -450,18 +450,18 @@ suite('ViewContainerModel', () => {
 		key.set(false);
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		testObject.setVisible('view1', false);
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 
 		const targetEvent = sinon.spy(testObject.onDidAddVisibleViewDescriptors);
 		testObject.setVisible('view1', true);
 		assert.ok(!targetEvent.called, 'add event should not be called since it is disabled');
-		assert.equal(testObject.visibleViewDescriptors.length, 0);
-		assert.equal(target.elements.length, 0);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
+		assert.strictEqual(target.elements.length, 0);
 	});
 
 	test('added view descriptors are in ascending order in the event', async function () {
@@ -483,9 +483,9 @@ suite('ViewContainerModel', () => {
 			order: 2
 		}], container);
 
-		assert.equal(target.elements.length, 2);
-		assert.equal(target.elements[0].id, 'view2');
-		assert.equal(target.elements[1].id, 'view5');
+		assert.strictEqual(target.elements.length, 2);
+		assert.strictEqual(target.elements[0].id, 'view2');
+		assert.strictEqual(target.elements[1].id, 'view5');
 
 		ViewsRegistry.registerViews([{
 			id: 'view4',
@@ -507,12 +507,12 @@ suite('ViewContainerModel', () => {
 			order: 1
 		}], container);
 
-		assert.equal(target.elements.length, 5);
-		assert.equal(target.elements[0].id, 'view1');
-		assert.equal(target.elements[1].id, 'view2');
-		assert.equal(target.elements[2].id, 'view3');
-		assert.equal(target.elements[3].id, 'view4');
-		assert.equal(target.elements[4].id, 'view5');
+		assert.strictEqual(target.elements.length, 5);
+		assert.strictEqual(target.elements[0].id, 'view1');
+		assert.strictEqual(target.elements[1].id, 'view2');
+		assert.strictEqual(target.elements[2].id, 'view3');
+		assert.strictEqual(target.elements[3].id, 'view4');
+		assert.strictEqual(target.elements[4].id, 'view5');
 	});
 
 });

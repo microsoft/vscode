@@ -111,12 +111,17 @@ class InstallAction extends Action2 {
 		});
 	}
 
-	private isInstalled(target: string): Promise<boolean> {
-		return fs.promises.lstat(target)
-			.then(stat => stat.isSymbolicLink())
-			.then(() => extpath.realpath(target))
-			.then(link => link === getSource())
-			.then(undefined, ignore('ENOENT', false));
+	private async isInstalled(target: string): Promise<boolean> {
+		try {
+			const stat = await fs.promises.lstat(target);
+			return stat.isSymbolicLink() && getSource() === await extpath.realpath(target);
+		} catch (err) {
+			if (err.code === 'ENOENT') {
+				return false;
+			}
+
+			throw err;
+		}
 	}
 }
 

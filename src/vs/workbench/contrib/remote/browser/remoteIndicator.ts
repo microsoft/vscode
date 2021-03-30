@@ -33,6 +33,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
+	private static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
@@ -148,6 +149,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					}
 				}));
 			}
+		} else {
+			this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.updateRemoteStatusIndicator()));
 		}
 	}
 
@@ -198,7 +201,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private updateRemoteStatusIndicator(): void {
 
-		// Remote indicator: show if provided via options
+		// Remote Indicator: show if provided via options
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
@@ -223,29 +226,32 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 			return;
 		}
-		// workspace with label
+
+		// Workspace with label: indicate editing source
 		const workspaceLabel = this.getWorkspaceLabel();
 		if (workspaceLabel) {
 			this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, nls.localize('workspace.tooltip', "Editing on {0}", workspaceLabel));
 			return;
 		}
 
+		// Remote actions: offer menu
 		if (this.remoteMenu.getActions().length > 0) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+			return;
 		}
+
 		// No Remote Extensions: hide status indicator
-		else {
-			dispose(this.remoteStatusEntry);
-			this.remoteStatusEntry = undefined;
-		}
+		dispose(this.remoteStatusEntry);
+		this.remoteStatusEntry = undefined;
 	}
 
 	private getWorkspaceLabel() {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const loc = workspace.configuration || workspace.folders.length === 1 ? workspace.folders[0].uri : undefined;
-		if (loc) {
-			return this.labelService.getHostLabel(loc.scheme, loc.authority);
+		const workspaceLocation = workspace.configuration || (workspace.folders.length === 1 ? workspace.folders[0].uri : undefined);
+		if (workspaceLocation) {
+			return this.labelService.getHostLabel(workspaceLocation.scheme, workspaceLocation.authority);
 		}
+
 		return undefined;
 	}
 
@@ -255,10 +261,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
 		}
 
+		const ariaLabel = text.replace(RemoteStatusIndicator.CODICON_REGEXP, (_match, codiconName) => codiconName);
 		const properties: IStatusbarEntry = {
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
-			ariaLabel: name,
+			ariaLabel,
 			text,
 			showProgress,
 			tooltip,

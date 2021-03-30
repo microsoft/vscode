@@ -35,12 +35,12 @@ suite('Graph', () => {
 	test('root', () => {
 		graph.insertEdge('1', '2');
 		let roots = graph.roots();
-		assert.equal(roots.length, 1);
-		assert.equal(roots[0].data, '2');
+		assert.strictEqual(roots.length, 1);
+		assert.strictEqual(roots[0].data, '2');
 
 		graph.insertEdge('2', '1');
 		roots = graph.roots();
-		assert.equal(roots.length, 0);
+		assert.strictEqual(roots.length, 0);
 	});
 
 	test('root complex', function () {
@@ -49,7 +49,7 @@ suite('Graph', () => {
 		graph.insertEdge('3', '4');
 
 		let roots = graph.roots();
-		assert.equal(roots.length, 2);
+		assert.strictEqual(roots.length, 2);
 		assert(['2', '4'].every(n => roots.some(node => node.data === n)));
 	});
 });

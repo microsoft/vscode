@@ -23,11 +23,10 @@
 }(this, function () {
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = globals();
-	const sandbox = preloadGlobals.context.sandbox;
 	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = preloadGlobals.process;
 	const configuration = parseWindowConfiguration();
-	const useCustomProtocol = sandbox || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
+	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	// Start to resolve process.env before anything gets load
 	// so that we can run loading and resolving in parallel
@@ -40,14 +39,16 @@
 	 */
 	function load(modulePaths, resultCallback, options) {
 
-		// Apply zoom level early to avoid glitches
-		const zoomLevel = configuration.zoomLevel;
-		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-			webFrame.setZoomLevel(zoomLevel);
-		}
+		// Apply zoom level early before even building the
+		// window DOM elements to avoid UI flicker. We always
+		// have to set the zoom level from within the window
+		// because Chrome has it's own way of remembering zoom
+		// settings per origin (if vscode-file:// is used) and
+		// we want to ensure that the user configuration wins.
+		webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
 
 		// Error handler
-		safeProcess.on('uncaughtException', function (error) {
+		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
 			onUnexpectedError(error, enableDeveloperTools);
 		});
 
@@ -83,7 +84,7 @@
 		}
 
 		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
-		if (!sandbox) {
+		if (!safeProcess.sandboxed) {
 			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
@@ -115,7 +116,7 @@
 		// - sandbox: we list paths of webpacked modules to help the loader
 		// - non-sandbox: we signal that any module that does not begin with
 		//                `vs/` should be loaded using node.js require()
-		if (sandbox) {
+		if (safeProcess.sandboxed) {
 			loaderConfig.paths = {
 				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
@@ -184,6 +185,7 @@
 	 * is passed into the URL from the `electron-main` side.
 	 *
 	 * @returns {{
+	 * isInitialStartup?: boolean,
 	 * zoomLevel?: number,
 	 * extensionDevelopmentPath?: string[],
 	 * extensionTestsPath?: string,

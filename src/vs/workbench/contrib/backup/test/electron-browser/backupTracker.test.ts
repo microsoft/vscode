@@ -135,7 +135,7 @@ flakySuite('BackupTracker (native)', function () {
 			configurationService
 		));
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -143,8 +143,6 @@ flakySuite('BackupTracker (native)', function () {
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-
-		await part.whenRestored;
 
 		const tracker = instantiationService.createInstance(TestBackupTracker);
 
@@ -214,7 +212,7 @@ flakySuite('BackupTracker (native)', function () {
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
 		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
-		await model?.load();
+		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
@@ -235,7 +233,7 @@ flakySuite('BackupTracker (native)', function () {
 
 		const model = accessor.textFileService.files.get(resource);
 
-		await model?.load();
+		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
@@ -261,7 +259,7 @@ flakySuite('BackupTracker (native)', function () {
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
 		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
-		await model?.load();
+		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
@@ -285,7 +283,7 @@ flakySuite('BackupTracker (native)', function () {
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.SAVE);
 		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
 
-		await model?.load();
+		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 		const event = new BeforeShutdownEventImpl();
@@ -425,7 +423,7 @@ flakySuite('BackupTracker (native)', function () {
 			// Set cancel to force a veto if hot exit does not trigger
 			accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
 
-			await model?.load();
+			await model?.resolve();
 			model?.textEditorModel?.setValue('foo');
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 

@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as os from 'os';
 import { gracefulify } from 'graceful-fs';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
+import { INativeWorkbenchConfiguration, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { productService, SharedDesktopMain } from 'vs/workbench/electron-sandbox/shared.desktop.main';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
@@ -23,7 +21,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 class DesktopMain extends SharedDesktopMain {
 
 	constructor(configuration: INativeWorkbenchConfiguration) {
-		super(configuration, new NativeWorkbenchEnvironmentService(configuration, productService));
+		super(configuration, new NativeWorkbenchEnvironmentService(configuration, { homeDir: os.homedir(), tmpDir: os.tmpdir(), userDataDir: getUserDataPath(configuration) }, productService));
 
 		// Enable gracefulFs
 		gracefulify(fs);
@@ -35,10 +33,6 @@ class DesktopMain extends SharedDesktopMain {
 		if (this.configuration.driver) {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
-	}
-
-	protected createLogService(loggerService: LoggerChannelClient, mainProcessService: IMainProcessService): ILogService {
-		return this._register(new NativeLogService(`renderer${this.configuration.windowId}`, loggerService, mainProcessService, this.environmentService));
 	}
 
 	protected registerFileSystemProviders(fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void {

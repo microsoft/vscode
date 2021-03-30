@@ -19,7 +19,7 @@ parameters:
   - name: ENABLE_TERRAPIN
     displayName: "Enable Terrapin"
     type: boolean
-    default: false
+    default: true
   - name: VSCODE_BUILD_WIN32
     displayName: "🎯 Windows x64"
     type: boolean

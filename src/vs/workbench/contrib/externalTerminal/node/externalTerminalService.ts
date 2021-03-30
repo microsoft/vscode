@@ -22,9 +22,12 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 
 	private static readonly CMD = 'cmd.exe';
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
+		@optional(IConfigurationService) configurationService: IConfigurationService
 	) {
+		this._configurationService = configurationService;
 	}
 
 	public openTerminal(cwd?: string): void {
@@ -121,9 +124,13 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
-	) { }
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		this._configurationService = configurationService;
+	}
 
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
@@ -217,9 +224,13 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
-	) { }
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		this._configurationService = configurationService;
+	}
 
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
@@ -330,7 +341,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 /**
  * tries to turn OS errors into more meaningful error messages
  */
-function improveError(err: Error): Error {
+function improveError(err: Error & { errno?: string, path?: string }): Error {
 	if ('errno' in err && err['errno'] === 'ENOENT' && 'path' in err && typeof err['path'] === 'string') {
 		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
 	}

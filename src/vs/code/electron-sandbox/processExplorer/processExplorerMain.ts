@@ -237,6 +237,7 @@ class ProcessExplorer {
 		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
 
 		this.applyStyles(data.styles);
+		this.setEventHandlers(data);
 
 		// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
 		ipcRenderer.on('vscode:windowsInfoResponse', (event: unknown, windows: any[]) => {
@@ -263,6 +264,33 @@ class ProcessExplorer {
 		this.lastRequestTime = Date.now();
 		ipcRenderer.send('vscode:windowsInfoRequest');
 		ipcRenderer.send('vscode:listProcesses');
+
+
+	}
+
+	private setEventHandlers(data: ProcessExplorerData): void {
+		document.onkeydown = (e: KeyboardEvent) => {
+			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
+
+			// Cmd/Ctrl + w closes issue window
+			if (cmdOrCtrlKey && e.keyCode === 87) {
+				e.stopPropagation();
+				e.preventDefault();
+
+				this.dispose();
+				ipcRenderer.send('vscode:closeProcessExplorer');
+			}
+
+			// Cmd/Ctrl + zooms in
+			if (cmdOrCtrlKey && e.keyCode === 187) {
+				zoomIn();
+			}
+
+			// Cmd/Ctrl - zooms out
+			if (cmdOrCtrlKey && e.keyCode === 189) {
+				zoomOut();
+			}
+		};
 	}
 
 	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
@@ -460,28 +488,5 @@ export function startup(windowId: number, data: ProcessExplorerData): void {
 	document.body.classList.add(platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
-	const processExplorer = new ProcessExplorer(windowId, data);
-
-	document.onkeydown = (e: KeyboardEvent) => {
-		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-
-		// Cmd/Ctrl + w closes issue window
-		if (cmdOrCtrlKey && e.keyCode === 87) {
-			e.stopPropagation();
-			e.preventDefault();
-
-			processExplorer.dispose();
-			ipcRenderer.send('vscode:closeProcessExplorer');
-		}
-
-		// Cmd/Ctrl + zooms in
-		if (cmdOrCtrlKey && e.keyCode === 187) {
-			zoomIn();
-		}
-
-		// Cmd/Ctrl - zooms out
-		if (cmdOrCtrlKey && e.keyCode === 189) {
-			zoomOut();
-		}
-	};
+	new ProcessExplorer(windowId, data);
 }

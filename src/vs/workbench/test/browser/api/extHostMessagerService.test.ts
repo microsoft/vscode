@@ -11,6 +11,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { Event } from 'vs/base/common/event';
 
 const emptyDialogService = new class implements IDialogService {
 	declare readonly _serviceBrand: undefined;
@@ -42,6 +43,8 @@ const emptyCommandService: ICommandService = {
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
+	onDidAddNotification: Event<INotification> = Event.None;
+	onDidRemoveNotification: Event<INotification> = Event.None;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -71,6 +74,8 @@ class EmptyNotificationService implements INotificationService {
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
+	onDidAddNotification: Event<INotification> = Event.None;
+	onDidRemoveNotification: Event<INotification> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);
 

@@ -108,7 +108,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	// --- CLI Arguments
 	args: NativeParsedArgs;
 
-	// --- paths
+	// --- data paths
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
@@ -117,12 +117,12 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	machineSettingsResource: URI;
 	installSourcePath: string;
 
-	// --- Extensions
+	// --- extensions
 	extensionsPath: string;
 	extensionsDownloadPath: string;
 	builtinExtensionsPath: string;
 
-	// --- Smoke test support
+	// --- smoke test support
 	driverHandle?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

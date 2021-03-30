@@ -8,7 +8,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Test tree element element that groups be hierarchy.
@@ -25,20 +25,32 @@ export class HierarchicalElement implements ITestTreeElement {
 		return this.test.item.label;
 	}
 
-	public get location() {
-		return this.test.item.location;
+	public get uri() {
+		return this.test.item.uri;
 	}
 
-	public get runnable(): Iterable<TestIdWithProvider> {
+	public get range() {
+		return this.test.item.range;
+	}
+
+	public get runnable(): Iterable<TestIdWithSrc> {
 		return this.test.item.runnable
-			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 
 	public get debuggable() {
 		return this.test.item.debuggable
-			? [{ providerId: this.test.providerId, testId: this.test.item.extId }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
+	}
+
+	public get expandable() {
+		return this.test.expand;
+	}
+
+	public get folder(): IWorkspaceFolder {
+		return this.parentItem.folder;
 	}
 
 	public state = TestResult.Unset;
@@ -49,8 +61,8 @@ export class HierarchicalElement implements ITestTreeElement {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
 	}
 
-	public update(actual: InternalTestItem) {
-		Object.assign(this.test, actual);
+	public update(patch: ITestItemUpdate) {
+		applyTestItemUpdate(this.test, patch);
 	}
 }
 
@@ -71,15 +83,23 @@ export class HierarchicalFolder implements ITestTreeElement {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));
 	}
 
+	public get uri() {
+		return this.folder.uri;
+	}
+
 	public get debuggable() {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
+	}
+
+	public get expandable() {
+		return TestItemExpandState.Expanded;
 	}
 
 	public retired = false;
 	public state = TestResult.Unset;
 	public ownState = TestResult.Unset;
 
-	constructor(private readonly folder: IWorkspaceFolder) { }
+	constructor(public readonly folder: IWorkspaceFolder) { }
 
 	public get label() {
 		return this.folder.name;

@@ -278,8 +278,8 @@ suite('CellUri', function () {
 		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
-		assert.equal(actual?.handle, id);
-		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.toString(), nb.toString());
 	});
 
 	test('parse, generate (foo-scheme)', function () {
@@ -290,8 +290,8 @@ suite('CellUri', function () {
 		const data = CellUri.generate(nb, id);
 		const actual = CellUri.parse(data);
 		assert.ok(Boolean(actual));
-		assert.equal(actual?.handle, id);
-		assert.equal(actual?.notebook.toString(), nb.toString());
+		assert.strictEqual(actual?.handle, id);
+		assert.strictEqual(actual?.notebook.toString(), nb.toString());
 	});
 });
 
@@ -313,5 +313,12 @@ suite('CellRange', function () {
 		assert.deepStrictEqual(cellIndexesToRanges([0, 1]), [{ start: 0, end: 2 }]);
 		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 2]), [{ start: 0, end: 3 }]);
 		assert.deepStrictEqual(cellIndexesToRanges([0, 1, 3]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
+
+		assert.deepStrictEqual(cellIndexesToRanges([1, 0]), [{ start: 0, end: 2 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([1, 2, 0]), [{ start: 0, end: 3 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([3, 1, 0]), [{ start: 0, end: 2 }, { start: 3, end: 4 }]);
+
+		assert.deepStrictEqual(cellIndexesToRanges([9, 10]), [{ start: 9, end: 11 }]);
+		assert.deepStrictEqual(cellIndexesToRanges([10, 9]), [{ start: 9, end: 11 }]);
 	});
 });

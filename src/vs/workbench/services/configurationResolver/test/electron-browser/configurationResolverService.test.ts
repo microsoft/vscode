@@ -20,10 +20,10 @@ import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestEditorService, TestProductService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestWorkbenchConfiguration, TestEnvironmentPaths } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
@@ -371,7 +371,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -400,7 +400,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -436,7 +436,7 @@ suite('Configuration Resolver Service', () => {
 				}
 			});
 
-			assert.equal(2, mockCommandService.callCount);
+			assert.strictEqual(2, mockCommandService.callCount);
 		});
 	});
 
@@ -462,7 +462,7 @@ suite('Configuration Resolver Service', () => {
 				'value': 'Value for key1'
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -490,7 +490,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(0, mockCommandService.callCount);
+			assert.strictEqual(0, mockCommandService.callCount);
 		});
 	});
 
@@ -518,7 +518,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(0, mockCommandService.callCount);
+			assert.strictEqual(0, mockCommandService.callCount);
 		});
 	});
 
@@ -546,7 +546,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(1, mockCommandService.callCount);
+			assert.strictEqual(1, mockCommandService.callCount);
 		});
 	});
 
@@ -576,7 +576,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(2, mockCommandService.callCount);
+			assert.strictEqual(2, mockCommandService.callCount);
 		});
 	});
 
@@ -604,7 +604,7 @@ suite('Configuration Resolver Service', () => {
 				'outDir': null
 			});
 
-			assert.equal(0, mockCommandService.callCount);
+			assert.strictEqual(0, mockCommandService.callCount);
 		});
 	});
 
@@ -712,6 +712,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWorkbenchConfiguration, userEnv }, TestProductService);
+		super({ ...TestWorkbenchConfiguration, userEnv }, TestEnvironmentPaths, TestProductService);
 	}
 }

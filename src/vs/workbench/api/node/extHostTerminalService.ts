@@ -9,20 +9,22 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { getSystemShell, getSystemShellSync } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IShellAndArgsDto, IShellDefinitionDto } from 'vs/workbench/api/common/extHost.protocol';
+import { IShellAndArgsDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider, ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { ITerminalConfiguration, ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
+import { detectAvailableProfiles } from 'vs/workbench/contrib/terminal/node/terminalProfiles';
 import type * as vscode from 'vscode';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _variableResolver: ExtHostVariableResolverService | undefined;
+	private _variableResolverPromise: Promise<ExtHostVariableResolverService>;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
 	// TODO: Pull this from main side
@@ -44,7 +46,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		getSystemShell(platform.platform, process.env as platform.IProcessEnvironment).then(s => this._defaultShell = s);
 
 		this._updateLastActiveWorkspace();
-		this._updateVariableResolver();
+		this._variableResolverPromise = this._updateVariableResolver();
 		this._registerListeners();
 	}
 
@@ -115,7 +117,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _registerListeners(): void {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(() => this._updateLastActiveWorkspace());
-		this._extHostWorkspace.onDidChangeWorkspace(() => this._updateVariableResolver());
+		this._extHostWorkspace.onDidChangeWorkspace(() => {
+			this._variableResolverPromise = this._updateVariableResolver();
+		});
 	}
 
 	private _updateLastActiveWorkspace(): void {
@@ -125,14 +129,16 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		}
 	}
 
-	private async _updateVariableResolver(): Promise<void> {
+	private async _updateVariableResolver(): Promise<ExtHostVariableResolverService> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
 		const workspaceFolders = await this._extHostWorkspace.getWorkspaceFolders2();
-		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider, process.env as platform.IProcessEnvironment);
+		this._variableResolver = new ExtHostVariableResolverService(workspaceFolders || [], this._extHostDocumentsAndEditors, configProvider);
+		return this._variableResolver;
 	}
 
-	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
-		return detectAvailableShells();
+	public async $getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
+		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
+		return detectAvailableProfiles(configuredProfilesOnly, this._logService, config as ITerminalConfiguration, await this._variableResolverPromise, this._lastActiveWorkspace);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {

@@ -13,7 +13,7 @@ suite('TextSearchResult', () => {
 	};
 
 	function assertOneLinePreviewRangeText(text: string, result: TextSearchMatch): void {
-		assert.equal(
+		assert.strictEqual(
 			result.preview.text.substring((<SearchRange>result.preview.matches).startColumn, (<SearchRange>result.preview.matches).endColumn),
 			text);
 	}
@@ -88,11 +88,11 @@ suite('TextSearchResult', () => {
 		const range = new SearchRange(5, 4, 6, 3);
 		const result = new TextSearchMatch('foo bar\nfoo bar', range, previewOptions);
 		assert.deepEqual(result.ranges, range);
-		assert.equal(result.preview.text, 'foo bar\nfoo bar');
-		assert.equal((<SearchRange>result.preview.matches).startLineNumber, 0);
-		assert.equal((<SearchRange>result.preview.matches).startColumn, 4);
-		assert.equal((<SearchRange>result.preview.matches).endLineNumber, 1);
-		assert.equal((<SearchRange>result.preview.matches).endColumn, 3);
+		assert.strictEqual(result.preview.text, 'foo bar\nfoo bar');
+		assert.strictEqual((<SearchRange>result.preview.matches).startLineNumber, 0);
+		assert.strictEqual((<SearchRange>result.preview.matches).startColumn, 4);
+		assert.strictEqual((<SearchRange>result.preview.matches).endLineNumber, 1);
+		assert.strictEqual((<SearchRange>result.preview.matches).endColumn, 3);
 	});
 
 	test('compacts multiple ranges on long lines', () => {
@@ -106,7 +106,7 @@ suite('TextSearchResult', () => {
 		const range3 = new SearchRange(5, 141, 5, 144);
 		const result = new TextSearchMatch('foo bar 123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890 foo bar baz bar', [range1, range2, range3], previewOptions);
 		assert.deepEqual(result.preview.matches, [new SearchRange(0, 4, 0, 7), new SearchRange(0, 42, 0, 45), new SearchRange(0, 50, 0, 53)]);
-		assert.equal(result.preview.text, 'foo bar 123456⟪ 117 characters skipped ⟫o bar baz bar');
+		assert.strictEqual(result.preview.text, 'foo bar 123456⟪ 117 characters skipped ⟫o bar baz bar');
 	});
 
 	test('trims lines endings', () => {
@@ -116,8 +116,8 @@ suite('TextSearchResult', () => {
 			charsPerLine: 10000
 		};
 
-		assert.equal(new TextSearchMatch('foo bar\n', range, previewOptions).preview.text, 'foo bar');
-		assert.equal(new TextSearchMatch('foo bar\r\n', range, previewOptions).preview.text, 'foo bar');
+		assert.strictEqual(new TextSearchMatch('foo bar\n', range, previewOptions).preview.text, 'foo bar');
+		assert.strictEqual(new TextSearchMatch('foo bar\r\n', range, previewOptions).preview.text, 'foo bar');
 	});
 
 	// test('all lines of multiline match', () => {
