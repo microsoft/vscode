@@ -736,9 +736,9 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	async stopSession(session: IDebugSession | undefined): Promise<any> {
+	async stopSession(session: IDebugSession | undefined, disconnect = false): Promise<any> {
 		if (session) {
-			return session.terminate();
+			return disconnect ? session.disconnect() : session.terminate();
 		}
 
 		const sessions = this.model.getSessions();
@@ -750,7 +750,7 @@ export class DebugService implements IDebugService {
 			this.cancelTokens(undefined);
 		}
 
-		return Promise.all(sessions.map(s => s.terminate()));
+		return Promise.all(sessions.map(s => disconnect ? s.disconnect() : s.terminate()));
 	}
 
 	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
