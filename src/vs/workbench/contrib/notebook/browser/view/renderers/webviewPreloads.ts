@@ -643,7 +643,7 @@ function webviewPreloads() {
 							}
 						});
 
-						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 					} else {
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: outputId,
