@@ -2240,6 +2240,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
+			if (isInit && outputHeight !== 0) {
+				cell.outputMinHeight = 0;
+			}
 			cell.updateOutputHeight(outputIndex, outputHeight);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 		}

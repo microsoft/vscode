@@ -629,14 +629,31 @@ function webviewPreloads() {
 
 					resizeObserve(outputNode, outputId, true);
 
-					postNotebookMessage<IDimensionMessage>('dimension', {
-						id: outputId,
-						isOutput: true,
-						init: true,
-						data: {
-							height: outputNode.clientHeight
-						}
-					});
+					const clientHeight = outputNode.clientHeight;
+					const cps = document.defaultView!.getComputedStyle(outputNode);
+					if (clientHeight !== 0 && cps.padding === '0px') {
+						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
+						// thus we need to ensure the padding is accounted when updating the init height of the output
+						postNotebookMessage<IDimensionMessage>('dimension', {
+							id: outputId,
+							isOutput: true,
+							init: true,
+							data: {
+								height: clientHeight + __outputNodePadding__ * 2
+							}
+						});
+
+						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+					} else {
+						postNotebookMessage<IDimensionMessage>('dimension', {
+							id: outputId,
+							isOutput: true,
+							init: true,
+							data: {
+								height: outputNode.clientHeight
+							}
+						});
+					}
 
 					// don't hide until after this step so that the height is right
 					cellOutputContainer.style.display = data.initiallyHidden ? 'none' : 'block';
