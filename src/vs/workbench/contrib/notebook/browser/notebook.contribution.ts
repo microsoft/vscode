@@ -191,7 +191,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 		canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
 			if (editorInput instanceof NotebookEditorInput) {
-				if (isEqual(editorInput.resource.with({ scheme: Schemas.vscodeNotebook }), backupResource)) {
+				if (isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editorInput.resource.toString() }), backupResource)) {
 					return true;
 				}
 			}

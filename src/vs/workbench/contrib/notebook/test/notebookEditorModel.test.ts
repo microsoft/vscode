@@ -37,9 +37,7 @@ suite('NotebookEditorModel', function () {
 	const notebookDataProvider = new class extends mock<IMainNotebookController>() { };
 
 	test('working copy uri', function () {
-		if (1) {
-			this.skip();
-		}
+
 		const r1 = URI.parse('foo-files:///my.nb');
 		const r2 = URI.parse('bar-files:///my.nb');
 

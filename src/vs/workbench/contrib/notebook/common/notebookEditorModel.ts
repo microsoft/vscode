@@ -67,7 +67,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		this._name = labelService.getUriBasenameLabel(resource);
 
 		const that = this;
-		this._workingCopyResource = resource.with({ scheme: Schemas.vscodeNotebook });
+		this._workingCopyResource = URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() });
 		const workingCopyAdapter = new class implements IWorkingCopy {
 			readonly resource = that._workingCopyResource;
 			get name() { return that._name; }
