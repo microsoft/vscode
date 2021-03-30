@@ -377,8 +377,6 @@ suite('SnippetParser', () => {
 		assert.strictEqual(marker[2].toString(), ')');
 
 		const placeholder = <Placeholder>marker[1];
-		// TODO @jrieken Making this strict causes cricular dependency
-		assert.equal(placeholder, false);
 		assert.strictEqual(placeholder.index, 1);
 		assert.strictEqual(placeholder.children.length, 3);
 		assert.ok(placeholder.children[0] instanceof Text);
@@ -439,13 +437,13 @@ suite('SnippetParser', () => {
 
 		const [, p1, , p2] = new SnippetParser().parse('errorContext: `${1:err}`, error:$1').children;
 
-		assert.equal((<Placeholder>p1).index, 1);
-		assert.equal((<Placeholder>p1).children.length, 1);
-		assert.equal((<Text>(<Placeholder>p1).children[0]), 'err');
+		assert.strictEqual((<Placeholder>p1).index, 1);
+		assert.strictEqual((<Placeholder>p1).children.length, 1);
+		assert.strictEqual((<Text>(<Placeholder>p1).children[0]).toString(), 'err');
 
-		assert.equal((<Placeholder>p2).index, 1);
-		assert.equal((<Placeholder>p2).children.length, 1);
-		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
+		assert.strictEqual((<Placeholder>p2).index, 1);
+		assert.strictEqual((<Placeholder>p2).children.length, 1);
+		assert.strictEqual((<Text>(<Placeholder>p2).children[0]).toString(), 'err');
 	});
 
 	// TODO @jrieken making this strictEqul causes circular json conversion errors
@@ -455,15 +453,15 @@ suite('SnippetParser', () => {
 
 		const [, p3, , p4] = new SnippetParser().parse('errorContext: `${1:err}`, error:${1/err/ok/}').children;
 
-		assert.equal((<Placeholder>p3).index, 1);
-		assert.equal((<Placeholder>p3).children.length, 1);
-		assert.equal((<Text>(<Placeholder>p3).children[0]), 'err');
-		assert.equal((<Placeholder>p3).transform, undefined);
+		assert.strictEqual((<Placeholder>p3).index, 1);
+		assert.strictEqual((<Placeholder>p3).children.length, 1);
+		assert.strictEqual((<Text>(<Placeholder>p3).children[0]).toString(), 'err');
+		assert.strictEqual((<Placeholder>p3).transform, undefined);
 
-		assert.equal((<Placeholder>p4).index, 1);
-		assert.equal((<Placeholder>p4).children.length, 1);
-		assert.equal((<Text>(<Placeholder>p4).children[0]), 'err');
-		assert.notEqual((<Placeholder>p4).transform, undefined);
+		assert.strictEqual((<Placeholder>p4).index, 1);
+		assert.strictEqual((<Placeholder>p4).children.length, 1);
+		assert.strictEqual((<Text>(<Placeholder>p4).children[0]).toString(), 'err');
+		assert.notStrictEqual((<Placeholder>p4).transform, undefined);
 	});
 
 	test('Repeated snippet placeholder should always inherit, #31040', function () {
