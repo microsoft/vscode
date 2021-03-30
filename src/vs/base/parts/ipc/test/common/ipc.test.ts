@@ -253,7 +253,7 @@ suite('Base IPC', function () {
 
 		test('call success', async function () {
 			const r = await ipcService.marco();
-			return assert.equal(r, 'polo');
+			return assert.strictEqual(r, 'polo');
 		});
 
 		test('call error', async function () {
@@ -261,7 +261,7 @@ suite('Base IPC', function () {
 				await ipcService.error('nice error');
 				return assert.fail('should not reach here');
 			} catch (err) {
-				return assert.equal(err.message, 'nice error');
+				return assert.strictEqual(err.message, 'nice error');
 			}
 		});
 
@@ -317,7 +317,7 @@ suite('Base IPC', function () {
 
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
-			return assert.equal(r, 5);
+			return assert.strictEqual(r, 5);
 		});
 	});
 
@@ -345,7 +345,7 @@ suite('Base IPC', function () {
 
 		test('call success', async function () {
 			const r = await ipcService.marco();
-			return assert.equal(r, 'polo');
+			return assert.strictEqual(r, 'polo');
 		});
 
 		test('call error', async function () {
@@ -353,7 +353,7 @@ suite('Base IPC', function () {
 				await ipcService.error('nice error');
 				return assert.fail('should not reach here');
 			} catch (err) {
-				return assert.equal(err.message, 'nice error');
+				return assert.strictEqual(err.message, 'nice error');
 			}
 		});
 
@@ -383,7 +383,7 @@ suite('Base IPC', function () {
 
 		test('buffers in arrays', async function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
-			return assert.equal(r, 5);
+			return assert.strictEqual(r, 5);
 		});
 	});
 
@@ -411,7 +411,7 @@ suite('Base IPC', function () {
 
 		test('call extra context', async function () {
 			const r = await ipcService.context();
-			return assert.equal(r, 'Super Context');
+			return assert.strictEqual(r, 'Super Context');
 		});
 	});
 

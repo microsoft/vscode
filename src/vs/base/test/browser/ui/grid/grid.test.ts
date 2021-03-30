@@ -836,7 +836,7 @@ suite('SerializableGrid', function () {
 		};
 
 		const grid = SerializableGrid.deserialize(serializedGrid, deserializer);
-		assert.equal(views.length, 3);
+		assert.strictEqual(views.length, 3);
 
 		// should not throw
 		grid.removeView(views[2]);

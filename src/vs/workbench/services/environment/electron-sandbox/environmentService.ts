@@ -69,11 +69,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
 	@memoize
-	get webviewExternalEndpoint(): string {
-		const baseEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
-
-		return baseEndpoint.replace('{{commit}}', this.productService.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
-	}
+	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
 
 	@memoize
 	get webviewResourceRoot(): string { return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`; }

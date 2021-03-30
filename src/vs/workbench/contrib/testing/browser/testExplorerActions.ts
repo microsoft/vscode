@@ -9,10 +9,13 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -23,10 +26,13 @@ import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
+import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
+import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, TestIdPath, TestIdWithSrc, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -500,8 +506,11 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		super({
 			id: 'testing.editFocusedTest',
 			viewId: Testing.ExplorerViewId,
-			title: localize('testing.editFocusedTest', "Open Focused Test in Editor"),
+			title: localize('testing.editFocusedTest', "Go to Test"),
 			f1: false,
+			menu: {
+				id: MenuId.TestItem,
+			},
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
 				when: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),
@@ -510,13 +519,60 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		});
 	}
 
+	public async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
+		if (test) {
+			await this.runForTest(accessor, test, preserveFocus);
+		} else {
+			await super.run(accessor);
+		}
+	}
+
 	/**
 	 * @override
 	 */
-	public runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+	public runInView(accessor: ServicesAccessor, view: TestingExplorerView) {
 		const selected = view.viewModel.tree.getFocus().find(isDefined);
-		if (selected) {
-			view.viewModel.openEditorForItem(selected, false);
+		if (selected?.test) {
+			this.runForTest(accessor, selected.test.item, false);
+		}
+	}
+
+	/**
+	 * @override
+	 */
+	private async runForTest(accessor: ServicesAccessor, test: ITestItem, preserveFocus = true) {
+		const commandService = accessor.get(ICommandService);
+		const fileService = accessor.get(IFileService);
+		const editorService = accessor.get(IEditorService);
+
+		accessor.get(ITestExplorerFilterState).reveal.value = [test.extId];
+
+		let isFile = true;
+		try {
+			if (!(await fileService.resolve(test.uri)).isFile) {
+				isFile = false;
+			}
+		} catch {
+			// ignored
+		}
+
+		if (!isFile) {
+			await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, test.uri);
+			return;
+		}
+
+		const pane = await editorService.openEditor({
+			resource: test.uri,
+			options: {
+				selection: test.range && { startColumn: test.range.startColumn, startLineNumber: test.range.startLineNumber },
+				preserveFocus,
+			},
+		});
+
+		// if the user selected a failed test and now they didn't, hide the peek
+		const control = pane?.getControl();
+		if (isCodeEditor(control)) {
+			TestingOutputPeekController.get(control).removePeek();
 		}
 	}
 }
@@ -831,7 +887,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 	constructor() {
 		super({
 			id: 'testing.reRunFailTests',
-			title: localize('testing.reRunFailTests', "Re-run Failed Tests"),
+			title: localize('testing.reRunFailTests', "Rerun Failed Tests"),
 			f1: true,
 			category,
 		});
@@ -875,7 +931,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 	constructor() {
 		super({
 			id: 'testing.reRunLastRun',
-			title: localize('testing.reRunLastRun', "Re-run Last Run"),
+			title: localize('testing.reRunLastRun', "Rerun Last Run"),
 			f1: true,
 			category,
 		});
