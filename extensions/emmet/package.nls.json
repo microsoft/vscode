@@ -48,13 +48,14 @@
 	"emmetPreferencesFilterCommentTrigger": "A comma-separated list of attribute names that should exist in abbreviation for the comment filter to be applied",
 	"emmetPreferencesFormatNoIndentTags": "An array of tag names that should not get inner indentation",
 	"emmetPreferencesFormatForceIndentTags": "An array of tag names that should always get inner indentation",
-	"emmetPreferencesAllowCompactBoolean": "If true, compact notation of boolean attributes are produced",
+	"emmetPreferencesAllowCompactBoolean": "If `true`, compact notation of boolean attributes are produced",
 	"emmetPreferencesCssWebkitProperties": "Comma separated CSS properties that get the 'webkit' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'webkit' prefix.",
 	"emmetPreferencesCssMozProperties": "Comma separated CSS properties that get the 'moz' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'moz' prefix.",
 	"emmetPreferencesCssOProperties": "Comma separated CSS properties that get the 'o' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'o' prefix.",
 	"emmetPreferencesCssMsProperties": "Comma separated CSS properties that get the 'ms' vendor prefix when used in Emmet abbreviation that starts with `-`. Set to empty string to always avoid the 'ms' prefix.",
 	"emmetPreferencesCssFuzzySearchMinScore": "The minimum score (from 0 to 1) that fuzzy-matched abbreviation should achieve. Lower values may produce many false-positive matches, higher values may reduce possible matches.",
 	"emmetOptimizeStylesheetParsing": "When set to `false`, the whole file is parsed to determine if current position is valid for expanding Emmet abbreviations. When set to `true`, only the content around the current position in CSS/SCSS/Less files is parsed.",
+	"emmetPreferencesOutputInlineBreak": "The number of sibling inline elements needed for line breaks to be placed between those elements. If `0`, inline elements are always expanded onto a single line.",
 	"emmetPreferencesOutputReverseAttributes": "If `true`, reverses attribute merging directions when resolving snippets.",
 	"emmetPreferencesCssColorShort": "If `true`, color values like #f will be expanded to #fff instead of #ffffff."
 }

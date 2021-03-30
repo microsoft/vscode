@@ -328,7 +328,7 @@ export class LiveTestResult implements ITestResult {
 	}
 
 	/**
-	 * Marks a test as retired. This can trigger it to be re-run in live mode.
+	 * Marks a test as retired. This can trigger it to be rerun in live mode.
 	 */
 	public retire(testId: string) {
 		const root = this.testById.get(testId);

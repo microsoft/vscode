@@ -48,7 +48,7 @@ function webviewPreloads() {
 			return;
 		}
 
-		for (let node = event.target as HTMLElement | null; node; node = node.parentNode as HTMLElement) {
+		for (const node of event.composedPath()) {
 			if (node instanceof HTMLAnchorElement && node.href) {
 				if (node.href.startsWith('blob:')) {
 					handleBlobUrlClick(node.href, node.download);
@@ -56,7 +56,7 @@ function webviewPreloads() {
 					handleDataUrl(node.href, node.download);
 				}
 				event.preventDefault();
-				break;
+				return;
 			}
 		}
 	};
@@ -748,25 +748,24 @@ function webviewPreloads() {
 
 		cellContainer.appendChild(previewContainerNode);
 
-		const previewNode = document.createElement('div');
-		previewContainerNode.appendChild(previewNode);
+		previewContainerNode.attachShadow({ mode: 'open' });
+		const previewRoot = previewContainerNode.shadowRoot! as any as HTMLElement;
 
-		// TODO: handle namespace
-		onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-			element: previewNode,
-			content: content
-		}]);
+		// Add default webview style
+		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
+		previewRoot.appendChild(defaultStyles.cloneNode(true));
+
+		// Add default preview style
+		const previewStyles = document.getElementById('preview-styles') as HTMLTemplateElement;
+		previewRoot.appendChild(previewStyles.content.cloneNode(true));
+
+		const previewNode = document.createElement('div');
+		previewNode.id = 'preview';
+		previewRoot.appendChild(previewNode);
+
+		updateMarkdownPreview(cellId, content);
 
 		resizeObserve(previewContainerNode, `${cellId}_preview`, false);
-
-		postNotebookMessage<IDimensionMessage>('dimension', {
-			id: `${cellId}_preview`,
-			init: true,
-			data: {
-				height: previewContainerNode.clientHeight,
-			},
-			isOutput: false
-		});
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -786,12 +785,22 @@ function webviewPreloads() {
 			return;
 		}
 
+		const previewRoot = previewContainerNode.shadowRoot;
+
+		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
+
 		// TODO: handle namespace
 		if (typeof content === 'string') {
-			onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
-				element: previewContainerNode,
-				content: content
-			}]);
+			if (content.trim().length === 0) {
+				previewContainerNode.classList.add('emptyMarkdownCell');
+				previewContainerNode.innerText = '';
+			} else {
+				previewContainerNode.classList.remove('emptyMarkdownCell');
+				onDidCreateMarkdown.fire([undefined /* data.apiNamespace */, {
+					element: previewNode,
+					content: content
+				}]);
+			}
 		}
 
 		postNotebookMessage<IDimensionMessage>('dimension', {
@@ -802,8 +811,6 @@ function webviewPreloads() {
 			isOutput: false
 		});
 	}
-
-	const markdownCellDragDataType = 'x-vscode-markdown-cell-drag';
 
 	const markdownPreviewDragManager = new class MarkdownPreviewDragManager {
 
@@ -817,16 +824,15 @@ function webviewPreloads() {
 
 			document.addEventListener('drop', e => {
 				e.preventDefault();
-				this.currentDrag = undefined;
 
-				const data = e.dataTransfer?.getData(markdownCellDragDataType);
-				if (!data) {
+				const drag = this.currentDrag;
+				if (!drag) {
 					return;
 				}
 
-				const { cellId } = JSON.parse(data);
+				this.currentDrag = undefined;
 				postNotebookMessage<ICellDropMessage>('cell-drop', {
-					cellId: cellId,
+					cellId: drag.cellId,
 					ctrlKey: e.ctrlKey,
 					altKey: e.altKey,
 					position: { clientY: e.clientY },
@@ -840,8 +846,6 @@ function webviewPreloads() {
 			}
 
 			this.currentDrag = { cellId, clientY: e.clientY };
-
-			e.dataTransfer.setData(markdownCellDragDataType, JSON.stringify({ cellId }));
 
 			(e.target as HTMLElement).classList.add('dragging');
 

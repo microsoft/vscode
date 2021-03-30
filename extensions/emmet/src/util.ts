@@ -42,17 +42,13 @@ export function updateEmmetExtensionsPath(forceRefresh: boolean = false) {
 	}
 	if (forceRefresh || _currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
-			return;
-		} else {
-			const rootPath = vscode.workspace.workspaceFolders[0].uri;
-			const fileSystem = vscode.workspace.fs;
-			helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => {
-				if (Array.isArray(extensionsPath) && extensionsPath.length) {
-					vscode.window.showErrorMessage(err.message);
-				}
-			});
-		}
+		const rootPath = vscode.workspace.workspaceFolders?.length ? vscode.workspace.workspaceFolders[0].uri : undefined;
+		const fileSystem = vscode.workspace.fs;
+		helper.updateExtensionsPath(extensionsPath, fileSystem, rootPath, _homeDir).catch(err => {
+			if (Array.isArray(extensionsPath) && extensionsPath.length) {
+				vscode.window.showErrorMessage(err.message);
+			}
+		});
 	}
 }
 

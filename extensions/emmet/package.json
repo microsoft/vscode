@@ -213,6 +213,11 @@
               "default": 0.3,
               "description": "%emmetPreferencesCssFuzzySearchMinScore%"
             },
+            "output.inlineBreak": {
+              "type": "number",
+              "default": 0,
+              "description": "%emmetPreferencesOutputInlineBreak%"
+            },
             "output.reverseAttributes": {
               "type": "boolean",
               "default": false,

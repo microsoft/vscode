@@ -69,7 +69,7 @@ suite('Editor - Range decorations', () => {
 
 		let actuals = rangeHighlightDecorations(model);
 
-		assert.deepEqual([], actuals);
+		assert.deepStrictEqual([], actuals);
 	});
 
 	test('highlight range for the resource removes previous highlight', function () {
@@ -90,7 +90,7 @@ suite('Editor - Range decorations', () => {
 		testObject.highlightRange({ resource: anotherModel.uri, range });
 
 		let actuals = rangeHighlightDecorations(model);
-		assert.deepEqual([], actuals);
+		assert.deepStrictEqual([], actuals);
 		actuals = rangeHighlightDecorations(anotherModel);
 		assert.deepEqual([range], actuals);
 	});
@@ -100,7 +100,7 @@ suite('Editor - Range decorations', () => {
 		prepareActiveEditor('anotherModel');
 
 		let actuals = rangeHighlightDecorations(model);
-		assert.deepEqual([], actuals);
+		assert.deepStrictEqual([], actuals);
 	});
 
 	test('highlight is removed on cursor position change', function () {
@@ -110,7 +110,7 @@ suite('Editor - Range decorations', () => {
 		});
 
 		let actuals = rangeHighlightDecorations(model);
-		assert.deepEqual([], actuals);
+		assert.deepStrictEqual([], actuals);
 	});
 
 	test('range is not highlight if not active editor', function () {
@@ -118,7 +118,7 @@ suite('Editor - Range decorations', () => {
 		testObject.highlightRange({ resource: model.uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } });
 
 		let actuals = rangeHighlightDecorations(model);
-		assert.deepEqual([], actuals);
+		assert.deepStrictEqual([], actuals);
 	});
 
 	test('previous highlight is not removed if not active editor', function () {

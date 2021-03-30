@@ -28,22 +28,22 @@ suite('Filters', () => {
 		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, false));
 		filterNotOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 1]);
+		assert.deepStrictEqual(counters, [1, 1]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, false));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 0]);
+		assert.deepStrictEqual(counters, [1, 0]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, true), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 0]);
+		assert.deepStrictEqual(counters, [1, 0]);
 
 		counters = [0, 0];
 		filter = or(newFilter(0, false), newFilter(1, true));
 		filterOk(filter, 'anything', 'anything');
-		assert.deepEqual(counters, [1, 1]);
+		assert.deepStrictEqual(counters, [1, 1]);
 	});
 
 	test('PrefixFilter - case sensitive', function () {
@@ -201,7 +201,7 @@ suite('Filters', () => {
 		filterOk(matchesWords, 'öäk', 'Öhm: Älles Klar', [{ start: 0, end: 1 }, { start: 5, end: 6 }, { start: 11, end: 12 }]);
 
 		// assert.ok(matchesWords('gipu', 'Category: Git: Pull', true) === null);
-		// assert.deepEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
+		// assert.deepStrictEqual(matchesWords('pu', 'Category: Git: Pull', true), [{ start: 15, end: 17 }]);
 
 		filterOk(matchesWords, 'bar', 'foo-bar');
 		filterOk(matchesWords, 'bar test', 'foo-bar test');

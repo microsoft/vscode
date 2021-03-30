@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IProcessEnvironment } from 'vs/base/common/platform';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
 
@@ -21,7 +22,7 @@ export interface ISharedProcessConfiguration {
 
 	readonly appRoot: string;
 
-	readonly userEnv: NodeJS.ProcessEnv;
+	readonly userEnv: IProcessEnvironment;
 
 	readonly args: NativeParsedArgs;
 

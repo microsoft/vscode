@@ -38,8 +38,8 @@ export const testingConfiguation: IConfigurationNode = {
 			],
 			default: AutoRunMode.AllInWorkspace,
 			enumDescriptions: [
-				localize('testing.autoRun.mode.allInWorkspace', "Automatically runs all discovered test when auto-run is toggled. Re-runs individual tests when they are changed."),
-				localize('testing.autoRun.mode.onlyPreviouslyRun', "Re-runs individual tests when they are changed. Will not automatically run any tests that have not been already executed.")
+				localize('testing.autoRun.mode.allInWorkspace', "Automatically runs all discovered test when auto-run is toggled. Reruns individual tests when they are changed."),
+				localize('testing.autoRun.mode.onlyPreviouslyRun', "Reruns individual tests when they are changed. Will not automatically run any tests that have not been already executed.")
 			],
 		},
 		[TestingConfigKeys.AutoRunDelay]: {

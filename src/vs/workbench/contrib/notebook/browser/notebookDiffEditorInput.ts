@@ -13,6 +13,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Schemas } from 'vs/base/common/network';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -89,7 +90,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 	}
 
 	isUntitled(): boolean {
-		return this._modifiedTextModel?.object.isUntitled() || false;
+		return this._modifiedTextModel?.object.resource.scheme === Schemas.untitled;
 	}
 
 	isReadonly() {

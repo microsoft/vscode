@@ -24,7 +24,7 @@ interface NLSConfig {
 }
 
 export interface IProcessEnvironment {
-	[key: string]: string;
+	[key: string]: string | undefined;
 }
 
 /**

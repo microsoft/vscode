@@ -17,9 +17,6 @@ suite('Notebook Editor', function () {
 			);
 
 		}
-		async resolveNotebook(_document: vscode.NotebookDocument, _webview: vscode.NotebookCommunication) {
-			//
-		}
 		async saveNotebook(_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {
 			//
 		}
