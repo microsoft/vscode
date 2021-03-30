@@ -2380,7 +2380,7 @@ declare module 'vscode' {
 		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
-		 * automatically re-run after a short delay. Invoking this on a
+		 * automatically rerun after a short delay. Invoking this on a
 		 * test with children will mark the entire subtree as outdated.
 		 *
 		 * Extensions should generally not override this method.
@@ -2850,6 +2850,28 @@ declare module 'vscode' {
 		 */
 		readonly triggerKind: CodeActionTriggerKind;
 	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/115807
+
+	export interface Webview {
+		/**
+		 * @param message A json serializable message to send to the webview.
+		 *
+		 *   For older versions of vscode, if an `ArrayBuffer` is included in `message`,
+		 *   it will not be serialized properly and will not be received by the webview.
+		 *   Similarly any TypedArrays, such as a `Uint8Array`, will be very inefficiently
+		 *   serialized and will also not be recreated as a typed array inside the webview.
+		 *
+		 *   However if your extension targets vscode 1.55+ in the `engines` field of its
+		 *   `package.json` any `ArrayBuffer` values that appear in `message` will be more
+		 *   efficiently transferred to the webview and will also be recreated inside of
+		 *   the webview.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+	}
+
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/115616 @alexr00

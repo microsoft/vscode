@@ -356,17 +356,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'auto'
 		},
-		'terminal.integrated.rendererType': {
+		'terminal.integrated.gpuAcceleration': {
 			type: 'string',
-			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
+			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
-				localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
-				localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
-				localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
-				localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl).")
+				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
+				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
+				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal.")
 			],
 			default: 'auto',
-			description: localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
+			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
 		},
 		'terminal.integrated.rightClickBehavior': {
 			type: 'string',

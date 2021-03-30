@@ -139,7 +139,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			this._lastFontMeasurement.charHeight = Math.ceil(rect.height);
 			// Char width is calculated differently for DOM and the other renderer types. Refer to
 			// how each renderer updates their dimensions in xterm.js
-			if (this.config.rendererType === 'dom') {
+			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
 				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);

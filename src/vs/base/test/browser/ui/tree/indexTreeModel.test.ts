@@ -325,12 +325,18 @@ suite('IndexTreeModel', () => {
 		assert.strictEqual(list[1].collapsible, false);
 
 		model.splice([0, 0], 1, [], options);
-		assert.strictEqual(list[0].collapsible, false);
-		assert.strictEqual(list[1], undefined);
+		{
+			const [first, second] = list;
+			assert.strictEqual(first.collapsible, false);
+			assert.strictEqual(second, undefined);
+		}
 
 		model.splice([0, 0], 0, [{ element: 1 }], options);
-		assert.strictEqual(list[0].collapsible, true);
-		assert.strictEqual(list[1].collapsible, false);
+		{
+			const [first, second] = list;
+			assert.strictEqual(first.collapsible, true);
+			assert.strictEqual(second.collapsible, false);
+		}
 	}));
 
 	test('expand', () => withSmartSplice(options => {

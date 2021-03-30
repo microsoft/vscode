@@ -613,8 +613,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assertConflicts(testObject.conflicts, []);
 
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy I don't know enough about this test to make it strictly equal
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('preview -> accept', async () => {
@@ -761,8 +760,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enough about this test to make it strictly equal
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('preivew -> accept -> discard -> accept -> apply', async () => {
@@ -783,8 +781,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enough about this test to make it strictly equal
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('preivew -> accept -> discard -> merge -> apply', async () => {
@@ -1052,8 +1049,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enoguh about this test to understand how to make it strict
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('conflicts: preivew -> accept -> discard -> accept -> apply', async () => {
@@ -1074,8 +1070,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enoguh about this test to understand how to make it strict
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 });

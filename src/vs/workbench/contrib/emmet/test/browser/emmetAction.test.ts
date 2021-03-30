@@ -44,10 +44,11 @@ suite('Emmet', () => {
 		withTestCodeEditor([], {}, (editor) => {
 
 			function testIsEnabled(mode: string, scopeName: string, expectedLanguage?: string, expectedParentLanguage?: string) {
-				const languageIdentifier = new LanguageIdentifier(mode, 73);
+				const customLanguageId: LanguageId = 73;
+				const languageIdentifier = new LanguageIdentifier(mode, customLanguageId);
 				const languageIdentifierResolver: ILanguageIdentifierResolver = {
 					getLanguageIdentifier: (languageId: LanguageId) => {
-						if (languageId === 73) {
+						if (languageId === customLanguageId) {
 							return languageIdentifier;
 						}
 						throw new Error('Unexpected');
