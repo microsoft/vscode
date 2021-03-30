@@ -85,11 +85,15 @@ suite('OpenerService', function () {
 		assert.strictEqual(lastCommand!.id, id);
 		assert.strictEqual(lastCommand!.args.length, 0);
 
+		await openerService.open(URI.parse('command:' + id).with({ query: '\"123\"' }));
+		assert.strictEqual(lastCommand!.id, id);
+		assert.strictEqual(lastCommand!.args.length, 1);
+		assert.strictEqual(lastCommand!.args[0], '123');
+
 		await openerService.open(URI.parse('command:' + id).with({ query: '123' }));
 		assert.strictEqual(lastCommand!.id, id);
 		assert.strictEqual(lastCommand!.args.length, 1);
-		// TODO @jrieken is this ok that its converting the string to a number in the args?
-		assert.equal(lastCommand!.args[0], '123');
+		assert.strictEqual(lastCommand!.args[0], 123);
 
 		await openerService.open(URI.parse('command:' + id).with({ query: JSON.stringify([12, true]) }));
 		assert.strictEqual(lastCommand!.id, id);

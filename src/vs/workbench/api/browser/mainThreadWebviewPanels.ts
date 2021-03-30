@@ -137,9 +137,9 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
 
-	public addWebviewInput(handle: extHostProtocol.WebviewHandle, input: WebviewInput): void {
+	public addWebviewInput(handle: extHostProtocol.WebviewHandle, input: WebviewInput, options: { serializeBuffersForPostMessage: boolean }): void {
 		this._webviewInputs.add(handle, input);
-		this._mainThreadWebviews.addWebview(handle, input.webview);
+		this._mainThreadWebviews.addWebview(handle, input.webview, options);
 
 		input.webview.onDidDispose(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
@@ -156,6 +156,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			title: string;
 			webviewOptions: extHostProtocol.IWebviewOptions;
 			panelOptions: extHostProtocol.IWebviewPanelOptions;
+			serializeBuffersForPostMessage: boolean;
 		},
 		showOptions: { viewColumn?: EditorGroupColumn, preserveFocus?: boolean; },
 	): void {
@@ -168,7 +169,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const extension = reviveWebviewExtension(extensionData);
 
 		const webview = this._webviewWorkbenchService.createWebview(handle, this.webviewPanelViewType.fromExternal(viewType), initData.title, mainThreadShowOptions, reviveWebviewOptions(initData.panelOptions), reviveWebviewContentOptions(initData.webviewOptions), extension);
-		this.addWebviewInput(handle, webview);
+		this.addWebviewInput(handle, webview, { serializeBuffersForPostMessage: initData.serializeBuffersForPostMessage });
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {
@@ -205,7 +206,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		}
 	}
 
-	public $registerSerializer(viewType: string): void {
+	public $registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void {
 		if (this._revivers.has(viewType)) {
 			throw new Error(`Reviver for ${viewType} already registered`);
 		}
@@ -223,7 +224,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 				const handle = webviewInput.id;
 
-				this.addWebviewInput(handle, webviewInput);
+				this.addWebviewInput(handle, webviewInput, options);
 
 				let state = undefined;
 				if (webviewInput.webview.state) {

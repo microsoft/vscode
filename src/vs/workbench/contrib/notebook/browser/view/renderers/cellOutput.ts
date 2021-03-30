@@ -81,6 +81,10 @@ export class CellOutputElement extends Disposable {
 	}
 
 	updateOutputRendering() {
+		if (!this.domNode) {
+			return;
+		}
+
 		// user chooses another mimetype
 		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 		const nextElement = this.domNode.nextElementSibling;

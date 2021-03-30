@@ -101,6 +101,11 @@ export interface IDataLinkClickEvent {
 	downloadName?: string;
 }
 
+export interface WebviewMessageReceivedEvent {
+	readonly message: any;
+	readonly transfer?: readonly ArrayBuffer[];
+}
+
 export interface Webview extends IDisposable {
 
 	readonly id: string;
@@ -123,10 +128,10 @@ export interface Webview extends IDisposable {
 	readonly onDidWheel: Event<IMouseWheelEvent>;
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onDidReload: Event<void>;
-	readonly onMessage: Event<any>;
+	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 
-	postMessage(data: any): void;
+	postMessage(message: any, transfer?: readonly ArrayBuffer[]): void;
 
 	focus(): void;
 	reload(): void;
