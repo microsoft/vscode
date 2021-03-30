@@ -416,7 +416,7 @@ suite('SnippetParser', () => {
 		//${3/\\s:=(.*)/${1:+ :=}${1}/}
 		assert.ok(children[3] instanceof Placeholder);
 		assert.strictEqual(children[3].children.length, 0);
-		assert.notEqual((<Placeholder>children[3]).transform, undefined);
+		assert.notStrictEqual((<Placeholder>children[3]).transform, undefined);
 		let transform = (<Placeholder>children[3]).transform!;
 		assert.deepStrictEqual(transform.regexp, /\s:=(.*)/);
 		assert.strictEqual(transform.children.length, 2);

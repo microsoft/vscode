@@ -36,12 +36,12 @@ suite('MarkersModel Test', () => {
 		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4]);
 		const actuals = testObject.resourceMarkers[0].markers;
 
-		assert.notEqual(actuals[0].id, actuals[1].id);
-		assert.notEqual(actuals[0].id, actuals[2].id);
-		assert.notEqual(actuals[0].id, actuals[3].id);
-		assert.notEqual(actuals[1].id, actuals[2].id);
-		assert.notEqual(actuals[1].id, actuals[3].id);
-		assert.notEqual(actuals[2].id, actuals[3].id);
+		assert.notStrictEqual(actuals[0].id, actuals[1].id);
+		assert.notStrictEqual(actuals[0].id, actuals[2].id);
+		assert.notStrictEqual(actuals[0].id, actuals[3].id);
+		assert.notStrictEqual(actuals[1].id, actuals[2].id);
+		assert.notStrictEqual(actuals[1].id, actuals[3].id);
+		assert.notStrictEqual(actuals[2].id, actuals[3].id);
 	});
 
 	test('sort palces resources with no errors at the end', function () {
