@@ -421,13 +421,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Block all SVG requests from unsupported origins
-		const svgFileSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']);
+		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeWebviewResource, 'devtools']);
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
-
-			// Prevent loading of remote svgs
 			if (uri.path.endsWith('.svg')) {
-				const safeScheme = svgFileSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
+				const safeScheme = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
 				if (!safeScheme) {
 					return callback({ cancel: true });
 				}
@@ -437,17 +435,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 
 		// Configure SVG header content type properly
+		// https://github.com/microsoft/vscode/issues/97564
 		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
 			const responseHeaders = details.responseHeaders as Record<string, (string) | (string[])>;
 			const contentTypes = (responseHeaders['content-type'] || responseHeaders['Content-Type']);
 
 			if (contentTypes && Array.isArray(contentTypes)) {
 				const uri = URI.parse(details.url);
-
-				// https://github.com/microsoft/vscode/issues/97564
-				// ensure local svg files have Content-Type image/svg+xml
 				if (uri.path.endsWith('.svg')) {
-					if (svgFileSchemes.has(uri.scheme)) {
+					if (supportedSvgSchemes.has(uri.scheme)) {
 						responseHeaders['Content-Type'] = ['image/svg+xml'];
 
 						return callback({ cancel: false, responseHeaders });
