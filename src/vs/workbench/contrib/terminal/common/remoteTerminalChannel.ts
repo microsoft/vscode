@@ -238,7 +238,7 @@ export class RemoteTerminalChannelClient {
 	}
 
 	public reduceGraceTime(): Promise<void> {
-		return this._channel.call('$reduceGracetime');
+		return this._channel.call('$reduceGraceTime');
 	}
 
 	public start(id: number): Promise<ITerminalLaunchError | void> {
