@@ -132,6 +132,19 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
+				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal With Profile"), original: 'Create New Integrated Terminal With Profile' },
+				f1: true,
+				category,
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).selectDefaultProfile(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
 				title: { value: localize('workbench.action.terminal.focusPreviousPane', "Focus Previous Pane"), original: 'Focus Previous Pane' },
 				f1: true,

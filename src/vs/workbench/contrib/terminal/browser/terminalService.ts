@@ -842,12 +842,12 @@ export class TerminalService implements ITerminalService {
 		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
 
-	public async selectDefaultProfile(): Promise<void> {
+	public async selectDefaultProfile(quickCreate?: boolean): Promise<void> {
 		const profiles = await this._detectProfiles(false);
 		const platformKey = await this._getPlatformKey();
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your default terminal profile"),
+			placeHolder: quickCreate ? nls.localize('terminal.integrated.chooseQuickCreateProfile', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
@@ -880,23 +880,30 @@ export class TerminalService implements ITerminalService {
 		const autoDetectedProfiles = profiles.filter(e => e.isAutoDetected);
 		if (configProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
-			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e)));
+			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e, quickCreate)));
 		}
 		if (configProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
-			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)));
+			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e, quickCreate)));
 		}
 
 		const value = await this._quickInputService.pick(quickPickItems, options);
 		if (!value) {
 			return;
 		}
-		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
-		await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+		const profile = autoDetectedProfiles.find(profile => profile.profileName === value.profile.profileName) || configProfiles.find(profile => profile.profileName === value.profile.profileName);
+		if (quickCreate && profile) {
+			const instance = this.createTerminal({ executable: profile.path, args: profile.args, name: profile.overrideName ? profile.profileName : undefined });
+			this.showPanel(true);
+			this.setActiveInstance(instance);
+		} else {
+			await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
+			await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+		}
 	}
 
-	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
-		const buttons: IQuickInputButton[] = [{
+	private _createProfileQuickPickItem(profile: ITerminalProfile, quickCreate?: boolean): IProfileQuickPickItem {
+		const buttons: IQuickInputButton[] = quickCreate ? [] : [{
 			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
 			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
 		}];
