@@ -350,11 +350,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (conn) {
 			return this._remoteAuthority === conn.remoteAuthority;
 		}
-		return true;
+		return this._extHostKind !== ExtensionHostKind.LocalWebWorker;
 	}
 
 	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
-		if (this._isPrimaryExtHost() && this._extHostKind !== ExtensionHostKind.LocalWebWorker) {
+		if (this._isPrimaryExtHost()) {
 			req.callback(await this._proxy.$getAvailableProfiles(req.configuredProfilesOnly));
 		}
 	}
