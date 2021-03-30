@@ -47,7 +47,7 @@ suite('Notebook Editor', function () {
 	});
 
 
-	test('showNotebookDocment', async function () {
+	test.skip('showNotebookDocment', async function () {
 
 		const count1 = vscode.notebook.notebookDocuments.length;
 
