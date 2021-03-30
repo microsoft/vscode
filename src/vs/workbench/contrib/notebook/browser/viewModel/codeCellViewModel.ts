@@ -23,7 +23,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
-	private _hasTextModelRef = false;
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
@@ -261,10 +260,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	 * Text model is used for editing.
 	 */
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this._hasTextModelRef || !this.textModel) {
-			this._hasTextModelRef = true;
-			const ref = await this.model.resolveTextModelRef();
-			this._register(ref);
+		if (!this._textModelRef || !this.textModel) {
+			this._textModelRef = await this.model.resolveTextModelRef();
 			this._register(this.textModel!.onDidChangeContent(() => {
 				if (this.editState !== CellEditState.Editing) {
 					this.editState = CellEditState.Editing;

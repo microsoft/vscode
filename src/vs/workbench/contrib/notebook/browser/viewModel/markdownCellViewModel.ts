@@ -22,7 +22,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	readonly cellKind = CellKind.Markdown;
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
-	private _hasTextModelRef = false;
 
 	private _version = 0;
 
@@ -226,11 +225,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this._hasTextModelRef || !this.textModel) {
-			this._hasTextModelRef = true;
-			const ref = await this.model.resolveTextModelRef();
+		if (!!this.textModel) {
+			this._textModelRef = await this.model.resolveTextModelRef();
 			this._version = this.textModel!.getVersionId();
-			this._register(ref);
 			this._register(this.textModel!.onDidChangeContent(() => {
 				this._html = null;
 				if (this.textModel) {

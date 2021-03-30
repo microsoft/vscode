@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -17,6 +17,7 @@ import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChang
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -102,6 +103,8 @@ export abstract class BaseCellViewModel extends Disposable {
 	set dragging(v: boolean) {
 		this._dragging = v;
 	}
+
+	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;
 
 	constructor(
 		readonly viewType: string,
@@ -193,6 +196,11 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
+
+		if (this._textModelRef) {
+			this._textModelRef.dispose();
+			this._textModelRef = undefined;
+		}
 	}
 
 	getText(): string {
@@ -457,6 +465,10 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	dispose() {
 		super.dispose();
+
+		if (this._textModelRef) {
+			this._textModelRef.dispose();
+		}
 	}
 
 	toJSON(): object {
