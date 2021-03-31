@@ -9,7 +9,6 @@ import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
@@ -31,15 +30,12 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
-
-
 		this._registerListeners();
 	}
 
