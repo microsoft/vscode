@@ -673,19 +673,17 @@ function webviewPreloads() {
 				{
 					// const date = new Date();
 					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: view-scroll-markdown', event.data.cells);
-					event.data.cells.map(cell => {
+					for (const cell of event.data.cells) {
 						const widget = document.getElementById(`${cell.id}_preview`)!;
-
 						if (widget) {
 							widget.style.top = `${cell.top}px`;
 						}
 
 						const markdownPreview = document.getElementById(`${cell.id}`);
-
 						if (markdownPreview) {
 							markdownPreview.style.display = 'block';
 						}
-					});
+					}
 
 					break;
 				}
