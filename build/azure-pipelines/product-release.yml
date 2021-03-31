@@ -36,7 +36,10 @@ steps:
 
         if ($res -and $res.count) {
           $currentCount = $res.count
+          $res.count
+          $res.value
           $res.value | ForEach-Object {
+            Write-Host "trying $($_.name)"
             if($set.Add($_.name)) {
               Write-Host "NEWLY ADDED: $($_.name)"
             }
