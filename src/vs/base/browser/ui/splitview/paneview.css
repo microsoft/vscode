@@ -60,22 +60,6 @@
 	display: initial;
 }
 
-/* TODO: actions should be part of the pane, but they aren't yet */
-.monaco-pane-view .pane > .pane-header > .actions .action-label.icon,
-.monaco-pane-view .pane > .pane-header > .actions .action-label.codicon {
-	width: 28px;
-	height: 22px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	margin-right: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: inherit;
-	outline-offset: -2px;
-}
-
 .monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {
 	cursor: default;
 }

@@ -184,6 +184,7 @@
 	position: relative;
 	line-height: 22px;
 	padding: 0;
+	height: 100%;
 }
 
 .pane-body:not(.wide) .search-view .foldermatch .monaco-icon-label,
@@ -261,13 +262,13 @@
 	display: inline-block;
 }
 
-.search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
+.search-view .monaco-list .monaco-list-row .monaco-action-bar .action-item {
 	margin-right: 0.2em;
-	margin-top: 4px;
-	background-repeat: no-repeat;
+}
+
+.search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	width: 16px;
 	height: 16px;
-	color: inherit;
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */

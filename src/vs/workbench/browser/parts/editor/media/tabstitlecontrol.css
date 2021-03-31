@@ -346,13 +346,6 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions .action-label {
 	opacity: 0;
-	display: block;
-	height: 16px;
-	width: 16px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	margin-right: 0.5em;
 }
 
 /* Tab Actions: Off */

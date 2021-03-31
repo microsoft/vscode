@@ -85,6 +85,7 @@
 
 .markers-panel-container .monaco-action-bar.markers-panel-filter-container {
 	margin: 10px 20px;
+	height: initial;
 }
 
 .markers-panel .markers-panel-container .message-box-container {
