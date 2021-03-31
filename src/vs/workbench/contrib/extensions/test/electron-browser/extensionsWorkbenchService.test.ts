@@ -80,13 +80,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
 			onDidChangeConfiguration: () => { return undefined!; },
 			getValue: (key?: string) => {
-				if (key === AutoCheckUpdatesConfigurationKey) {
-					return true;
-				} else if (key === AutoUpdateConfigurationKey) {
-					return 'all';
-				}
-
-				return undefined;
+				return (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) ? true : undefined;
 			}
 		});
 

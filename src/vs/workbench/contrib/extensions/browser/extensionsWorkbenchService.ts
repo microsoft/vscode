@@ -41,6 +41,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { isBoolean } from 'vs/base/common/types';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -548,7 +549,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				if (this.getAutoUpdate() !== 'none') {
+				if (this.isAutoUpdateEnabled()) {
 					this.checkForUpdates();
 				}
 			}
@@ -560,11 +561,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}, this));
 
 		this._register(extensionEnablementService.onEnablementChanged(platformExtensions => {
-			if (this.getAutoUpdate() === 'enabled') {
-				const extensions = this.local.filter(e => platformExtensions.some(p => areSameExtensions(e.identifier, p.identifier)));
-				if (extensions.some(e => e.enablementState === EnablementState.EnabledGlobally || e.enablementState === EnablementState.EnabledWorkspace)) {
-					this.checkForUpdates();
-				}
+			if (this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+				this.checkForUpdates();
 			}
 		}, this));
 
@@ -841,15 +839,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return Promise.resolve(this.syncDelayer.trigger(() => this.syncWithGallery(), 0));
 	}
 
-	private getAutoUpdate(): 'all' | 'enabled' | 'none' {
-		const autoUpdate: (true | false | 'all' | 'enabled' | 'none') = this.configurationService.getValue(AutoUpdateConfigurationKey);
-		if (autoUpdate === true) {
-			return 'all';
-		} else if (autoUpdate === false) {
-			return 'none';
-		}
+	private getAutoUpdateValue(): boolean | 'onlyEnabledExtensions' {
+		const autoUpdate = this.configurationService.getValue<boolean | 'onlyEnabledExtensions'>(AutoUpdateConfigurationKey);
+		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+	}
 
-		return autoUpdate;
+	private isAutoUpdateEnabled(): boolean {
+		return this.getAutoUpdateValue() !== false;
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
@@ -857,7 +853,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private eventuallySyncWithGallery(immediate = false): void {
-		const shouldSync = this.getAutoUpdate() !== 'none' || this.isAutoCheckUpdatesEnabled();
+		const shouldSync = this.isAutoUpdateEnabled() || this.isAutoCheckUpdatesEnabled();
 		const loop = () => (shouldSync ? this.syncWithGallery() : Promise.resolve(undefined)).then(() => this.eventuallySyncWithGallery());
 		const delay = immediate ? 0 : ExtensionsWorkbenchService.SyncPeriod;
 
@@ -894,13 +890,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private autoUpdateExtensions(): Promise<any> {
-		if (this.getAutoUpdate() === 'none') {
+		if (!this.isAutoUpdateEnabled()) {
 			return Promise.resolve();
 		}
 
 		const toUpdate = this.outdated.filter(e =>
 			!this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)) &&
-			(this.getAutoUpdate() === 'all' || e.enablementState !== EnablementState.DisabledGlobally)
+			(this.getAutoUpdateValue() === true || (e.local && this.extensionEnablementService.isEnabled(e.local)))
 		);
 
 		return Promises.settled(toUpdate.map(e => this.install(e)));
