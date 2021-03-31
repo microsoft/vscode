@@ -1607,6 +1607,14 @@ declare module 'vscode' {
 		filenamePattern?: NotebookFilenamePattern;
 	}
 
+	// export interface NotebookFilter {
+	// 	readonly viewType?: string;
+	// 	readonly scheme?: string;
+	// 	readonly pattern?: GlobPattern;
+	// }
+
+	// export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
+
 	// todo@API very unclear, provider MUST not return alive object but only data object
 	// todo@API unclear how the flow goes
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
