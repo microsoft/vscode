@@ -1917,8 +1917,11 @@ export interface ExtHostNotebookDocumentsShape {
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
 }
 
+export type INotebookEditorViewColumnInfo = Record<string, number>;
+
 export interface ExtHostNotebookEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
+	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void;
 }
 
 export interface ExtHostStorageShape {

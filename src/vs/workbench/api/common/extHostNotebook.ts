@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookKernelInfoDto2, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, INotebookKernelInfoDto2, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -646,6 +646,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				notebookEditor: editor.editor.editor,
 				selections: editor.editor.editor.selections
 			}));
+		}
+	}
+
+	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void {
+		for (const id in data) {
+			const editor = this._editors.get(id);
+			if (!editor) {
+				throw new Error(`unknown text editor: ${id}. known editors: ${[...this._editors.keys()]} `);
+			}
+			editor.editor._acceptViewColumn(typeConverters.ViewColumn.to(data[id]));
 		}
 	}
 

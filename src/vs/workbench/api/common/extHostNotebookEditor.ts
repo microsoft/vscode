@@ -183,6 +183,10 @@ export class ExtHostNotebookEditor {
 		this._selections = selections;
 	}
 
+	_acceptViewColumn(value: vscode.ViewColumn | undefined) {
+		this._viewColumn = value;
+	}
+
 	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
 
 		// return when there is nothing to do

@@ -6,7 +6,7 @@
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { getNotebookEditorFromEditorPane, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentShowOptions, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { ICellEditOperation, ICellRange, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -15,6 +15,9 @@ import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/edit
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
+import { equals } from 'vs/base/common/objects';
 
 class MainThreadEditor {
 	constructor(
@@ -31,7 +34,9 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _editorEventListenersMapping = new Map<string, MainThreadEditor>();
+	private readonly _mainThreadEditors = new Map<string, MainThreadEditor>();
+
+	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -40,16 +45,21 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 
 		notebooksAndEditors.onDidAddEditors(this._handleEditorsAdded, this, this._disposables);
 		notebooksAndEditors.onDidRemoveEditors(this._handleEditorsRemoved, this, this._disposables);
+
+		this._editorService.onDidActiveEditorChange(() => this._updateEditorViewColumns(), this, this._disposables);
+		this._editorGroupService.onDidRemoveGroup(() => this._updateEditorViewColumns(), this, this._disposables);
+		this._editorGroupService.onDidMoveGroup(() => this._updateEditorViewColumns(), this, this._disposables);
 	}
 
 	dispose(): void {
 		this._disposables.dispose();
-		dispose(this._editorEventListenersMapping.values());
+		dispose(this._mainThreadEditors.values());
 	}
 
 	private _handleEditorsAdded(editors: readonly INotebookEditor[]): void {
@@ -76,19 +86,33 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 				});
 			}));
 
-			this._editorEventListenersMapping.set(editor.getId(), new MainThreadEditor(editor, editorDisposables));
+			this._mainThreadEditors.set(editor.getId(), new MainThreadEditor(editor, editorDisposables));
 		}
 	}
 
 	private _handleEditorsRemoved(editorIds: readonly string[]): void {
 		for (const id of editorIds) {
-			this._editorEventListenersMapping.get(id)?.dispose();
-			this._editorEventListenersMapping.delete(id);
+			this._mainThreadEditors.get(id)?.dispose();
+			this._mainThreadEditors.delete(id);
+		}
+	}
+
+	private _updateEditorViewColumns(): void {
+		const result: INotebookEditorViewColumnInfo = Object.create(null);
+		for (let editorPane of this._editorService.visibleEditorPanes) {
+			const candidate = getNotebookEditorFromEditorPane(editorPane);
+			if (candidate && this._mainThreadEditors.has(candidate.getId())) {
+				result[candidate.getId()] = editorGroupToViewColumn(this._editorGroupService, editorPane.group);
+			}
+		}
+		if (!equals(result, this._currentViewColumnInfo)) {
+			this._currentViewColumnInfo = result;
+			this._proxy.$acceptEditorViewColumns(result);
 		}
 	}
 
 	async $tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean> {
-		const wrapper = this._editorEventListenersMapping.get(editorId);
+		const wrapper = this._mainThreadEditors.get(editorId);
 		if (!wrapper) {
 			return false;
 		}
