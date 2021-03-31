@@ -124,7 +124,7 @@ describe('API Integration Tests', function (): void {
 
 		await page.waitForTimeout(1000);
 
-		assert.deepEqual(await page.evaluate(`
+		assert.deepStrictEqual(await page.evaluate(`
 			[
 				instance.getModel().getLineContent(1),
 				instance.getModel().getLineContent(2),

@@ -459,6 +459,11 @@ export interface ITerminalInstance {
 	paste(): Promise<void>;
 
 	/**
+	 * Focuses and pastes the contents of the selection clipboard into the terminal instance.
+	 */
+	pasteSelection(): Promise<void>;
+
+	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
 	 * process (shell) of the terminal instance.
 	 *

@@ -499,13 +499,13 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 		assert.strictEqual(actual.runtime, expected.runtime, 'runtime type');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
 		assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
-		assert.deepEqual(actual.args, expected.args, 'args');
+		assert.deepStrictEqual(actual.args, expected.args, 'args');
 		assert.strictEqual(typeof actual.options, typeof expected.options);
 		if (actual.options && expected.options) {
 			assert.strictEqual(actual.options.cwd, expected.options.cwd, 'cwd');
 			assert.strictEqual(typeof actual.options.env, typeof expected.options.env, 'env');
 			if (actual.options.env && expected.options.env) {
-				assert.deepEqual(actual.options.env, expected.options.env, 'env');
+				assert.deepStrictEqual(actual.options.env, expected.options.env, 'env');
 			}
 		}
 	}

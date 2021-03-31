@@ -58,7 +58,7 @@ suite('DecorationsService', function () {
 			assert.strictEqual(e.affectsResource(uri), true);
 
 			// sync result
-			assert.deepEqual(service.getDecoration(uri, false)!.tooltip, 'T');
+			assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'T');
 			assert.strictEqual(callCounter, 1);
 		});
 	});
@@ -78,7 +78,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false)!.tooltip, 'Z');
+		assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'Z');
 		assert.strictEqual(callCounter, 1);
 	});
 
@@ -96,7 +96,7 @@ suite('DecorationsService', function () {
 		});
 
 		// trigger -> sync
-		assert.deepEqual(service.getDecoration(uri, false)!.tooltip, 'J');
+		assert.deepStrictEqual(service.getDecoration(uri, false)!.tooltip, 'J');
 		assert.strictEqual(callCounter, 1);
 
 		// un-register -> ensure good event
@@ -104,7 +104,7 @@ suite('DecorationsService', function () {
 		let p = new Promise<void>(resolve => {
 			service.onDidChangeDecorations(e => {
 				assert.strictEqual(e.affectsResource(uri), true);
-				assert.deepEqual(service.getDecoration(uri, false), undefined);
+				assert.deepStrictEqual(service.getDecoration(uri, false), undefined);
 				assert.strictEqual(callCounter, 1);
 				didSeeEvent = true;
 				resolve();

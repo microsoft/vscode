@@ -771,8 +771,7 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
-		// Return the empty string to avoid throwing
-		return '';
+		throw new NotSupportedError();
 	}
 
 	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
@@ -788,6 +787,6 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
-		// No-op for web worker ext host as workspace permissions aren't used
+		throw new NotSupportedError();
 	}
 }

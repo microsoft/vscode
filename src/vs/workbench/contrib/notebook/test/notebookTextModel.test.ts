@@ -327,9 +327,9 @@ suite('NotebookTextModel', () => {
 				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
 				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
 
-				assert.notEqual(changeEvent, undefined);
+				assert.notStrictEqual(changeEvent, undefined);
 				assert.strictEqual(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
 				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
@@ -361,9 +361,9 @@ suite('NotebookTextModel', () => {
 					}
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
-				assert.notEqual(changeEvent, undefined);
+				assert.notStrictEqual(changeEvent, undefined);
 				assert.strictEqual(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
 				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}

@@ -183,7 +183,7 @@ suite('ExtHostSearch', () => {
 		function compareURIs(actual: URI[], expected: URI[]) {
 			const sortAndStringify = (arr: URI[]) => arr.sort().map(u => u.toString());
 
-			assert.deepEqual(
+			assert.deepStrictEqual(
 				sortAndStringify(actual),
 				sortAndStringify(expected));
 		}
@@ -286,11 +286,11 @@ suite('ExtHostSearch', () => {
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
 					if (options.folder.toString() === rootFolderA.toString()) {
-						assert.deepEqual(options.includes.sort(), ['*.ts', 'foo']);
-						assert.deepEqual(options.excludes.sort(), ['*.js', 'bar']);
+						assert.deepStrictEqual(options.includes.sort(), ['*.ts', 'foo']);
+						assert.deepStrictEqual(options.excludes.sort(), ['*.js', 'bar']);
 					} else {
-						assert.deepEqual(options.includes.sort(), ['*.ts']);
-						assert.deepEqual(options.excludes.sort(), ['*.js']);
+						assert.deepStrictEqual(options.includes.sort(), ['*.ts']);
+						assert.deepStrictEqual(options.excludes.sort(), ['*.js']);
 					}
 
 					return Promise.resolve(null!);
@@ -327,8 +327,8 @@ suite('ExtHostSearch', () => {
 		test('include/excludes resolved correctly', async () => {
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
-					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
-					assert.deepEqual(options.excludes.sort(), []);
+					assert.deepStrictEqual(options.includes.sort(), ['*.jsx', '*.ts']);
+					assert.deepStrictEqual(options.excludes.sort(), []);
 
 					return Promise.resolve(null!);
 				}
@@ -718,7 +718,7 @@ suite('ExtHostSearch', () => {
 					lineNumber: r.lineNumber
 				});
 
-			return assert.deepEqual(
+			return assert.deepStrictEqual(
 				makeComparable(actualTextSearchResults),
 				makeComparable(expected));
 		}
@@ -787,11 +787,11 @@ suite('ExtHostSearch', () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
 					if (options.folder.toString() === rootFolderA.toString()) {
-						assert.deepEqual(options.includes.sort(), ['*.ts', 'foo']);
-						assert.deepEqual(options.excludes.sort(), ['*.js', 'bar']);
+						assert.deepStrictEqual(options.includes.sort(), ['*.ts', 'foo']);
+						assert.deepStrictEqual(options.excludes.sort(), ['*.js', 'bar']);
 					} else {
-						assert.deepEqual(options.includes.sort(), ['*.ts']);
-						assert.deepEqual(options.excludes.sort(), ['*.js']);
+						assert.deepStrictEqual(options.includes.sort(), ['*.ts']);
+						assert.deepStrictEqual(options.excludes.sort(), ['*.js']);
 					}
 
 					return Promise.resolve(null!);
@@ -828,8 +828,8 @@ suite('ExtHostSearch', () => {
 		test('include/excludes resolved correctly', async () => {
 			await registerTestTextSearchProvider({
 				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Promise<vscode.TextSearchComplete> {
-					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
-					assert.deepEqual(options.excludes.sort(), []);
+					assert.deepStrictEqual(options.includes.sort(), ['*.jsx', '*.ts']);
+					assert.deepStrictEqual(options.excludes.sort(), []);
 
 					return Promise.resolve(null!);
 				}

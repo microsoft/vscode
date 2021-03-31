@@ -351,7 +351,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
 
-		this.useRenderer = (this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) ?? !isWeb) && !accessibilityService.isScreenReaderOptimized();
+		this.useRenderer = !isWeb && !!this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) && !accessibilityService.isScreenReaderOptimized();
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
@@ -2007,6 +2007,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			aria.alert(`Cell ${this._notebookViewModel?.getCellIndex(cell)}, ${position} `);
 		}
 	}
+
+	toggleNotebookCellSelection(cell: ICellViewModel): void {
+		const currentSelections = this._list.getSelectedElements();
+
+		const isSelected = currentSelections.includes(cell);
+		if (isSelected) {
+			// Deselect
+			this._list.selectElements(currentSelections.filter(current => current !== cell));
+		} else {
+			// Add to selection
+			this._list.selectElements([...currentSelections, cell]);
+		}
+	}
+
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions) {
 		if (this._isDisposed) {
 			return;

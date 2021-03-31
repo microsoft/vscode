@@ -15,24 +15,24 @@ suite('RangeMap', () => {
 	});
 
 	test('intersection', () => {
-		assert.deepEqual(Range.intersect({ start: 0, end: 0 }, { start: 0, end: 0 }), { start: 0, end: 0 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 0 }, { start: 5, end: 5 }), { start: 0, end: 0 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 1 }, { start: 5, end: 6 }), { start: 0, end: 0 });
-		assert.deepEqual(Range.intersect({ start: 5, end: 6 }, { start: 0, end: 1 }), { start: 0, end: 0 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 5 }, { start: 2, end: 2 }), { start: 0, end: 0 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 1 }, { start: 0, end: 1 }), { start: 0, end: 1 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 10 }, { start: 0, end: 5 }), { start: 0, end: 5 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 5 }, { start: 0, end: 10 }), { start: 0, end: 5 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 10 }, { start: 5, end: 10 }), { start: 5, end: 10 });
-		assert.deepEqual(Range.intersect({ start: 5, end: 10 }, { start: 0, end: 10 }), { start: 5, end: 10 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 10 }, { start: 2, end: 8 }), { start: 2, end: 8 });
-		assert.deepEqual(Range.intersect({ start: 2, end: 8 }, { start: 0, end: 10 }), { start: 2, end: 8 });
-		assert.deepEqual(Range.intersect({ start: 0, end: 10 }, { start: 5, end: 15 }), { start: 5, end: 10 });
-		assert.deepEqual(Range.intersect({ start: 5, end: 15 }, { start: 0, end: 10 }), { start: 5, end: 10 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 0 }, { start: 0, end: 0 }), { start: 0, end: 0 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 0 }, { start: 5, end: 5 }), { start: 0, end: 0 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 1 }, { start: 5, end: 6 }), { start: 0, end: 0 });
+		assert.deepStrictEqual(Range.intersect({ start: 5, end: 6 }, { start: 0, end: 1 }), { start: 0, end: 0 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 5 }, { start: 2, end: 2 }), { start: 0, end: 0 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 1 }, { start: 0, end: 1 }), { start: 0, end: 1 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 0, end: 5 }), { start: 0, end: 5 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 5 }, { start: 0, end: 10 }), { start: 0, end: 5 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 5, end: 10 }), { start: 5, end: 10 });
+		assert.deepStrictEqual(Range.intersect({ start: 5, end: 10 }, { start: 0, end: 10 }), { start: 5, end: 10 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 2, end: 8 }), { start: 2, end: 8 });
+		assert.deepStrictEqual(Range.intersect({ start: 2, end: 8 }, { start: 0, end: 10 }), { start: 2, end: 8 });
+		assert.deepStrictEqual(Range.intersect({ start: 0, end: 10 }, { start: 5, end: 15 }), { start: 5, end: 10 });
+		assert.deepStrictEqual(Range.intersect({ start: 5, end: 15 }, { start: 0, end: 10 }), { start: 5, end: 10 });
 	});
 
 	test('multiIntersect', () => {
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			groupIntersect(
 				{ start: 0, end: 0 },
 				[{ range: { start: 0, end: 10 }, size: 1 }]
@@ -40,7 +40,7 @@ suite('RangeMap', () => {
 			[]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			groupIntersect(
 				{ start: 10, end: 20 },
 				[{ range: { start: 0, end: 10 }, size: 1 }]
@@ -48,7 +48,7 @@ suite('RangeMap', () => {
 			[]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			groupIntersect(
 				{ start: 2, end: 8 },
 				[{ range: { start: 0, end: 10 }, size: 1 }]
@@ -56,7 +56,7 @@ suite('RangeMap', () => {
 			[{ range: { start: 2, end: 8 }, size: 1 }]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			groupIntersect(
 				{ start: 2, end: 8 },
 				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }]
@@ -64,7 +64,7 @@ suite('RangeMap', () => {
 			[{ range: { start: 2, end: 8 }, size: 1 }]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			groupIntersect(
 				{ start: 12, end: 18 },
 				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }]
@@ -72,7 +72,7 @@ suite('RangeMap', () => {
 			[{ range: { start: 12, end: 18 }, size: 5 }]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			groupIntersect(
 				{ start: 2, end: 18 },
 				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }]
@@ -80,7 +80,7 @@ suite('RangeMap', () => {
 			[{ range: { start: 2, end: 10 }, size: 1 }, { range: { start: 10, end: 18 }, size: 5 }]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			groupIntersect(
 				{ start: 2, end: 28 },
 				[{ range: { start: 0, end: 10 }, size: 1 }, { range: { start: 10, end: 20 }, size: 5 }, { range: { start: 20, end: 30 }, size: 10 }]
@@ -90,14 +90,14 @@ suite('RangeMap', () => {
 	});
 
 	test('consolidate', () => {
-		assert.deepEqual(consolidate([]), []);
+		assert.deepStrictEqual(consolidate([]), []);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			consolidate([{ range: { start: 0, end: 10 }, size: 1 }]),
 			[{ range: { start: 0, end: 10 }, size: 1 }]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			consolidate([
 				{ range: { start: 0, end: 10 }, size: 1 },
 				{ range: { start: 10, end: 20 }, size: 1 }
@@ -105,7 +105,7 @@ suite('RangeMap', () => {
 			[{ range: { start: 0, end: 20 }, size: 1 }]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			consolidate([
 				{ range: { start: 0, end: 10 }, size: 1 },
 				{ range: { start: 10, end: 20 }, size: 1 },
@@ -114,7 +114,7 @@ suite('RangeMap', () => {
 			[{ range: { start: 0, end: 100 }, size: 1 }]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			consolidate([
 				{ range: { start: 0, end: 10 }, size: 1 },
 				{ range: { start: 10, end: 20 }, size: 5 },
@@ -127,7 +127,7 @@ suite('RangeMap', () => {
 			]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			consolidate([
 				{ range: { start: 0, end: 10 }, size: 1 },
 				{ range: { start: 10, end: 20 }, size: 2 },

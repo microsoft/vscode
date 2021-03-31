@@ -72,7 +72,7 @@ suite('ProblemPatternParser', () => {
 			};
 			let parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed, {
+			assert.deepStrictEqual(parsed, {
 				regexp: testRegexp,
 				kind: matchers.ProblemLocationKind.Location,
 				file: 1,
@@ -87,7 +87,7 @@ suite('ProblemPatternParser', () => {
 				kind: 'file'
 			};
 			let parsed = parser.parse(problemPattern);
-			assert.deepEqual(parsed, {
+			assert.deepStrictEqual(parsed, {
 				regexp: testRegexp,
 				kind: matchers.ProblemLocationKind.File,
 				file: 1,
@@ -103,7 +103,7 @@ suite('ProblemPatternParser', () => {
 			];
 			let parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed,
+			assert.deepStrictEqual(parsed,
 				[{
 					regexp: testRegexp,
 					kind: matchers.ProblemLocationKind.Location,
@@ -120,7 +120,7 @@ suite('ProblemPatternParser', () => {
 			];
 			let parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed,
+			assert.deepStrictEqual(parsed,
 				[{
 					regexp: testRegexp,
 					kind: matchers.ProblemLocationKind.Location,
@@ -139,7 +139,7 @@ suite('ProblemPatternParser', () => {
 			];
 			let parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed, [
+			assert.deepStrictEqual(parsed, [
 				{ regexp: testRegexp, kind: matchers.ProblemLocationKind.Location, file: 3 },
 				{ regexp: new RegExp('test1'), line: 4 },
 				{ regexp: new RegExp('test2'), character: 5 },
@@ -224,7 +224,7 @@ suite('ProblemPatternParser', () => {
 			];
 			let parsed = parser.parse(problemPattern);
 			assert(reporter.isOK());
-			assert.deepEqual(parsed,
+			assert.deepStrictEqual(parsed,
 				[{
 					regexp: testRegexp,
 					kind: matchers.ProblemLocationKind.File,

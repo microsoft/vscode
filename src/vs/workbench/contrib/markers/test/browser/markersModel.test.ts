@@ -36,12 +36,12 @@ suite('MarkersModel Test', () => {
 		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4]);
 		const actuals = testObject.resourceMarkers[0].markers;
 
-		assert.notEqual(actuals[0].id, actuals[1].id);
-		assert.notEqual(actuals[0].id, actuals[2].id);
-		assert.notEqual(actuals[0].id, actuals[3].id);
-		assert.notEqual(actuals[1].id, actuals[2].id);
-		assert.notEqual(actuals[1].id, actuals[3].id);
-		assert.notEqual(actuals[2].id, actuals[3].id);
+		assert.notStrictEqual(actuals[0].id, actuals[1].id);
+		assert.notStrictEqual(actuals[0].id, actuals[2].id);
+		assert.notStrictEqual(actuals[0].id, actuals[3].id);
+		assert.notStrictEqual(actuals[1].id, actuals[2].id);
+		assert.notStrictEqual(actuals[1].id, actuals[3].id);
+		assert.notStrictEqual(actuals[2].id, actuals[3].id);
 	});
 
 	test('sort palces resources with no errors at the end', function () {
@@ -182,8 +182,8 @@ suite('MarkersModel Test', () => {
 
 		assert.strictEqual(model.total, 3);
 		const markers = model.getResourceMarkers(document)?.markers;
-		assert.deepEqual(markers?.map(m => m.marker.severity), [MarkerSeverity.Error, MarkerSeverity.Error, MarkerSeverity.Warning]);
-		assert.deepEqual(markers?.map(m => m.marker.resource.toString()), [frag1.toString(), frag2.toString(), frag1.toString()]);
+		assert.deepStrictEqual(markers?.map(m => m.marker.severity), [MarkerSeverity.Error, MarkerSeverity.Error, MarkerSeverity.Warning]);
+		assert.deepStrictEqual(markers?.map(m => m.marker.resource.toString()), [frag1.toString(), frag2.toString(), frag1.toString()]);
 	});
 
 	function compareResource(a: ResourceMarkers, b: string): boolean {

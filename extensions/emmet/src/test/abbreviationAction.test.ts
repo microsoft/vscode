@@ -44,10 +44,7 @@ const htmlContents = `
 suite('Tests for Expand Abbreviations (HTML)', () => {
 	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
 	const oldValueForInlcudeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
-	teardown(() => {
-		// close all editors
-		return closeAllEditors();
-	});
+	teardown(closeAllEditors);
 
 	test('Expand snippets (HTML)', () => {
 		return testExpandAbbreviation('html', new Selection(3, 23, 3, 23), 'img', '<img src=\"\" alt=\"\">');

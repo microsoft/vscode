@@ -106,7 +106,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model1.dispose();
 
 		const model3 = await manager.resolve(resource, { encoding });
-		assert.notEqual(model3, model2);
+		assert.notStrictEqual(model3, model2);
 		assert.strictEqual(manager.get(resource), model3);
 		model3.dispose();
 

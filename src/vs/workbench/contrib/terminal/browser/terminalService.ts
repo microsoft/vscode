@@ -428,7 +428,7 @@ export class TerminalService implements ITerminalService {
 		// windows
 		this.terminalInstances.forEach(instance => instance.dispose(!isWindows));
 
-		this._localTerminalService!.setTerminalLayoutInfo(undefined);
+		this._localTerminalService?.setTerminalLayoutInfo(undefined);
 	}
 
 	public getTabLabels(): string[] {

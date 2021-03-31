@@ -63,7 +63,7 @@ suite('UserDataSyncStoreManagementService', () => {
 
 		assert.strictEqual(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
 		assert.strictEqual(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
-		assert.deepEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
+		assert.deepStrictEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
 	});
 
 });
@@ -87,8 +87,8 @@ suite('UserDataSyncStoreService', () => {
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Client-Name'], `${productService.applicationName}${isWeb ? '-web' : ''}`);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Client-Version'], productService.version);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
@@ -146,7 +146,7 @@ suite('UserDataSyncStoreService', () => {
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test headers are send for write request', async () => {
@@ -167,7 +167,7 @@ suite('UserDataSyncStoreService', () => {
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test headers are send for read request', async () => {
@@ -188,7 +188,7 @@ suite('UserDataSyncStoreService', () => {
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test headers are reset after session is cleared ', async () => {
@@ -209,8 +209,8 @@ suite('UserDataSyncStoreService', () => {
 		await testObject.manifest();
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
@@ -240,9 +240,9 @@ suite('UserDataSyncStoreService', () => {
 		await testObject.manifest();
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
 	});
 
@@ -273,10 +273,10 @@ suite('UserDataSyncStoreService', () => {
 		await testObject.manifest();
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
 	});
 
 	test('test old headers are sent after session is cleared from another server ', async () => {
@@ -304,9 +304,9 @@ suite('UserDataSyncStoreService', () => {
 		await testObject.manifest();
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
 	});
 
@@ -335,8 +335,8 @@ suite('UserDataSyncStoreService', () => {
 		await testObject.manifest();
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
@@ -368,10 +368,10 @@ suite('UserDataSyncStoreService', () => {
 		await testObject.manifest();
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
-		assert.notEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], userSessionId);
+		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
 
 	test('test rate limit on server with retry after', async () => {
@@ -388,7 +388,7 @@ suite('UserDataSyncStoreService', () => {
 			assert.fail('should fail');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncStoreError);
-			assert.deepEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
+			assert.deepStrictEqual((<UserDataSyncStoreError>e).code, UserDataSyncErrorCode.TooManyRequestsAndRetryAfter);
 			await promise;
 			assert.ok(!!testObject.donotMakeRequestsUntil);
 		}

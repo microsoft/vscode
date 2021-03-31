@@ -147,7 +147,7 @@ suite('Workspace Configuration', () => {
 
 		const actual = configuration2.compare(configuration1);
 
-		assert.deepEqual(actual, { keys: [], overrides: [] });
+		assert.deepStrictEqual(actual, { keys: [], overrides: [] });
 	});
 
 	test('Test compare different configurations', () => {
@@ -173,7 +173,7 @@ suite('Workspace Configuration', () => {
 
 		const actual = configuration2.compare(configuration1);
 
-		assert.deepEqual(actual, { keys: ['editor.wordWrap', 'editor.fontSize', '[markdown]', 'window.title', 'workbench.enableTabs', '[typescript]'], overrides: [['markdown', ['editor.lineNumbers', 'editor.wordWrap']], ['typescript', ['editor.insertSpaces']]] });
+		assert.deepStrictEqual(actual, { keys: ['editor.wordWrap', 'editor.fontSize', '[markdown]', 'window.title', 'workbench.enableTabs', '[typescript]'], overrides: [['markdown', ['editor.lineNumbers', 'editor.wordWrap']], ['typescript', ['editor.insertSpaces']]] });
 	});
 
 

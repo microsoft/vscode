@@ -130,7 +130,7 @@ suite('CommandService', function () {
 
 		return service.executeCommand('farboo').then(() => {
 			assert.strictEqual(callCounter, 1);
-			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
+			assert.deepStrictEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
 		}).finally(() => {
 			disposable.dispose();
 		});
@@ -170,7 +170,7 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		return service.executeCommand('farboo2').then(() => {
-			assert.deepEqual(actualOrder, expectedOrder);
+			assert.deepStrictEqual(actualOrder, expectedOrder);
 		}).finally(() => {
 			disposables.dispose();
 		});

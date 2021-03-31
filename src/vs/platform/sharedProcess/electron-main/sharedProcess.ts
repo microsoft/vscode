@@ -10,7 +10,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { FileAccess } from 'vs/base/common/network';
-import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
+import { browserCodeLoadingCacheStrategy, IProcessEnvironment } from 'vs/base/common/platform';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
@@ -31,7 +31,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	constructor(
 		private readonly machineId: string,
-		private userEnv: NodeJS.ProcessEnv,
+		private userEnv: IProcessEnvironment,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,

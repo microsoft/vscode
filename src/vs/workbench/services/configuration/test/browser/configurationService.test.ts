@@ -269,9 +269,9 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
-		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-		assert.deepEqual(actual_1.removed, []);
-		assert.deepEqual(actual_1.changed, []);
+		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepStrictEqual(actual_1.removed, []);
+		assert.deepStrictEqual(actual_1.changed, []);
 	});
 
 	test('remove folders', async () => {
@@ -290,9 +290,9 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
-		assert.deepEqual(actual_1.added, []);
-		assert.deepEqual(actual_1.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
-		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+		assert.deepStrictEqual(actual_1.added, []);
+		assert.deepStrictEqual(actual_1.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
+		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
 	});
 
 	test('remove folders and add them back by writing into the file', async () => {
@@ -302,7 +302,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		const promise = new Promise<void>((resolve, reject) => {
 			testObject.onDidChangeWorkspaceFolders(actual => {
 				try {
-					assert.deepEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
+					assert.deepStrictEqual(actual.added.map(r => r.uri.toString()), [folders[0].uri.toString()]);
 					resolve();
 				} catch (error) {
 					reject(error);
@@ -324,9 +324,9 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
-		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-		assert.deepEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
-		assert.deepEqual(actual_1.changed, []);
+		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepStrictEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
+		assert.deepStrictEqual(actual_1.changed, []);
 	});
 
 	test('update folders (rename first via add and remove)', async () => {
@@ -338,9 +338,9 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
-		assert.deepEqual(actual_1.added, []);
-		assert.deepEqual(actual_1.removed, []);
-		assert.deepEqual(actual_1.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
+		assert.deepStrictEqual(actual_1.added, []);
+		assert.deepStrictEqual(actual_1.removed, []);
+		assert.deepStrictEqual(actual_1.changed.map(r => r.uri.toString()), removedFolders.map(a => a.toString()));
 	});
 
 	test('update folders (remove first and add to end)', async () => {
@@ -353,9 +353,9 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
-		assert.deepEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
-		assert.deepEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
-		assert.deepEqual(actual_1.changed.map(r_2 => r_2.uri.toString()), changedFolders.map(a_2 => a_2.toString()));
+		assert.deepStrictEqual(actual_1.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+		assert.deepStrictEqual(actual_1.removed.map(r_1 => r_1.uri.toString()), removedFolders.map(a_1 => a_1.toString()));
+		assert.deepStrictEqual(actual_1.changed.map(r_2 => r_2.uri.toString()), changedFolders.map(a_2 => a_2.toString()));
 	});
 
 	test('reorder folders trigger change event', async () => {
@@ -367,9 +367,9 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
-		assert.deepEqual(actual_1.added, []);
-		assert.deepEqual(actual_1.removed, []);
-		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
+		assert.deepStrictEqual(actual_1.added, []);
+		assert.deepStrictEqual(actual_1.removed, []);
+		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
 	});
 
 	test('rename folders trigger change event', async () => {
@@ -381,9 +381,9 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 
 		assert.strictEqual(target.callCount, 1, `Should be called only once but called ${target.callCount} times`);
 		const actual_1 = (<IWorkspaceFoldersChangeEvent>target.args[0][0]);
-		assert.deepEqual(actual_1.added, []);
-		assert.deepEqual(actual_1.removed, []);
-		assert.deepEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+		assert.deepStrictEqual(actual_1.added, []);
+		assert.deepStrictEqual(actual_1.removed, []);
+		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
 	});
 
 });
@@ -465,11 +465,11 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'userValue');
 		assert.strictEqual(target.callCount, 3);
-		assert.deepEqual(target.args[0], [WorkbenchState.FOLDER]);
-		assert.deepEqual(target.args[1], [undefined]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(f => f.uri.toString()), [folder.toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
+		assert.deepStrictEqual(target.args[0], [WorkbenchState.FOLDER]);
+		assert.deepStrictEqual(target.args[1], [undefined]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(f => f.uri.toString()), [folder.toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 
 	});
 
@@ -490,12 +490,12 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue');
 		assert.strictEqual(target.callCount, 4);
-		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-		assert.deepEqual(target.args[1], [WorkbenchState.FOLDER]);
-		assert.deepEqual(target.args[2], [undefined]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(f => f.uri.toString()), [folder.toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
+		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual(target.args[1], [WorkbenchState.FOLDER]);
+		assert.deepStrictEqual(target.args[2], [undefined]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(f => f.uri.toString()), [folder.toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 
 	});
 
@@ -513,11 +513,11 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 3);
-		assert.deepEqual(target.args[0], [WorkbenchState.WORKSPACE]);
-		assert.deepEqual(target.args[1], [undefined]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
+		assert.deepStrictEqual(target.args[0], [WorkbenchState.WORKSPACE]);
+		assert.deepStrictEqual(target.args[1], [undefined]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 
 	});
 
@@ -537,12 +537,12 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 4);
-		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
-		assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-		assert.deepEqual(target.args[2], [undefined]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
+		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
+		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
+		assert.deepStrictEqual(target.args[2], [undefined]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.toString()), [joinPath(ROOT, 'a').toString(), joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 
 	});
 
@@ -561,9 +561,9 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'userValue');
 		assert.strictEqual(target.callCount, 1);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).changed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).changed, []);
 
 	});
 
@@ -581,10 +581,10 @@ suite('WorkspaceService - Initialization', () => {
 
 		assert.strictEqual(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
 		assert.strictEqual(target.callCount, 2);
-		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
+		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder_2 => folder_2.uri.toString()), [joinPath(ROOT, 'a').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
 
 	});
 
@@ -600,12 +600,12 @@ suite('WorkspaceService - Initialization', () => {
 		await testObject.initialize(getWorkspaceIdentifier(configResource));
 
 		assert.strictEqual(target.callCount, 4);
-		assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-		assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
-		assert.deepEqual(target.args[2], [undefined]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
-		assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
+		assert.deepStrictEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
+		assert.deepStrictEqual(target.args[1], [WorkbenchState.WORKSPACE]);
+		assert.deepStrictEqual(target.args[2], [undefined]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder_1 => folder_1.uri.toString()), [joinPath(ROOT, 'b').toString()]);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
+		assert.deepStrictEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 	});
 
 });
@@ -680,7 +680,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	teardown(() => disposables.clear());
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet' } });
+		assert.deepStrictEqual(testObject.getValue('configurationService'), { 'folder': { 'applicationSetting': 'isSet', 'machineSetting': 'isSet', 'machineOverridableSetting': 'isSet', 'testSetting': 'isSet', 'languageSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', async () => {
@@ -949,25 +949,25 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	test('keys', async () => {
 		let actual = testObject.keys();
 		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
-		assert.deepEqual(actual.user, []);
-		assert.deepEqual(actual.workspace, []);
-		assert.deepEqual(actual.workspaceFolder, []);
+		assert.deepStrictEqual(actual.user, []);
+		assert.deepStrictEqual(actual.workspace, []);
+		assert.deepStrictEqual(actual.workspaceFolder, []);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		actual = testObject.keys();
 		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
-		assert.deepEqual(actual.user, ['configurationService.folder.testSetting']);
-		assert.deepEqual(actual.workspace, []);
-		assert.deepEqual(actual.workspaceFolder, []);
+		assert.deepStrictEqual(actual.user, ['configurationService.folder.testSetting']);
+		assert.deepStrictEqual(actual.workspace, []);
+		assert.deepStrictEqual(actual.workspaceFolder, []);
 
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 		actual = testObject.keys();
 		assert.ok(actual.default.indexOf('configurationService.folder.testSetting') !== -1);
-		assert.deepEqual(actual.user, ['configurationService.folder.testSetting']);
-		assert.deepEqual(actual.workspace, ['configurationService.folder.testSetting']);
-		assert.deepEqual(actual.workspaceFolder, []);
+		assert.deepStrictEqual(actual.user, ['configurationService.folder.testSetting']);
+		assert.deepStrictEqual(actual.workspace, ['configurationService.folder.testSetting']);
+		assert.deepStrictEqual(actual.workspaceFolder, []);
 	});
 
 	test('update user configuration', () => {
@@ -1002,7 +1002,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('update tasks configuration', () => {
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, ConfigurationTarget.WORKSPACE)
-			.then(() => assert.deepEqual(testObject.getValue('tasks'), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
+			.then(() => assert.deepStrictEqual(testObject.getValue('tasks'), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
 	});
 
 	test('update user configuration should trigger change event before promise is resolve', () => {
@@ -1506,7 +1506,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['launch'], value: expectedLaunchConfiguration }], true);
 		await testObject.reloadConfiguration();
 		const actual = testObject.getValue('launch');
-		assert.deepEqual(actual, expectedLaunchConfiguration);
+		assert.deepStrictEqual(actual, expectedLaunchConfiguration);
 	});
 
 	test('inspect launch configuration', async () => {
@@ -1529,7 +1529,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['launch'], value: expectedLaunchConfiguration }], true);
 		await testObject.reloadConfiguration();
 		const actual = testObject.inspect('launch').workspaceValue;
-		assert.deepEqual(actual, expectedLaunchConfiguration);
+		assert.deepStrictEqual(actual, expectedLaunchConfiguration);
 	});
 
 
@@ -1551,7 +1551,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['tasks'], value: expectedTasksConfiguration }], true);
 		await testObject.reloadConfiguration();
 		const actual = testObject.getValue('tasks');
-		assert.deepEqual(actual, expectedTasksConfiguration);
+		assert.deepStrictEqual(actual, expectedTasksConfiguration);
 	});
 
 	test('inspect tasks configuration', async () => {
@@ -1572,7 +1572,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await jsonEditingServce.write(workspaceContextService.getWorkspace().configuration!, [{ path: ['tasks'], value: expectedTasksConfiguration }], true);
 		await testObject.reloadConfiguration();
 		const actual = testObject.inspect('tasks').workspaceValue;
-		assert.deepEqual(actual, expectedTasksConfiguration);
+		assert.deepStrictEqual(actual, expectedTasksConfiguration);
 	});
 
 	test('update user configuration', async () => {
@@ -1669,20 +1669,20 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	test('update tasks configuration in a folder', async () => {
 		const workspace = workspaceContextService.getWorkspace();
 		await testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER);
-		assert.deepEqual(testObject.getValue('tasks', { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] });
+		assert.deepStrictEqual(testObject.getValue('tasks', { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] });
 	});
 
 	test('update launch configuration in a workspace', async () => {
 		const workspace = workspaceContextService.getWorkspace();
 		await testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true);
-		assert.deepEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] });
+		assert.deepStrictEqual(testObject.getValue('launch'), { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] });
 	});
 
 	test('update tasks configuration in a workspace', async () => {
 		const workspace = workspaceContextService.getWorkspace();
 		const tasks = { 'version': '2.0.0', tasks: [{ 'label': 'myTask' }] };
 		await testObject.updateValue('tasks', tasks, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true);
-		assert.deepEqual(testObject.getValue('tasks'), tasks);
+		assert.deepStrictEqual(testObject.getValue('tasks'), tasks);
 	});
 
 	test('configuration of newly added folder is available on configuration change event', async () => {
@@ -1815,7 +1815,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
 					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
@@ -1835,7 +1835,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.strictEqual(event.source, ConfigurationTarget.USER);
-					assert.deepEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
+					assert.deepStrictEqual(event.affectedKeys, ['configurationService.remote.machineSetting']);
 					assert.strictEqual(testObject.getValue('configurationService.remote.machineSetting'), 'remoteValue');
 					c();
 				} catch (error) {
@@ -1951,12 +1951,12 @@ suite('ConfigurationService - Configuration Defaults', () => {
 
 	test('when default value is not overriden', () => {
 		const testObject = createConfigurationService({});
-		assert.deepEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'isSet');
+		assert.deepStrictEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'isSet');
 	});
 
 	test('when default value is overriden', () => {
 		const testObject = createConfigurationService({ 'configurationService.defaultOverridesSetting': 'overriddenValue' });
-		assert.deepEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'overriddenValue');
+		assert.deepStrictEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'overriddenValue');
 	});
 
 	function createConfigurationService(configurationDefaults: Record<string, any>): IConfigurationService {

@@ -13,22 +13,22 @@ suite('Graph', () => {
 	});
 
 	test('is possible to lookup nodes that don\'t exist', function () {
-		assert.deepEqual(graph.lookup('ddd'), null);
+		assert.strictEqual(graph.lookup('ddd'), undefined);
 	});
 
 	test('inserts nodes when not there yet', function () {
-		assert.deepEqual(graph.lookup('ddd'), null);
-		assert.deepEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
-		assert.deepEqual(graph.lookup('ddd')!.data, 'ddd');
+		assert.strictEqual(graph.lookup('ddd'), undefined);
+		assert.strictEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
+		assert.strictEqual(graph.lookup('ddd')!.data, 'ddd');
 	});
 
 	test('can remove nodes and get length', function () {
 		assert.ok(graph.isEmpty());
-		assert.deepEqual(graph.lookup('ddd'), null);
-		assert.deepEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
+		assert.strictEqual(graph.lookup('ddd'), undefined);
+		assert.strictEqual(graph.lookupOrInsertNode('ddd').data, 'ddd');
 		assert.ok(!graph.isEmpty());
 		graph.removeNode('ddd');
-		assert.deepEqual(graph.lookup('ddd'), null);
+		assert.strictEqual(graph.lookup('ddd'), undefined);
 		assert.ok(graph.isEmpty());
 	});
 

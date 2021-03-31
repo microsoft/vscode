@@ -140,18 +140,20 @@ async function initializeWindowsProfiles(): Promise<void> {
 		],
 		args: ['--login']
 	});
-	for (const profile of await getPowershellProfiles()) {
-		profileSources.set(profile.profileName, { profileName: profile.profileName, paths: profile.paths, args: profile.args });
-	}
+
+	profileSources.set('PowerShell', {
+		profileName: 'PowerShell',
+		paths: await getPowershellPaths()
+	});
 }
 
-async function getPowershellProfiles(): Promise<IPotentialTerminalProfile[]> {
-	const profiles: IPotentialTerminalProfile[] = [];
+async function getPowershellPaths(): Promise<string[]> {
+	const paths: string[] = [];
 	// Add all of the different kinds of PowerShells
 	for await (const pwshExe of enumeratePowerShellInstallations()) {
-		profiles.push({ profileName: pwshExe.displayName, paths: [pwshExe.exePath] });
+		paths.push(pwshExe.exePath);
 	}
-	return profiles;
+	return paths;
 }
 
 async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promise<ITerminalProfile[]> {

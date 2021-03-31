@@ -148,61 +148,61 @@ suite('NotebookViewModel', () => {
 
 				const defaults = { hasExecutionOrder: true };
 
-				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
 				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
-				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
-				assert.deepEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
 				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
 
-				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
@@ -249,42 +249,42 @@ suite('NotebookViewModel Decorations', () => {
 			(editor) => {
 				const viewModel = editor.viewModel;
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 2,
 				});
 
 				viewModel.createCell(0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 2,
 
 					end: 3
 				});
 
 				viewModel.deleteCell(0, true);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 2
 				});
 
 				viewModel.createCell(3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 3
 				});
 
 				viewModel.deleteCell(3, true);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 2
 				});
 
 				viewModel.deleteCell(1, true);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 0,
 
 					end: 1
@@ -307,21 +307,21 @@ suite('NotebookViewModel Decorations', () => {
 			(editor) => {
 				const viewModel = editor.viewModel;
 				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 3 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 3
 				});
 
 				viewModel.createCell(5, 'var d = 9;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 3
 				});
 
 				viewModel.createCell(4, 'var d = 10;', 'javascript', CellKind.Code, {}, [], true);
-				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
+				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 4
@@ -331,7 +331,7 @@ suite('NotebookViewModel Decorations', () => {
 	});
 
 	test('reduce range', async function () {
-		assert.deepEqual(reduceCellRanges([
+		assert.deepStrictEqual(reduceCellRanges([
 			{ start: 0, end: 1 },
 			{ start: 1, end: 2 },
 			{ start: 4, end: 6 }
@@ -340,7 +340,7 @@ suite('NotebookViewModel Decorations', () => {
 			{ start: 4, end: 6 }
 		]);
 
-		assert.deepEqual(reduceCellRanges([
+		assert.deepStrictEqual(reduceCellRanges([
 			{ start: 0, end: 1 },
 			{ start: 1, end: 2 },
 			{ start: 3, end: 4 }
@@ -350,9 +350,9 @@ suite('NotebookViewModel Decorations', () => {
 	});
 
 	test('diff hidden ranges', async function () {
-		assert.deepEqual(getVisibleCells<number>([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
+		assert.deepStrictEqual(getVisibleCells<number>([1, 2, 3, 4, 5], []), [1, 2, 3, 4, 5]);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			getVisibleCells<number>(
 				[1, 2, 3, 4, 5],
 				[{ start: 1, end: 2 }]
@@ -360,7 +360,7 @@ suite('NotebookViewModel Decorations', () => {
 			[1, 4, 5]
 		);
 
-		assert.deepEqual(
+		assert.deepStrictEqual(
 			getVisibleCells<number>(
 				[1, 2, 3, 4, 5, 6, 7, 8, 9],
 				[
@@ -386,7 +386,7 @@ suite('NotebookViewModel Decorations', () => {
 			]
 		);
 
-		assert.deepEqual(diff<number>(original, modified, (a) => {
+		assert.deepStrictEqual(diff<number>(original, modified, (a) => {
 			return original.indexOf(a) >= 0;
 		}), [{ start: 1, deleteCount: 1, toInsert: [2, 6] }]);
 	});

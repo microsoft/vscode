@@ -304,15 +304,15 @@ suite('Base IPC', function () {
 			ipcService.onPong(msg => messages.push(msg));
 			await timeout(0);
 
-			assert.deepEqual(messages, []);
+			assert.deepStrictEqual(messages, []);
 			service.ping('hello');
 			await timeout(0);
 
-			assert.deepEqual(messages, ['hello']);
+			assert.deepStrictEqual(messages, ['hello']);
 			service.ping('world');
 			await timeout(0);
 
-			assert.deepEqual(messages, ['hello', 'world']);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
 		});
 
 		test('buffers in arrays', async function () {
@@ -363,15 +363,15 @@ suite('Base IPC', function () {
 			ipcService.onPong(msg => messages.push(msg));
 			await timeout(0);
 
-			assert.deepEqual(messages, []);
+			assert.deepStrictEqual(messages, []);
 			service.ping('hello');
 			await timeout(0);
 
-			assert.deepEqual(messages, ['hello']);
+			assert.deepStrictEqual(messages, ['hello']);
 			service.ping('world');
 			await timeout(0);
 
-			assert.deepEqual(messages, ['hello', 'world']);
+			assert.deepStrictEqual(messages, ['hello', 'world']);
 		});
 
 		test('marshalling uri', async function () {
@@ -461,7 +461,7 @@ suite('Base IPC', function () {
 			clientService1.ping('hello 1');
 
 			await timeout(1);
-			assert.deepEqual(pings, ['hello 1']);
+			assert.deepStrictEqual(pings, ['hello 1']);
 
 			const client2 = server.createConnection('client2');
 			const clientService2 = new TestService();
@@ -472,19 +472,19 @@ suite('Base IPC', function () {
 			clientService2.ping('hello 2');
 
 			await timeout(1);
-			assert.deepEqual(pings, ['hello 1', 'hello 2']);
+			assert.deepStrictEqual(pings, ['hello 1', 'hello 2']);
 
 			client1.dispose();
 			clientService1.ping('hello 1');
 
 			await timeout(1);
-			assert.deepEqual(pings, ['hello 1', 'hello 2']);
+			assert.deepStrictEqual(pings, ['hello 1', 'hello 2']);
 
 			await timeout(1);
 			clientService2.ping('hello again 2');
 
 			await timeout(1);
-			assert.deepEqual(pings, ['hello 1', 'hello 2', 'hello again 2']);
+			assert.deepStrictEqual(pings, ['hello 1', 'hello 2', 'hello again 2']);
 
 			client2.dispose();
 			server.dispose();

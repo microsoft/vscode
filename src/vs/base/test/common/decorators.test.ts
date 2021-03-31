@@ -179,10 +179,10 @@ suite('Decorators', () => {
 			t.report(1);
 			t.report(2);
 			t.report(3);
-			assert.deepEqual(spy.args, [[1]]);
+			assert.deepStrictEqual(spy.args, [[1]]);
 
 			clock.tick(200);
-			assert.deepEqual(spy.args, [[1], [5]]);
+			assert.deepStrictEqual(spy.args, [[1], [5]]);
 			spy.reset();
 
 			t.report(4);
@@ -190,9 +190,9 @@ suite('Decorators', () => {
 			clock.tick(50);
 			t.report(6);
 
-			assert.deepEqual(spy.args, [[4]]);
+			assert.deepStrictEqual(spy.args, [[4]]);
 			clock.tick(60);
-			assert.deepEqual(spy.args, [[4], [11]]);
+			assert.deepStrictEqual(spy.args, [[4], [11]]);
 		} finally {
 			clock.restore();
 		}

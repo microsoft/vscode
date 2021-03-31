@@ -196,7 +196,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
+		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
@@ -206,7 +206,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
+		assert.deepStrictEqual(Object.keys(parsed), ['my.super.setting']);
 		assert.strictEqual(parsed['my.super.setting'], 'my.super.value');
 	});
 
@@ -217,7 +217,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(environmentService.settingsResource);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(parsed[key], value);
+		assert.deepStrictEqual(parsed[key], value);
 	});
 
 	test('write overridable settings to workspace settings', async () => {
@@ -227,7 +227,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(joinPath(workspaceService.getWorkspace().folders[0].uri, FOLDER_SETTINGS_PATH));
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(parsed[key], value);
+		assert.deepStrictEqual(parsed[key], value);
 	});
 
 	test('write overridable settings to workspace folder settings', async () => {
@@ -238,7 +238,7 @@ suite('ConfigurationEditingService', () => {
 
 		const contents = await fileService.readFile(folderSettingsFile);
 		const parsed = json.parse(contents.value.toString());
-		assert.deepEqual(parsed[key], value);
+		assert.deepStrictEqual(parsed[key], value);
 	});
 
 	test('write workspace standalone setting - empty file', async () => {

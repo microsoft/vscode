@@ -291,7 +291,7 @@ export class CodeApplication extends Disposable {
 
 			let replied = false;
 
-			function acceptShellEnv(env: NodeJS.ProcessEnv): void {
+			function acceptShellEnv(env: IProcessEnvironment): void {
 				clearTimeout(shellEnvSlowWarningHandle);
 				clearTimeout(shellEnvTimeoutErrorHandle);
 
@@ -332,7 +332,7 @@ export class CodeApplication extends Disposable {
 			// Window can be undefined for e.g. the shared process
 			// that is not part of our windows registry!
 			let args: NativeParsedArgs;
-			let env: NodeJS.ProcessEnv;
+			let env: IProcessEnvironment;
 			if (window?.config) {
 				args = window.config;
 				env = { ...process.env, ...window.config.userEnv };
@@ -675,6 +675,7 @@ export class CodeApplication extends Disposable {
 		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
+		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// Extension Host Debug Broadcasting
 		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));

@@ -52,31 +52,31 @@ suite('SettingsSync - Auto', () => {
 		const fileService = client.instantiationService.get(IFileService);
 		const settingResource = client.instantiationService.get(IEnvironmentService).settingsResource;
 
-		assert.deepEqual(await testObject.getLastSyncUserData(), null);
+		assert.deepStrictEqual(await testObject.getLastSyncUserData(), null);
 		let manifest = await client.manifest();
 		server.reset();
 		await testObject.sync(manifest);
 
-		assert.deepEqual(server.requests, [
+		assert.deepStrictEqual(server.requests, [
 			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
 		]);
 		assert.ok(!await fileService.exists(settingResource));
 
 		const lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
+		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
+		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 		assert.strictEqual(lastSyncUserData!.syncData, null);
 
 		manifest = await client.manifest();
 		server.reset();
 		await testObject.sync(manifest);
-		assert.deepEqual(server.requests, []);
+		assert.deepStrictEqual(server.requests, []);
 
 		manifest = await client.manifest();
 		server.reset();
 		await testObject.sync(manifest);
-		assert.deepEqual(server.requests, []);
+		assert.deepStrictEqual(server.requests, []);
 	});
 
 	test('when settings file is empty and remote has no changes', async () => {
@@ -146,14 +146,14 @@ suite('SettingsSync - Auto', () => {
 		server.reset();
 		await testObject.sync(manifest);
 
-		assert.deepEqual(server.requests, [
+		assert.deepStrictEqual(server.requests, [
 			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': lastSyncUserData?.ref } },
 		]);
 
 		lastSyncUserData = await testObject.getLastSyncUserData();
 		const remoteUserData = await testObject.getRemoteUserData(null);
-		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
-		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
+		assert.deepStrictEqual(lastSyncUserData!.ref, remoteUserData.ref);
+		assert.deepStrictEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
 		assert.strictEqual(parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
 	});
 
@@ -187,7 +187,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, expected);
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('do not sync machine settings', async () => {
@@ -211,7 +211,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
 	"files.simpleDialog.enable": true,
@@ -242,7 +242,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
 	"files.simpleDialog.enable": true,
@@ -273,7 +273,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
 
@@ -297,7 +297,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 }`);
 	});
 
@@ -315,7 +315,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 	,
 }`);
 	});
@@ -367,7 +367,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
 	"files.simpleDialog.enable": true,
@@ -415,7 +415,7 @@ suite('SettingsSync - Auto', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
 	"files.simpleDialog.enable": true,
@@ -462,7 +462,7 @@ suite('SettingsSync - Auto', () => {
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);
-			assert.deepEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.LocalInvalidContent);
+			assert.deepStrictEqual((<UserDataSyncError>e).code, UserDataSyncErrorCode.LocalInvalidContent);
 		}
 	});
 
@@ -488,7 +488,7 @@ suite('SettingsSync - Auto', () => {
 
 		const fileService = client.instantiationService.get(IFileService);
 		const mergeContent = (await fileService.readFile(testObject.conflicts[0].previewResource)).value.toString();
-		assert.deepEqual(JSON.parse(mergeContent), {
+		assert.deepStrictEqual(JSON.parse(mergeContent), {
 			'b': 1,
 			'settingsSync.ignoredSettings': ['a']
 		});
@@ -544,7 +544,7 @@ suite('SettingsSync - Manual', () => {
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
 		const actual = parseSettings(content!);
-		assert.deepEqual(actual, `{
+		assert.deepStrictEqual(actual, `{
 	// Always
 	"files.autoSave": "afterDelay",
 	"files.simpleDialog.enable": true,

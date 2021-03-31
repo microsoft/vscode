@@ -21,7 +21,7 @@ suite('Preferences Validation', () => {
 		}
 
 		public rejects(input: string) {
-			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${input}\`.`);
+			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${input}\`.`);
 			return {
 				withMessage:
 					(message: string) => {
@@ -263,7 +263,7 @@ suite('Preferences Validation', () => {
 		}
 
 		public rejects(input: any[]) {
-			assert.notEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
+			assert.notStrictEqual(this.validator(input), '', `Expected ${JSON.stringify(this.settings)} to reject \`${JSON.stringify(input)}\`.`);
 			return {
 				withMessage:
 					(message: string) => {
