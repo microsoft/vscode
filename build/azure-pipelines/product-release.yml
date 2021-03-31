@@ -32,7 +32,7 @@ steps:
       $env:NUMBER_OF_ARTIFACTS = 13
 
       while ($env:NUMBER_OF_ARTIFACTS -gt $currentCount) {
-        $res = Invoke-RestMethod "https://dev.azure.com/TylerLeonhardt/Azure%20Pipelines%20Playground/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{ Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN" }
+        $res = Invoke-RestMethod "https://dev.azure.com/monacotools/Monaco/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{ Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN" }
 
         if ($res -and $res.count) {
           $currentCount = $res.count
