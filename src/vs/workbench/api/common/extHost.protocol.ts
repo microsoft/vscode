@@ -877,17 +877,23 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;
 	$unregisterNotebookKernelProvider(handle: number): Promise<void>;
 	$onNotebookKernelChange(handle: number, uri: UriComponents | undefined): void;
-	$trySaveDocument(uri: UriComponents): Promise<boolean>;
-	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
-	$applyEdits(resource: UriComponents, edits: IImmediateCellEditOperation[], computeUndoRedo?: boolean): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
-	$tryOpenDocument(uriComponents: UriComponents): Promise<UriComponents>;
+}
+
+export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
 	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
+	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean>
+}
+
+export interface MainThreadNotebookDocumentsShape extends IDisposable {
+	$tryOpenDocument(uriComponents: UriComponents): Promise<UriComponents>;
+	$trySaveDocument(uri: UriComponents): Promise<boolean>;
+	$applyEdits(resource: UriComponents, edits: IImmediateCellEditOperation[], computeUndoRedo?: boolean): Promise<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1882,7 +1888,7 @@ export interface INotebookKernelInfoDto2 {
 	implementsInterrupt?: boolean;
 }
 
-export interface ExtHostNotebookShape {
+export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape, ExtHostNotebookDocumentsShape, ExtHostNotebookEditorsShape {
 	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
 	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelFriendlyId: string | undefined }): void;
 	$provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
@@ -1898,13 +1904,24 @@ export interface ExtHostNotebookShape {
 
 	$dataToNotebook(handle: number, data: VSBuffer): Promise<NotebookDataDto>;
 	$notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer>;
+}
 
+export interface ExtHostNotebookDocumentsAndEditorsShape {
+	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
+}
+
+export interface ExtHostNotebookDocumentsShape {
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
-	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
+}
+
+export type INotebookEditorViewColumnInfo = Record<string, number>;
+
+export interface ExtHostNotebookEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
+	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void;
 }
 
 export interface ExtHostStorageShape {
@@ -2007,6 +2024,8 @@ export const MainContext = {
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 	MainThreadLabelService: createMainId<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
+	MainThreadNotebookDocuments: createMainId<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),
+	MainThreadNotebookEditors: createMainId<MainThreadNotebookEditorsShape>('MainThreadNotebookEditorsShape'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),

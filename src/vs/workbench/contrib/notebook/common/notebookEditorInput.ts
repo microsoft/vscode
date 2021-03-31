@@ -122,11 +122,7 @@ export class NotebookEditorInput extends EditorInput {
 
 				return `${pattern.include} (exclude: ${pattern.exclude})`;
 			}).join(', ');
-			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
-
-Please make sure the file name matches following patterns:
-${patterns}
-`);
+			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.\n\nPlease make sure the file name matches following patterns:\n${patterns}`);
 		}
 
 		return await this._editorModelReference.object.saveAs(target);
@@ -191,6 +187,4 @@ ${patterns}
 		}
 		return false;
 	}
-
-
 }

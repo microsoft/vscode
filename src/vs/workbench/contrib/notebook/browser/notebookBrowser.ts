@@ -129,9 +129,10 @@ export interface IGenericCellViewModel {
 	uri: URI;
 	metadata: NotebookCellMetadata | undefined;
 	outputIsHovered: boolean;
+	outputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
 	getOutputOffset(index: number): number;
-	updateOutputHeight(index: number, height: number): void;
+	updateOutputHeight(index: number, height: number, source?: string): void;
 }
 
 export interface IDisplayOutputLayoutUpdateRequest {
@@ -164,7 +165,7 @@ export interface ICommonNotebookEditor {
 	toggleNotebookCellSelection(cell: IGenericCellViewModel): void;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
 	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
@@ -209,6 +210,7 @@ export interface CodeCellLayoutInfo {
 }
 
 export interface CodeCellLayoutChangeEvent {
+	source?: string;
 	editorHeight?: boolean;
 	outputHeight?: boolean;
 	outputShowMoreContainerHeight?: number;
@@ -236,6 +238,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
 	readonly layoutInfo: { totalHeight: number; };
+	readonly onDidChangeLayout: Event<any>;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -364,6 +367,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
 	isDisposed: boolean;
+	dispose(): void;
 
 	getId(): string;
 	getDomNode(): HTMLElement;
@@ -575,6 +579,11 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	getViewIndex(cell: ICellViewModel): number;
 
 	/**
+	 * Get the view height of a cell (from the list view)
+	 */
+	getViewHeight(cell: ICellViewModel): number;
+
+	/**
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
 	 */
@@ -625,7 +634,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
 	getCellById(cellId: string): ICellViewModel | undefined;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 }
 
 export interface INotebookCellList {
@@ -685,12 +694,10 @@ export interface INotebookCellList {
 	domFocus(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
+	getRenderHeight(): number;
 	updateOptions(options: IListOptions<ICellViewModel>): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;
-
-	// TODO@roblourens resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
-	getFocus(): number[];
 }
 
 export interface BaseCellRenderTemplate {
@@ -812,6 +819,7 @@ export interface CellViewModelStateChangeEvent {
 	readonly foldingStateChanged?: boolean;
 	readonly contentChanged?: boolean;
 	readonly outputIsHoveredChanged?: boolean;
+	readonly outputIsFocusedChanged?: boolean;
 	readonly cellIsHoveredChanged?: boolean;
 }
 

@@ -135,6 +135,15 @@
             "filenamePattern": "**/*.nbdtest"
           }
         ]
+      },
+      {
+        "viewType": "notebook.nbdserializer",
+        "displayName": "notebook.nbdserializer",
+        "selector": [
+          {
+            "filenamePattern": "**/*.nbdserializer"
+          }
+        ]
       }
     ]
   },

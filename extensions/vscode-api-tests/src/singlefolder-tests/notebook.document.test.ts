@@ -9,7 +9,19 @@ import * as utils from '../utils';
 
 suite('Notebook Document', function () {
 
-	const contentProvider = new class implements vscode.NotebookContentProvider {
+	const simpleContentProvider = new class implements vscode.NotebookSerializer {
+		dataToNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
+			return new vscode.NotebookData(
+				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '// SIMPLE', 'javascript')],
+				new vscode.NotebookDocumentMetadata()
+			);
+		}
+		notebookToData(_data: vscode.NotebookData): Uint8Array | Thenable<Uint8Array> {
+			return new Uint8Array();
+		}
+	};
+
+	const complexContentProvider = new class implements vscode.NotebookContentProvider {
 		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
 			return new vscode.NotebookData(
 				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
@@ -42,13 +54,17 @@ suite('Notebook Document', function () {
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', contentProvider));
+		disposables.push(vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider));
+		disposables.push(vscode.notebook.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider));
 	});
 
 	test('cannot register sample provider multiple times', function () {
 		assert.throws(() => {
-			vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', contentProvider);
+			vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider);
 		});
+		// assert.throws(() => {
+		// 	vscode.notebook.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider);
+		// });
 	});
 
 	test('cannot open unknown types', async function () {
@@ -384,5 +400,35 @@ suite('Notebook Document', function () {
 		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
 		assert.deepStrictEqual(document.cells[0].outputs[1].metadata, { outputType: 'stream', streamName: 'stderr' });
 		assert.deepStrictEqual(document.cells[0].outputs[1].outputs[0].metadata, { outputType: 'stream', streamName: 'stderr' });
+	});
+
+	test('dirty state - complex', async function () {
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+		assert.strictEqual(document.isDirty, false);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCells(document.uri, 0, document.getCells().length, []);
+		assert.ok(await vscode.workspace.applyEdit(edit));
+
+		assert.strictEqual(document.isDirty, true);
+
+		await document.save();
+		assert.strictEqual(document.isDirty, false);
+	});
+
+	test('dirty state - serializer', async function () {
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdserializer');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+		assert.strictEqual(document.isDirty, false);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCells(document.uri, 0, document.getCells().length, []);
+		assert.ok(await vscode.workspace.applyEdit(edit));
+
+		assert.strictEqual(document.isDirty, true);
+
+		await document.save();
+		assert.strictEqual(document.isDirty, false);
 	});
 });

@@ -136,6 +136,14 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.getViewIndex(cell) ?? -1;
 	}
 
+	getViewHeight(cell: ICellViewModel): number {
+		if (!this.list.viewModel) {
+			return -1;
+		}
+
+		return this.list.elementHeight(cell);
+	}
+
 	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
 		if (!this.list.viewModel) {
 			return undefined;
@@ -955,9 +963,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// todo@rebornix https://github.com/microsoft/vscode/issues/118108 support selections not just focus
 		// todo@rebornix support multipe selections
 		if (options?.cellSelections && this.viewModel) {
-			const focusedCell = this.viewModel.viewCells[options.cellSelections[0].start];
+			const focusCellIndex = options.cellSelections[0].start;
+			const focusedCell = this.viewModel.viewCells[focusCellIndex];
+			this.viewModel.updateSelectionsState({
+				kind: SelectionStateType.Index,
+				focus: { start: focusCellIndex, end: focusCellIndex + 1 },
+				selections: options.cellSelections
+			});
 			this.revealInCenterIfOutsideViewport(focusedCell);
-			this.focusElement(focusedCell);
 		}
 	}
 
@@ -1371,15 +1384,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			state.cellTotalHeights = cellHeights;
 
-			const focus = this._list.getFocus()[0];
-			if (typeof focus === 'number' && this.viewModel) {
-				const element = this.viewModel.viewCells[focus];
+			if (this.viewModel) {
+				const focusRange = this.viewModel.getFocus();
+				const element = this.viewModel.viewCells[focusRange.start];
 				if (element) {
 					const itemDOM = this._list.domElementOfElement(element);
 					const editorFocused = element.editState === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
 
 					state.editorFocused = editorFocused;
-					state.focus = focus;
+					state.focus = focusRange.start;
 				}
 			}
 		}
@@ -1415,8 +1428,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
 		DOM.size(this._body, dimension.width, dimension.height - (this._useGlobalToolbar ? /** Toolbar height */ 26 : 0));
-		this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : SCROLLABLE_ELEMENT_PADDING_TOP });
-		this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
+		if (this._list.getRenderHeight() < dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP) {
+			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
+			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP - 50)) : SCROLLABLE_ELEMENT_PADDING_TOP });
+			this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
+		} else {
+			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
+			this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
+			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP - 50)) : SCROLLABLE_ELEMENT_PADDING_TOP });
+		}
 
 		this._overlayContainer.style.visibility = 'visible';
 		this._overlayContainer.style.display = 'block';
@@ -1445,18 +1465,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (this._webiewFocused) {
 			this._webview?.focusWebview();
 		} else {
-			const focus = this._list.getFocus()[0];
-			if (typeof focus === 'number' && this.viewModel) {
-				const element = this.viewModel.viewCells[focus];
+			if (this.viewModel) {
+				const focusRange = this.viewModel.getFocus();
+				const element = this.viewModel.viewCells[focusRange.start];
 
-				if (element.focusMode === CellFocusMode.Editor) {
+				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.editState = CellEditState.Editing;
 					element.focusMode = CellFocusMode.Editor;
 					this._onDidFocusEditorWidget.fire();
 					return;
 				}
-
 			}
+
 			this._list.domFocus();
 		}
 
@@ -1590,6 +1610,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return -1;
 		}
 		return this._listViewInfoAccessor.getViewIndex(cell);
+	}
+
+	getViewHeight(cell: ICellViewModel): number {
+		if (!this._listViewInfoAccessor) {
+			return -1;
+		}
+
+		return this._listViewInfoAccessor.getViewHeight(cell);
 	}
 
 	getCellRangeFromViewRange(startIndex: number, endIndex: number): ICellRange | undefined {
@@ -1773,21 +1801,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	private _nearestCodeCellIndex(index: number /* exclusive */, direction: 'above' | 'below') {
+	private _nearestCodeCellIndex(index: number /* exclusive */) {
 		if (!this.viewModel) {
 			return -1;
 		}
 
-		const nearest = this.viewModel.viewCells.slice(0, index).reverse().findIndex(cell => cell.cellKind === CellKind.Code);
-		if (nearest > -1) {
-			return index - nearest - 1;
-		} else {
-			const nearestCellTheOtherDirection = this.viewModel.viewCells.slice(index + 1).findIndex(cell => cell.cellKind === CellKind.Code);
-			if (nearestCellTheOtherDirection > -1) {
-				return index + nearestCellTheOtherDirection;
-			}
-			return -1;
-		}
+		return this.viewModel.nearestCodeCellIndex(index);
 	}
 
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = '', ui: boolean = false): CellViewModel | null {
@@ -1808,7 +1827,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (cell?.cellKind === CellKind.Code) {
 				language = cell.language;
 			} else if (cell?.cellKind === CellKind.Markdown) {
-				const nearestCodeCellIndex = this._nearestCodeCellIndex(index, direction);
+				const nearestCodeCellIndex = this._nearestCodeCellIndex(index);
 				if (nearestCodeCellIndex > -1) {
 					language = this.viewModel.viewCells[nearestCodeCellIndex].language;
 				} else {
@@ -2260,11 +2279,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.viewCells.find(vc => vc.id === cellId);
 	}
 
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean): void {
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean, source?: string): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			cell.updateOutputHeight(outputIndex, outputHeight);
+			if (isInit && outputHeight !== 0) {
+				cell.updateOutputMinHeight(0);
+			}
+			cell.updateOutputHeight(outputIndex, outputHeight, source);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 		}
 	}

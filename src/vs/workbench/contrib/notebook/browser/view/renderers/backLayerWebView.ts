@@ -53,6 +53,16 @@ export interface IMouseLeaveMessage extends BaseToWebviewMessage {
 	id: string;
 }
 
+export interface IOutputFocusMessage extends BaseToWebviewMessage {
+	type: 'outputFocus';
+	id: string;
+}
+
+export interface IOutputBlurMessage extends BaseToWebviewMessage {
+	type: 'outputBlur';
+	id: string;
+}
+
 export interface IWheelMessage extends BaseToWebviewMessage {
 	type: 'did-scroll-wheel';
 	payload: any;
@@ -293,6 +303,8 @@ export type FromWebviewMessage =
 	| IDimensionMessage
 	| IMouseEnterMessage
 	| IMouseLeaveMessage
+	| IOutputFocusMessage
+	| IOutputBlurMessage
 	| IWheelMessage
 	| IScrollAckMessage
 	| IBlurOutputMessage
@@ -833,7 +845,7 @@ var requirejs = (function() {
 							const resolvedResult = this.resolveOutputId(data.id);
 							if (resolvedResult) {
 								const { cellInfo, output } = resolvedResult;
-								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
+								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init, 'webview#dimension');
 							}
 						} else {
 							const cellId = data.id.substr(0, data.id.length - '_preview'.length);
@@ -859,6 +871,28 @@ var requirejs = (function() {
 							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 							if (latestCell) {
 								latestCell.outputIsHovered = false;
+							}
+						}
+						break;
+					}
+				case 'outputFocus':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsFocused = true;
+							}
+						}
+						break;
+					}
+				case 'outputBlur':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsFocused = false;
 							}
 						}
 						break;

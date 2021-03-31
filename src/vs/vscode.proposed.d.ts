@@ -1066,8 +1066,22 @@ declare module 'vscode' {
 		// todo@API should we really expose this?
 		readonly viewType: string;
 
+		// todo@API cellsAt(range)? getCell(index>)?
 		/** @deprecated Use `getCells(<...>) instead */
 		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * The number of cells in the notebook document.
+		 */
+		readonly cellCount: number;
+
+		/**
+		 * Return the cell at the specified index. The index will be adjusted to the notebook.
+		 *
+		 * @param index - The index of the cell to retrieve.
+		 * @return A [cell](#NotebookCell).
+		 */
+		cellAt(index: number): NotebookCell;
 
 		/**
 		 * Get the cells of this notebook. A subset can be retrieved by providing
@@ -1604,6 +1618,14 @@ declare module 'vscode' {
 		viewType?: string | string[];
 		filenamePattern?: NotebookFilenamePattern;
 	}
+
+	// export interface NotebookFilter {
+	// 	readonly viewType?: string;
+	// 	readonly scheme?: string;
+	// 	readonly pattern?: GlobPattern;
+	// }
+
+	// export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
 	// todo@API very unclear, provider MUST not return alive object but only data object
 	// todo@API unclear how the flow goes
