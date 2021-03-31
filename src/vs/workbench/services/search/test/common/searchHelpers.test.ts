@@ -90,7 +90,7 @@ suite('SearchHelpers', () => {
 				ranges: new Range(0, 0, 0, 10)
 			}];
 
-			assert.deepEqual(addContextToEditorMatches(matches, mockTextModel, getQuery()), matches);
+			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery()), matches);
 		});
 
 		test('simple', () => {
@@ -102,7 +102,7 @@ suite('SearchHelpers', () => {
 				ranges: new Range(1, 0, 1, 10)
 			}];
 
-			assert.deepEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
 				<ITextSearchContext>{
 					text: '1',
 					lineNumber: 0
@@ -136,7 +136,7 @@ suite('SearchHelpers', () => {
 					ranges: new Range(2, 0, 2, 10)
 				}];
 
-			assert.deepEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
 				<ITextSearchContext>{
 					text: '1',
 					lineNumber: 0
@@ -170,7 +170,7 @@ suite('SearchHelpers', () => {
 					ranges: new Range(MOCK_LINE_COUNT - 1, 0, MOCK_LINE_COUNT - 1, 10)
 				}];
 
-			assert.deepEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
+			assert.deepStrictEqual(addContextToEditorMatches(matches, mockTextModel, getQuery(1, 2)), [
 				matches[0],
 				<ITextSearchContext>{
 					text: '2',

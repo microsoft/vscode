@@ -54,7 +54,7 @@ suite('MainThreadWorkspace', () => {
 			fileSearch(query: IFileQuery) {
 				assert.strictEqual(query.folderQueries.length, 1);
 				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
 
 				return Promise.resolve({ results: [] });
 			}
@@ -75,7 +75,7 @@ suite('MainThreadWorkspace', () => {
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
 				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
-				assert.deepEqual(query.excludePattern, undefined);
+				assert.deepStrictEqual(query.excludePattern, undefined);
 
 				return Promise.resolve({ results: [] });
 			}

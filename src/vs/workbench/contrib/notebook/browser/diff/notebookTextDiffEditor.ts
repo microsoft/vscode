@@ -99,6 +99,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
 	}
 
+	toggleNotebookCellSelection(cell: IGenericCellViewModel) {
+		// throw new Error('Method not implemented.');
+	}
+
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): void {
 		// throw new Error('Method not implemented.');
 	}

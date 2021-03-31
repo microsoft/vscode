@@ -22,7 +22,7 @@ suite('Hidden Range Model', () => {
 	}
 
 	function assertRanges(actual: IRange[], expectedRegions: ExpectedRange[], message?: string) {
-		assert.deepEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber })), expectedRegions, message);
+		assert.deepStrictEqual(actual.map(r => ({ startLineNumber: r.startLineNumber, endLineNumber: r.endLineNumber })), expectedRegions, message);
 	}
 
 	test('hasRanges', () => {

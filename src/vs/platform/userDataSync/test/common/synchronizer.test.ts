@@ -191,8 +191,8 @@ suite('TestSynchronizer - Auto Sync', () => {
 		testObject.sync(await client.manifest());
 		await promise;
 
-		assert.deepEqual(actual, [SyncStatus.Syncing]);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(actual, [SyncStatus.Syncing]);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 
 		testObject.stop();
 	});
@@ -205,8 +205,8 @@ suite('TestSynchronizer - Auto Sync', () => {
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
 		await testObject.sync(await client.manifest());
 
-		assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 	});
 
 	test('status is set correctly when sync has errors', async () => {
@@ -221,8 +221,8 @@ suite('TestSynchronizer - Auto Sync', () => {
 			await testObject.sync(await client.manifest());
 			assert.fail('Should fail');
 		} catch (e) {
-			assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
-			assert.deepEqual(testObject.status, SyncStatus.Idle);
+			assert.deepStrictEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
+			assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		}
 	});
 
@@ -233,7 +233,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		await testObject.sync(await client.manifest());
 
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 		assertConflicts(testObject.conflicts, [testObject.localResource]);
 	});
 
@@ -248,8 +248,8 @@ suite('TestSynchronizer - Auto Sync', () => {
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
 		await testObject.sync(await client.manifest());
 
-		assert.deepEqual(actual, []);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(actual, []);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 
 		await testObject.stop();
 	});
@@ -263,8 +263,8 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		await testObject.sync(await client.manifest());
 
-		assert.deepEqual(actual, []);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(actual, []);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 	});
 
 	test('sync should not run if there are conflicts', async () => {
@@ -277,8 +277,8 @@ suite('TestSynchronizer - Auto Sync', () => {
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
 		await testObject.sync(await client.manifest());
 
-		assert.deepEqual(actual, []);
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(actual, []);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 	});
 
 	test('accept preview during conflicts', async () => {
@@ -287,14 +287,14 @@ suite('TestSynchronizer - Auto Sync', () => {
 		testObject.syncBarrier.open();
 
 		await testObject.sync(await client.manifest());
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 		await testObject.accept(testObject.conflicts[0].previewResource);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertConflicts(testObject.conflicts, []);
 
 		await testObject.apply(false);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		const fileService = client.instantiationService.get(IFileService);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, (await fileService.readFile(testObject.localResource)).value.toString());
 	});
@@ -310,14 +310,14 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		await testObject.sync(await client.manifest());
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 		await testObject.accept(testObject.conflicts[0].remoteResource);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertConflicts(testObject.conflicts, []);
 
 		await testObject.apply(false);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, currentRemoteContent);
 		assert.strictEqual((await fileService.readFile(testObject.localResource)).value.toString(), currentRemoteContent);
 	});
@@ -332,14 +332,14 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		await testObject.sync(await client.manifest());
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 		await testObject.accept(testObject.conflicts[0].localResource);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertConflicts(testObject.conflicts, []);
 
 		await testObject.apply(false);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, newLocalContent);
 		assert.strictEqual((await fileService.readFile(testObject.localResource)).value.toString(), newLocalContent);
 	});
@@ -354,15 +354,15 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		await testObject.sync(await client.manifest());
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 		const mergeContent = 'newContent';
 		await testObject.accept(testObject.conflicts[0].previewResource, mergeContent);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertConflicts(testObject.conflicts, []);
 
 		await testObject.apply(false);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, mergeContent);
 		assert.strictEqual((await fileService.readFile(testObject.localResource)).value.toString(), mergeContent);
 	});
@@ -377,14 +377,14 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		await testObject.sync(await client.manifest());
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 		await testObject.accept(testObject.conflicts[0].previewResource, null);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertConflicts(testObject.conflicts, []);
 
 		await testObject.apply(false);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, '');
 		assert.ok(!(await fileService.exists(testObject.localResource)));
 	});
@@ -398,14 +398,14 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		await testObject.sync(await client.manifest());
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 		await testObject.accept(testObject.conflicts[0].localResource);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertConflicts(testObject.conflicts, []);
 
 		await testObject.apply(false);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, '');
 		assert.ok(!(await fileService.exists(testObject.localResource)));
 	});
@@ -418,14 +418,14 @@ suite('TestSynchronizer - Auto Sync', () => {
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 
 		await testObject.sync(await client.manifest());
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 
 		await testObject.accept(testObject.conflicts[0].remoteResource);
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertConflicts(testObject.conflicts, []);
 
 		await testObject.apply(false);
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData, null);
 		assert.ok(!(await fileService.exists(testObject.localResource)));
 	});
@@ -450,7 +450,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 		const ref = manifest!.latest![testObject.resource];
 		await testObject.sync(await client.manifest());
 
-		assert.deepEqual(server.requests, [
+		assert.deepStrictEqual(server.requests, [
 			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': ref } },
 			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
 			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': `${parseInt(ref) + 1}` } },
@@ -467,7 +467,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 		await testObject.triggerLocalChange();
 
 		await promise;
-		assert.deepEqual(server.requests, []);
+		assert.deepStrictEqual(server.requests, []);
 	});
 
 	test('status is reset when getting latest remote data fails', async () => {
@@ -508,7 +508,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 
 		const preview = await testObject.preview(await client.manifest());
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assertConflicts(testObject.conflicts, []);
 	});
@@ -521,7 +521,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		let preview = await testObject.preview(await client.manifest());
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -535,7 +535,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		let preview = await testObject.preview(await client.manifest());
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -550,7 +550,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -567,7 +567,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 
@@ -588,7 +588,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 
@@ -608,13 +608,12 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy I don't know enough about this test to make it strictly equal
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('preview -> accept', async () => {
@@ -625,7 +624,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		let preview = await testObject.preview(await client.manifest());
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assertConflicts(testObject.conflicts, []);
 	});
@@ -642,7 +641,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 
@@ -659,7 +658,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
 		assertConflicts(testObject.conflicts, []);
@@ -675,7 +674,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -690,7 +689,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
 		assertConflicts(testObject.conflicts, []);
@@ -706,7 +705,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -722,7 +721,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -738,7 +737,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
 		assertConflicts(testObject.conflicts, []);
@@ -757,12 +756,11 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enough about this test to make it strictly equal
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('preivew -> accept -> discard -> accept -> apply', async () => {
@@ -779,12 +777,11 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enough about this test to make it strictly equal
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('preivew -> accept -> discard -> merge -> apply', async () => {
@@ -802,7 +799,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.merge(preview!.resourcePreviews[0].localResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 
@@ -817,7 +814,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 
 		const preview = await testObject.preview(await client.manifest());
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assertConflicts(testObject.conflicts, []);
 	});
@@ -830,7 +827,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		let preview = await testObject.preview(await client.manifest());
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Conflict);
 		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].localResource]);
@@ -845,7 +842,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
 		assertConflicts(testObject.conflicts, []);
@@ -861,9 +858,9 @@ suite('TestSynchronizer - Manual Sync', () => {
 		const content = await testObject.resolveContent(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, content);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assert.deepEqual(testObject.conflicts, []);
+		assert.deepStrictEqual(testObject.conflicts, []);
 	});
 
 	test('conflicts: preview -> merge -> accept -> apply', async () => {
@@ -881,7 +878,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 
@@ -898,7 +895,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		const content = await testObject.resolveContent(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource, content);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assertConflicts(testObject.conflicts, []);
 	});
@@ -917,7 +914,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 
@@ -934,7 +931,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
 		assertConflicts(testObject.conflicts, []);
@@ -950,7 +947,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -965,7 +962,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
 		assertConflicts(testObject.conflicts, []);
@@ -981,7 +978,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Accepted);
 		assertConflicts(testObject.conflicts, []);
@@ -997,7 +994,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Conflict);
 		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].localResource]);
@@ -1013,7 +1010,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.merge(preview!.resourcePreviews[0].remoteResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
+		assert.deepStrictEqual(testObject.status, SyncStatus.HasConflicts);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Conflict);
 		assertConflicts(testObject.conflicts, [preview!.resourcePreviews[0].localResource]);
@@ -1029,7 +1026,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].remoteResource);
 		preview = await testObject.discard(preview!.resourcePreviews[0].previewResource);
 
-		assert.deepEqual(testObject.status, SyncStatus.Syncing);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
 		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
 		assert.strictEqual(preview!.resourcePreviews[0].mergeState, MergeState.Preview);
 		assertConflicts(testObject.conflicts, []);
@@ -1048,12 +1045,11 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enoguh about this test to understand how to make it strict
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 	test('conflicts: preivew -> accept -> discard -> accept -> apply', async () => {
@@ -1070,20 +1066,19 @@ suite('TestSynchronizer - Manual Sync', () => {
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
 		preview = await testObject.apply(false);
 
-		assert.deepEqual(testObject.status, SyncStatus.Idle);
+		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
 		assert.strictEqual(preview, null);
 		assertConflicts(testObject.conflicts, []);
 		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		// TODO @sandy081 I don't know enoguh about this test to understand how to make it strict
-		assert.equal(!(await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
+		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	});
 
 });
 
 function assertConflicts(actual: IBaseResourcePreview[], expected: URI[]) {
-	assert.deepEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
+	assert.deepStrictEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
 }
 
 function assertPreviews(actual: IBaseResourcePreview[], expected: URI[]) {
-	assert.deepEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
+	assert.deepStrictEqual(actual.map(({ localResource }) => localResource.toString()), expected.map(uri => uri.toString()));
 }

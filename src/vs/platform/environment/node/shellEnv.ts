@@ -5,7 +5,7 @@
 
 import { spawn } from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
-import { isWindows, platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, platform } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
@@ -17,7 +17,7 @@ import { getSystemShell } from 'vs/base/node/shell';
  * This should only be done when Code itself is not launched
  * from within a shell.
  */
-export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: NodeJS.ProcessEnv): Promise<typeof process.env> {
+export async function resolveShellEnv(logService: ILogService, args: NativeParsedArgs, env: IProcessEnvironment): Promise<typeof process.env> {
 
 	// Skip if --force-disable-user-env
 	if (args['force-disable-user-env']) {

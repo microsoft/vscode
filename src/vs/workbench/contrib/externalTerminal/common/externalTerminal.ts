@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 export const IExternalTerminalService = createDecorator<IExternalTerminalService>('nativeTerminalService');
 
@@ -16,7 +17,7 @@ export interface IExternalTerminalSettings {
 export interface IExternalTerminalService {
 	readonly _serviceBrand: undefined;
 	openTerminal(path: string): void;
-	runInTerminal(title: string, cwd: string, args: string[], env: { [key: string]: string | null; }, settings: IExternalTerminalSettings): Promise<number | undefined>;
+	runInTerminal(title: string, cwd: string, args: string[], env: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined>;
 }
 
 export interface IExternalTerminalConfiguration {

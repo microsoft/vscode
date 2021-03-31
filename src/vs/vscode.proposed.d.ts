@@ -2756,7 +2756,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/106488
+	//#region https://github.com/microsoft/vscode/issues/120173
 
 	export enum WorkspaceTrustState {
 		/**
@@ -2824,32 +2824,25 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/118084
+	//#region https://github.com/microsoft/vscode/issues/115807
 
-	/**
-	 * The reason why code actions were requested.
-	 */
-	export enum CodeActionTriggerKind {
+	export interface Webview {
 		/**
-		 * Code actions were explicitly requested by the user or by an extension.
-		 */
-		Invoke = 1,
-
-		/**
-		 * Code actions were requested automatically.
+		 * @param message A json serializable message to send to the webview.
 		 *
-		 * This typically happens when current selection in a file changes, but can
-		 * also be triggered when file content changes.
+		 *   For older versions of vscode, if an `ArrayBuffer` is included in `message`,
+		 *   it will not be serialized properly and will not be received by the webview.
+		 *   Similarly any TypedArrays, such as a `Uint8Array`, will be very inefficiently
+		 *   serialized and will also not be recreated as a typed array inside the webview.
+		 *
+		 *   However if your extension targets vscode 1.56+ in the `engines` field of its
+		 *   `package.json` any `ArrayBuffer` values that appear in `message` will be more
+		 *   efficiently transferred to the webview and will also be recreated inside of
+		 *   the webview.
 		 */
-		Automatic = 2,
+		postMessage(message: any): Thenable<boolean>;
 	}
 
-	export interface CodeActionContext {
-		/**
-		 * The reason why code actions were requested.
-		 */
-		readonly triggerKind: CodeActionTriggerKind;
-	}
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/115616 @alexr00

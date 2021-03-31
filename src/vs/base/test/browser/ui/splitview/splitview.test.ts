@@ -354,13 +354,13 @@ suite('Splitview', () => {
 		assert.strictEqual(view1.size, 200);
 
 		splitview.addView(view2, 50);
-		assert.deepEqual([view1.size, view2.size], [150, 50]);
+		assert.deepStrictEqual([view1.size, view2.size], [150, 50]);
 
 		splitview.addView(view3, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 66, 68]);
 
 		splitview.removeView(1, Sizing.Distribute);
-		assert.deepEqual([view1.size, view3.size], [100, 100]);
+		assert.deepStrictEqual([view1.size, view3.size], [100, 100]);
 
 		splitview.dispose();
 		view3.dispose();
@@ -379,7 +379,7 @@ suite('Splitview', () => {
 		splitview.addView(view3, 25);
 
 		splitview.layout(200);
-		assert.deepEqual([view1.size, view2.size, view3.size], [67, 67, 66]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [67, 67, 66]);
 
 		splitview.dispose();
 		view3.dispose();
@@ -398,10 +398,10 @@ suite('Splitview', () => {
 		assert.strictEqual(view1.size, 200);
 
 		splitview.addView(view2, Sizing.Split(0));
-		assert.deepEqual([view1.size, view2.size], [100, 100]);
+		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
 
 		splitview.addView(view3, Sizing.Split(1));
-		assert.deepEqual([view1.size, view2.size, view3.size], [100, 50, 50]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [100, 50, 50]);
 
 		splitview.dispose();
 		view3.dispose();
@@ -420,10 +420,10 @@ suite('Splitview', () => {
 		assert.strictEqual(view1.size, 200);
 
 		splitview.addView(view2, Sizing.Split(0));
-		assert.deepEqual([view1.size, view2.size], [100, 100]);
+		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
 
 		splitview.addView(view3, Sizing.Split(0));
-		assert.deepEqual([view1.size, view2.size, view3.size], [50, 100, 50]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [50, 100, 50]);
 
 		splitview.dispose();
 		view3.dispose();
@@ -439,10 +439,10 @@ suite('Splitview', () => {
 
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size], [100, 100]);
+		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
 
 		splitview.layout(100);
-		assert.deepEqual([view1.size, view2.size], [50, 50]);
+		assert.deepStrictEqual([view1.size, view2.size], [50, 50]);
 
 		splitview.dispose();
 		view2.dispose();
@@ -457,10 +457,10 @@ suite('Splitview', () => {
 
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size], [100, 100]);
+		assert.deepStrictEqual([view1.size, view2.size], [100, 100]);
 
 		splitview.layout(100);
-		assert.deepEqual([view1.size, view2.size], [80, 20]);
+		assert.deepStrictEqual([view1.size, view2.size], [80, 20]);
 
 		splitview.dispose();
 		view2.dispose();
@@ -477,19 +477,19 @@ suite('Splitview', () => {
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
 
 		splitview.layout(180);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
 
 		splitview.layout(124);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 20, 38]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 20, 38]);
 
 		splitview.layout(60);
-		assert.deepEqual([view1.size, view2.size, view3.size], [20, 20, 20]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 20, 20]);
 
 		splitview.layout(200);
-		assert.deepEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
 
 		splitview.dispose();
 		view3.dispose();
@@ -507,19 +507,19 @@ suite('Splitview', () => {
 		splitview.addView(view1, Sizing.Distribute);
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 68, 66]);
 
 		splitview.layout(180);
-		assert.deepEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [66, 48, 66]);
 
 		splitview.layout(132);
-		assert.deepEqual([view1.size, view2.size, view3.size], [46, 20, 66]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [46, 20, 66]);
 
 		splitview.layout(60);
-		assert.deepEqual([view1.size, view2.size, view3.size], [20, 20, 20]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 20, 20]);
 
 		splitview.layout(200);
-		assert.deepEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
+		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
 
 		splitview.dispose();
 		view3.dispose();
@@ -539,7 +539,7 @@ suite('Splitview', () => {
 		splitview.addView(view3, Sizing.Distribute);
 
 		splitview.layout(200, 100);
-		assert.deepEqual([view1.orthogonalSize, view2.orthogonalSize, view3.orthogonalSize], [100, 100, 100]);
+		assert.deepStrictEqual([view1.orthogonalSize, view2.orthogonalSize, view3.orthogonalSize], [100, 100, 100]);
 
 		splitview.dispose();
 		view3.dispose();

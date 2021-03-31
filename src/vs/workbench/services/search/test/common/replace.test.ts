@@ -79,11 +79,11 @@ suite('Replace Pattern test', () => {
 	test('create pattern by passing regExp', () => {
 		let expected = /abc/;
 		let actual = new ReplacePattern('hello', false, expected).regExp;
-		assert.deepEqual(expected, actual);
+		assert.deepStrictEqual(expected, actual);
 
 		expected = /abc/;
 		actual = new ReplacePattern('hello', false, /abc/g).regExp;
-		assert.deepEqual(expected, actual);
+		assert.deepStrictEqual(expected, actual);
 
 		let testObject = new ReplacePattern('hello$0', false, /abc/g);
 		assert.strictEqual(false, testObject.hasParameters);

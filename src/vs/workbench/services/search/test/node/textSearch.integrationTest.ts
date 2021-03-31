@@ -308,7 +308,7 @@ flakySuite('TextSearch-integration', function () {
 
 		return doSearchTest(config, 1).then(results => {
 			const matchRange = (<ITextSearchMatch>results[0].results![0]).ranges;
-			assert.deepEqual(matchRange, [{
+			assert.deepStrictEqual(matchRange, [{
 				startLineNumber: 0,
 				startColumn: 1,
 				endLineNumber: 0,

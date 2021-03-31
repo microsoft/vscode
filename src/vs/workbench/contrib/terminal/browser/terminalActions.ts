@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -1426,6 +1426,28 @@ export function registerTerminalActions() {
 			},
 			group: ContextMenuGroup.Edit,
 			order: 2
+		});
+	}
+
+	if (BrowserFeatures.clipboard.readText && isLinux) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TERMINAL_COMMAND_ID.PASTE_SELECTION,
+					title: { value: localize('workbench.action.terminal.pasteSelection', "Paste Selection into Active Terminal"), original: 'Paste Selection into Active Terminal' },
+					f1: true,
+					category,
+					precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+					keybinding: [{
+						linux: { primary: KeyMod.Shift | KeyCode.Insert },
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(ITerminalService).getActiveInstance()?.pasteSelection();
+			}
 		});
 	}
 

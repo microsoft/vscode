@@ -400,7 +400,7 @@ suite('SettingsMerge - Merge', () => {
 		assert.strictEqual(actual.localContent, localContent);
 		assert.strictEqual(actual.remoteContent, remoteContent);
 		assert.ok(actual.hasConflicts);
-		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
@@ -421,7 +421,7 @@ suite('SettingsMerge - Merge', () => {
 		}));
 		assert.strictEqual(actual.remoteContent, remoteContent);
 		assert.ok(actual.hasConflicts);
-		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('merge with single entry and local is empty', async () => {
@@ -437,7 +437,7 @@ suite('SettingsMerge - Merge', () => {
 		assert.strictEqual(actual.localContent, localContent);
 		assert.strictEqual(actual.remoteContent, remoteContent);
 		assert.ok(actual.hasConflicts);
-		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('merge when local and remote has moved forwareded with conflicts', async () => {
@@ -482,7 +482,7 @@ suite('SettingsMerge - Merge', () => {
 			'f': 1,
 		}));
 		assert.ok(actual.hasConflicts);
-		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('merge when local and remote has moved forwareded with change in order', async () => {
@@ -518,7 +518,7 @@ suite('SettingsMerge - Merge', () => {
 			'c': 4,
 		}));
 		assert.ok(actual.hasConflicts);
-		assert.deepEqual(actual.conflictsSettings, []);
+		assert.deepStrictEqual(actual.conflictsSettings, []);
 	});
 
 	test('merge when local and remote has moved forwareded with comment changes', async () => {
@@ -547,7 +547,7 @@ suite('SettingsMerge - Merge', () => {
 		assert.strictEqual(actual.localContent, localContent);
 		assert.strictEqual(actual.remoteContent, remoteContent);
 		assert.ok(actual.hasConflicts);
-		assert.deepEqual(actual.conflictsSettings, []);
+		assert.deepStrictEqual(actual.conflictsSettings, []);
 	});
 
 	test('resolve when local and remote has moved forwareded with resolved conflicts', async () => {
@@ -589,7 +589,7 @@ suite('SettingsMerge - Merge', () => {
 			'a': 2,
 		}));
 		assert.ok(actual.hasConflicts);
-		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
 	});
 
 	test('ignored setting is not merged when changed in local and remote', async () => {
@@ -720,7 +720,7 @@ suite('SettingsMerge - Merge', () => {
 			'b': 3,
 			'e': 6,
 		}));
-		assert.deepEqual(actual.conflictsSettings, expectedConflicts);
+		assert.deepStrictEqual(actual.conflictsSettings, expectedConflicts);
 		assert.ok(actual.hasConflicts);
 	});
 

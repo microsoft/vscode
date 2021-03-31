@@ -23,43 +23,46 @@
 }(this, function () {
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = globals();
-	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = preloadGlobals.process;
-	const configuration = parseWindowConfiguration();
 
 	// Start to resolve process.env before anything gets load
 	// so that we can run loading and resolving in parallel
-	const whenEnvResolved = safeProcess.resolveEnv(configuration.userEnv);
+	const whenEnvResolved = safeProcess.resolveEnv();
 
 	/**
 	 * @param {string[]} modulePaths
-	 * @param {(result: unknown, configuration: object) => Promise<unknown> | undefined} resultCallback
-	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
+	 * @param {(result: unknown, configuration: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {{
+	 * 	forceEnableDeveloperKeybindings?: boolean,
+	 * 	disallowReloadKeybinding?: boolean,
+	 * 	removeDeveloperKeybindingsAfterLoad?: boolean,
+	 * 	canModifyDOM?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
+	 * 	beforeLoaderConfig?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration, loaderConfig: object) => void,
+	 *  beforeRequire?: () => void
+	 * }} [options]
 	 */
-	function load(modulePaths, resultCallback, options) {
-
-		// Apply zoom level early to avoid glitches
-		const zoomLevel = configuration.zoomLevel;
-		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-			webFrame.setZoomLevel(zoomLevel);
-		}
+	async function load(modulePaths, resultCallback, options) {
+		performance.mark('code/willWaitForWindowConfig');
+		/** @type {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.configuration;
+		performance.mark('code/didWaitForWindowConfig');
 
 		// Error handler
-		safeProcess.on('uncaughtException', function (error) {
-			onUnexpectedError(error, enableDeveloperTools);
+		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
+			onUnexpectedError(error, enableDeveloperKeybindings);
 		});
 
 		// Developer tools
-		const enableDeveloperTools = (safeProcess.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
-		let developerToolsUnbind;
-		if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
+		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || configuration.forceEnableDeveloperKeybindings || options?.forceEnableDeveloperKeybindings;
+		let developerDeveloperKeybindingsDisposable;
+		if (enableDeveloperKeybindings) {
+			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(options?.disallowReloadKeybinding);
 		}
 
 		// Enable ASAR support
 		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
-		if (options && typeof options.canModifyDOM === 'function') {
+		if (typeof options?.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
@@ -127,7 +130,7 @@
 			};
 		}
 
-		if (options && typeof options.beforeLoaderConfig === 'function') {
+		if (typeof options?.beforeLoaderConfig === 'function') {
 			options.beforeLoaderConfig(configuration, loaderConfig);
 		}
 
@@ -139,7 +142,7 @@
 			});
 		}
 
-		if (options && typeof options.beforeRequire === 'function') {
+		if (typeof options?.beforeRequire === 'function') {
 			options.beforeRequire();
 		}
 
@@ -158,37 +161,14 @@
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 
-					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-						developerToolsUnbind();
+					if (developerDeveloperKeybindingsDisposable && options?.removeDeveloperKeybindingsAfterLoad) {
+						developerDeveloperKeybindingsDisposable();
 					}
 				}
 			} catch (error) {
-				onUnexpectedError(error, enableDeveloperTools);
+				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
 		}, onUnexpectedError);
-	}
-
-	/**
-	 * Parses the contents of the window condiguration that
-	 * is passed into the URL from the `electron-main` side.
-	 *
-	 * @returns {{
-	 * zoomLevel?: number,
-	 * extensionDevelopmentPath?: string[],
-	 * extensionTestsPath?: string,
-	 * userEnv?: { [key: string]: string | undefined },
-	 * appRoot: string,
-	 * nodeCachedDataDir?: string
-	 * }}
-	 */
-	function parseWindowConfiguration() {
-		const rawConfiguration = (window.location.search || '').split(/[?&]/)
-			.filter(function (param) { return !!param; })
-			.map(function (param) { return param.split('='); })
-			.filter(function (param) { return param.length === 2; })
-			.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-
-		return JSON.parse(rawConfiguration['config'] || '{}') || {};
 	}
 
 	/**

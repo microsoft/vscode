@@ -33,7 +33,7 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('ShellExecution', () => {
-			test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
+			test.skip('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
 				return new Promise<void>(async (resolve) => {
 					const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 					let taskExecution: TaskExecution | undefined;
@@ -76,7 +76,7 @@ import { assertNoRpc } from '../utils';
 				});
 			});
 
-			test('dependsOn task should start with a different processId (#118256)', async () => {
+			test.skip('dependsOn task should start with a different processId (#118256)', async () => {
 				// Set up dependsOn task by creating tasks.json since this is not possible via the API
 				// Tasks API
 				const tasksConfig = workspace.getConfiguration('tasks');

@@ -271,7 +271,7 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch(`@command:${command}`);
 		assert.strictEqual(actual.length, 1);
-		assert.deepEqual(actual[0].keybindingItem.command, command);
+		assert.deepStrictEqual(actual[0].keybindingItem.command, command);
 	});
 
 	test('filter by command prefix with same commands', async () => {
@@ -282,8 +282,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch(`@command:${command}`);
 		assert.strictEqual(actual.length, 2);
-		assert.deepEqual(actual[0].keybindingItem.command, command);
-		assert.deepEqual(actual[1].keybindingItem.command, command);
+		assert.deepStrictEqual(actual[0].keybindingItem.command, command);
+		assert.deepStrictEqual(actual[1].keybindingItem.command, command);
 	});
 
 	test('filter by when context', async () => {
@@ -306,8 +306,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('cmd').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by meta key', async () => {
@@ -320,8 +320,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('meta').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by command key', async () => {
@@ -334,8 +334,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('command').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by windows key', async () => {
@@ -348,8 +348,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('windows').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by alt key', async () => {
@@ -360,8 +360,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('alt').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by option key', async () => {
@@ -372,8 +372,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('option').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by ctrl key', async () => {
@@ -384,8 +384,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('ctrl').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by control key', async () => {
@@ -396,8 +396,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('control').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by shift key', async () => {
@@ -408,8 +408,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('shift').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by arrow', async () => {
@@ -420,8 +420,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('arrow').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by modifier and key', async () => {
@@ -432,8 +432,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('alt right').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { altKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by key and modifier', async () => {
@@ -455,8 +455,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('alt cmd esc').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { altKey: true, metaKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true, metaKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by modifiers in random order and key', async () => {
@@ -468,8 +468,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by first part', async () => {
@@ -481,8 +481,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter matches in chord part', async () => {
@@ -494,8 +494,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('cmd del').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { metaKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true });
 	});
 
 	test('filter matches first part and in chord part', async () => {
@@ -507,8 +507,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('cmd shift esc del').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true });
 	});
 
 	test('filter exact matches', async () => {
@@ -519,8 +519,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"ctrl c"').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter exact matches with first and chord part', async () => {
@@ -531,8 +531,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"shift meta escape ctrl c"').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, { ctrlKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { ctrlKey: true, keyCode: true });
 	});
 
 	test('filter exact matches with first and chord part no results', async () => {
@@ -554,8 +554,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"control+c"').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter by keybinding prefix', async () => {
@@ -566,8 +566,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('@keybinding:control+c').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, {});
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { ctrlKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, {});
 	});
 
 	test('filter matches with + separator in first and chord parts', async () => {
@@ -578,8 +578,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"shift+meta+escape ctrl+c"').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true, ctrlKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true, ctrlKey: true });
 	});
 
 	test('filter by keybinding prefix with chord', async () => {
@@ -590,8 +590,8 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('@keybinding:"shift+meta+escape ctrl+c"').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
-		assert.deepEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true, ctrlKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { shiftKey: true, metaKey: true, keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.chordPart, { keyCode: true, ctrlKey: true });
 	});
 
 	test('filter exact matches with space #32993', async () => {
@@ -613,7 +613,7 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('"down"').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
 	});
 
 	test('filter modifiers are not matched when not completely matched (prefix)', async () => {
@@ -653,7 +653,7 @@ suite('KeybindingsEditorModel', () => {
 		await testObject.resolve(new Map<string, string>());
 		const actual = testObject.fetch('alt').filter(element => element.keybindingItem.command === command);
 		assert.strictEqual(1, actual.length);
-		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
+		assert.deepStrictEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
 	});
 
 	function prepareKeybindingService(...keybindingItems: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {

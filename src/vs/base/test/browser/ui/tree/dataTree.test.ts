@@ -106,8 +106,8 @@ suite('DataTree', function () {
 		assert.strictEqual(navigator.next()!.value, 2);
 		assert.strictEqual(navigator.next()!, null);
 
-		assert.deepEqual(tree.getSelection(), []);
-		assert.deepEqual(tree.getFocus(), []);
+		assert.deepStrictEqual(tree.getSelection(), []);
+		assert.deepStrictEqual(tree.getFocus(), []);
 	});
 
 	test('view state can be preserved', () => {
@@ -142,7 +142,7 @@ suite('DataTree', function () {
 		assert.strictEqual(navigator.next()!.value, 2);
 		assert.strictEqual(navigator.next()!, null);
 
-		assert.deepEqual(tree.getSelection(), [root.children![1]]);
-		assert.deepEqual(tree.getFocus(), [root.children![2]]);
+		assert.deepStrictEqual(tree.getSelection(), [root.children![1]]);
+		assert.deepStrictEqual(tree.getFocus(), [root.children![2]]);
 	});
 });

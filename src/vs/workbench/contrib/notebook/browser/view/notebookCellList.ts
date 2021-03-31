@@ -619,11 +619,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	selectElement(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-		if (index >= 0) {
-			this.setSelection([index]);
-		}
+	selectElements(elements: ICellViewModel[]) {
+		const indices = elements.map(cell => this._getViewIndexUpperBound(cell)).filter(index => index >= 0);
+		this.setSelection(indices);
 	}
 
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {

@@ -172,7 +172,7 @@ suite('SearchModel', () => {
 		assert.ok(target.calledThrice);
 		const data = target.args[0];
 		data[1].duration = -1;
-		assert.deepEqual(['searchResultsFirstRender', { duration: -1 }], data);
+		assert.deepStrictEqual(['searchResultsFirstRender', { duration: -1 }], data);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {

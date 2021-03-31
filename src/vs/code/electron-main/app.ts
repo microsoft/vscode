@@ -35,7 +35,6 @@ import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
-import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow, OpenContext, WindowError } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
@@ -291,7 +290,7 @@ export class CodeApplication extends Disposable {
 
 			let replied = false;
 
-			function acceptShellEnv(env: NodeJS.ProcessEnv): void {
+			function acceptShellEnv(env: IProcessEnvironment): void {
 				clearTimeout(shellEnvSlowWarningHandle);
 				clearTimeout(shellEnvTimeoutErrorHandle);
 
@@ -332,7 +331,7 @@ export class CodeApplication extends Disposable {
 			// Window can be undefined for e.g. the shared process
 			// that is not part of our windows registry!
 			let args: NativeParsedArgs;
-			let env: NodeJS.ProcessEnv;
+			let env: IProcessEnvironment;
 			if (window?.config) {
 				args = window.config;
 				env = { ...process.env, ...window.config.userEnv };
@@ -439,9 +438,6 @@ export class CodeApplication extends Disposable {
 			this.logService.error(error);
 		}
 
-		// Setup Protocol Handler
-		const fileProtocolHandler = this._register(this.mainInstantiationService.createInstance(FileProtocolHandler));
-
 		// Main process server (electron IPC based)
 		const mainProcessElectronServer = new ElectronIPCServer();
 
@@ -471,7 +467,7 @@ export class CodeApplication extends Disposable {
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer, fileProtocolHandler));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
@@ -675,22 +671,20 @@ export class CodeApplication extends Disposable {
 		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
+		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// Extension Host Debug Broadcasting
 		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
 		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
 
 		// Signal phase: ready (services set)
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
-
-		// Forward windows main service to protocol handler
-		fileProtocolHandler.injectWindowsMainService(this.windowsMainService);
 
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];

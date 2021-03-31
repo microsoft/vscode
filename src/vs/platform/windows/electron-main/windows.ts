@@ -14,7 +14,6 @@ import { URI } from 'vs/base/common/uri';
 import { Rectangle, BrowserWindow, WebContents } from 'electron';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { FileAccess } from 'vs/base/common/network';
 
 export const enum OpenContext {
 
@@ -207,28 +206,3 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
-
-/**
- * Utility to produce a window URL that includes the provided configuration
- * as query parameter.
- *
- * @param modulePathToHtml path to the HTML to load
- * @param config the configuration for the window
- * @returns the url to use for loading
- */
-export function toWindowUrl(modulePathToHtml: string, config: object, forceCodeFileUri?: boolean): string {
-	const configuration: { [key: string]: unknown } = { ...config };
-
-	// Remove values from config that are falsy to reduce the size of of the URL we create
-	for (const key in configuration) {
-		const value = configuration[key];
-		if (value === undefined || value === null || value === '' || value === false) {
-			delete configuration[key];
-		}
-	}
-
-	return FileAccess
-		.asBrowserUri(modulePathToHtml, require, forceCodeFileUri)
-		.with({ query: `config=${encodeURIComponent(JSON.stringify(configuration))}` })
-		.toString(true);
-}

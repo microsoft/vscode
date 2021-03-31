@@ -39,7 +39,7 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 				end: { x: e.range[1][0], y: e.range[1][1] },
 			}
 		}));
-		assert.deepEqual(actual, expectedVerbose);
+		assert.deepStrictEqual(actual, expectedVerbose);
 	}
 
 	// These tests are based on LinkComputer.test.ts

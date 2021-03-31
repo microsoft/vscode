@@ -9,7 +9,7 @@
   "activationEvents": [],
   "main": "./out/extension",
   "engines": {
-    "vscode": "^1.25.0"
+    "vscode": "^1.55.0"
   },
   "contributes": {
     "configuration": {
