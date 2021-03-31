@@ -839,8 +839,7 @@ function webviewPreloads() {
 
 		cellContainer.appendChild(previewContainerNode);
 
-		previewContainerNode.attachShadow({ mode: 'open' });
-		const previewRoot = previewContainerNode.shadowRoot! as any as HTMLElement;
+		const previewRoot = previewContainerNode.attachShadow({ mode: 'open' });
 
 		// Add default webview style
 		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
