@@ -759,13 +759,8 @@ function webviewPreloads() {
 			case 'decorations':
 				{
 					const outputContainer = document.getElementById(event.data.cellId);
-					event.data.addedClassNames.forEach(n => {
-						outputContainer?.classList.add(n);
-					});
-
-					event.data.removedClassNames.forEach(n => {
-						outputContainer?.classList.remove(n);
-					});
+					outputContainer?.classList.add(...event.data.addedClassNames);
+					outputContainer?.classList.remove(...event.data.removedClassNames);
 				}
 
 				break;
