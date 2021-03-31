@@ -42,12 +42,12 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.cellAt(1).metadata?.editable, false);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
-				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell), 1);
 
 				viewModel.deleteCell(1, true);
-				assert.strictEqual(viewModel.viewCells.length, 2);
+				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
 				assert.strictEqual(viewModel.getCellIndex(cell), -1);
 			}
@@ -115,7 +115,7 @@ suite('NotebookViewModel', () => {
 			(editor) => {
 				const viewModel = editor.viewModel;
 				const firstViewCell = viewModel.cellAt(0);
-				const lastViewCell = viewModel.cellAt(viewModel.viewCells.length - 1);
+				const lastViewCell = viewModel.cellAt(viewModel.length - 1);
 
 				const insertIndex = viewModel.getCellIndex(firstViewCell) + 1;
 				const cell = viewModel.createCell(insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
@@ -126,7 +126,7 @@ suite('NotebookViewModel', () => {
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
 				const cell2 = viewModel.createCell(secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
 
-				assert.strictEqual(viewModel.viewCells.length, 3);
+				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
 			}

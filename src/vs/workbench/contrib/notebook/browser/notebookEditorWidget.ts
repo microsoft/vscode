@@ -1279,7 +1279,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			let offset = 0;
 			let requests: [ICellViewModel, number][] = [];
 
-			for (let i = 0; i < viewModel.viewCells.length; i++) {
+			for (let i = 0; i < viewModel.length; i++) {
 				const cell = viewModel.viewCells[i];
 
 				if (offset + (totalHeightCache[i] ?? 0) < scrollTop) {
@@ -1309,7 +1309,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			let offset = 0;
 			let offsetUpdateRequests: { id: string, top: number }[] = [];
 			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
-			for (let i = 0; i < viewModel.viewCells.length; i++) {
+			for (let i = 0; i < viewModel.length; i++) {
 				const cell = viewModel.viewCells[i];
 				if (cell.cellKind === CellKind.Markdown) {
 					offsetUpdateRequests.push({ id: cell.id, top: offset });

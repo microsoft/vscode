@@ -25,8 +25,8 @@ suite('CellOperations', () => {
 			async (editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
-				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
+				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1) }, 'down');
+				assert.strictEqual(viewModel.cellAt(2).getText(), 'var b = 1;');
 			});
 	});
 
@@ -42,10 +42,10 @@ suite('CellOperations', () => {
 			async (editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
-				assert.strictEqual(viewModel.viewCells[0].getText(), '# header b');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '# header a');
-				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
+				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1) }, 'down');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '# header b');
+				assert.strictEqual(viewModel.cellAt(1).getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(2).getText(), 'var b = 1;');
 			});
 	});
 
@@ -69,10 +69,10 @@ suite('CellOperations', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
-				assert.strictEqual(viewModel.viewCells[0].getText(), '# header b');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '# header a');
-				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
+				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1) }, 'down');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '# header b');
+				assert.strictEqual(viewModel.cellAt(1).getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(2).getText(), 'var b = 1;');
 			});
 	});
 
@@ -88,10 +88,10 @@ suite('CellOperations', () => {
 			async (editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
+				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1) }, 'down');
 				assert.strictEqual(viewModel.length, 6);
-				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(1).getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(2).getText(), 'var b = 1;');
 			});
 	});
 
@@ -107,10 +107,10 @@ suite('CellOperations', () => {
 			async (editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1], ui: true }, 'down');
+				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1), ui: true }, 'down');
 				assert.strictEqual(viewModel.length, 6);
-				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(1).getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(2).getText(), 'var b = 1;');
 			});
 	});
 
@@ -126,12 +126,12 @@ suite('CellOperations', () => {
 			async (editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
+				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1) }, 'down');
 				assert.strictEqual(viewModel.length, 7);
-				assert.strictEqual(viewModel.viewCells[0].getText(), '# header a');
-				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '# header a');
-				assert.strictEqual(viewModel.viewCells[3].getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(1).getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(2).getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(3).getText(), 'var b = 1;');
 			});
 	});
 
@@ -155,12 +155,12 @@ suite('CellOperations', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
-				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
+				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1) }, 'down');
 				assert.strictEqual(viewModel.length, 7);
-				assert.strictEqual(viewModel.viewCells[0].getText(), '# header a');
-				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '# header a');
-				assert.strictEqual(viewModel.viewCells[3].getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(1).getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(2).getText(), '# header a');
+				assert.strictEqual(viewModel.cellAt(3).getText(), 'var b = 1;');
 			});
 	});
 
@@ -178,8 +178,8 @@ suite('CellOperations', () => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
 				const ret = await joinNotebookCells(editor.viewModel, { start: 3, end: 4 }, 'below');
 				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[3].uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[4].textBuffer.getEOL() + 'var c = 3;'
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3).uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4).textBuffer.getEOL() + 'var c = 3;'
 				}));
 				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
@@ -206,8 +206,8 @@ suite('CellOperations', () => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 3, end: 4 }] });
 				const ret = await joinNotebookCells(editor.viewModel, { start: 4, end: 5 }, 'above');
 				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[3].uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[4].textBuffer.getEOL() + 'var c = 3;'
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(3).uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(4).textBuffer.getEOL() + 'var c = 3;'
 				}));
 				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
@@ -232,8 +232,8 @@ suite('CellOperations', () => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
 				const ret = await joinNotebookCells(editor.viewModel, { start: 0, end: 2 }, 'below');
 				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[0].uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[1].textBuffer.getEOL() + 'var b = 2;' + viewModel.viewCells[2].textBuffer.getEOL() + 'var c = 3;'
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0).uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1).textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2).textBuffer.getEOL() + 'var c = 3;'
 				}));
 				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
@@ -258,8 +258,8 @@ suite('CellOperations', () => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 2, end: 3 }, selections: [{ start: 1, end: 3 }] });
 				const ret = await joinNotebookCells(editor.viewModel, { start: 1, end: 3 }, 'above');
 				assert.strictEqual(ret?.edits.length, 2);
-				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.viewCells[0].uri, {
-					range: new Range(1, 11, 1, 11), text: viewModel.viewCells[1].textBuffer.getEOL() + 'var b = 2;' + viewModel.viewCells[2].textBuffer.getEOL() + 'var c = 3;'
+				assert.deepStrictEqual(ret?.edits[0], new ResourceTextEdit(viewModel.cellAt(0).uri, {
+					range: new Range(1, 11, 1, 11), text: viewModel.cellAt(1).textBuffer.getEOL() + 'var b = 2;' + viewModel.cellAt(2).textBuffer.getEOL() + 'var c = 3;'
 				}));
 				assert.deepStrictEqual(ret?.edits[1], new ResourceNotebookCellEdit(viewModel.notebookDocument.uri,
 					{
