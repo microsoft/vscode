@@ -1117,7 +1117,7 @@ var requirejs = (function() {
 	}
 
 	updateViewScrollTop(top: number, forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
-		if (this._disposed) {
+		if (this._disposed || !items.length) {
 			return;
 		}
 
