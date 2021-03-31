@@ -16,7 +16,7 @@
 
 	/**
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown, options?: { forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean }) => unknown
+	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown, options?: { forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean }) => Promise<unknown>
 	 * }}
 	 */
 	function bootstrapWindowLib() {
