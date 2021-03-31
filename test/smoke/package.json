@@ -17,7 +17,6 @@
     "@types/ncp": "2.0.1",
     "@types/node": "^12.19.9",
     "@types/rimraf": "^2.0.4",
-    "cpx": "^1.5.0",
     "htmlparser2": "^3.9.2",
     "mkdirp": "^1.0.4",
     "ncp": "^2.0.0",

@@ -155,7 +155,7 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	selectDefaultProfile(): Promise<void>;
+	showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void>;
 
 	/**
 	 * Gets the detected terminal profiles for the platform

@@ -58,6 +58,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		}
 	}
 
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string): Promise<string>;
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: any): Promise<any> {
+		return this.recursiveResolve(root ? root.uri : undefined, value);
+	}
+
 	public resolve(root: IWorkspaceFolder | undefined, value: string): string;
 	public resolve(root: IWorkspaceFolder | undefined, value: string[]): string[];
 	public resolve(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
@@ -88,6 +95,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	}
 
 	public resolveAny(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any {
+		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
+	}
+
+	public async resolveAnyAsync(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
 		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
 	}
 

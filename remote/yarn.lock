@@ -321,22 +321,17 @@ jsonfile@^4.0.0:
   optionalDependencies:
     graceful-fs "^4.1.6"
 
-minimist@0.0.8:
-  version "0.0.8"
-  resolved "https://registry.yarnpkg.com/minimist/-/minimist-0.0.8.tgz#857fcabfc3397d2625b8228262e86aa7a011b05d"
-  integrity sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
-
 minimist@^1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.5.tgz#67d66014b66a6a8aaa0c083c5fd58df4e4e97602"
   integrity sha512-FM9nNUYrRBAELZQT3xeZQ7fmMOBg6nWNmJKTcgsJeaLstP/UODVpGsr5OhXhhXg6f+qtJ8uiZ+PUxkDWcgIXLw==
 
 mkdirp@^0.5.1:
-  version "0.5.1"
-  resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-0.5.1.tgz#30057438eac6cf7f8c4767f38648d6697d75c903"
-  integrity sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
+  version "0.5.5"
+  resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-0.5.5.tgz#d91cefd62d1436ca0f41620e251288d420099def"
+  integrity sha512-NKmAlESf6jMGym1++R0Ra7wvhV+wFW63FaSOFPwRahvea0gMUcGUhVeAg/0BC0wiv9ih5NYPB1Wn1UEI1/L+xQ==
   dependencies:
-    minimist "0.0.8"
+    minimist "^1.2.5"
 
 ms@2.0.0:
   version "2.0.0"
@@ -373,10 +368,10 @@ node-addon-api@^3.0.2:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.0.2.tgz#04bc7b83fd845ba785bb6eae25bc857e1ef75681"
   integrity sha512-+D4s2HCnxPd5PjjI0STKwncjXTUKKqm74MDMz9OPXavjsGmjkvwgLtA5yoxJUdmpj52+2u+RrXgPipahKczMKg==
 
-node-pty@0.11.0-beta4:
-  version "0.11.0-beta4"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta4.tgz#5d838bc1f21ec6cf02ef35ccb048adb5c5c7bf1c"
-  integrity sha512-HB+NkLhCJDEXdsmKPtC8sOaE6NJGaXl1trfLLvD8B2IqqHHFwsAzDQvRKqk/MrFYNv9K2gcQcOpq7KB8UQJRQQ==
+node-pty@0.10.0-beta19:
+  version "0.10.0-beta19"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta19.tgz#b7cbfba53f7b2a816efe8c9302dd083cc5874458"
+  integrity sha512-4UIOGMvpofUbe+ZniBUtY8zc/psMURSzbMonQgIhK7JlMQsUwcbkDIrKzStVLJX0FkeZpUNlsVtK7qqzHvrUZA==
   dependencies:
     nan "^2.14.0"
 

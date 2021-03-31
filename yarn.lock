@@ -6680,10 +6680,10 @@ node-libs-browser@^2.2.1:
     util "^0.11.0"
     vm-browserify "^1.0.1"
 
-node-pty@0.11.0-beta4:
-  version "0.11.0-beta4"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta4.tgz#5d838bc1f21ec6cf02ef35ccb048adb5c5c7bf1c"
-  integrity sha512-HB+NkLhCJDEXdsmKPtC8sOaE6NJGaXl1trfLLvD8B2IqqHHFwsAzDQvRKqk/MrFYNv9K2gcQcOpq7KB8UQJRQQ==
+node-pty@0.10.0-beta19:
+  version "0.10.0-beta19"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta19.tgz#b7cbfba53f7b2a816efe8c9302dd083cc5874458"
+  integrity sha512-4UIOGMvpofUbe+ZniBUtY8zc/psMURSzbMonQgIhK7JlMQsUwcbkDIrKzStVLJX0FkeZpUNlsVtK7qqzHvrUZA==
   dependencies:
     nan "^2.14.0"
 

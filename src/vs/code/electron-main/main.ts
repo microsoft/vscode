@@ -54,6 +54,8 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { cwd } from 'vs/base/common/process';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
 
 /**
  * The main VS Code entry point.
@@ -174,6 +176,9 @@ class CodeMain {
 
 		// Tunnel
 		services.set(ITunnelService, new SyncDescriptor(TunnelService));
+
+		// Protocol
+		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
 
 		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogService, productService];
 	}

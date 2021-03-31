@@ -14,16 +14,13 @@
 		issueReporter.startup(configuration);
 	}, { forceEnableDeveloperKeybindings: true, disallowReloadKeybinding: true });
 
-
-	//#region Globals
-
 	/**
-	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options?: object) => unknown }}
+	 * @returns {{
+	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown, options?: { forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean }) => Promise<unknown>
+	 * }}
 	 */
 	function bootstrapWindowLib() {
 		// @ts-ignore (defined in bootstrap-window.js)
 		return window.MonacoBootstrapWindow;
 	}
-
-	//#endregion
 }());

@@ -15,7 +15,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -842,12 +842,13 @@ export class TerminalService implements ITerminalService {
 		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
 
-	public async selectDefaultProfile(): Promise<void> {
+	public async showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void> {
+		let keyMods: IKeyMods | undefined;
 		const profiles = await this._detectProfiles(false);
 		const platformKey = await this._getPlatformKey();
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
-			placeHolder: nls.localize('terminal.integrated.chooseWindowsShell', "Select your default terminal profile"),
+			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
@@ -871,7 +872,8 @@ export class TerminalService implements ITerminalService {
 					args: context.item.profile.args
 				};
 				await this._configurationService.updateValue(configKey, newConfigValue, ConfigurationTarget.USER);
-			}
+			},
+			onKeyMods: mods => keyMods = mods
 		};
 
 		// Build quick pick items
@@ -891,8 +893,27 @@ export class TerminalService implements ITerminalService {
 		if (!value) {
 			return;
 		}
-		await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
-		await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+		if (type === 'createInstance') {
+			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
+			let instance;
+			const activeInstance = this.getActiveInstance();
+			if (keyMods?.alt && activeInstance) {
+				// create split, only valid if there's an active instance
+				if (activeInstance) {
+					instance = this.splitInstance(activeInstance, launchConfig);
+				}
+			} else {
+				instance = this.createTerminal(launchConfig);
+			}
+			if (instance) {
+				this.showPanel(true);
+				this.setActiveInstance(instance);
+			}
+		} else {
+			// setDefault
+			await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
+			await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
+		}
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {

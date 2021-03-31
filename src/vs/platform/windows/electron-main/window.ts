@@ -18,7 +18,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { browserCodeLoadingCacheStrategy, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, toWindowUrl, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowState, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -31,11 +31,12 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -76,8 +77,6 @@ const enum ReadyState {
 }
 
 export class CodeWindow extends Disposable implements ICodeWindow {
-
-	private static readonly MAX_URL_LENGTH = 2 * ByteSize.MB; // https://source.chromium.org/chromium/chromium/src/+/master:url/url_constants.cc;l=37
 
 	//#region Events
 
@@ -132,6 +131,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private currentConfig: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
 
+	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
+
 	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
 	get isExtensionDevelopmentHost(): boolean { return !!(this.currentConfig?.extensionDevelopmentPath); }
@@ -154,7 +155,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
 		super();
 
@@ -182,6 +184,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
 					enableWebSQL: false,
 					enableRemoteModule: false,
@@ -408,7 +411,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private registerListeners(): void {
 
-		// Crashes & Unrsponsive & Failed to load
+		// Crashes & Unresponsive & Failed to load
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
 		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.onWindowError(WindowError.LOAD, errorDescription));
@@ -736,9 +739,15 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._win.setTitle(this.productService.nameLong);
 		}
 
+		// Update config object URL
+		this.updateConfigObjectUrl(configuration, options);
+
 		// Load URL
 		mark('code/willOpenNewWindow');
-		this._win.loadURL(this.getUrl(configuration, options));
+		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
+			'vs/code/electron-sandbox/workbench/workbench.html' :
+			'vs/code/electron-browser/workbench/workbench.html', require
+		).toString(true));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
@@ -813,10 +822,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return configuration.workspace;
 	}
 
-	private getUrl(baseConfig: INativeWindowConfiguration, options: ILoadOptions): string {
+	private updateConfigObjectUrl(baseConfig: INativeWindowConfiguration, options: ILoadOptions): void {
 
-		// Config is a combination of native CLI args and window configuration
-		const configuration: { [key: string]: unknown } = { ...this.environmentMainService.args, ...baseConfig };
+		// Copy the base config to be able to make changes
+		const configuration: INativeWindowConfiguration = { ...this.environmentMainService.args, ...baseConfig };
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or
 		// pendingLoadConfig so that it is applied only on this load
@@ -862,32 +871,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			release: release()
 		};
 
-		// In the unlikely event of the URL becoming larger than 2MB, remove parts of
-		// it that are not under our control. Mainly, the user environment can be very
-		// large depending on user configuration, so we can only remove it in that case.
-		let configUrl = this.doGetUrl(configuration);
-		if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
-			this.logService.warn('Application URL exceeds maximum of 2MB and was shortened.');
+		// Force enable developer tools for extension development
+		configuration.forceEnableDeveloperKeybindings = Array.isArray(configuration.extensionDevelopmentPath);
 
-			configUrl = this.doGetUrl({ ...configuration, userEnv: undefined });
-
-			if (configUrl.length > CodeWindow.MAX_URL_LENGTH) {
-				this.logService.error('Application URL exceeds maximum of 2MB and cannot be loaded.');
-			}
-		}
-
-		return configUrl;
-	}
-
-	private doGetUrl(config: object): string {
-		let workbench: string;
-		if (this.environmentMainService.sandbox) {
-			workbench = 'vs/code/electron-sandbox/workbench/workbench.html';
-		} else {
-			workbench = 'vs/code/electron-browser/workbench/workbench.html';
-		}
-
-		return toWindowUrl(workbench, config);
+		// Store into config object URL
+		this.configObjectUrl.update(configuration);
 	}
 
 	serializeWindowState(): IWindowState {

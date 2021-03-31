@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
+import { isObject } from 'vs/base/common/types';
 import { URI as uri } from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorType } from 'vs/editor/common/editorCommon';
@@ -360,7 +361,7 @@ suite('Configuration Resolver Service', () => {
 		};
 
 		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration).then(result => {
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -388,8 +389,7 @@ suite('Configuration Resolver Service', () => {
 		commandVariables['commandVariable1'] = 'command1';
 
 		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
-
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -421,8 +421,7 @@ suite('Configuration Resolver Service', () => {
 		commandVariables['commandVariable1'] = 'command1';
 
 		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
-
-			assert.deepEqual(result, {
+			const expected = {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -433,8 +432,17 @@ suite('Configuration Resolver Service', () => {
 				'env': {
 					'processId': '__command2-result__',
 				}
-			});
+			};
 
+			assert.deepStrictEqual(Object.keys(result), Object.keys(expected));
+			Object.keys(result).forEach(property => {
+				const expectedProperty = (<any>expected)[property];
+				if (isObject(result[property])) {
+					assert.deepStrictEqual({ ...result[property] }, expectedProperty);
+				} else {
+					assert.deepStrictEqual(result[property], expectedProperty);
+				}
+			});
 			assert.strictEqual(2, mockCommandService.callCount);
 		});
 	});
@@ -453,7 +461,7 @@ suite('Configuration Resolver Service', () => {
 
 		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, undefined, commandVariables).then(result => {
 
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -479,7 +487,7 @@ suite('Configuration Resolver Service', () => {
 
 		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
 
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -507,7 +515,7 @@ suite('Configuration Resolver Service', () => {
 
 		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
 
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -535,7 +543,7 @@ suite('Configuration Resolver Service', () => {
 
 		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
 
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -564,7 +572,7 @@ suite('Configuration Resolver Service', () => {
 
 		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks').then(result => {
 
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'resolvedEnterinput3',
 				'type': 'command1-result',
 				'request': 'resolvedEnterinput1',
@@ -593,7 +601,7 @@ suite('Configuration Resolver Service', () => {
 
 		return configurationResolverService!.resolveWithInteractionReplace(undefined, configuration, 'tasks').then(result => {
 
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': 'Attach to Process',
 				'type': 'node',
 				'request': 'attach',
@@ -615,7 +623,7 @@ suite('Configuration Resolver Service', () => {
 		};
 		configurationResolverService!.contributeVariable(variable, async () => { return buildTask; });
 		return configurationResolverService!.resolveWithInteractionReplace(workspace, configuration).then(result => {
-			assert.deepEqual(result, {
+			assert.deepStrictEqual({ ...result }, {
 				'name': `${buildTask}`
 			});
 		});

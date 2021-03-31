@@ -17,6 +17,9 @@
 	// ###                                                                 ###
 	// #######################################################################
 
+	/**
+	 * @type {import('../electron-sandbox/globals')}
+	 */
 	const globals = {
 
 		/**
@@ -183,11 +186,10 @@
 			},
 
 			/**
-			 * @param {{[key: string]: string}} userEnv
 			 * @returns {Promise<void>}
 			 */
-			resolveEnv(userEnv) {
-				return resolveEnv(userEnv);
+			resolveEnv() {
+				return resolveEnv();
 			},
 
 			/**
@@ -210,6 +212,48 @@
 					return this;
 				}
 			}
+		},
+
+		/**
+		 * Some information about the context we are running in.
+		 *
+		 * @type {import('../electron-sandbox/globals').ISandboxContext}
+		 */
+		context: {
+
+			/**
+			 * A configuration object made accessible from the main side
+			 * to configure the sandbox browser window.
+			 *
+			 * The property is intentionally not using a getter to resolve
+			 * it as soon as possible to prevent waterfalls.
+			 *
+			 * @type {Promise<import('../common/sandboxTypes').ISandboxConfiguration>}
+			 */
+			configuration: (async () => {
+				const windowConfigIpcChannel = parseArgv('vscode-window-config');
+				if (!windowConfigIpcChannel) {
+					throw new Error('Preload: did not find expected vscode-window-config in renderer process arguments list.');
+				}
+
+				try {
+					if (validateIPC(windowConfigIpcChannel)) {
+						const configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+
+						// Apply zoom level early before even building the
+						// window DOM elements to avoid UI flicker. We always
+						// have to set the zoom level from within the window
+						// because Chrome has it's own way of remembering zoom
+						// settings per origin (if vscode-file:// is used) and
+						// we want to ensure that the user configuration wins.
+						webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+
+						return configuration;
+					}
+				} catch (error) {
+					throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
+				}
+			})()
 		}
 	};
 
@@ -258,6 +302,24 @@
 		return true;
 	}
 
+	/**
+	 * @param {string} key the name of the process argument to parse
+	 * @returns {string | undefined}
+	 */
+	function parseArgv(key) {
+		for (const arg of process.argv) {
+			if (arg.indexOf(`--${key}=`) === 0) {
+				return arg.split('=')[1];
+			}
+		}
+
+		return undefined;
+	}
+
+	//#endregion
+
+	//#region Resolve Shell Environment
+
 	/** @type {Promise<typeof process.env> | undefined} */
 	let shellEnv = undefined;
 
@@ -267,11 +329,12 @@
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
 	 *
-	 * @param {{[key: string]: string}} userEnv
 	 * @returns {Promise<void>}
 	 */
-	async function resolveEnv(userEnv) {
+	async function resolveEnv() {
 		if (!shellEnv) {
+			const configuration = await globals.context.configuration;
+			const userEnv = configuration.userEnv;
 
 			// Apply `userEnv` directly
 			Object.assign(process.env, userEnv);

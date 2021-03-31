@@ -14,12 +14,12 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow } from 'vs/platform/windows/electron-main/window';
 import { BrowserWindow, MessageBoxOptions, WebContents } from 'electron';
-import { ILifecycleMainService, UnloadReason, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { findWindowOnFile, findWindowOnWorkspaceOrFolder, findWindowOnExtensionDevelopmentPath } from 'vs/platform/windows/electron-main/windowsFinder';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IOpenEmptyConfiguration, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
@@ -33,7 +33,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier, IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { once } from 'vs/base/common/functional';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
@@ -42,6 +42,7 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileService } from 'vs/platform/files/common/files';
 import { cwd } from 'vs/base/common/process';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 //#region Helper Interfaces
 
@@ -151,17 +152,38 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
 		super();
 
-		this.lifecycleMainService.when(LifecycleMainPhase.Ready).then(() => this.registerListeners());
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 
 		// Signal a window is ready after having entered a workspace
 		this._register(this.workspacesManagementMainService.onDidEnterWorkspace(event => this._onDidSignalReadyWindow.fire(event.window)));
+
+		// Update valid roots in protocol service for extension dev windows
+		this._register(this.onDidSignalReadyWindow(window => {
+			if (window.config?.extensionDevelopmentPath || window.config?.extensionTestsPath) {
+				const disposables = new DisposableStore();
+				disposables.add(Event.any(window.onDidClose, window.onDidDestroy)(() => disposables.dispose()));
+
+				// Allow access to extension development path
+				if (window.config.extensionDevelopmentPath) {
+					for (const extensionDevelopmentPath of window.config.extensionDevelopmentPath) {
+						disposables.add(this.protocolMainService.addValidFileRoot(URI.file(extensionDevelopmentPath)));
+					}
+				}
+
+				// Allow access to extension tests path
+				if (window.config.extensionTestsPath) {
+					disposables.add(this.protocolMainService.addValidFileRoot(URI.file(window.config.extensionTestsPath)));
+				}
+			}
+		}));
 	}
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[] {
