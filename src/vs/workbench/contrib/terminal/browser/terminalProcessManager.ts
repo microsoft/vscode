@@ -499,7 +499,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 	}
 
-	public processBinary(data: string): void {
+	public async processBinary(data: string): Promise<void> {
+		await this.ptyProcessReady;
+		this._dataFilter.triggerSwap();
+		this._hasWrittenData = true;
 		this._process?.processBinary(data);
 	}
 
