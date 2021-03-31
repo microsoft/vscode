@@ -25,19 +25,21 @@
 	const preloadGlobals = globals();
 	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = preloadGlobals.process;
-	const configuration = parseWindowConfiguration();
 	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	// Start to resolve process.env before anything gets load
 	// so that we can run loading and resolving in parallel
-	const whenEnvResolved = safeProcess.resolveEnv(configuration.userEnv);
+	const whenEnvResolved = safeProcess.resolveEnv();
 
 	/**
 	 * @param {string[]} modulePaths
 	 * @param {(result: unknown, configuration: object) => Promise<unknown> | undefined} resultCallback
 	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
 	 */
-	function load(modulePaths, resultCallback, options) {
+	async function load(modulePaths, resultCallback, options) {
+		performance.mark('code/willWaitForWindowConfig');
+		const configuration = await preloadGlobals.context.configuration;
+		performance.mark('code/didWaitForWindowConfig');
 
 		// Apply zoom level early before even building the
 		// window DOM elements to avoid UI flicker. We always
@@ -178,30 +180,6 @@
 				onUnexpectedError(error, enableDeveloperTools);
 			}
 		}, onUnexpectedError);
-	}
-
-	/**
-	 * Parses the contents of the window condiguration that
-	 * is passed into the URL from the `electron-main` side.
-	 *
-	 * @returns {{
-	 * isInitialStartup?: boolean,
-	 * zoomLevel?: number,
-	 * extensionDevelopmentPath?: string[],
-	 * extensionTestsPath?: string,
-	 * userEnv?: { [key: string]: string | undefined },
-	 * appRoot: string,
-	 * nodeCachedDataDir?: string
-	 * }}
-	 */
-	function parseWindowConfiguration() {
-		const rawConfiguration = (window.location.search || '').split(/[?&]/)
-			.filter(function (param) { return !!param; })
-			.map(function (param) { return param.split('='); })
-			.filter(function (param) { return param.length === 2; })
-			.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-
-		return JSON.parse(rawConfiguration['config'] || '{}') || {};
 	}
 
 	/**

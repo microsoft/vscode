@@ -90,7 +90,7 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * It is critical that every process awaits this method early on startup to get the right
 	 * set of environment in `process.env`.
 	 */
-	resolveEnv(userEnv: IProcessEnvironment): Promise<void>;
+	resolveEnv(): Promise<void>;
 
 	/**
 	 * Returns a process environment that includes any shell environment even if the application
@@ -114,8 +114,31 @@ export interface IpcMessagePort {
 	connect(channelRequest: string, channelResponse: string, requestNonce: string): void;
 }
 
+/**
+ * The common properties required for any sandboxed
+ * renderer to function.
+ */
+export interface ISandboxConfiguration {
+	appRoot: string;
+	userEnv: IProcessEnvironment;
+	zoomLevel: number;
+	nodeCachedDataDir?: string;
+	extensionDevelopmentPath?: string;
+	extensionTestsPath?: string;
+}
+
+export interface ISandboxContext {
+
+	/**
+	 * A configuration object made accessible from the main side
+	 * to configure the sandbox browser window.
+	 */
+	configuration: Promise<ISandboxConfiguration>;
+}
+
 export const ipcRenderer: IpcRenderer = globals.vscode.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
 export const crashReporter: CrashReporter = globals.vscode.crashReporter;
 export const process: ISandboxNodeProcess = globals.vscode.process;
+export const context: ISandboxContext = globals.vscode.context;

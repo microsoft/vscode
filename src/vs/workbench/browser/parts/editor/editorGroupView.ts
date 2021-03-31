@@ -684,7 +684,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#endregion
 
-	//region IEditorGroupView
+	//#region IEditorGroupView
 
 	private readonly _group: EditorGroup;
 	get group(): EditorGroup {

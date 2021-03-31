@@ -18,9 +18,6 @@
 		return sharedProcess.main(configuration);
 	});
 
-
-	//#region Globals
-
 	/**
 	 * @returns {{ avoidMonkeyPatchFromAppInsights: () => void; }}
 	 */
@@ -30,12 +27,10 @@
 	}
 
 	/**
-	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options?: object) => unknown }}
+	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => unknown, options?: object) => unknown }}
 	 */
 	function bootstrapWindowLib() {
 		// @ts-ignore (defined in bootstrap-window.js)
 		return window.MonacoBootstrapWindow;
 	}
-
-	//#endregion
 }());

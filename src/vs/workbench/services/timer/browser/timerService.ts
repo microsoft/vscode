@@ -56,6 +56,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWaitForWindowConfig" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWaitForShellEnv" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -197,6 +198,15 @@ export interface IStartupMetrics {
 		 *
 		 */
 		readonly ellapsedWindowLoadToRequire: number;
+
+		/**
+		 * The time it took to wait for resolving the window configuration. This time the workbench
+		 * will not continue to load and be blocked entirely.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willWaitForWindowConfig` and `didWaitForWindowConfig` performance marks.
+		 */
+		readonly ellapsedWaitForWindowConfig: number;
 
 		/**
 		 * The time it took to wait for resolving the shell environment. This time the workbench
@@ -521,6 +531,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? this._marks.getDuration('code/mainAppReady', 'code/willOpenNewWindow') : undefined,
 				ellapsedWindowLoadToRequire: this._marks.getDuration('code/willOpenNewWindow', 'code/willLoadWorkbenchMain'),
 				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),
+				ellapsedWaitForWindowConfig: this._marks.getDuration('code/willWaitForWindowConfig', 'code/didWaitForWindowConfig'),
 				ellapsedWaitForShellEnv: this._marks.getDuration('code/willWaitForShellEnv', 'code/didWaitForShellEnv'),
 				ellapsedStorageInit: this._marks.getDuration('code/willInitStorage', 'code/didInitStorage'),
 				ellapsedSharedProcesConnected: this._marks.getDuration('code/willConnectSharedProcess', 'code/didConnectSharedProcess'),
