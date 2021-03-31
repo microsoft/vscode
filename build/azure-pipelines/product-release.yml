@@ -1,0 +1,73 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "12.x"
+
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+    inputs:
+      versionSpec: "1.x"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+
+  - script: |
+      # set -e
+      # VERSION=`node -p "require(\"./package.json\").version"`
+      # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+      #   node build/azure-pipelines/common/createBuild.js $VERSION
+      echo 'we would create a build here...'
+    displayName: Create build
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - task: Delay@1
+    inputs:
+      delayForMinutes: 5
+
+  - pwsh: |
+      $set = [System.Collections.Generic.HashSet[string]]::new()
+      $currentCount = 0
+
+      # HARD CODED TO TEST ONLY WINDOWS
+      $env:NUMBER_OF_ARTIFACTS = 13
+
+      while ($env:NUMBER_OF_ARTIFACTS -gt $currentCount) {
+        $res = Invoke-RestMethod "https://dev.azure.com/TylerLeonhardt/Azure%20Pipelines%20Playground/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{ Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN" }
+
+        if ($res -and $res.count) {
+          $currentCount = $res.count
+          $res.value | ForEach-Object {
+            if($set.Add($_.name)) {
+              Write-Host "NEWLY ADDED: $($_.name)"
+            }
+          }
+        }
+
+        Start-Sleep -Seconds 5
+      }
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - script: |
+      # set -e
+
+      # (cd build ; yarn)
+
+      # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+      # node build/azure-pipelines/common/releaseBuild.js
+
+      echo 'we would release the build here...'
+
+  - script: |
+      # set -e
+
+      # (cd build ; yarn)
+
+      # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+      # AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+      # MOONCAKE_STORAGE_ACCESS_KEY="$(vscode-mooncake-storage-key)" \
+      # node build/azure-pipelines/common/sync-mooncake.js "$VSCODE_QUALITY"
+
+      echo 'we would sync mooncake'
