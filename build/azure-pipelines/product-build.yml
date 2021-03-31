@@ -319,14 +319,14 @@ stages:
           steps:
             - template: sync-mooncake.yml
 
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true)))) }}:
-    - stage: Release
-      dependsOn:
-        - Compile
-      pool:
-        vmImage: "Ubuntu-18.04"
-      jobs:
-        - job: ReleaseBuild
-          displayName: Release Build
-          steps:
-            - template: product-release.yml
+  # - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true)))) }}:
+  - stage: Release
+    dependsOn:
+      - Compile
+    pool:
+      vmImage: "Ubuntu-18.04"
+    jobs:
+      - job: ReleaseBuild
+        displayName: Release Build
+        steps:
+          - template: product-release.yml
