@@ -14,15 +14,21 @@ steps:
       KeyVaultName: vscode
 
   - script: |
-      # set -e
-      # VERSION=`node -p "require(\"./package.json\").version"`
+      set -e
+      (cd build ; yarn)
+    displayName: Install dependencies
+
+  - script: |
+      set -e
+      VERSION=`node -p "require(\"./package.json\").version"`
       # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       #   node build/azure-pipelines/common/createBuild.js $VERSION
 
-      echo 'we would create a build here...'
+      echo "we would create a build here...$VERSION"
     displayName: Create build
 
   - pwsh: Start-Sleep -Seconds 600
+    displayName: Delay start
 
   - pwsh: |
       $set = [System.Collections.Generic.HashSet[string]]::new()
@@ -36,17 +42,14 @@ steps:
 
         if ($res -and $res.count) {
           $currentCount = $res.count
-          $res.count
-          $res.value
           $res.value | ForEach-Object {
-            Write-Host "trying $($_.name)"
             if($set.Add($_.name)) {
               Write-Host "NEWLY ADDED: $($_.name)"
             }
           }
         }
 
-        Start-Sleep -Seconds 5
+        Start-Sleep -Seconds 10
       }
 
       Write-Host "DONE WITH: NUMBER_OF_ARTIFACTS: $NUMBER_OF_ARTIFACTS currentCount: $currentCount"
@@ -54,24 +57,20 @@ steps:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
   - script: |
-      # set -e
-
-      # (cd build ; yarn)
+      set -e
 
       # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       # AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
       # MOONCAKE_STORAGE_ACCESS_KEY="$(vscode-mooncake-storage-key)" \
       # node build/azure-pipelines/common/sync-mooncake.js "$VSCODE_QUALITY"
 
-      echo 'we would sync mooncake'
+      echo "we would sync mooncake $VSCODE_QUALITY"
 
   - script: |
-      # set -e
-
-      # (cd build ; yarn)
+      set -e
 
       # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       # node build/azure-pipelines/common/releaseBuild.js
 
       echo 'we would release the build here...'
-    condition: and(succeeded(), or(eq( '${{ parameters.VSCODE_RELEASE }}', true), and(in('${{ parameters.VSCODE_QUALITY }}', 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))))
+    condition: and(succeeded(), or(eq(variables['VSCODE_RELEASE'], true), and(in(variables['VSCODE_QUALITY'], 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))))

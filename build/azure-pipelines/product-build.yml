@@ -325,6 +325,9 @@ stages:
         - Compile
       pool:
         vmImage: "Ubuntu-18.04"
+      variables:
+        VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
       jobs:
         - job: ReleaseBuild
           displayName: Release Build
