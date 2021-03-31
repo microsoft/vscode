@@ -23,7 +23,6 @@
 }(this, function () {
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = globals();
-	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = preloadGlobals.process;
 	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
@@ -38,16 +37,9 @@
 	 */
 	async function load(modulePaths, resultCallback, options) {
 		performance.mark('code/willWaitForWindowConfig');
+		/** @type {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} */
 		const configuration = await preloadGlobals.context.configuration;
 		performance.mark('code/didWaitForWindowConfig');
-
-		// Apply zoom level early before even building the
-		// window DOM elements to avoid UI flicker. We always
-		// have to set the zoom level from within the window
-		// because Chrome has it's own way of remembering zoom
-		// settings per origin (if vscode-file:// is used) and
-		// we want to ensure that the user configuration wins.
-		webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
 
 		// Error handler
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {

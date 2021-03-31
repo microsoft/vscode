@@ -225,7 +225,7 @@
 			 * The property is intentionally not using a getter to resolve
 			 * it as soon as possible to prevent waterfalls.
 			 *
-			 * @type {Promise<import('../electron-sandbox/globals').ISandboxConfiguration>}
+			 * @type {Promise<import('../common/sandboxTypes').ISandboxConfiguration>}
 			 */
 			configuration: (async () => {
 				const windowConfigIpcChannel = parseArgv('vscode-window-config');
@@ -234,12 +234,22 @@
 				}
 
 				try {
-					return await ipcRenderer.invoke(windowConfigIpcChannel);
+					const configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+
+					// Apply zoom level early before even building the
+					// window DOM elements to avoid UI flicker. We always
+					// have to set the zoom level from within the window
+					// because Chrome has it's own way of remembering zoom
+					// settings per origin (if vscode-file:// is used) and
+					// we want to ensure that the user configuration wins.
+					webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+
+					return configuration;
 				} catch (error) {
 					throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
 				}
 			})()
-		},
+		}
 	};
 
 	// Use `contextBridge` APIs to expose globals to VSCode
