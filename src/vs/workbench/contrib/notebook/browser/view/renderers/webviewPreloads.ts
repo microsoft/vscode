@@ -145,25 +145,19 @@ function webviewPreloads() {
 
 				if (entry.target.id === id && entry.contentRect) {
 					if (output) {
+						let height = 0;
 						if (entry.contentRect.height !== 0) {
 							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-							postNotebookMessage<IDimensionMessage>('dimension', {
-								id: id,
-								data: {
-									height: entry.contentRect.height + __outputNodePadding__ * 2
-								},
-								isOutput: true
-							});
+							height = entry.contentRect.height + __outputNodePadding__ * 2;
 						} else {
 							entry.target.style.padding = `0px`;
-							postNotebookMessage<IDimensionMessage>('dimension', {
-								id: id,
-								data: {
-									height: entry.contentRect.height
-								},
-								isOutput: true
-							});
 						}
+
+						postNotebookMessage<IDimensionMessage>('dimension', {
+							id: id,
+							data: { height },
+							isOutput: true
+						});
 					} else {
 						postNotebookMessage<IDimensionMessage>('dimension', {
 							id: id,
