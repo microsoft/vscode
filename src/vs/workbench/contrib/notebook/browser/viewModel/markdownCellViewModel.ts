@@ -225,7 +225,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!!this.textModel) {
+		if (!this._textModelRef || !this.textModel) {
 			this._textModelRef = await this.model.resolveTextModelRef();
 			this._version = this.textModel!.getVersionId();
 			this._register(this.textModel!.onDidChangeContent(() => {
