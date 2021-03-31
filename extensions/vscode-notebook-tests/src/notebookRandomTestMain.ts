@@ -94,6 +94,8 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 class TestKernel implements vscode.NotebookKernel {
 	readonly label = 'notebookRandomTest';
 
+	supportedLanguages: string[] = ['typescript'];
+
 	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]): Promise<void> {
 		for (let r in ranges) {
 			for (let i = ranges[r].start; i < ranges[r].end; i++) {
