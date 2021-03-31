@@ -155,10 +155,16 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		const handler = async (): Promise<T> => obj;
 		ipcMain.handle(channel, handler);
 
+		this.logService.trace(`IPC Object URL: Registered new channel ${channel}.`);
+
 		return {
 			resource,
 			update: updatedObj => obj = updatedObj,
-			dispose: () => ipcMain.removeHandler(channel)
+			dispose: () => {
+				this.logService.trace(`IPC Object URL: Removed channel ${channel}.`);
+
+				ipcMain.removeHandler(channel);
+			}
 		};
 	}
 
