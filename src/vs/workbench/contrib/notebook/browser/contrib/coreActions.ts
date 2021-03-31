@@ -335,7 +335,7 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 
 		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.viewCells.length) {
+		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.length) {
 			return;
 		}
 
@@ -422,7 +422,7 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 
 		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.viewCells.length) {
+		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.length) {
 			return;
 		}
 
@@ -1384,7 +1384,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction<ICellRange> {
 		const language = additionalArgs.length && typeof additionalArgs[0] === 'string' ? additionalArgs[0] : undefined;
 		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
 
-		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.viewCells.length) {
+		if (!activeEditorContext || !activeEditorContext.notebookEditor.viewModel || context.start >= activeEditorContext.notebookEditor.viewModel.length) {
 			return;
 		}
 

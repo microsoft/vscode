@@ -89,7 +89,7 @@ suite('CellOperations', () => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
-				assert.strictEqual(viewModel.viewCells.length, 6);
+				assert.strictEqual(viewModel.length, 6);
 				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
 				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
 			});
@@ -108,7 +108,7 @@ suite('CellOperations', () => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1], ui: true }, 'down');
-				assert.strictEqual(viewModel.viewCells.length, 6);
+				assert.strictEqual(viewModel.length, 6);
 				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
 				assert.strictEqual(viewModel.viewCells[2].getText(), 'var b = 1;');
 			});
@@ -127,7 +127,7 @@ suite('CellOperations', () => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
-				assert.strictEqual(viewModel.viewCells.length, 7);
+				assert.strictEqual(viewModel.length, 7);
 				assert.strictEqual(viewModel.viewCells[0].getText(), '# header a');
 				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
 				assert.strictEqual(viewModel.viewCells[2].getText(), '# header a');
@@ -156,7 +156,7 @@ suite('CellOperations', () => {
 
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.viewCells[1] }, 'down');
-				assert.strictEqual(viewModel.viewCells.length, 7);
+				assert.strictEqual(viewModel.length, 7);
 				assert.strictEqual(viewModel.viewCells[0].getText(), '# header a');
 				assert.strictEqual(viewModel.viewCells[1].getText(), 'var b = 1;');
 				assert.strictEqual(viewModel.viewCells[2].getText(), '# header a');
