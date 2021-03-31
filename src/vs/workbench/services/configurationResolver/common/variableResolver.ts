@@ -65,6 +65,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
+	/**
+	 * @deprecated Use the async version of `resolve` instead.
+	 */
 	public resolve(root: IWorkspaceFolder | undefined, value: string): string;
 	public resolve(root: IWorkspaceFolder | undefined, value: string[]): string[];
 	public resolve(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
@@ -72,6 +75,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
+	/**
+	 * @deprecated Use the async version of `resolve` instead.
+	 */
 	public resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 
 		const result = objects.deepClone(config) as any;
