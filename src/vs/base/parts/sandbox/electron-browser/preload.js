@@ -17,6 +17,9 @@
 	// ###                                                                 ###
 	// #######################################################################
 
+	/**
+	 * @type {import('../electron-sandbox/globals')}
+	 */
 	const globals = {
 
 		/**
@@ -234,17 +237,19 @@
 				}
 
 				try {
-					const configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+					if (validateIPC(windowConfigIpcChannel)) {
+						const configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
 
-					// Apply zoom level early before even building the
-					// window DOM elements to avoid UI flicker. We always
-					// have to set the zoom level from within the window
-					// because Chrome has it's own way of remembering zoom
-					// settings per origin (if vscode-file:// is used) and
-					// we want to ensure that the user configuration wins.
-					webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+						// Apply zoom level early before even building the
+						// window DOM elements to avoid UI flicker. We always
+						// have to set the zoom level from within the window
+						// because Chrome has it's own way of remembering zoom
+						// settings per origin (if vscode-file:// is used) and
+						// we want to ensure that the user configuration wins.
+						webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
 
-					return configuration;
+						return configuration;
+					}
 				} catch (error) {
 					throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
 				}

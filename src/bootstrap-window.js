@@ -43,15 +43,17 @@
 	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
-		performance.mark('code/willWaitForWindowConfig');
-		/** @type {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} */
-		const configuration = await preloadGlobals.context.configuration;
-		performance.mark('code/didWaitForWindowConfig');
 
 		// Error handler
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
 			onUnexpectedError(error, enableDeveloperKeybindings);
 		});
+
+		// Await window configuration from preload
+		performance.mark('code/willWaitForWindowConfig');
+		/** @type {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.configuration;
+		performance.mark('code/didWaitForWindowConfig');
 
 		// Developer tools
 		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || configuration.forceEnableDeveloperKeybindings || options?.forceEnableDeveloperKeybindings;
@@ -63,6 +65,7 @@
 		// Enable ASAR support
 		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
+		// Signal DOM modifications are now OK
 		if (typeof options?.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
@@ -79,24 +82,22 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
+		// Do not advertise AMD to avoid confusing UMD modules loaded with nodejs
 		if (!useCustomProtocol) {
 			window['define'] = undefined;
 		}
 
-		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
+		// Replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!safeProcess.sandboxed) {
 			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
 		window['MonacoEnvironment'] = {};
 
-		const baseUrl = useCustomProtocol ?
-			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
-			`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`;
-
 		const loaderConfig = {
-			baseUrl,
+			baseUrl: useCustomProtocol ?
+				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out` :
+				`${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
 			'vs/nls': nlsConfig,
 			preferScriptTags: useCustomProtocol
 		};
@@ -132,7 +133,7 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// cached data config
+		// Cached data config
 		if (configuration.nodeCachedDataDir) {
 			loaderConfig.nodeCachedData = {
 				path: configuration.nodeCachedDataDir,
@@ -140,22 +141,27 @@
 			};
 		}
 
+		// Signal before require.config()
 		if (typeof options?.beforeLoaderConfig === 'function') {
 			options.beforeLoaderConfig(configuration, loaderConfig);
 		}
 
+		// Configure loader
 		require.config(loaderConfig);
 
+		// Handle pseudo NLS
 		if (nlsConfig.pseudo) {
 			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
 		}
 
+		// Signal before require()
 		if (typeof options?.beforeRequire === 'function') {
 			options.beforeRequire();
 		}
 
+		// Actually require the main module as specified
 		require(modulePaths, async result => {
 			try {
 
