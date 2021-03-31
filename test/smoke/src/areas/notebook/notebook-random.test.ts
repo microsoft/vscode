@@ -324,8 +324,8 @@ function getActions(app: Application): INotebookActions {
 		changeCellToCode: () => app.code.dispatchKeybinding('y'),
 		putCellInEditMode: () => n.editCell(),
 		deleteCell: () => n.deleteActiveCell(),
-		collapseInput: () => qa.runCommand('notebook.cell.collapseCellContent'),
-		expandInput: () => qa.runCommand('notebook.cell.expandCellContent'),
+		collapseInput: () => qa.runCommand('notebook.cell.collapseCellInput'),
+		expandInput: () => qa.runCommand('notebook.cell.expandCellInput'),
 		collapseOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
 		expandOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
 		focusNextEditorGroup: () => qa.runCommand('workbench.action.focusNextGroup')
