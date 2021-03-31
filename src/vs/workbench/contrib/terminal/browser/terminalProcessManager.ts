@@ -222,6 +222,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
+				// TODO: This does some unnecessary work in fetching the parent environemnt for example, it should be
+				// more explicit around only organizing the merged env collection (better yet use the actual remote one)
+
 				// this is a copy of what the merged environment collection is on the remote side
 				await this._setupEnvVariableInfo(activeWorkspaceRootUri, shellLaunchConfig);
 
@@ -339,7 +342,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const envFromConfigValue = this._workspaceConfigurationService.inspect<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const isWorkspaceShellAllowed = this._configHelper.checkIsProcessLaunchSafe();
 		this._configHelper.showRecommendations(shellLaunchConfig);
-		const baseEnv = this._configHelper.config.inheritEnv ? processEnv : await this._terminalInstanceService.getMainProcessParentEnv();
+		const baseEnv = !this._configHelper.config.inheritEnv && this._localTerminalService
+			? await this._localTerminalService.getParentEnvironment()
+			: processEnv;
 		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService);
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 

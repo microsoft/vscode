@@ -143,4 +143,8 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 	private _getWorkspaceName(): string {
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
+
+	public getParentEnvironment(): Promise<IProcessEnvironment> {
+		return this._localPtyService.getParentEnvironment();
+	}
 }

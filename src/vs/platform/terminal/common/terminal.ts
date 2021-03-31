@@ -96,6 +96,7 @@ export interface IOffProcessTerminalService {
 	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	getParentEnvironment(): Promise<IProcessEnvironment>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
@@ -160,6 +161,12 @@ export interface IPtyService {
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
+
+	/**
+	 * Gets the parent environment of the VS Code main or server process. This drives the inheritEnv
+	 * feature which bypasses the "development shell environment" fetched as a base for the window.
+	 */
+	getParentEnvironment(): Promise<IProcessEnvironment>;
 }
 
 export enum HeartbeatConstants {

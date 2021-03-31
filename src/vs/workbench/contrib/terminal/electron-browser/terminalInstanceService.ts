@@ -5,13 +5,12 @@
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
+import { platform, Platform } from 'vs/base/common/platform';
 import { getSystemShell } from 'vs/base/node/shell';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -101,9 +100,5 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		);
 
 		return Promise.resolve({ shell, args });
-	}
-
-	public getMainProcessParentEnv(): Promise<IProcessEnvironment> {
-		return getMainProcessParentEnv();
 	}
 }

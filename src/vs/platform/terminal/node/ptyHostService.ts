@@ -188,8 +188,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
-	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
-		return await this._proxy.getTerminalLayoutInfo(args);
+	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
+		return this._proxy.getTerminalLayoutInfo(args);
+	}
+
+	getParentEnvironment(): Promise<IProcessEnvironment> {
+		return this._proxy.getParentEnvironment();
 	}
 
 	async restartPtyHost(): Promise<void> {
