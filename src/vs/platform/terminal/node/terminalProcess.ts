@@ -108,7 +108,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._ptyOptions = {
 			name,
 			cwd,
-			env,
+			// TODO: When node-pty is updated this cast can be removed
+			env: env as { [key: string]: string; },
 			cols,
 			rows,
 			useConpty,
