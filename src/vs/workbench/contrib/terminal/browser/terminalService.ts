@@ -893,7 +893,7 @@ export class TerminalService implements ITerminalService {
 		if (!value) {
 			return;
 		}
-		if ('createInstance') {
+		if (type === 'createInstance') {
 			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
 			let instance;
 			const activeInstance = this.getActiveInstance();
