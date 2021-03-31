@@ -698,9 +698,6 @@ export interface INotebookCellList {
 	updateOptions(options: IListOptions<ICellViewModel>): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;
-
-	// TODO@roblourens resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
-	getFocus(): number[];
 }
 
 export interface BaseCellRenderTemplate {

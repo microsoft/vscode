@@ -1384,15 +1384,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			state.cellTotalHeights = cellHeights;
 
-			const focus = this._list.getFocus()[0];
-			if (typeof focus === 'number' && this.viewModel) {
-				const element = this.viewModel.viewCells[focus];
+			if (this.viewModel) {
+				const focusRange = this.viewModel.getFocus();
+				const element = this.viewModel.viewCells[focusRange.start];
 				if (element) {
 					const itemDOM = this._list.domElementOfElement(element);
 					const editorFocused = element.editState === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
 
 					state.editorFocused = editorFocused;
-					state.focus = focus;
+					state.focus = focusRange.start;
 				}
 			}
 		}
@@ -1465,18 +1465,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (this._webiewFocused) {
 			this._webview?.focusWebview();
 		} else {
-			const focus = this._list.getFocus()[0];
-			if (typeof focus === 'number' && this.viewModel) {
-				const element = this.viewModel.viewCells[focus];
+			if (this.viewModel) {
+				const focusRange = this.viewModel.getFocus();
+				const element = this.viewModel.viewCells[focusRange.start];
 
-				if (element.focusMode === CellFocusMode.Editor) {
+				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.editState = CellEditState.Editing;
 					element.focusMode = CellFocusMode.Editor;
 					this._onDidFocusEditorWidget.fire();
 					return;
 				}
-
 			}
+
 			this._list.domFocus();
 		}
 
