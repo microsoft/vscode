@@ -910,7 +910,13 @@ var requirejs = (function() {
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
-							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+							if (data.shiftKey || data.metaKey) {
+								// Add to selection
+								this.notebookEditor.toggleNotebookCellSelection(cell);
+							} else {
+								// Normal click
+								this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+							}
 						}
 						break;
 					}

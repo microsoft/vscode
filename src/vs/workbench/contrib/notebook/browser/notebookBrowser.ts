@@ -161,6 +161,7 @@ export interface ICommonNotebookEditor {
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
+	toggleNotebookCellSelection(cell: IGenericCellViewModel): void;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
@@ -660,7 +661,7 @@ export interface INotebookCellList {
 	getModelIndex2(viewIndex: number): number | undefined;
 	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
-	selectElement(element: ICellViewModel): void;
+	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
