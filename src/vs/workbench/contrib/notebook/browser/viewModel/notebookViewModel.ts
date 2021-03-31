@@ -506,6 +506,26 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._viewCells[index];
 	}
 
+	getCells(range?: ICellRange): ReadonlyArray<ICellViewModel> {
+		if (!range) {
+			return this._viewCells.slice(0);
+		}
+
+		const validatedRange = this.validateRange(range);
+
+		if (validatedRange) {
+			const result: ICellViewModel[] = [];
+
+			for (let i = validatedRange.start; i < validatedRange.end; i++) {
+				result.push(this._viewCells[i]);
+			}
+
+			return result;
+		}
+
+		return [];
+	}
+
 	/**
 	 * If this._viewCells[index] is visible then return index
 	 */
