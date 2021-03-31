@@ -1521,6 +1521,9 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
+	processBinary(id: number, data: string): void {
+		throw new Error('Method not implemented.');
+	}
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
@@ -1544,6 +1547,9 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async getLatency(): Promise<number> { return 0; }
+	processBinary(data: string): void {
+		throw new Error('not implemented');
+	}
 }
 
 export class TestQuickInputService implements IQuickInputService {

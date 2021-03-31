@@ -157,6 +157,10 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).orphanQuestionReply();
 	}
 
+	processBinary(id: number, data: string): void {
+		return this._throwIfNoPty(id).writeBinary(data);
+	}
+
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
@@ -336,6 +340,9 @@ export class PersistentTerminalProcess extends Disposable {
 			return;
 		}
 		return this._terminalProcess.input(data);
+	}
+	writeBinary(data: string): void {
+		return this._terminalProcess.processBinary(data);
 	}
 	resize(cols: number, rows: number): void {
 		if (this._inReplay) {

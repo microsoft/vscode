@@ -293,6 +293,11 @@ export interface ITerminalInstance {
 	onData: Event<string>;
 
 	/**
+	 * Attach a listener to the binary data stream coming from xterm and going to pty
+	 */
+	onBinary: Event<string>;
+
+	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.
 	 *
 	 * @param listener The listener function which takes new line strings added to the terminal,

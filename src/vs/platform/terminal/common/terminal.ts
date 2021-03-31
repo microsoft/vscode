@@ -155,6 +155,7 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	processBinary(id: number, data: string): void;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 
@@ -346,6 +347,7 @@ export interface ITerminalChildProcess {
 	 */
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
+	processBinary(data: string): void;
 	resize(cols: number, rows: number): void;
 
 	/**
