@@ -5,7 +5,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as util from 'util';
 import * as mkdirp from 'mkdirp';
 import { Workbench } from './workbench';
 import { Code, spawn, SpawnOptions } from './code';
@@ -138,7 +137,7 @@ export class Application {
 				this.logger.log('*** Screenshot recorded:', screenshotPath);
 			}
 
-			await util.promisify(mkdirp)(path.dirname(screenshotPath), undefined);
+			mkdirp.sync(path.dirname(screenshotPath));
 			fs.writeFileSync(screenshotPath, buffer);
 		}
 	}
