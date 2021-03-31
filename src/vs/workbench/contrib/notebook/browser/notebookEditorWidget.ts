@@ -343,7 +343,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
 
-		this.useRenderer = (this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) ?? !isWeb) && !accessibilityService.isScreenReaderOptimized();
+		this.useRenderer = !isWeb && !!this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) && !accessibilityService.isScreenReaderOptimized();
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
