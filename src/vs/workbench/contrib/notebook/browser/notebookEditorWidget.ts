@@ -1150,7 +1150,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							return;
 						}
 
-						this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
 						const viewIndex = this._list.getViewIndex(cell);
 
 						if (viewIndex === undefined) {
