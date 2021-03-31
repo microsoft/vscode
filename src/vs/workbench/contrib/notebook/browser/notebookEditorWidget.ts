@@ -1428,8 +1428,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._dimension = new DOM.Dimension(dimension.width, dimension.height);
 		DOM.size(this._body, dimension.width, dimension.height - (this._useGlobalToolbar ? /** Toolbar height */ 26 : 0));
-		this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : SCROLLABLE_ELEMENT_PADDING_TOP });
-		this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
+		if (this._list.getRenderHeight() < dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP) {
+			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
+			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP - 50)) : SCROLLABLE_ELEMENT_PADDING_TOP });
+			this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
+		} else {
+			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
+			this._list.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
+			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP - 50)) : SCROLLABLE_ELEMENT_PADDING_TOP });
+		}
 
 		this._overlayContainer.style.visibility = 'visible';
 		this._overlayContainer.style.display = 'block';

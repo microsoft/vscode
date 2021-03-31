@@ -694,6 +694,7 @@ export interface INotebookCellList {
 	domFocus(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
+	getRenderHeight(): number;
 	updateOptions(options: IListOptions<ICellViewModel>): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;

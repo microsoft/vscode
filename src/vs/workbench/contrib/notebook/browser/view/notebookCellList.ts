@@ -1246,6 +1246,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
+	getRenderHeight() {
+		return this.view.renderHeight;
+	}
+
 	layout(height?: number, width?: number): void {
 		this._isInLayout = true;
 		super.layout(height, width);
