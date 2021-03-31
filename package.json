@@ -222,7 +222,6 @@
   },
   "resolutions": {
     "elliptic": "^6.5.3",
-    "mkdirp": "^1.0.4",
     "nwmatcher": "^1.4.4"
   }
 }
