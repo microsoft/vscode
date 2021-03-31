@@ -1521,7 +1521,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
-	async getParentEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
+	async getParentEnvironment(): Promise<IProcessEnvironment> { return process.env; }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
