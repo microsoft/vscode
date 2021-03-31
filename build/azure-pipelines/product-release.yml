@@ -29,9 +29,9 @@ steps:
       $currentCount = 0
 
       # HARD CODED TO TEST ONLY WINDOWS
-      $env:NUMBER_OF_ARTIFACTS = 13
+      $NUMBER_OF_ARTIFACTS = 13
 
-      while ($env:NUMBER_OF_ARTIFACTS -gt $currentCount) {
+      while ($NUMBER_OF_ARTIFACTS -gt $currentCount) {
         $res = Invoke-RestMethod "https://dev.azure.com/monacotools/Monaco/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{ Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN" }
 
         if ($res -and $res.count) {
@@ -48,6 +48,8 @@ steps:
 
         Start-Sleep -Seconds 5
       }
+
+      Write-Host "DONE WITH: NUMBER_OF_ARTIFACTS: $NUMBER_OF_ARTIFACTS currentCount: $currentCount"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
