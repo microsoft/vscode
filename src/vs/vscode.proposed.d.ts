@@ -1066,6 +1066,8 @@ declare module 'vscode' {
 		// todo@API should we really expose this?
 		readonly viewType: string;
 
+		// todo@API add cellAt(index): NotebookCell
+		// todo@API add cellCount: number;
 		/** @deprecated Use `getCells(<...>) instead */
 		readonly cells: ReadonlyArray<NotebookCell>;
 
