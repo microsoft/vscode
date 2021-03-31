@@ -593,7 +593,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
 	 */
-	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[];
+	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel>;
 
 	/**
 	 * Set hidden areas on cell text models.

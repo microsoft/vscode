@@ -167,7 +167,7 @@ export class ListViewInfoAccessor extends Disposable {
 		}
 	}
 
-	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
+	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel> {
 		if (!this.list.viewModel) {
 			return [];
 		}
@@ -177,7 +177,7 @@ export class ListViewInfoAccessor extends Disposable {
 			return [];
 		}
 
-		return this.list.viewModel.viewCells.slice(range.start, range.end);
+		return this.list.viewModel.getCells(range);
 	}
 
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
@@ -964,7 +964,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// todo@rebornix support multipe selections
 		if (options?.cellSelections && this.viewModel) {
 			const focusCellIndex = options.cellSelections[0].start;
-			const focusedCell = this.viewModel.viewCells[focusCellIndex];
+			const focusedCell = this.viewModel.cellAt(focusCellIndex);
 			this.viewModel.updateSelectionsState({
 				kind: SelectionStateType.Index,
 				focus: { start: focusCellIndex, end: focusCellIndex + 1 },
@@ -1280,7 +1280,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			let requests: [ICellViewModel, number][] = [];
 
 			for (let i = 0; i < viewModel.length; i++) {
-				const cell = viewModel.viewCells[i];
+				const cell = viewModel.cellAt(i);
 
 				if (offset + (totalHeightCache[i] ?? 0) < scrollTop) {
 					offset += (totalHeightCache ? totalHeightCache[i] : 0);
@@ -1310,7 +1310,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			let offsetUpdateRequests: { id: string, top: number }[] = [];
 			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
 			for (let i = 0; i < viewModel.length; i++) {
-				const cell = viewModel.viewCells[i];
+				const cell = viewModel.cellAt(i);
 				if (cell.cellKind === CellKind.Markdown) {
 					offsetUpdateRequests.push({ id: cell.id, top: offset });
 				}
@@ -1354,7 +1354,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		if (viewState?.editorFocused) {
-			const cell = this.viewModel?.viewCells[focusIdx];
+			const cell = this.viewModel?.cellAt(focusIdx);
 			if (cell) {
 				cell.focusMode = CellFocusMode.Editor;
 			}
@@ -1374,7 +1374,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			state.scrollPosition = { left: this._list.scrollLeft, top: this._list.scrollTop };
 			const cellHeights: { [key: number]: number } = {};
 			for (let i = 0; i < this.viewModel!.length; i++) {
-				const elm = this.viewModel!.viewCells[i] as CellViewModel;
+				const elm = this.viewModel!.cellAt(i) as CellViewModel;
 				if (elm.cellKind === CellKind.Code) {
 					cellHeights[i] = elm.layoutInfo.totalHeight;
 				} else {
@@ -1386,7 +1386,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			if (this.viewModel) {
 				const focusRange = this.viewModel.getFocus();
-				const element = this.viewModel.viewCells[focusRange.start];
+				const element = this.viewModel.cellAt(focusRange.start);
 				if (element) {
 					const itemDOM = this._list.domElementOfElement(element);
 					const editorFocused = element.editState === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
@@ -1467,7 +1467,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			if (this.viewModel) {
 				const focusRange = this.viewModel.getFocus();
-				const element = this.viewModel.viewCells[focusRange.start];
+				const element = this.viewModel.cellAt(focusRange.start);
 
 				if (element && element.focusMode === CellFocusMode.Editor) {
 					element.editState = CellEditState.Editing;
@@ -1624,7 +1624,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex);
 	}
 
-	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[] {
+	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel> {
 		return this._listViewInfoAccessor.getCellsFromViewRange(startIndex, endIndex);
 	}
 
@@ -1686,7 +1686,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const existingDecorations = this._decortionKeyToIds.get(key) || [];
-		const newDecorations = this.viewModel.viewCells.slice(range.start, range.end).map(cell => ({
+		const newDecorations = this.viewModel.getCells(range).map(cell => ({
 			handle: cell.handle,
 			options: { className: decorationRule.className, outputClassName: decorationRule.className, topClassName: decorationRule.topClassName }
 		}));
@@ -1829,7 +1829,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			} else if (cell?.cellKind === CellKind.Markdown) {
 				const nearestCodeCellIndex = this._nearestCodeCellIndex(index);
 				if (nearestCodeCellIndex > -1) {
-					language = this.viewModel.viewCells[nearestCodeCellIndex].language;
+					language = this.viewModel.cellAt(nearestCodeCellIndex).language;
 				} else {
 					language = defaultLanguage;
 				}
@@ -1975,7 +1975,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return;
 			}
 
-			const viewCell = this.viewModel.viewCells[desiredIndex];
+			const viewCell = this.viewModel.cellAt(desiredIndex);
 			this._list.revealElementInView(viewCell);
 			r(viewCell);
 		});
@@ -2082,7 +2082,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		const newCell = this.viewModel?.viewCells[idx + 1];
+		const newCell = this.viewModel?.cellAt(idx + 1);
 		if (!newCell) {
 			return;
 		}
