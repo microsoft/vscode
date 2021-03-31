@@ -131,7 +131,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private currentConfig: INativeWindowConfiguration | undefined;
 	get config(): INativeWindowConfiguration | undefined { return this.currentConfig; }
 
-	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl());
+	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
 
 	get hasHiddenTitleBarStyle(): boolean { return !!this.hiddenTitleBarStyle; }
 
@@ -824,8 +824,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private updateConfigObjectUrl(baseConfig: INativeWindowConfiguration, options: ILoadOptions): void {
 
-		// Config is a combination of native CLI args and window configuration
-		const configuration: { [key: string]: unknown } = { ...this.environmentMainService.args, ...baseConfig };
+		// Copy the base config to be able to make changes
+		const configuration: INativeWindowConfiguration = { ...this.environmentMainService.args, ...baseConfig };
 
 		// Add disable-extensions to the config, but do not preserve it on currentConfig or
 		// pendingLoadConfig so that it is applied only on this load

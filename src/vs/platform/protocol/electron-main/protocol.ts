@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IProtocolMainService = createDecorator<IProtocolMainService>('protocolMainService');
 
-export interface IIPCObjectUrl extends IDisposable {
+export interface IIPCObjectUrl<T> extends IDisposable {
 
 	/**
 	 * A `URI` that a renderer can use to retrieve the
@@ -24,7 +24,7 @@ export interface IIPCObjectUrl extends IDisposable {
 	 * @param obj the object to make accessible to the
 	 * renderer.
 	 */
-	update(obj: object): void;
+	update(obj: T): void;
 }
 
 export interface IProtocolMainService {
@@ -39,7 +39,7 @@ export interface IProtocolMainService {
 	 * renderer. Can be updated later via the `IObjectUrl#update`
 	 * method too.
 	 */
-	createIPCObjectUrl(obj?: object): IIPCObjectUrl;
+	createIPCObjectUrl<T>(obj?: T): IIPCObjectUrl<T>;
 
 	/**
 	 * Adds a `URI` as root to the list of allowed

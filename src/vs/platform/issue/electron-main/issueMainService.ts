@@ -22,6 +22,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 
@@ -187,12 +188,17 @@ export class IssueMainService implements ICommonIssueService {
 			this.issueReporterParentWindow = BrowserWindow.getFocusedWindow();
 			if (this.issueReporterParentWindow) {
 				const issueReporterDisposables = new DisposableStore();
-				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl());
+
+				interface IIssueReporterWindowConfig extends ISandboxConfiguration {
+					[key: string]: unknown;
+				}
+
+				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IIssueReporterWindowConfig>());
 				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
 
 				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
 
-				issueReporterWindowConfigUrl.update({
+				const configuration: IIssueReporterWindowConfig = {
 					appRoot: this.environmentMainService.appRoot,
 					windowId: this.issueReporterWindow.id,
 					machineId: this.machineId,
@@ -213,7 +219,10 @@ export class IssueMainService implements ICommonIssueService {
 						reportIssueUrl: this.productService.reportIssueUrl,
 						reportMarketplaceIssueUrl: this.productService.reportMarketplaceIssueUrl
 					}
-				});
+				};
+
+				// Store into config object URL
+				issueReporterWindowConfigUrl.update(configuration);
 
 				this.issueReporterWindow.loadURL(
 					FileAccess.asBrowserUri('vs/code/electron-sandbox/issue/issueReporter.html', require, true).toString(true)
@@ -244,18 +253,26 @@ export class IssueMainService implements ICommonIssueService {
 			this.processExplorerParentWindow = BrowserWindow.getFocusedWindow();
 			if (this.processExplorerParentWindow) {
 				const processExplorerDisposables = new DisposableStore();
-				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl());
+
+				interface IProcessExplorerWindowConfig extends ISandboxConfiguration {
+					[key: string]: unknown;
+				}
+
+				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<IProcessExplorerWindowConfig>());
 				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
 
-				processExplorerWindowConfigUrl.update({
+				const configuration: IProcessExplorerWindowConfig = {
 					appRoot: this.environmentMainService.appRoot,
 					windowId: this.processExplorerWindow.id,
 					userEnv: this.userEnv,
 					machineId: this.machineId,
 					data
-				});
+				};
+
+				// Store into config object URL
+				processExplorerWindowConfigUrl.update(configuration);
 
 				this.processExplorerWindow.loadURL(
 					FileAccess.asBrowserUri('vs/code/electron-sandbox/processExplorer/processExplorer.html', require, true).toString(true)
@@ -280,7 +297,7 @@ export class IssueMainService implements ICommonIssueService {
 		this.processExplorerWindow?.focus();
 	}
 
-	private createBrowserWindow(position: IWindowState, ipcObjectUrl: IIPCObjectUrl, backgroundColor: string | undefined, title: string, zoomLevel: number): BrowserWindow {
+	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, backgroundColor: string | undefined, title: string, zoomLevel: number): BrowserWindow {
 		const window = new BrowserWindow({
 			fullscreen: false,
 			skipTaskbar: true,

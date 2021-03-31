@@ -160,7 +160,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private createWindow(): void {
-		const configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl());
+		const configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<ISharedProcessConfiguration>());
 
 		// shared process is a hidden window by default
 		this.window = new BrowserWindow({

@@ -142,7 +142,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region IPC Object URLs
 
-	createIPCObjectUrl(obj: object): IIPCObjectUrl {
+	createIPCObjectUrl<T>(obj: T): IIPCObjectUrl<T> {
 
 		// Create unique URI
 		const resource = URI.from({
@@ -152,7 +152,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// Install IPC handler
 		const channel = resource.toString();
-		const handler = async (): Promise<object> => obj;
+		const handler = async (): Promise<T> => obj;
 		ipcMain.handle(channel, handler);
 
 		return {

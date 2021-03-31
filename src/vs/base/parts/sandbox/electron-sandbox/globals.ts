@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { globals, INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { ProcessMemoryInfo, CrashReporter, IpcRenderer, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
@@ -112,19 +113,6 @@ export interface IpcMessagePort {
 	 * `MessagePort` via `e.ports[0]`.
 	 */
 	connect(channelRequest: string, channelResponse: string, requestNonce: string): void;
-}
-
-/**
- * The common properties required for any sandboxed
- * renderer to function.
- */
-export interface ISandboxConfiguration {
-	appRoot: string;
-	userEnv: IProcessEnvironment;
-	zoomLevel: number;
-	nodeCachedDataDir?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
 }
 
 export interface ISandboxContext {
