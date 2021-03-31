@@ -168,8 +168,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	public async listProcesses(reduceGraceTime: boolean = false): Promise<IRemoteTerminalAttachTarget[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(reduceGraceTime) : [];
+	public async listProcesses(): Promise<IRemoteTerminalAttachTarget[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
 				id: termDto.id,
@@ -194,7 +194,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		if (!this._remoteTerminalChannel) {
 			throw new Error('Cannot reduce grace time when there is no remote');
 		}
-		this._remoteTerminalChannel.reduceGraceTime();
+		this._remoteTerminalChannel.reduceConnectionGraceTime();
 	}
 
 	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {

@@ -142,10 +142,8 @@ export interface IPtyService {
 
 	/**
 	 * Lists all orphaned processes, ie. those without a connected frontend.
-	 * @param reduceGraceTime Whether to reduce the reconnection grace time for all orphaned
-	 * terminals.
 	 */
-	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]>;
+	listProcesses(): Promise<IProcessDetails[]>;
 
 	start(id: number): Promise<ITerminalLaunchError | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;

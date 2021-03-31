@@ -120,11 +120,7 @@ export class PtyService extends Disposable implements IPtyService {
 		}
 	}
 
-	async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
-		if (reduceGraceTime) {
-			this.reduceConnectionGraceTime();
-		}
-
+	async listProcesses(): Promise<IProcessDetails[]> {
 		const persistentProcesses = Array.from(this._ptys.entries()).filter(([_, pty]) => pty.shouldPersistTerminal);
 
 		this._logService.info(`Listing ${persistentProcesses.length} persistent terminals, ${this._ptys.size} total terminals`);

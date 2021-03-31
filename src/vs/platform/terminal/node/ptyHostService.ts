@@ -153,8 +153,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	detachFromProcess(id: number): Promise<void> {
 		return this._proxy.detachFromProcess(id);
 	}
-	listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
-		return this._proxy.listProcesses(reduceGraceTime);
+	listProcesses(): Promise<IProcessDetails[]> {
+		return this._proxy.listProcesses();
 	}
 	reduceConnectionGraceTime(): void {
 		return this._proxy.reduceConnectionGraceTime();

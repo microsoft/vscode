@@ -232,11 +232,11 @@ export class RemoteTerminalChannelClient {
 	public attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}
-	public listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
-		return this._channel.call('$listProcesses', [reduceGraceTime]);
+	public listProcesses(): Promise<IProcessDetails[]> {
+		return this._channel.call('$listProcesses');
 	}
-	public reduceGraceTime(): Promise<void> {
-		return this._channel.call('$reduceGraceTime');
+	public reduceConnectionGraceTime(): Promise<void> {
+		return this._channel.call('$reduceConnectionGraceTime');
 	}
 	public start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
