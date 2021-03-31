@@ -488,7 +488,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		const autoUpdateExtensionsSubMenu = new MenuId('autoUpdateExtensionsSubMenu');
 		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
 			submenu: autoUpdateExtensionsSubMenu,
-			title: localize('configure auto updating extensions', "Configure Auto Updating Extensions"),
+			title: localize('configure auto updating extensions', "Auto Update Extensions"),
 			when: ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID),
 			group: '1_updates',
 			order: 5,
