@@ -35,13 +35,13 @@ steps:
     displayName: Restore modules for just build folder and compile it
 
   - download: current
-    artifact: vscode-darwin-$(VSCODE_ARCH)
+    artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
     displayName: Download $(VSCODE_ARCH) artifact
 
   - script: |
       set -e
-      unzip $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-      mv $(Pipeline.Workspace)/vscode-darwin-$(VSCODE_ARCH)/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
+      unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      mv $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Unzip & move
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
@@ -108,22 +108,18 @@ steps:
     condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
-      set -e
-
       # For legacy purposes, arch for x64 is just 'darwin'
       case $VSCODE_ARCH in
         x64) ASSET_ID="darwin" ;;
         arm64) ASSET_ID="darwin-arm64" ;;
         universal) ASSET_ID="darwin-universal" ;;
       esac
+      echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
+    displayName: Set asset id variable
 
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      node build/azure-pipelines/common/createAsset.js \
-        "$ASSET_ID" \
-        archive \
-        "VSCode-$ASSET_ID.zip" \
-        ../VSCode-darwin-$(VSCODE_ARCH).zip
-    displayName: Publish Clients
+  - script: mv $(agent.builddirectory)/VSCode-darwin-x64.zip $(agent.builddirectory)/VSCode-darwin.zip
+    displayName: Rename x64 build to it's legacy name
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/VSCode-$(ASSET_ID).zip
+    artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive

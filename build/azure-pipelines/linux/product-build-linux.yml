@@ -245,27 +245,32 @@ steps:
       AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       VSCODE_ARCH="$(VSCODE_ARCH)" \
-      ./build/azure-pipelines/linux/publish.sh
-    displayName: Publish
+      ./build/azure-pipelines/linux/prepare-publish.sh
+    displayName: Prepare for Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(DEB_PATH)
-    artifact: vscode-linux-deb-$(VSCODE_ARCH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
     displayName: Publish deb package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(RPM_PATH)
-    artifact: vscode-linux-rpm-$(VSCODE_ARCH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_rpm-package
     displayName: Publish rpm package
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - publish: $(TARBALL_PATH)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
+    displayName: Publish client archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
-    artifact: vscode-server-linux-$(VSCODE_ARCH)
+    artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
-    artifact: vscode-server-linux-$(VSCODE_ARCH)-web
+    artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
