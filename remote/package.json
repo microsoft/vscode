@@ -33,5 +33,8 @@
     "vscode-windows-ca-certs": "0.3.0",
     "vscode-windows-registry": "1.0.2",
     "windows-process-tree": "0.2.4"
+  },
+  "resolutions": {
+    "mkdirp": "^1.0.4"
   }
 }
