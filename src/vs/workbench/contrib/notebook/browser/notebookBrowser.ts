@@ -367,6 +367,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
 	isDisposed: boolean;
+	dispose(): void;
 
 	getId(): string;
 	getDomNode(): HTMLElement;
