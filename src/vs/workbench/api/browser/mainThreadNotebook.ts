@@ -260,7 +260,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				return;
 			}
 			const disposableStore = new DisposableStore();
-			disposableStore.add(textModel!.onDidChangeContent(event => {
+			disposableStore.add(textModel.onDidChangeContent(event => {
 				const dto = event.rawEvents.map(e => {
 					const data =
 						e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
@@ -285,18 +285,14 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					return data;
 				});
 
-				/**
-				 * TODO@rebornix, @jrieken
-				 * When a document is modified, it will trigger onDidChangeContent events.
-				 * The first event listener is this one, which doesn't know if the text model is dirty or not. It can ask `workingCopyService` but get the wrong result
-				 * The second event listener is `NotebookEditorModel`, which will then set `isDirty` to `true`.
-				 * Since `e.transient` decides if the model should be dirty or not, we will use the same logic here.
-				 */
-				const hasNonTransientEvent = event.rawEvents.find(e => !e.transient);
-				this._proxy.$acceptModelChanged(textModel.uri, {
-					rawEvents: dto,
-					versionId: event.versionId
-				}, !!hasNonTransientEvent);
+				// using the model resolver service to know if the model is dirty or not.
+				// assuming this is the first listener it can mean that at first the model
+				// is marked as dirty and that another event is fired
+				this._proxy.$acceptModelChanged(
+					textModel.uri,
+					{ rawEvents: dto, versionId: event.versionId },
+					this._notebookEditorModelResolverService.isDirty(textModel.uri)
+				);
 
 				const hasDocumentMetadataChangeEvent = event.rawEvents.find(e => e.kind === NotebookCellsChangeType.ChangeDocumentMetadata);
 				if (!!hasDocumentMetadataChangeEvent) {
