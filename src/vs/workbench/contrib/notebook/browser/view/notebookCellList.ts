@@ -298,9 +298,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			// convert model selections to view selections
-			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.cellAt(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
-			const primary = cellRangesToIndexes([model.getFocus()]).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			const primary = cellRangesToIndexes([model.getFocus()]).map(index => model.cellAt(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 
 			if (primary.length) {
 				this.setFocus(primary, undefined, true);

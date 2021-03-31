@@ -38,8 +38,8 @@ suite('NotebookViewModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				assert.strictEqual(viewModel.viewCells[0].metadata?.editable, true);
-				assert.strictEqual(viewModel.viewCells[1].metadata?.editable, false);
+				assert.strictEqual(viewModel.cellAt(0).metadata?.editable, true);
+				assert.strictEqual(viewModel.cellAt(1).metadata?.editable, false);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, null, []);
 				assert.strictEqual(viewModel.viewCells.length, 3);
@@ -65,20 +65,20 @@ suite('NotebookViewModel', () => {
 				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(0, 1, 0, true);
 				// no-op
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(1).getText(), '//b');
 
 				viewModel.moveCellToIdx(0, 1, 1, true);
 				// b, a, c
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '//c');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(1).getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(2).getText(), '//c');
 
 				viewModel.moveCellToIdx(0, 1, 2, true);
 				// a, c, b
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//a');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//c');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(1).getText(), '//c');
+				assert.strictEqual(viewModel.cellAt(2).getText(), '//b');
 			}
 		);
 	});
@@ -94,14 +94,14 @@ suite('NotebookViewModel', () => {
 				const viewModel = editor.viewModel;
 				viewModel.moveCellToIdx(1, 1, 0, true);
 				// b, a, c
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//b');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(1).getText(), '//a');
 
 				viewModel.moveCellToIdx(2, 1, 0, true);
 				// c, b, a
-				assert.strictEqual(viewModel.viewCells[0].getText(), '//c');
-				assert.strictEqual(viewModel.viewCells[1].getText(), '//b');
-				assert.strictEqual(viewModel.viewCells[2].getText(), '//a');
+				assert.strictEqual(viewModel.cellAt(0).getText(), '//c');
+				assert.strictEqual(viewModel.cellAt(1).getText(), '//b');
+				assert.strictEqual(viewModel.cellAt(2).getText(), '//a');
 			}
 		);
 	});
@@ -114,8 +114,8 @@ suite('NotebookViewModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const firstViewCell = viewModel.viewCells[0];
-				const lastViewCell = viewModel.viewCells[viewModel.viewCells.length - 1];
+				const firstViewCell = viewModel.cellAt(0);
+				const lastViewCell = viewModel.cellAt(viewModel.viewCells.length - 1);
 
 				const insertIndex = viewModel.getCellIndex(firstViewCell) + 1;
 				const cell = viewModel.createCell(insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
@@ -148,61 +148,61 @@ suite('NotebookViewModel', () => {
 
 				const defaults = { hasExecutionOrder: true };
 
-				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(0).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(1).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(2).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(3).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(4).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
 				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
 
-				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(0).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[1].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(1).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[2].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(2).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[3].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(3).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
-				assert.deepStrictEqual(viewModel.viewCells[4].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(4).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});
 
 				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
 
-				assert.deepStrictEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
+				assert.deepStrictEqual(viewModel.cellAt(0).getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 					...defaults
 				});

@@ -192,7 +192,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private get selectionHandles() {
 		const handlesSet = new Set<number>();
 		const handles: number[] = [];
-		cellRangesToIndexes(this._selectionCollection.selections).map(index => this.getCellByIndex(index)).forEach(cell => {
+		cellRangesToIndexes(this._selectionCollection.selections).map(index => this.cellAt(index)).forEach(cell => {
 			if (cell && !handlesSet.has(cell.handle)) {
 				handles.push(cell.handle);
 			}
@@ -502,7 +502,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
-	getCellByIndex(index: number) {
+	cellAt(index: number) {
 		return this._viewCells[index];
 	}
 

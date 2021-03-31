@@ -440,7 +440,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 				|| selection.start === 0 && direction === 'above'
 			) {
 				if (containFocus) {
-					cell = viewModel.getCellByIndex(focus.start);
+					cell = viewModel.cellAt(focus.start);
 				}
 
 				cells.push(...viewModel.viewCells.slice(selection.start, selection.end));
