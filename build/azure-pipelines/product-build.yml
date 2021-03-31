@@ -301,32 +301,32 @@ stages:
               steps:
                 - template: darwin/product-build-darwin-sign.yml
 
-  - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
-    - stage: Mooncake
+  # - ${{ if and(eq(variables['VSCODE_PUBLISH'], true), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}:
+  #   - stage: Mooncake
+  #     dependsOn:
+  #       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
+  #         - Windows
+  #       - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
+  #         - Linux
+  #       - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
+  #         - macOS
+  #     condition: succeededOrFailed()
+  #     pool:
+  #       vmImage: "Ubuntu-18.04"
+  #     jobs:
+  #       - job: SyncMooncake
+  #         displayName: Sync Mooncake
+  #         steps:
+  #           - template: sync-mooncake.yml
+
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
+    - stage: Release
       dependsOn:
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
-          - Windows
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
-          - Linux
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
-          - macOS
-      condition: succeededOrFailed()
+        - Compile
       pool:
         vmImage: "Ubuntu-18.04"
       jobs:
-        - job: SyncMooncake
-          displayName: Sync Mooncake
+        - job: ReleaseBuild
+          displayName: Release Build
           steps:
-            - template: sync-mooncake.yml
-
-  # - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true)))) }}:
-  - stage: Release
-    dependsOn:
-      - Compile
-    pool:
-      vmImage: "Ubuntu-18.04"
-    jobs:
-      - job: ReleaseBuild
-        displayName: Release Build
-        steps:
-          - template: product-release.yml
+            - template: product-release.yml
