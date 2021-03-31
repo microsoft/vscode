@@ -25,6 +25,5 @@ export interface ISandboxConfiguration {
 
 	nodeCachedDataDir?: string;
 
-	extensionDevelopmentPath?: string[];
-	extensionTestsPath?: string;
+	forceEnableDeveloperKeybindings?: boolean;
 }

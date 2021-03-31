@@ -871,6 +871,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			release: release()
 		};
 
+		// Developer tools
+		configuration.forceEnableDeveloperKeybindings = !!((process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath);
+
 		// Store into config object URL
 		this.configObjectUrl.update(configuration);
 	}

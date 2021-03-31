@@ -40,7 +40,7 @@
 	 * 	canModifyDOM?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
 	 * 	beforeLoaderConfig?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration, loaderConfig: object) => void,
 	 *  beforeRequire?: () => void
-	 * }} options
+	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
 		performance.mark('code/willWaitForWindowConfig');
@@ -50,20 +50,20 @@
 
 		// Error handler
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
-			onUnexpectedError(error, enableDeveloperTools);
+			onUnexpectedError(error, enableDeveloperKeybindings);
 		});
 
 		// Developer tools
-		const enableDeveloperTools = (safeProcess.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
-		let developerToolsUnbind;
-		if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-			developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
+		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || configuration.forceEnableDeveloperKeybindings || options?.forceEnableDeveloperKeybindings;
+		let developerDeveloperKeybindingsDisposable;
+		if (enableDeveloperKeybindings) {
+			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(options?.disallowReloadKeybinding);
 		}
 
 		// Enable ASAR support
 		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
-		if (options && typeof options.canModifyDOM === 'function') {
+		if (typeof options?.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
 
@@ -140,7 +140,7 @@
 			};
 		}
 
-		if (options && typeof options.beforeLoaderConfig === 'function') {
+		if (typeof options?.beforeLoaderConfig === 'function') {
 			options.beforeLoaderConfig(configuration, loaderConfig);
 		}
 
@@ -152,7 +152,7 @@
 			});
 		}
 
-		if (options && typeof options.beforeRequire === 'function') {
+		if (typeof options?.beforeRequire === 'function') {
 			options.beforeRequire();
 		}
 
@@ -171,12 +171,12 @@
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 
-					if (developerToolsUnbind && options && options.removeDeveloperKeybindingsAfterLoad) {
-						developerToolsUnbind();
+					if (developerDeveloperKeybindingsDisposable && options?.removeDeveloperKeybindingsAfterLoad) {
+						developerDeveloperKeybindingsDisposable();
 					}
 				}
 			} catch (error) {
-				onUnexpectedError(error, enableDeveloperTools);
+				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
 		}, onUnexpectedError);
 	}
