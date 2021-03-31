@@ -268,9 +268,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 			if (workspaceFolders.length === 1 && workspaceFolders[0].uri.scheme === Schemas.file) {
 				const { parentPath } = splitName(workspaceFolders[0].uri.fsPath);
+				const { name } = splitName(parentPath);
 				if (parentPath) {
 					trustChoiceWithMenu.menu.push({
-						label: localize('trustParentButton', "Trust Parent"),
+						label: localize('trustParentButton', "Trust All in {0}", name),
 						run: () => {
 							setTrustState(WorkspaceTrustState.Trusted, [URI.file(parentPath)]);
 						}
