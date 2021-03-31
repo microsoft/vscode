@@ -1110,6 +1110,10 @@ var requirejs = (function() {
 	}
 
 	updateMarkdownScrollTop(items: { id: string, top: number }[]) {
+		if (this._disposed || !items.length) {
+			return;
+		}
+
 		this._sendMessageToWebview({
 			type: 'view-scroll-markdown',
 			cells: items
