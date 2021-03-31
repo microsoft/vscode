@@ -18,13 +18,11 @@ steps:
       # VERSION=`node -p "require(\"./package.json\").version"`
       # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
       #   node build/azure-pipelines/common/createBuild.js $VERSION
+
       echo 'we would create a build here...'
     displayName: Create build
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - task: Delay@1
-    inputs:
-      delayForMinutes: 5
+  - pwsh: Start-Sleep -Seconds 600
 
   - pwsh: |
       $set = [System.Collections.Generic.HashSet[string]]::new()
@@ -56,9 +54,11 @@ steps:
       # (cd build ; yarn)
 
       # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      # node build/azure-pipelines/common/releaseBuild.js
+      # AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
+      # MOONCAKE_STORAGE_ACCESS_KEY="$(vscode-mooncake-storage-key)" \
+      # node build/azure-pipelines/common/sync-mooncake.js "$VSCODE_QUALITY"
 
-      echo 'we would release the build here...'
+      echo 'we would sync mooncake'
 
   - script: |
       # set -e
@@ -66,8 +66,7 @@ steps:
       # (cd build ; yarn)
 
       # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      # AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      # MOONCAKE_STORAGE_ACCESS_KEY="$(vscode-mooncake-storage-key)" \
-      # node build/azure-pipelines/common/sync-mooncake.js "$VSCODE_QUALITY"
+      # node build/azure-pipelines/common/releaseBuild.js
 
-      echo 'we would sync mooncake'
+      echo 'we would release the build here...'
+    condition: and(succeeded(), or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))))
