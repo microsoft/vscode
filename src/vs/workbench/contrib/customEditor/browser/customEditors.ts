@@ -199,7 +199,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		});
 	}
 
-	private getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined {
+	public getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined {
 		return this._editorCapabilities.get(viewType);
 	}
 
