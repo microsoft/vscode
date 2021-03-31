@@ -198,6 +198,7 @@ export class CellOutputElement extends Disposable {
 					height: height
 				};
 
+				this._validateFinalOutputHeight(true);
 				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
 				this.relayoutCell();
 			}
@@ -321,11 +322,11 @@ export class CellOutputElement extends Disposable {
 
 		if (synchronous) {
 			this.viewCell.updateOutputMinHeight(0);
-			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_sync');
+			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputElement#_validateFinalOutputHeight_sync');
 		} else {
 			this._outputHeightTimer = setTimeout(() => {
 				this.viewCell.updateOutputMinHeight(0);
-				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_async_1000');
+				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputElement#_validateFinalOutputHeight_async_1000');
 			}, 1000);
 		}
 	}
