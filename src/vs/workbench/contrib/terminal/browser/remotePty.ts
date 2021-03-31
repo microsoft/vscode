@@ -48,9 +48,6 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		super();
 		this._startBarrier = new Barrier();
 	}
-	processBinary(data: string): void {
-		throw new Error('Method not implemented.');
-	}
 
 	public async start(): Promise<ITerminalLaunchError | undefined> {
 		// Fetch the environment to check shell permissions
@@ -123,7 +120,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleData(e: string | IProcessDataEvent) {
 		this._onProcessData.fire(e);
 	}
-	handleBinary(e: string) {
+	processBinary(e: string) {
 		this._onProcessBinary.fire(e);
 	}
 	handleExit(e: number | undefined) {
