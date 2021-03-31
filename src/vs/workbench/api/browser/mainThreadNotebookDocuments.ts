@@ -14,7 +14,7 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainThreadNotebookDocumentsShape } from '../common/extHost.protocol';
-import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditor';
+import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 

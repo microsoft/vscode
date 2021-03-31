@@ -7,7 +7,7 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { getNotebookEditorFromEditorPane, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentShowOptions, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
-import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditor';
+import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { ICellEditOperation, ICellRange, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { URI, UriComponents } from 'vs/base/common/uri';
