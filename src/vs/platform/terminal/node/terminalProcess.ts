@@ -44,6 +44,11 @@ const enum ShutdownConstants {
 	MaximumShutdownTime = 5000
 }
 
+interface IWriteObject {
+	data: string,
+	isBinary: boolean
+}
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -57,7 +62,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _isDisposed: boolean = false;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
-	private _writeQueue: string[] = [];
+	private _writeQueue: IWriteObject[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
@@ -316,22 +321,26 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return;
 		}
 		for (let i = 0; i <= Math.floor(data.length / WRITE_MAX_CHUNK_SIZE); i++) {
-			this._writeQueue.push(data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE));
+			const obj = {
+				isBinary: isBinary || false,
+				data: data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE)
+			};
+			this._writeQueue.push(obj);
 		}
-		this._startWrite(isBinary);
+		this._startWrite();
 	}
 
 	public processBinary(data: string): void {
 		this.input(data, true);
 	}
 
-	private _startWrite(isBinary?: boolean): void {
+	private _startWrite(): void {
 		// Don't write if it's already queued of is there is nothing to write
 		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
 			return;
 		}
 
-		this._doWrite(isBinary);
+		this._doWrite();
 
 		// Don't queue more writes if the queue is empty
 		if (this._writeQueue.length === 0) {
@@ -346,15 +355,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}, WRITE_INTERVAL_MS);
 	}
 
-	private _doWrite(isBinary?: boolean): void {
-		console.info('writing binary', isBinary);
-		const data = this._writeQueue.shift()!;
-		if (isBinary) {
-			this._logService.info('IPty#write (binary)', `${data.length} characters`);
-			this._ptyProcess!.write(Buffer.from(data, 'binary') as any);
+	private _doWrite(): void {
+		const object = this._writeQueue.shift()!;
+		if (object.isBinary) {
+			this._logService.info('IPty#write (binary)', `${object.data.length} characters`);
+			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
-			this._logService.info('IPty#write', `${data.length} characters`);
-			this._ptyProcess!.write(data);
+			this._logService.info('IPty#write', `${object.data.length} characters`);
+			this._ptyProcess!.write(object.data);
 		}
 	}
 

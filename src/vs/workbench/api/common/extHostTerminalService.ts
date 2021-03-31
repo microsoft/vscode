@@ -227,7 +227,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	processBinary(data: string) {
-		throw new Error('not implemented');
+		// No-op, processBinary is not supported in extextion owned terminals.
 	}
 
 	acknowledgeDataEvent(charCount: number): void {

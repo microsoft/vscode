@@ -346,6 +346,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitLatency(latency: number): void;
 
 	onInput: Event<string>;
+	onBinary: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;

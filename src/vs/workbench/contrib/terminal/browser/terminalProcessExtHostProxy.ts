@@ -30,6 +30,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onStart: Event<void> = this._onStart.event;
 	private readonly _onInput = this._register(new Emitter<string>());
 	public readonly onInput: Event<string> = this._onInput.event;
+	private readonly _onBinary = this._register(new Emitter<string>());
+	public readonly onBinary: Event<string> = this._onBinary.event;
 	private readonly _onResize: Emitter<{ cols: number, rows: number }> = this._register(new Emitter<{ cols: number, rows: number }>());
 	public readonly onResize: Event<{ cols: number, rows: number }> = this._onResize.event;
 	private readonly _onAcknowledgeDataEvent = this._register(new Emitter<number>());
@@ -44,6 +46,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	public readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
 	public readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
+
 
 	private _pendingInitialCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
 	private _pendingCwdRequests: ((value: string | PromiseLike<string>) => void)[] = [];
@@ -102,10 +105,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		}
 	}
 
-	processBinary(data: string): void {
-		throw new Error('not implemented');
-	}
-
 	public async start(): Promise<ITerminalLaunchError | undefined> {
 		if (!this._shellLaunchConfig.isExtensionCustomPtyTerminal) {
 			throw new Error('Attempt to start an ext host process that is not an extension terminal');
@@ -127,6 +126,11 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 
 	public acknowledgeDataEvent(): void {
 		// Flow control is disabled for extension terminals
+	}
+
+	public processBinary(data: string): void {
+		// Disabled for extension terminals
+		this._onBinary.fire(data);
 	}
 
 	public getInitialCwd(): Promise<string> {
