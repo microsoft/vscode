@@ -1888,7 +1888,7 @@ export interface INotebookKernelInfoDto2 {
 	implementsInterrupt?: boolean;
 }
 
-export interface ExtHostNotebookShape {
+export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape, ExtHostNotebookDocumentsShape, ExtHostNotebookEditorsShape {
 	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
 	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelFriendlyId: string | undefined }): void;
 	$provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
@@ -1904,12 +1904,20 @@ export interface ExtHostNotebookShape {
 
 	$dataToNotebook(handle: number, data: VSBuffer): Promise<NotebookDataDto>;
 	$notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer>;
+}
 
+export interface ExtHostNotebookDocumentsAndEditorsShape {
+	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
+}
+
+export interface ExtHostNotebookDocumentsShape {
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
-	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
+}
+
+export interface ExtHostNotebookEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
 }
 
