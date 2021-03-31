@@ -67,7 +67,6 @@
 	/**
 	 * @returns {{
 	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => unknown, options: object) => unknown,
-	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals')
 	 * }}
 	 */
 	function bootstrapWindowLib() {

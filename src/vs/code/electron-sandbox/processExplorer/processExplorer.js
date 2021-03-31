@@ -11,11 +11,13 @@
 
 	// Load process explorer into window
 	bootstrapWindow.load(['vs/code/electron-sandbox/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
-		processExplorer.startup(configuration.windowId, configuration.data);
+		processExplorer.startup(configuration);
 	}, { forceEnableDeveloperKeybindings: true });
 
 	/**
-	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => unknown, options?: object) => unknown }}
+	 * @returns {{
+	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown, options?: { forceEnableDeveloperKeybindings?: boolean }) => unknown
+	 * }}
 	 */
 	function bootstrapWindowLib() {
 		// @ts-ignore (defined in bootstrap-window.js)

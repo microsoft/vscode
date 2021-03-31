@@ -32,8 +32,15 @@
 
 	/**
 	 * @param {string[]} modulePaths
-	 * @param {(result: unknown, configuration: object) => Promise<unknown> | undefined} resultCallback
-	 * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
+	 * @param {(result: unknown, configuration: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {{
+	 * 	forceEnableDeveloperKeybindings?: boolean,
+	 * 	disallowReloadKeybinding?: boolean,
+	 * 	removeDeveloperKeybindingsAfterLoad?: boolean,
+	 * 	canModifyDOM?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
+	 * 	beforeLoaderConfig?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration, loaderConfig: object) => void,
+	 *  beforeRequire?: () => void
+	 * }} options
 	 */
 	async function load(modulePaths, resultCallback, options) {
 		performance.mark('code/willWaitForWindowConfig');

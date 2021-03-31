@@ -15,7 +15,9 @@
 	}, { forceEnableDeveloperKeybindings: true, disallowReloadKeybinding: true });
 
 	/**
-	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => unknown, options?: object) => unknown }}
+	 * @returns {{
+	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown, options?: { forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean }) => unknown
+	 * }}
 	 */
 	function bootstrapWindowLib() {
 		// @ts-ignore (defined in bootstrap-window.js)
