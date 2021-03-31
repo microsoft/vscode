@@ -290,7 +290,9 @@ export class CellOutputElement extends Disposable {
 			}
 
 			viewModel.pickedMimeType = pick;
+			this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 			this.render(index, nextElement as HTMLElement);
+			this._validateFinalOutputHeight(false);
 			this.relayoutCell();
 		}
 	}
@@ -310,8 +312,36 @@ export class CellOutputElement extends Disposable {
 		return nls.localize('builtinRenderInfo', "built-in");
 	}
 
+	private _outputHeightTimer: any = null;
+
+	private _validateFinalOutputHeight(synchronous: boolean) {
+		if (this._outputHeightTimer !== null) {
+			clearTimeout(this._outputHeightTimer);
+		}
+
+		if (synchronous) {
+			this.viewCell.updateOutputMinHeight(0);
+			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_sync');
+		} else {
+			this._outputHeightTimer = setTimeout(() => {
+				this.viewCell.updateOutputMinHeight(0);
+				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_async_1000');
+			}, 1000);
+		}
+	}
+
 	private relayoutCell() {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+	}
+
+	dispose() {
+		this.viewCell.updateOutputMinHeight(0);
+
+		if (this._outputHeightTimer) {
+			clearTimeout(this._outputHeightTimer);
+		}
+
+		super.dispose();
 	}
 }
 
