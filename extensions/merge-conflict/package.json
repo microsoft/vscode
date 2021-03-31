@@ -71,14 +71,14 @@
         "title": "%command.next%",
         "original": "Next Conflict",
         "command": "merge-conflict.next",
-        "icon": "$(codicon/arrow-down)"
+        "icon": "$(arrow-down)"
       },
       {
         "category": "%command.category%",
         "title": "%command.previous%",
         "original": "Previous Conflict",
         "command": "merge-conflict.previous",
-        "icon": "$(codicon/arrow-up)"
+        "icon": "$(arrow-up)"
       },
       {
         "category": "%command.category%",
@@ -103,12 +103,12 @@
       "editor/title": [
         {
           "command": "merge-conflict.previous",
-          "group": "navigation",
+          "group": "navigation@1",
           "when": "mergeConflictsCount && mergeConflictsCount != 0"
         },
         {
           "command": "merge-conflict.next",
-          "group": "navigation",
+          "group": "navigation@2",
           "when": "mergeConflictsCount && mergeConflictsCount != 0"
         }
       ]
