@@ -1066,10 +1066,22 @@ declare module 'vscode' {
 		// todo@API should we really expose this?
 		readonly viewType: string;
 
-		// todo@API add cellAt(index): NotebookCell
-		// todo@API add cellCount: number;
+		// todo@API cellsAt(range)? getCell(index>)?
 		/** @deprecated Use `getCells(<...>) instead */
 		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * The number of cells in the notebook document.
+		 */
+		readonly cellCount: number;
+
+		/**
+		 * Return the cell at the specified index. The index will be adjusted to the notebook.
+		 *
+		 * @param index - The index of the cell to retrieve.
+		 * @return A [cell](#NotebookCell).
+		 */
+		cellAt(index: number): NotebookCell;
 
 		/**
 		 * Get the cells of this notebook. A subset can be retrieved by providing

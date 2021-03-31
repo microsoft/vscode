@@ -179,8 +179,12 @@ export class ExtHostNotebookDocument extends Disposable {
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get isClosed() { return that._disposed; },
 				get metadata() { return that._metadata; },
-				set metadata(_value: Required<vscode.NotebookDocumentMetadata>) { throw new Error('Use WorkspaceEdit to update metadata.'); },
 				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
+				get cellCount() { return that._cells.length; },
+				cellAt(index) {
+					index = that._validateIndex(index);
+					return that._cells[index].cell;
+				},
 				getCells(range) {
 					const cells = range ? that._getCells(range) : that._cells;
 					return cells.map(cell => cell.cell);
@@ -229,6 +233,16 @@ export class ExtHostNotebookDocument extends Disposable {
 			} else if (rawEvent.kind === NotebookCellsChangeType.ChangeCellMetadata) {
 				this._changeCellMetadata(rawEvent.index, rawEvent.metadata);
 			}
+		}
+	}
+
+	private _validateIndex(index: number): number {
+		if (index < 0) {
+			return 0;
+		} else if (index >= this._cells.length) {
+			return this._cells.length - 1;
+		} else {
+			return index;
 		}
 	}
 
