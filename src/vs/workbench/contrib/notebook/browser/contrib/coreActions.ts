@@ -322,11 +322,9 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 
 			const widget = getWidgetFromUri(accessor, uri);
 			if (widget) {
-				const cells = widget.viewModel.viewCells;
-
 				return {
 					notebookEditor: widget,
-					cell: cells[context.start]
+					cell: widget.viewModel.cellAt(context.start)
 				};
 			} else {
 				throw new Error(`There is no editor opened for resource ${uri}`);
@@ -339,12 +337,10 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 			return;
 		}
 
-		const cells = activeEditorContext.notebookEditor.viewModel.viewCells;
-
 		// TODO@rebornix, support multiple cells
 		return {
 			notebookEditor: activeEditorContext.notebookEditor,
-			cell: cells[context.start]
+			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)
 		};
 	}
 
@@ -410,11 +406,9 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 			if (uri) {
 				const widget = getWidgetFromUri(accessor, uri);
 				if (widget) {
-					const cells = widget.viewModel.viewCells;
-
 					return {
 						notebookEditor: widget,
-						cell: cells[context.start]
+						cell: widget.viewModel.cellAt(context.start)
 					};
 				}
 			}
@@ -426,12 +420,10 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 			return;
 		}
 
-		const cells = activeEditorContext.notebookEditor.viewModel.viewCells;
-
 		// TODO@rebornix, support multiple cells
 		return {
 			notebookEditor: activeEditorContext.notebookEditor,
-			cell: cells[context.start]
+			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)
 		};
 	}
 
@@ -482,7 +474,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 		const executionP = runCell(accessor, context);
 
 		// Try to select below, fall back on inserting
-		const nextCell = context.notebookEditor.viewModel.viewCells[idx + 1];
+		const nextCell = context.notebookEditor.viewModel.cellAt(idx + 1);
 		if (nextCell) {
 			context.notebookEditor.focusNotebookCell(nextCell, 'container');
 		} else {
@@ -740,7 +732,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 			}]
 		}
 	], true, undefined, () => undefined, undefined, true);
-	const newCell = notebookEditor.viewModel.viewCells[idx];
+	const newCell = notebookEditor.viewModel.cellAt(idx);
 
 	if (!newCell) {
 		return null;
@@ -1129,7 +1121,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newCell = editor.viewModel.viewCells[idx + 1];
+		const newCell = editor.viewModel.cellAt(idx + 1);
 
 		if (!newCell) {
 			return;
@@ -1173,7 +1165,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newCell = editor.viewModel.viewCells[idx - 1];
+		const newCell = editor.viewModel.cellAt(idx - 1);
 
 		if (!newCell) {
 			return;
@@ -1248,7 +1240,7 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		const firstCell = editor.viewModel.viewCells[0];
+		const firstCell = editor.viewModel.cellAt(0);
 		editor.focusNotebookCell(firstCell, 'container');
 	}
 });
@@ -1273,7 +1265,7 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		const firstCell = editor.viewModel.viewCells[editor.viewModel.length - 1];
+		const firstCell = editor.viewModel.cellAt(editor.viewModel.length - 1);
 		editor.focusNotebookCell(firstCell, 'container');
 	}
 });
@@ -1388,12 +1380,10 @@ export class ChangeCellLanguageAction extends NotebookCellAction<ICellRange> {
 			return;
 		}
 
-		const cells = activeEditorContext.notebookEditor.viewModel.viewCells;
-
 		// TODO@rebornix, support multiple cells
 		return {
 			notebookEditor: activeEditorContext.notebookEditor,
-			cell: cells[context.start],
+			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start),
 			language
 		};
 	}
