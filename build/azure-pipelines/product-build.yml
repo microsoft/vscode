@@ -322,16 +322,11 @@ stages:
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), or(eq(parameters.VSCODE_RELEASE, true), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true)))) }}:
     - stage: Release
       dependsOn:
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
-          - Windows
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_LINUX'], true) }}:
-          - Linux
-        - ${{ if eq(variables['VSCODE_BUILD_STAGE_MACOS'], true) }}:
-          - macOS
+        - Compile
       pool:
         vmImage: "Ubuntu-18.04"
       jobs:
         - job: ReleaseBuild
           displayName: Release Build
           steps:
-            - template: release.yml
+            - template: product-release.yml
