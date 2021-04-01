@@ -94,11 +94,11 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private enableBadgeAndStatusBar() {
 		const disposable = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
 			if (e.find(view => view.views.find(viewDescriptor => viewDescriptor.id === TUNNEL_VIEW_ID))) {
-				this._register(this.remoteExplorerService.tunnelModel.onForwardPort(() => {
+				this._register(Event.debounce(this.remoteExplorerService.tunnelModel.onForwardPort, (_last, e) => e, 50)(() => {
 					this.updateActivityBadge();
 					this.updateStatusBar();
 				}));
-				this._register(this.remoteExplorerService.tunnelModel.onClosePort(() => {
+				this._register(Event.debounce(this.remoteExplorerService.tunnelModel.onClosePort, (_last, e) => e, 50)(() => {
 					this.updateActivityBadge();
 					this.updateStatusBar();
 				}));
