@@ -208,7 +208,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- trust ---
 
-	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState> {
+	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
 		return this._workspaceTrustService.requestWorkspaceTrust(options);
 	}
 

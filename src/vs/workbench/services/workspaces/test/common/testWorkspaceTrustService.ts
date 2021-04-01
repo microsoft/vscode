@@ -22,7 +22,7 @@ export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 		return true;
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState> {
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
 		return Promise.resolve(WorkspaceTrustState.Trusted);
 	}
 }
