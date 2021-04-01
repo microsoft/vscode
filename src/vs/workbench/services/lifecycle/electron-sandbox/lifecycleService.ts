@@ -16,7 +16,7 @@ import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import Severity from 'vs/base/common/severity';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { disposableTimeout } from 'vs/base/common/async';
+import { Promises, disposableTimeout } from 'vs/base/common/async';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -148,13 +148,11 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		this._onWillShutdown.fire({
 			join(promise, id) {
-				if (promise) {
-					joiners.push(promise);
+				joiners.push(promise);
 
-					// Track promise completion
-					pendingJoiners.add(id);
-					promise.finally(() => pendingJoiners.delete(id));
-				}
+				// Track promise completion
+				pendingJoiners.add(id);
+				promise.finally(() => pendingJoiners.delete(id));
 			},
 			reason
 		});
@@ -164,7 +162,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		}, NativeLifecycleService.WILL_SHUTDOWN_WARNING_DELAY);
 
 		try {
-			await Promise.all(joiners);
+			await Promises.settled(joiners);
 		} catch (error) {
 			this.onShutdownError(reason, error);
 		} finally {

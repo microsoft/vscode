@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/sidebarpart';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -307,7 +307,7 @@ class FocusSideBarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusSideBar',
-			title: { value: nls.localize('focusSideBar', "Focus into Side Bar"), original: 'Focus into Side Bar' },
+			title: { value: localize('focusSideBar', "Focus into Side Bar"), original: 'Focus into Side Bar' },
 			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {

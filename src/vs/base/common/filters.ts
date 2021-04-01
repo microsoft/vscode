@@ -365,29 +365,15 @@ export function matchesFuzzy2(pattern: string, word: string): IMatch[] | null {
 	return score ? createMatches(score) : null;
 }
 
-export function anyScore(pattern: string, lowPattern: string, _patternPos: number, word: string, lowWord: string, _wordPos: number): FuzzyScore {
-	const result = fuzzyScore(pattern, lowPattern, 0, word, lowWord, 0, true);
-	if (result) {
-		return result;
-	}
-	let matches = 0;
-	let score = 0;
-	let idx = _wordPos;
-	for (let patternPos = 0; patternPos < lowPattern.length && patternPos < _maxLen; ++patternPos) {
-		const wordPos = lowWord.indexOf(lowPattern.charAt(patternPos), idx);
-		if (wordPos >= 0) {
-			score += 1;
-			matches += 2 ** wordPos;
-			idx = wordPos + 1;
-
-		} else if (matches !== 0) {
-			// once we have started matching things
-			// we need to match the remaining pattern
-			// characters
-			break;
+export function anyScore(pattern: string, lowPattern: string, patternPos: number, word: string, lowWord: string, wordPos: number): FuzzyScore {
+	const max = Math.min(13, pattern.length);
+	for (; patternPos < max; patternPos++) {
+		const result = fuzzyScore(pattern, lowPattern, patternPos, word, lowWord, wordPos, false);
+		if (result) {
+			return result;
 		}
 	}
-	return [score, _wordPos, matches];
+	return [0, wordPos];
 }
 
 //#region --- fuzzyScore ---
@@ -536,9 +522,9 @@ const enum Arrow { Diag = 1, Left = 2, LeftLeft = 3 }
  *
  * 0. the score
  * 1. the offset at which matching started
- * 2. `<match_pos_1>`
- * 3. `<match_pos_2>`
- * 4. `<match_pos_3>` etc
+ * 2. `<match_pos_N>`
+ * 3. `<match_pos_1>`
+ * 4. `<match_pos_0>` etc
  */
 export type FuzzyScore = [score: number, wordStart: number, ...matches: number[]];// [number, number, number];
 
@@ -548,8 +534,8 @@ export namespace FuzzyScore {
 	 */
 	export const Default: FuzzyScore = ([-100, 0]);
 
-	export function isDefault(score?: FuzzyScore): score is [-100, 0, 0] {
-		return !score || (score[0] === -100 && score[1] === 0 && score[2] === 0);
+	export function isDefault(score?: FuzzyScore): score is [-100, 0] {
+		return !score || (score.length === 2 && score[0] === -100 && score[1] === 0);
 	}
 }
 

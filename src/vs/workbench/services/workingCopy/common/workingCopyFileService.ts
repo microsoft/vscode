@@ -5,7 +5,8 @@
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import { AsyncEmitter, IWaitUntil, Promises } from 'vs/base/common/async';
 import { insert } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -164,7 +165,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	create(operations: ICreateFileOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+	create(operations: ICreateFileOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will create a folder and any parent folder that needs to be created.
@@ -175,7 +176,7 @@ export interface IWorkingCopyFileService {
 	 * Note: events will only be emitted for the provided resource, but not any
 	 * parent folders that are being created as part of the operation.
 	 */
-	createFolder(operations: ICreateOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+	createFolder(operations: ICreateOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will move working copies matching the provided resources and corresponding children
@@ -184,7 +185,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	move(operations: IMoveOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will copy working copies matching the provided resources and corresponding children
@@ -193,7 +194,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	copy(operations: ICopyOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]>;
+	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will delete working copies matching the provided resources and children
@@ -202,7 +203,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	delete(operations: IDeleteOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<void>;
+	delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void>;
 
 	//#endregion
 
@@ -271,22 +272,22 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	//#region File operations
 
-	create(operations: ICreateFileOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
-		return this.doCreateFileOrFolder(operations, true, undoInfo, token);
+	create(operations: ICreateFileOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
+		return this.doCreateFileOrFolder(operations, true, token, undoInfo);
 	}
 
-	createFolder(operations: ICreateOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
-		return this.doCreateFileOrFolder(operations, false, undoInfo, token);
+	createFolder(operations: ICreateOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
+		return this.doCreateFileOrFolder(operations, false, token, undoInfo);
 	}
 
-	async doCreateFileOrFolder(operations: (ICreateFileOperation | ICreateOperation)[], isFile: boolean, undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+	async doCreateFileOrFolder(operations: (ICreateFileOperation | ICreateOperation)[], isFile: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
 		if (operations.length === 0) {
 			return [];
 		}
 
 		// validate create operation before starting
 		if (isFile) {
-			const validateCreates = await Promise.all(operations.map(operation => this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite })));
+			const validateCreates = await Promises.settled(operations.map(operation => this.fileService.canCreateFile(operation.resource, { overwrite: operation.overwrite })));
 			const error = validateCreates.find(validateCreate => validateCreate instanceof Error);
 			if (error instanceof Error) {
 				throw error;
@@ -299,39 +300,39 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		// before events
 		const event = { correlationId: this.correlationIds++, operation: FileOperation.CREATE, files };
-		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 		// now actually create on disk
 		let stats: IFileStatWithMetadata[];
 		try {
 			if (isFile) {
-				stats = await Promise.all(operations.map(operation => this.fileService.createFile(operation.resource, (operation as ICreateFileOperation).contents, { overwrite: operation.overwrite })));
+				stats = await Promises.settled(operations.map(operation => this.fileService.createFile(operation.resource, (operation as ICreateFileOperation).contents, { overwrite: operation.overwrite })));
 			} else {
-				stats = await Promise.all(operations.map(operation => this.fileService.createFolder(operation.resource)));
+				stats = await Promises.settled(operations.map(operation => this.fileService.createFolder(operation.resource)));
 			}
 		} catch (error) {
 
 			// error event
-			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 			throw error;
 		}
 
 		// after event
-		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 		return stats;
 	}
 
-	async move(operations: IMoveOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(operations, true, undoInfo, token);
+	async move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
+		return this.doMoveOrCopy(operations, true, token, undoInfo);
 	}
 
-	async copy(operations: ICopyOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
-		return this.doMoveOrCopy(operations, false, undoInfo, token);
+	async copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
+		return this.doMoveOrCopy(operations, false, token, undoInfo);
 	}
 
-	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<IFileStatWithMetadata[]> {
+	private async doMoveOrCopy(operations: IMoveOperation[] | ICopyOperation[], move: boolean, token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
 		const stats: IFileStatWithMetadata[] = [];
 
 		// validate move/copy operation before starting
@@ -348,7 +349,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		// before event
 		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, files };
-		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 		try {
 			for (const { file: { source, target }, overwrite } of operations) {
@@ -358,7 +359,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				// - copy: revert target (if any)
 				if (!this.uriIdentityService.extUri.isEqual(source, target)) {
 					const dirtyWorkingCopies = (move ? [...this.getDirty(source), ...this.getDirty(target)] : this.getDirty(target));
-					await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+					await Promises.settled(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 				}
 
 				// now we can rename the source to target via file operation
@@ -371,18 +372,18 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		} catch (error) {
 
 			// error event
-			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 			throw error;
 		}
 
 		// after event
-		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 		return stats;
 	}
 
-	async delete(operations: IDeleteOperation[], undoInfo?: IFileOperationUndoRedoInfo, token?: CancellationToken): Promise<void> {
+	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> {
 
 		// validate delete operation before starting
 		for (const operation of operations) {
@@ -398,14 +399,14 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		// before events
 		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, files };
-		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 		// check for any existing dirty working copies for the resource
 		// and do a soft revert before deleting to be able to close
 		// any opened editor with these working copies
 		for (const operation of operations) {
 			const dirtyWorkingCopies = this.getDirty(operation.resource);
-			await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+			await Promises.settled(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
 		}
 
 		// now actually delete from disk
@@ -416,13 +417,13 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		} catch (error) {
 
 			// error event
-			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+			await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 
 			throw error;
 		}
 
 		// after event
-		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 	}
 
 	//#endregion
@@ -436,7 +437,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.fileOperationParticipants.addFileOperationParticipant(participant);
 	}
 
-	private runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken | undefined): Promise<void> {
+	private runFileOperationParticipants(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken): Promise<void> {
 		return this.fileOperationParticipants.participate(files, operation, undoInfo, token);
 	}
 
@@ -449,6 +450,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 	registerWorkingCopyProvider(provider: WorkingCopyProvider): IDisposable {
 		const remove = insert(this.workingCopyProviders, provider);
+
 		return toDisposable(remove);
 	}
 
@@ -461,6 +463,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 				}
 			}
 		}
+
 		return Array.from(dirtyWorkingCopies);
 	}
 

@@ -118,7 +118,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			canMoveView: true,
-			collapsed: true,
+			collapsed: false,
 			hideByDefault: true,
 			focusCommand: {
 				id: 'workbench.files.action.focusOpenEditorsView',
@@ -204,7 +204,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			// without causing the animation in the opened editors view to kick in and change scroll position.
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (delegate, group, editor, options): Promise<IEditorPane | null> => {
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService, async (group, delegate): Promise<IEditorPane | undefined> => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {
 					let delay = 0;
@@ -221,9 +221,9 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 				}
 
 				try {
-					return await delegate(group, editor, options);
+					return await delegate();
 				} catch (error) {
-					return null; // ignore
+					return undefined; // ignore
 				} finally {
 					if (openEditorsView) {
 						openEditorsView.setStructuralRefreshDelay(0);
@@ -270,13 +270,20 @@ const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.Vi
  */
 export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
-	name: localize('explore', "Explorer"),
+	title: localize('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,
 	alwaysUseContainerInfo: true,
-	order: 0
-}, ViewContainerLocation.Sidebar, true);
+	order: 0,
+	openCommandActionDescriptor: {
+		id: VIEWLET_ID,
+		title: localize('explore', "Explorer"),
+		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E },
+		order: 0
+	},
+}, ViewContainerLocation.Sidebar, { isDefault: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {

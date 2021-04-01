@@ -16,7 +16,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
@@ -201,6 +201,8 @@ interface IDefaultEditor {
 interface IDefaultLayout {
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
+	/** Forces this layout to be applied even if this isn't the first time the workspace has been opened */
+	readonly force?: boolean;
 }
 
 interface IProductQualityChangeHandler {
@@ -221,6 +223,12 @@ interface ISettingsSyncOptions {
 	 * Is settings sync enabled
 	 */
 	readonly enabled: boolean;
+
+	/**
+	 * Version of extensions sync state.
+	 * Extensions sync state will be reset if version is provided and different from previous version.
+	 */
+	readonly extensionsSyncStateVersion?: string;
 
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
@@ -322,13 +330,6 @@ interface IWorkbenchConstructionOptions {
 	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable `<iframe>` wrapping.
-	 * Defaults to false.
-	 */
-	readonly _wrapWebWorkerExtHostInIframe?: boolean;
-
-	/**
 	 * Support for URL callbacks.
 	 */
 	readonly urlCallbackProvider?: IURLCallbackProvider;
@@ -347,7 +348,7 @@ interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened.
+	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -434,25 +435,15 @@ interface IPerformanceMark {
 interface IWorkbench {
 
 	commands: {
-
 		/**
-		 * Allows to execute a command, either built-in or from extensions.
+		 * @see [executeCommand](#commands.executeCommand)
 		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
 
 	env: {
-
 		/**
-		 * Retrieve performance marks that have been collected during startup. This function
-		 * returns tuples of source and marks. A source is a dedicated context, like
-		 * the renderer or an extension host.
-		 *
-		 * *Note* that marks can be collected on different machines and in different processes
-		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
-		 * across contexts should be taken with a grain of salt.
-		 *
-		 * @returns A promise that resolves to tuples of source and marks.
+		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
 	}
@@ -533,6 +524,26 @@ namespace commands {
 		const workbench = await workbenchPromise;
 
 		return workbench.commands.executeCommand(command, ...args);
+	}
+}
+
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
 	}
 }
 
@@ -620,7 +631,8 @@ export {
 	IDefaultLayout,
 
 	// Env
-	IPerformanceMark
+	IPerformanceMark,
+	env
 };
 
 //#endregion

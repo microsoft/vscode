@@ -38,7 +38,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 // implementation
 
@@ -183,13 +183,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
-		const iconRegistry = getIconRegistry();
+		const iconsStyleSheet = getIconsStyleSheet();
 		function updateAll() {
-			codiconStyleSheet.textContent = iconRegistry.getCSS();
+			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		iconRegistry.onDidChange(() => delayer.schedule());
+		iconsStyleSheet.onDidChange(() => delayer.schedule());
 		delayer.schedule();
 	}
 

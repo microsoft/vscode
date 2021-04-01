@@ -5,9 +5,10 @@
 
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
-import { promisify } from 'util';
+import * as pfs from 'vs/base/node/pfs';
 import * as cp from 'child_process';
 import * as nls from 'vs/nls';
+import * as process from 'vs/base/common/process';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Objects from 'vs/base/common/objects';
@@ -456,8 +457,8 @@ export namespace win32 {
 		}
 
 		async function fileExists(path: string): Promise<boolean> {
-			if (await promisify(fs.exists)(path)) {
-				return !((await promisify(fs.stat)(path)).isDirectory());
+			if (await pfs.exists(path)) {
+				return !((await fs.promises.stat(path)).isDirectory());
 			}
 			return false;
 		}

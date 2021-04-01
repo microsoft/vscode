@@ -6,31 +6,32 @@
 import 'vs/css!./menuEntryActionViewItem';
 import { asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, OS } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
-	fillInActions(groups, target, useAlternativeActions, isPrimaryGroup);
+	fillInActions(groups, target, useAlternativeActions, primaryGroup);
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string, primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean): IDisposable {
 	const groups = menu.getActions(options);
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryGroup);
+	fillInActions(groups, target, false, primaryGroup, primaryMaxCount, shouldInlineSubmenu);
 	return asDisposable(groups);
 }
 
@@ -44,25 +45,68 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 	return disposables;
 }
 
-function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
-	for (let [group, actions] of groups) {
-		if (useAlternativeActions) {
-			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
-		}
 
-		if (isPrimaryGroup(group)) {
-			const to = Array.isArray(target) ? target : target.primary;
+function fillInActions(
+	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; },
+	useAlternativeActions: boolean,
+	primaryGroup = 'navigation',
+	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
+	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false
+): void {
 
-			to.unshift(...actions);
+	let primaryBucket: IAction[];
+	let secondaryBucket: IAction[];
+	if (Array.isArray(target)) {
+		primaryBucket = target;
+		secondaryBucket = target;
+	} else {
+		primaryBucket = target.primary;
+		secondaryBucket = target.secondary;
+	}
+
+	const submenuInfo = new Set<{ group: string, action: SubmenuAction, index: number }>();
+
+	for (const [group, actions] of groups) {
+
+		let target: IAction[];
+		if (group === primaryGroup) {
+			target = primaryBucket;
 		} else {
-			const to = Array.isArray(target) ? target : target.secondary;
-
-			if (to.length > 0) {
-				to.push(new Separator());
+			target = secondaryBucket;
+			if (target.length > 0) {
+				target.push(new Separator());
 			}
-
-			to.push(...actions);
 		}
+
+		for (let action of actions) {
+			if (useAlternativeActions) {
+				action = action instanceof MenuItemAction && action.alt ? action.alt : action;
+			}
+			const newLen = target.push(action);
+			// keep submenu info for later inlining
+			if (action instanceof SubmenuAction) {
+				submenuInfo.add({ group, action, index: newLen - 1 });
+			}
+		}
+	}
+
+	// ask the outside if submenu should be inlined or not. only ask when
+	// there would be enough space
+	for (const { group, action, index } of submenuInfo) {
+		const target = group === primaryGroup ? primaryBucket : secondaryBucket;
+
+		// inlining submenus with length 0 or 1 is easy,
+		// larger submenus need to be checked with the overall limit
+		const submenuActions = action.actions;
+		if ((submenuActions.length <= 1 || target.length + submenuActions.length - 2 <= primaryMaxCount) && shouldInlineSubmenu(action, group, target.length)) {
+			target.splice(index, 1, ...submenuActions);
+		}
+	}
+
+	// overflow items from the primary group into the secondary bucket
+	if (primaryBucket !== secondaryBucket && primaryBucket.length > primaryMaxCount) {
+		const overflow = primaryBucket.splice(primaryMaxCount, primaryBucket.length - primaryMaxCount);
+		secondaryBucket.unshift(...overflow, new Separator());
 	}
 }
 
@@ -144,9 +188,19 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
 			const tooltip = this._commandAction.tooltip || this._commandAction.label;
-			this.label.title = keybindingLabel
+			let title = keybindingLabel
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
+			if (!this._wantsAltCommand && this._action.alt) {
+				const altTooltip = this._action.alt.tooltip || this._action.alt.label;
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._action.alt.id);
+				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
+				const altTitleSection = altKeybindingLabel
+					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
+					: altTooltip;
+				title += `\n[${UILabelProvider.modifierLabels[OS].altKey}] ${altTitleSection}`;
+			}
+			this.label.title = title;
 		}
 	}
 
@@ -178,10 +232,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 		if (ThemeIcon.isThemeIcon(icon)) {
 			// theme icons
-			const iconClass = ThemeIcon.asClassName(icon);
-			label.classList.add(...iconClass.split(' '));
+			const iconClasses = ThemeIcon.asClassNameArray(icon);
+			label.classList.add(...iconClasses);
 			this._itemClassDispose.value = toDisposable(() => {
-				label.classList.remove(...iconClass.split(' '));
+				label.classList.remove(...iconClasses);
 			});
 
 		} else {

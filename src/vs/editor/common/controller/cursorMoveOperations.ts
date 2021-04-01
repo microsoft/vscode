@@ -229,6 +229,47 @@ export class MoveOperations {
 		);
 	}
 
+	private static _isBlankLine(model: ICursorSimpleModel, lineNumber: number): boolean {
+		if (model.getLineFirstNonWhitespaceColumn(lineNumber) === 0) {
+			// empty or contains only whitespace
+			return true;
+		}
+		return false;
+	}
+
+	public static moveToPrevBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
+		let lineNumber = cursor.position.lineNumber;
+
+		// If our current line is blank, move to the previous non-blank line
+		while (lineNumber > 1 && this._isBlankLine(model, lineNumber)) {
+			lineNumber--;
+		}
+
+		// Find the previous blank line
+		while (lineNumber > 1 && !this._isBlankLine(model, lineNumber)) {
+			lineNumber--;
+		}
+
+		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
+	}
+
+	public static moveToNextBlankLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
+		const lineCount = model.getLineCount();
+		let lineNumber = cursor.position.lineNumber;
+
+		// If our current line is blank, move to the next non-blank line
+		while (lineNumber < lineCount && this._isBlankLine(model, lineNumber)) {
+			lineNumber++;
+		}
+
+		// Find the next blank line
+		while (lineNumber < lineCount && !this._isBlankLine(model, lineNumber)) {
+			lineNumber++;
+		}
+
+		return cursor.move(inSelectionMode, lineNumber, model.getLineMinColumn(lineNumber), 0);
+	}
+
 	public static moveToBeginningOfLine(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean): SingleCursorState {
 		let lineNumber = cursor.position.lineNumber;
 		let minColumn = model.getLineMinColumn(lineNumber);

@@ -17,25 +17,8 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-	"dependencies": {
-		"vscode-nls": "^5.0.0"
-	},
-  "contributes": {
-    "configuration": {
-      "title": "Testing",
-      "properties": {
-        "testing.enableCodeLens": {
-          "description": "%config.enableCodeLens%",
-          "type": "boolean",
-          "default": true
-        },
-        "testing.enableProblemDiagnostics": {
-          "description": "%config.enableProblemDiagnostics%",
-          "type": "boolean",
-          "default": false
-        }
-      }
-    }
+  "dependencies": {
+    "vscode-nls": "^5.0.0"
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:testing-editor-contributions ./tsconfig.json"
@@ -44,5 +27,9 @@
     "printWidth": 100,
     "singleQuote": true,
     "trailingComma": "all"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

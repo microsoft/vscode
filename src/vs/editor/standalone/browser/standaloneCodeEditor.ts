@@ -31,6 +31,9 @@ import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Description of an action contribution
@@ -139,9 +142,15 @@ export interface IGlobalEditorOptions {
 	 * Theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 /**
@@ -166,9 +175,15 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	 * Initial theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 	/**
 	 * An URL to open when Ctrl+H (Windows and Linux) or Cmd+H (OSX) is pressed in
 	 * the accessibility help dialog in the editor.
@@ -186,9 +201,15 @@ export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
 	 * Initial theme to be used for rendering.
 	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
-	 * To switch a theme, use `monaco.editor.setTheme`
+	 * To switch a theme, use `monaco.editor.setTheme`.
+	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
 	 */
 	theme?: string;
+	/**
+	 * If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme.
+	 * Defaults to true.
+	 */
+	autoDetectHighContrast?: boolean;
 }
 
 export interface IStandaloneCodeEditor extends ICodeEditor {
@@ -364,13 +385,18 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
 		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
 			themeService.setTheme(options.theme);
+		}
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 		let _model: ITextModel | null | undefined = options.model;
 		delete options.model;
@@ -384,7 +410,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
+			model = createTextModel(modelService, modeService, options.value || '', options.language || 'text/plain', undefined);
 			this._ownsModel = true;
 		} else {
 			model = _model;
@@ -409,6 +435,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		updateConfigurationService(this._configurationService, newOptions, false);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
 		}
 		super.updateOptions(newOptions);
 	}
@@ -456,7 +485,10 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		updateConfigurationService(configurationService, options, true);
 		const themeDomRegistration = (<StandaloneThemeServiceImpl>themeService).registerEditorContainer(domElement);
 		if (typeof options.theme === 'string') {
-			options.theme = themeService.setTheme(options.theme);
+			themeService.setTheme(options.theme);
+		}
+		if (typeof options.autoDetectHighContrast !== 'undefined') {
+			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
 		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
@@ -479,6 +511,9 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		updateConfigurationService(this._configurationService, newOptions, true);
 		if (typeof newOptions.theme === 'string') {
 			this._standaloneThemeService.setTheme(newOptions.theme);
+		}
+		if (typeof newOptions.autoDetectHighContrast !== 'undefined') {
+			this._standaloneThemeService.setAutoDetectHighContrast(Boolean(newOptions.autoDetectHighContrast));
 		}
 		super.updateOptions(newOptions);
 	}
@@ -506,4 +541,27 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	public addAction(descriptor: IActionDescriptor): IDisposable {
 		return this.getModifiedEditor().addAction(descriptor);
 	}
+}
+
+/**
+ * @internal
+ */
+export function createTextModel(modelService: IModelService, modeService: IModeService, value: string, language: string | undefined, uri: URI | undefined): ITextModel {
+	value = value || '';
+	if (!language) {
+		const firstLF = value.indexOf('\n');
+		let firstLine = value;
+		if (firstLF !== -1) {
+			firstLine = value.substring(0, firstLF);
+		}
+		return doCreateModel(modelService, value, modeService.createByFilepathOrFirstLine(uri || null, firstLine), uri);
+	}
+	return doCreateModel(modelService, value, modeService.create(language), uri);
+}
+
+/**
+ * @internal
+ */
+function doCreateModel(modelService: IModelService, value: string, languageSelection: ILanguageSelection, uri: URI | undefined): ITextModel {
+	return modelService.createModel(value, languageSelection, uri);
 }

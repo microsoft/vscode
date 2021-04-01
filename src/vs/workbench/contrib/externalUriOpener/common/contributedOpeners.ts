@@ -11,6 +11,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 
 interface RegisteredExternalOpener {
 	readonly extensionId: string;
+
+	isCurrentlyRegistered: boolean
 }
 
 interface OpenersMemento {
@@ -36,18 +38,35 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 		this._memento = new Memento(ContributedExternalUriOpenersStore.STORAGE_ID, storageService);
 		this._mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		for (const id of Object.keys(this._mementoObject || {})) {
-			this.add(id, this._mementoObject[id].extensionId);
+			this.add(id, this._mementoObject[id].extensionId, { isCurrentlyRegistered: false });
 		}
 
-		this.invalidateOpenersForUninstalledExtension();
+		this.invalidateOpenersOnExtensionsChanged();
 
-		this._register(this._extensionService.onDidChangeExtensions(() => this.invalidateOpenersForUninstalledExtension()));
+		this._register(this._extensionService.onDidChangeExtensions(() => this.invalidateOpenersOnExtensionsChanged()));
+		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this.invalidateOpenersOnExtensionsChanged()));
 	}
 
-	public add(id: string, extensionId: string): void {
-		this._openers.set(id, { extensionId });
+	public didRegisterOpener(id: string, extensionId: string): void {
+		this.add(id, extensionId, {
+			isCurrentlyRegistered: true
+		});
+	}
 
-		this._mementoObject[id] = { extensionId };
+	private add(id: string, extensionId: string, options: { isCurrentlyRegistered: boolean }): void {
+		const existing = this._openers.get(id);
+		if (existing) {
+			existing.isCurrentlyRegistered = existing.isCurrentlyRegistered || options.isCurrentlyRegistered;
+			return;
+		}
+
+		const entry = {
+			extensionId,
+			isCurrentlyRegistered: options.isCurrentlyRegistered
+		};
+		this._openers.set(id, entry);
+
+		this._mementoObject[id] = entry;
 		this._memento.saveMemento();
 
 		this.updateSchema();
@@ -62,11 +81,20 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 		this.updateSchema();
 	}
 
-	private async invalidateOpenersForUninstalledExtension() {
+	private async invalidateOpenersOnExtensionsChanged() {
 		const registeredExtensions = await this._extensionService.getExtensions();
+
 		for (const [id, entry] of this._openers) {
-			const isExtensionRegistered = registeredExtensions.some(r => r.identifier.value === entry.extensionId);
-			if (!isExtensionRegistered) {
+			const extension = registeredExtensions.find(r => r.identifier.value === entry.extensionId);
+			if (extension) {
+				if (!this._extensionService.canRemoveExtension(extension)) {
+					// The extension is running. We should have registered openers at this point
+					if (!entry.isCurrentlyRegistered) {
+						this.delete(id);
+					}
+				}
+			} else {
+				// The opener came from an extension that is no longer enabled/installed
 				this.delete(id);
 			}
 		}

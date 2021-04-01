@@ -133,7 +133,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
-		if (this.titleBarStyle !== 'native') {
+		if (this.titleBarStyle !== 'native' && (!isMacintosh || isWeb)) {
 			if (event.affectsConfiguration('window.menuBarVisibility')) {
 				if (this.currentMenubarVisibility === 'compact') {
 					this.uninstallMenubar();
@@ -144,7 +144,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	protected onMenubarVisibilityChanged(visible: boolean) {
+	protected onMenubarVisibilityChanged(visible: boolean): void {
 		if (isWeb || isWindows || isLinux) {
 			this.adjustTitleMarginToCenter();
 

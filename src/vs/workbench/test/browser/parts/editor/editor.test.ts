@@ -12,14 +12,14 @@ import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput } f
 import { Schemas } from 'vs/base/common/network';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 
-export class TestEditorInputWithPreferredResource extends TestEditorInput implements IEditorInputWithPreferredResource {
-
-	constructor(resource: URI, public preferredResource: URI, typeId: string) {
-		super(resource, typeId);
-	}
-}
-
 suite('Workbench editor', () => {
+
+	class TestEditorInputWithPreferredResource extends TestEditorInput implements IEditorInputWithPreferredResource {
+
+		constructor(resource: URI, public preferredResource: URI, typeId: string) {
+			super(resource, typeId);
+		}
+	}
 
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;

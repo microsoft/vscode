@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IDebugService, VIEWLET_ID, State, BREAKPOINTS_VIEW_ID, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, REPL_VIEW_ID, CONTEXT_DEBUG_STATE, ILaunch, getStateLabel, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { StartDebugActionViewItem, FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -24,18 +24,13 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyDefinedExpr } from 'vs/platform/contextkey/common/contextkey';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { debugConfigure, debugConsole } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
 import { FOCUS_SESSION_ID, SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -156,21 +151,6 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	}
 }
 
-export class OpenDebugViewletAction extends ShowViewletAction {
-	public static readonly ID = VIEWLET_ID;
-	public static readonly LABEL = nls.localize('toggleDebugViewlet', "Show Run and Debug");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService viewletService: IViewletService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
-	}
-}
-
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
 		ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked'))),
@@ -189,7 +169,7 @@ registerAction2(class extends Action2 {
 			id: DEBUG_CONFIGURE_COMMAND_ID,
 			title: {
 				value: DEBUG_CONFIGURE_LABEL,
-				original: DEBUG_CONFIGURE_LABEL,
+				original: 'Open \'launch.json\'',
 				mnemonicTitle: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
 			},
 			f1: true,
@@ -244,37 +224,29 @@ registerAction2(class extends Action2 {
 	}
 });
 
-export const OPEN_REPL_COMMAND_ID = 'workbench.debug.action.toggleRepl';
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: OPEN_REPL_COMMAND_ID,
-			title: {
-				value: nls.localize('debugPanel', "Debug Console"),
-				original: 'Debug Console',
-				mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
-			},
-			f1: true,
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
+			id: 'debug.toggleReplIgnoreFocus',
+			title: nls.localize('debugPanel', "Debug Console"),
 			toggled: ContextKeyDefinedExpr.create(`view.${REPL_VIEW_ID}.visible`),
-			icon: debugConsole,
 			menu: [{
 				id: ViewsSubMenu,
+				group: '3_toggleRepl',
 				order: 30,
 				when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID))
-			}, {
-				id: MenuId.MenubarViewMenu,
-				group: '4_panels',
-				order: 2
 			}]
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IInstantiationService).createInstance(ToggleViewAction, OPEN_REPL_COMMAND_ID, 'Debug Console', REPL_VIEW_ID).run();
+		const viewsService = accessor.get(IViewsService);
+		if (viewsService.isViewVisible(REPL_VIEW_ID)) {
+			viewsService.closeView(REPL_VIEW_ID);
+		} else {
+			await viewsService.openView(REPL_VIEW_ID);
+		}
 	}
 });
 

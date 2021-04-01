@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises } from 'fs';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
-import { readdir, readFile, rimraf } from 'vs/base/node/pfs';
+import { readdir, rimraf } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/node/backup';
@@ -32,7 +33,7 @@ export class StorageDataCleaner extends Disposable {
 				try {
 					// Leverage the backup workspace file to find out which empty workspace is currently in use to
 					// determine which empty workspace storage can safely be deleted
-					const contents = await readFile(this.backupWorkspacesPath, 'utf8');
+					const contents = await promises.readFile(this.backupWorkspacesPath, 'utf8');
 
 					const workspaces = JSON.parse(contents) as IBackupWorkspacesFormat;
 					const emptyWorkspaces = workspaces.emptyWorkspaceInfos.map(info => info.backupFolder);

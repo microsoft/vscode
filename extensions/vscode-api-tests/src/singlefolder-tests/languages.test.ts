@@ -6,9 +6,11 @@
 import * as assert from 'assert';
 import { join } from 'path';
 import * as vscode from 'vscode';
-import { createRandomFile, testFs } from '../utils';
+import { assertNoRpc, createRandomFile, testFs } from '../utils';
 
 suite('vscode API - languages', () => {
+
+	teardown(assertNoRpc);
 
 	const isWindows = process.platform === 'win32';
 

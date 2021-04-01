@@ -71,6 +71,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 			return true;
 		}
 
+		const originalResource = resource;
 		if (typeof resource === 'string') {
 			resource = URI.parse(resource);
 		}
@@ -114,7 +115,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					localize('configureTrustedDomains', 'Configure Trusted Domains')
 				],
 				{
-					detail: formattedLink,
+					detail: typeof originalResource === 'string' ? originalResource : formattedLink,
 					cancelId: 2
 				}
 			);
@@ -133,7 +134,7 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 					'trustedDomains.dialogAction',
 					{ action: 'copy' }
 				);
-				this._clipboardService.writeText(resource.toString(true));
+				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
 			}
 			// Configure Trusted Domains
 			else if (choice === 3) {

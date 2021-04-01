@@ -65,6 +65,7 @@ export class CellEditorStatusBar extends Disposable {
 	) {
 		super();
 		this.statusBarContainer = DOM.append(container, $('.cell-statusbar-container'));
+		this.statusBarContainer.tabIndex = -1;
 		const leftItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-left'));
 		const rightItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-right'));
 		this.cellRunStatusContainer = DOM.append(leftItemsContainer, $('.cell-run-status'));
@@ -353,8 +354,8 @@ export function getExecuteCellPlaceholder(viewCell: BaseCellViewModel) {
 		command: undefined,
 		// text: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
 		// tooltip: `${keybinding?.getLabel() || 'Ctrl + Enter'} to run`,
-		text: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
-		tooltip: isWindows ? 'Ctrl + Alt + Enter' : 'Ctrl + Enter to run',
+		text: isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run',
+		tooltip: isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run',
 		visible: true,
 		opacity: '0.7'
 	};

@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncResourceEnablementService, ALL_SYNC_RESOURCES, SyncResource, getEnablementKey } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isWeb } from 'vs/base/common/platform';
 
 type SyncEnablementClassification = {
 	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
-
-const enablementKey = 'sync.enable';
-function getEnablementKey(resource: SyncResource) { return `${enablementKey}.${resource}`; }
 
 export class UserDataSyncResourceEnablementService extends Disposable implements IUserDataSyncResourceEnablementService {
 
@@ -39,8 +37,16 @@ export class UserDataSyncResourceEnablementService extends Disposable implements
 		if (this.isResourceEnabled(resource) !== enabled) {
 			const resourceEnablementKey = getEnablementKey(resource);
 			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
-			this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storeResourceEnablement(resourceEnablementKey, enabled);
 		}
+	}
+
+	getResourceSyncStateVersion(resource: SyncResource): string | undefined {
+		return undefined;
+	}
+
+	private storeResourceEnablement(resourceEnablementKey: string, enabled: boolean): void {
+		this.storageService.store(resourceEnablementKey, enabled, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
 	}
 
 	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {

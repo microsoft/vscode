@@ -61,7 +61,7 @@ export const enum SettingsFocusContext {
 	SettingControl
 }
 
-function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
+export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
 		return {
 			element: g,
@@ -264,7 +264,7 @@ export class SettingsEditor2 extends EditorPane {
 
 					this._setOptions(options);
 
-					this._register(input.onDispose(() => {
+					this._register(input.onWillDispose(() => {
 						this.searchWidget.setValue('');
 					}));
 
@@ -303,6 +303,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private _setOptions(options: SettingsEditorOptions): void {
+		if (options.focusSearch) {
+			this.focusSearch();
+		}
+
 		if (options.query) {
 			this.searchWidget.setValue(options.query);
 		}
@@ -436,7 +440,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
-		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, () => { this.clearSearchResults(); return Promise.resolve(null); });
+		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],

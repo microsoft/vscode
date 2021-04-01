@@ -11,7 +11,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -237,7 +237,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
-	getQuickPickElements(): Iterable<IQuickPickOutlineElement<OutlineEntry>> {
+	getQuickPickElements(): IQuickPickOutlineElement<OutlineEntry>[] {
 		const bucket: OutlineEntry[] = [];
 		for (let entry of this._getEntries()) {
 			entry.asFlatList(bucket);
@@ -273,7 +273,7 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 	}
 }
 
-class NotebookCellOutline implements IOutline<OutlineEntry> {
+export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private readonly _dispoables = new DisposableStore();
 
@@ -294,6 +294,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	constructor(
 		private readonly _editor: NotebookEditor,
+		private readonly _target: OutlineTarget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -332,7 +333,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		installSelectionListener();
 
 		const options: IWorkbenchDataTreeOptions<OutlineEntry, FuzzyScore> = {
-			collapseByDefault: true,
+			collapseByDefault: _target === OutlineTarget.Breadcrumbs,
 			expandOnlyOnTwistieClick: true,
 			multipleSelectionSupport: false,
 			accessibilityProvider: new NotebookOutlineAccessibility(),
@@ -367,6 +368,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	dispose(): void {
+		this._onDidChange.dispose();
 		this._dispoables.dispose();
 		this._entriesDisposables.dispose();
 	}
@@ -381,9 +383,15 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			return;
 		}
 
-		const includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
+		let includeCodeCells = true;
+		if (this._target === OutlineTarget.OutlinePane) {
+			includeCodeCells = this._configurationService.getValue<boolean>('notebook.outline.showCodeCells');
+		} else if (this._target === OutlineTarget.Breadcrumbs) {
+			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
+		}
 
-		const [selected] = viewModel.selectionHandles;
+		const focusedCellIndex = viewModel.getFocus().start;
+		const focused = viewModel.getCellByIndex(focusedCellIndex)?.handle;
 		const entries: OutlineEntry[] = [];
 
 		for (let i = 0; i < viewModel.viewCells.length; i++) {
@@ -393,36 +401,41 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 				continue;
 			}
 
-			// anaslse cell text but cap it 10000 characters
+			// The cap the amount of characters that we look at and use the following logic
+			// - for MD prefer headings (each header is an entry)
+			// - otherwise use the first none-empty line of the cell (MD or code)
 			let content = cell.getText().substr(0, 10_000);
-			let level = 7;
+			let hasHeader = false;
 
 			if (isMarkdown) {
-				// MD cell: "render" as plain text, find highest header
 				for (const token of marked.lexer(content, { gfm: true })) {
 					if (token.type === 'heading') {
-						level = Math.min(level, token.depth);
+						hasHeader = true;
+						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), Codicon.markdown));
 					}
 				}
-				content = renderMarkdownAsPlaintext({ value: content });
-			}
-
-			// find first none empty line or use default text
-			const lineMatch = content.match(/^.*\w+.*\w*$/m);
-			let preview: string;
-			if (!lineMatch) {
-				preview = localize('empty', "empty cell");
-			} else {
-				preview = lineMatch[0].trim();
-				if (preview.length >= 64) {
-					preview = preview.slice(0, 64) + '…';
+				if (!hasHeader) {
+					content = renderMarkdownAsPlaintext({ value: content });
 				}
 			}
 
-			const entry = new OutlineEntry(i, level, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code);
-			entries.push(entry);
-			if (cell.handle === selected) {
-				this._activeEntry = entry;
+			if (!hasHeader) {
+				const lineMatch = content.match(/^.*\w+.*\w*$/m);
+				let preview: string;
+				if (!lineMatch) {
+					preview = localize('empty', "empty cell");
+				} else {
+					preview = lineMatch[0].trim();
+					if (preview.length >= 64) {
+						preview = preview.slice(0, 64) + '…';
+					}
+				}
+
+				entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
+			}
+
+			if (cell.handle === focused) {
+				this._activeEntry = entries[entries.length - 1];
 			}
 
 			// send an event whenever any of the cells change
@@ -505,8 +518,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const { viewModel } = this._editor;
 
 		if (viewModel) {
-			const [selected] = viewModel.selectionHandles;
-			const cell = viewModel.getCellByHandle(selected);
+			const cell = viewModel.getCellByIndex(viewModel.getFocus().start);
 			if (cell) {
 				for (let entry of this._entries) {
 					newActive = entry.find(cell, []);
@@ -574,8 +586,8 @@ class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineE
 		return candidate.getId() === NotebookEditor.ID;
 	}
 
-	async createOutline(editor: NotebookEditor): Promise<IOutline<OutlineEntry> | undefined> {
-		return this._instantiationService.createInstance(NotebookCellOutline, editor);
+	async createOutline(editor: NotebookEditor, target: OutlineTarget): Promise<IOutline<OutlineEntry> | undefined> {
+		return this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 	}
 }
 
@@ -589,8 +601,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'properties': {
 		'notebook.outline.showCodeCells': {
 			type: 'boolean',
+			default: false,
+			markdownDescription: localize('outline.showCodeCells', "When enabled notebook outline shows code cells.")
+		},
+		'notebook.breadcrumbs.showCodeCells': {
+			type: 'boolean',
 			default: true,
-			markdownDescription: localize('showCodeCells', "When enabled notebook outline shows code cells.")
-		}
+			markdownDescription: localize('breadcrumbs.showCodeCells', "When enabled notebook breadcrumbs contain code cells.")
+		},
 	}
 });

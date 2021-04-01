@@ -106,7 +106,7 @@ export class View extends ViewEventHandler {
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
-		this._configPixelRatio = this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
+		this._configPixelRatio = this._context.configuration.options.get(EditorOption.pixelRatio);
 
 		// Ensure the view is the first event handler in order to update the layout
 		this._context.addEventHandler(this);
@@ -237,6 +237,10 @@ export class View extends ViewEventHandler {
 
 			focusTextArea: () => {
 				this.focus();
+			},
+
+			dispatchTextAreaEvent: (event: CustomEvent) => {
+				this._textAreaHandler.textArea.domNode.dispatchEvent(event);
 			},
 
 			getLastRenderData: (): PointerHandlerLastRenderData => {

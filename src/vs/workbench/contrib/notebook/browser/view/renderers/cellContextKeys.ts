@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { INotebookTextModel, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_FOCUSED, INotebookEditor, NOTEBOOK_CELL_EDITOR_FOCUSED, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookTextModel, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_HAS_OUTPUTS, CellViewModelStateChangeEvent, CellEditState, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_FOCUSED, INotebookEditor, NOTEBOOK_CELL_EDITOR_FOCUSED, CellFocusMode, NotebookCellExecutionStateContext } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -15,17 +15,16 @@ export class CellContextKeyManager extends Disposable {
 	private cellType!: IContextKey<string>;
 	private viewType!: IContextKey<string>;
 	private cellEditable!: IContextKey<boolean>;
-	private cellRunnable!: IContextKey<boolean>;
 	private cellFocused!: IContextKey<boolean>;
 	private cellEditorFocused!: IContextKey<boolean>;
-	private cellRunState!: IContextKey<string>;
+	private cellRunState!: IContextKey<NotebookCellExecutionStateContext>;
 	private cellHasOutputs!: IContextKey<boolean>;
 	private cellContentCollapsed!: IContextKey<boolean>;
 	private cellOutputCollapsed!: IContextKey<boolean>;
 
 	private markdownEditMode!: IContextKey<boolean>;
 
-	private elementDisposables = new DisposableStore();
+	private readonly elementDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly contextKeyService: IContextKeyService,
@@ -41,9 +40,8 @@ export class CellContextKeyManager extends Disposable {
 			this.cellEditable = NOTEBOOK_CELL_EDITABLE.bindTo(this.contextKeyService);
 			this.cellFocused = NOTEBOOK_CELL_FOCUSED.bindTo(this.contextKeyService);
 			this.cellEditorFocused = NOTEBOOK_CELL_EDITOR_FOCUSED.bindTo(this.contextKeyService);
-			this.cellRunnable = NOTEBOOK_CELL_RUNNABLE.bindTo(this.contextKeyService);
 			this.markdownEditMode = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(this.contextKeyService);
-			this.cellRunState = NOTEBOOK_CELL_RUN_STATE.bindTo(this.contextKeyService);
+			this.cellRunState = NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this.contextKeyService);
 			this.cellHasOutputs = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(this.contextKeyService);
 			this.cellContentCollapsed = NOTEBOOK_CELL_INPUT_COLLAPSED.bindTo(this.contextKeyService);
 			this.cellOutputCollapsed = NOTEBOOK_CELL_OUTPUT_COLLAPSED.bindTo(this.contextKeyService);
@@ -116,10 +114,21 @@ export class CellContextKeyManager extends Disposable {
 	private updateForMetadata() {
 		const metadata = this.element.getEvaluatedMetadata(this.notebookTextModel.metadata);
 		this.cellEditable.set(!!metadata.editable);
-		this.cellRunnable.set(!!metadata.runnable);
 
-		const runState = metadata.runState ?? NotebookCellRunState.Idle;
-		this.cellRunState.set(NotebookCellRunState[runState]);
+		const runState = metadata.runState ?? NotebookCellExecutionState.Idle;
+		if (runState === NotebookCellExecutionState.Idle) {
+			if (metadata.lastRunSuccess === true) {
+				this.cellRunState.set('succeeded');
+			} else if (metadata.lastRunSuccess === false) {
+				this.cellRunState.set('failed');
+			} else {
+				this.cellRunState.set('idle');
+			}
+		} else if (runState === NotebookCellExecutionState.Executing) {
+			this.cellRunState.set('executing');
+		} else if (runState === NotebookCellExecutionState.Pending) {
+			this.cellRunState.set('pending');
+		}
 	}
 
 	private updateForEditState() {

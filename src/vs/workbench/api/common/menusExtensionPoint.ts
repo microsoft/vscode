@@ -44,9 +44,19 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorTitle', "The editor title menu")
 	},
 	{
+		key: 'editor/title/run',
+		id: MenuId.EditorTitleRun,
+		description: localize('menus.editorTitleRun', "Run submenu inside the editor title menu")
+	},
+	{
 		key: 'editor/context',
 		id: MenuId.EditorContext,
 		description: localize('menus.editorContext', "The editor context menu")
+	},
+	{
+		key: 'editor/context/copy',
+		id: MenuId.EditorContextCopy,
+		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
 	},
 	{
 		key: 'explorer/context',
@@ -87,6 +97,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'menuBar/edit/copy',
+		id: MenuId.MenubarCopy,
+		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
@@ -99,17 +114,17 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
-		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
+		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
 	},
 	{
 		key: 'scm/resourceFolder/context',
 		id: MenuId.SCMResourceFolderContext,
-		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
+		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
 	},
 	{
 		key: 'scm/resourceGroup/context',
 		id: MenuId.SCMResourceGroupContext,
-		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
+		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
 	},
 	{
 		key: 'scm/change/title',
@@ -156,9 +171,21 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'notebook/toolbar',
+		id: MenuId.NotebookToolbar,
+		description: localize('notebook.toolbar', "The contributed notebook toolbar menu"),
+		proposed: true
+	},
+	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
 		description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
+		proposed: true
+	},
+	{
+		key: 'testing/item/context',
+		id: MenuId.TestItem,
+		description: localize('testing.item.title', "The contributed test item menu"),
 		proposed: true
 	},
 	{
@@ -176,6 +203,16 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.TimelineItemContext,
 		description: localize('view.timelineContext', "The Timeline view item context menu")
 	},
+	{
+		key: 'ports/item/context',
+		id: MenuId.TunnelContext,
+		description: localize('view.tunnelContext', "The Ports view item context menu")
+	},
+	{
+		key: 'ports/item/origin/inline',
+		id: MenuId.TunnelOriginInline,
+		description: localize('view.tunnelOriginInline', "The Ports view item origin inline menu")
+	}
 ];
 
 namespace schema {
@@ -337,7 +374,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.submenu.icon', '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -465,7 +502,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -518,7 +555,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				absoluteIcon = ThemeIcon.fromString(icon) ?? { dark: resources.joinPath(extension.description.extensionLocation, icon), light: resources.joinPath(extension.description.extensionLocation, icon) };
 
 			} else {
 				absoluteIcon = {

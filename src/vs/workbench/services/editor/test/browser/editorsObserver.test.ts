@@ -6,44 +6,40 @@
 import * as assert from 'assert';
 import { EditorOptions, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, TestEditorPart, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { timeout } from 'vs/base/common/async';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-const TEST_EDITOR_ID = 'MyTestEditorForEditorsObserver';
-const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorsObserver';
-const TEST_SERIALIZABLE_EDITOR_INPUT_ID = 'testSerializableEditorInputForEditorsObserver';
-
 suite('EditorsObserver', function () {
 
-	let disposables: IDisposable[] = [];
+	const TEST_EDITOR_ID = 'MyTestEditorForEditorsObserver';
+	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorsObserver';
+	const TEST_SERIALIZABLE_EDITOR_INPUT_ID = 'testSerializableEditorInputForEditorsObserver';
+
+	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.push(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_SERIALIZABLE_EDITOR_INPUT_ID));
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_SERIALIZABLE_EDITOR_INPUT_ID));
 	});
 
 	teardown(() => {
-		dispose(disposables);
-		disposables = [];
+		disposables.clear();
 	});
 
 	async function createPart(): Promise<TestEditorPart> {
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		const part = instantiationService.createInstance(TestEditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
-
-		await part.whenRestored;
+		const part = await createEditorPart(instantiationService, disposables);
+		disposables.add(toDisposable(() => part.clearState()));
 
 		return part;
 	}
@@ -51,7 +47,7 @@ suite('EditorsObserver', function () {
 	async function createEditorObserver(): Promise<[EditorPart, EditorsObserver]> {
 		const part = await createPart();
 
-		const observer = new EditorsObserver(part, new TestStorageService());
+		const observer = disposables.add(new EditorsObserver(part, new TestStorageService()));
 
 		return [part, observer];
 	}
@@ -131,7 +127,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input2.resource), false);
 		assert.strictEqual(observer.hasEditor(input3.resource), false);
 
-		part.dispose();
 		listener.dispose();
 	});
 
@@ -200,8 +195,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU.length, 0);
 		assert.strictEqual(observer.hasEditor(input1.resource), false);
 		assert.strictEqual(observer.hasEditor(input2.resource), false);
-
-		part.dispose();
 	});
 
 	test('copy group', async function () {
@@ -230,7 +223,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input3.resource), true);
 
 		const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
-		await copiedGroup.whenRestored;
 		copiedGroup.setActive(true);
 		copiedGroup.focus();
 
@@ -263,8 +255,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input1.resource), false);
 		assert.strictEqual(observer.hasEditor(input2.resource), false);
 		assert.strictEqual(observer.hasEditor(input3.resource), false);
-
-		part.dispose();
 	});
 
 	test('initial editors are part of observer and state is persisted & restored (single group)', async () => {
@@ -281,7 +271,7 @@ suite('EditorsObserver', function () {
 		await rootGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
 
 		const storage = new TestStorageService();
-		const observer = new EditorsObserver(part, storage);
+		const observer = disposables.add(new EditorsObserver(part, storage));
 		await part.whenRestored;
 
 		let currentEditorsMRU = observer.editors;
@@ -298,7 +288,7 @@ suite('EditorsObserver', function () {
 
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
-		const restoredObserver = new EditorsObserver(part, storage);
+		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
 		await part.whenRestored;
 
 		currentEditorsMRU = restoredObserver.editors;
@@ -312,9 +302,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input1.resource), true);
 		assert.strictEqual(observer.hasEditor(input2.resource), true);
 		assert.strictEqual(observer.hasEditor(input3.resource), true);
-
-		part.clearState();
-		part.dispose();
 	});
 
 	test('initial editors are part of observer (multi group)', async () => {
@@ -333,7 +320,7 @@ suite('EditorsObserver', function () {
 		await sideGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
 
 		const storage = new TestStorageService();
-		const observer = new EditorsObserver(part, storage);
+		const observer = disposables.add(new EditorsObserver(part, storage));
 		await part.whenRestored;
 
 		let currentEditorsMRU = observer.editors;
@@ -350,7 +337,7 @@ suite('EditorsObserver', function () {
 
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
-		const restoredObserver = new EditorsObserver(part, storage);
+		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
 		await part.whenRestored;
 
 		currentEditorsMRU = restoredObserver.editors;
@@ -364,9 +351,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(restoredObserver.hasEditor(input1.resource), true);
 		assert.strictEqual(restoredObserver.hasEditor(input2.resource), true);
 		assert.strictEqual(restoredObserver.hasEditor(input3.resource), true);
-
-		part.clearState();
-		part.dispose();
 	});
 
 	test('observer does not restore editors that cannot be serialized', async () => {
@@ -379,7 +363,7 @@ suite('EditorsObserver', function () {
 		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
 
 		const storage = new TestStorageService();
-		const observer = new EditorsObserver(part, storage);
+		const observer = disposables.add(new EditorsObserver(part, storage));
 		await part.whenRestored;
 
 		let currentEditorsMRU = observer.editors;
@@ -390,15 +374,12 @@ suite('EditorsObserver', function () {
 
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
-		const restoredObserver = new EditorsObserver(part, storage);
+		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
 		await part.whenRestored;
 
 		currentEditorsMRU = restoredObserver.editors;
 		assert.strictEqual(currentEditorsMRU.length, 0);
 		assert.strictEqual(restoredObserver.hasEditor(input1.resource), false);
-
-		part.clearState();
-		part.dispose();
 	});
 
 	test('observer closes editors when limit reached (across all groups)', async () => {
@@ -406,7 +387,7 @@ suite('EditorsObserver', function () {
 		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
 
 		const storage = new TestStorageService();
-		const observer = new EditorsObserver(part, storage);
+		const observer = disposables.add(new EditorsObserver(part, storage));
 
 		const rootGroup = part.activeGroup;
 		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
@@ -460,9 +441,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input3.resource), false);
 		assert.strictEqual(observer.hasEditor(input4.resource), false);
 		assert.strictEqual(observer.hasEditor(input5.resource), true);
-
-		observer.dispose();
-		part.dispose();
 	});
 
 	test('observer closes editors when limit reached (in group)', async () => {
@@ -470,7 +448,7 @@ suite('EditorsObserver', function () {
 		part.enforcePartOptions({ limit: { enabled: true, value: 3, perEditorGroup: true } });
 
 		const storage = new TestStorageService();
-		const observer = new EditorsObserver(part, storage);
+		const observer = disposables.add(new EditorsObserver(part, storage));
 
 		const rootGroup = part.activeGroup;
 		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
@@ -530,9 +508,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input2.resource), false);
 		assert.strictEqual(observer.hasEditor(input3.resource), false);
 		assert.strictEqual(observer.hasEditor(input4.resource), true);
-
-		observer.dispose();
-		part.dispose();
 	});
 
 	test('observer does not close sticky', async () => {
@@ -540,7 +515,7 @@ suite('EditorsObserver', function () {
 		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
 
 		const storage = new TestStorageService();
-		const observer = new EditorsObserver(part, storage);
+		const observer = disposables.add(new EditorsObserver(part, storage));
 
 		const rootGroup = part.activeGroup;
 
@@ -563,8 +538,5 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input2.resource), false);
 		assert.strictEqual(observer.hasEditor(input3.resource), true);
 		assert.strictEqual(observer.hasEditor(input4.resource), true);
-
-		observer.dispose();
-		part.dispose();
 	});
 });

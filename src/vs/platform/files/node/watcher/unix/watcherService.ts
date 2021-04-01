@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createChannelSender, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { ProxyChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -62,7 +62,7 @@ export class FileWatcher extends Disposable {
 		}));
 
 		// Initialize watcher
-		this.service = createChannelSender<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
+		this.service = ProxyChannel.toService<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
 		this.service.init({ ...this.watcherOptions, verboseLogging: this.verboseLogging });
 
 		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));

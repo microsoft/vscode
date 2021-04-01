@@ -268,7 +268,6 @@
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
 					"**/vs/platform/*/{common,node,electron-main}/**",
-					"**/vs/code/**",
 					"*" // node modules
 				]
 			},
@@ -279,6 +278,7 @@
 					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/platform/*/test/{common,browser}/**"
 				]
@@ -807,7 +807,6 @@
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/workbench/**/{common,node}/**",
 					"**/vs/server/**",
-					"**/vs/code/**/{common,node}/**",
 					"*" // node modules
 				]
 			},
@@ -983,9 +982,12 @@
 						"allowed": [
 							"FileSystemProvider",
 							"TreeDataProvider",
+							"TestProvider",
 							"CustomEditorProvider",
 							"CustomReadonlyEditorProvider",
-							"TerminalLinkProvider"
+							"TerminalLinkProvider",
+							"AuthenticationProvider",
+							"NotebookContentProvider"
 						]
 					}
 				],
@@ -1009,10 +1011,12 @@
 							"end",
 							"expand",
 							"hide",
+							"invalidate",
 							"open",
 							"override",
 							"receive",
 							"register",
+							"remove",
 							"rename",
 							"save",
 							"send",

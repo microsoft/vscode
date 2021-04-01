@@ -22,7 +22,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
-import { IGettingStartedService } from 'vs/workbench/services/gettingStarted/common/gettingStartedService';
 
 export class SelectColorThemeAction extends Action {
 
@@ -35,7 +34,6 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IGettingStartedService private readonly gettingStartedService: IGettingStartedService,
 		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
@@ -86,7 +84,6 @@ export class SelectColorThemeAction extends Action {
 						openExtensionViewlet(this.viewletService, `category:themes ${quickpick.value}`);
 					} else {
 						selectTheme(theme, true);
-						this.gettingStartedService.progressByEvent('themeSelected');
 					}
 					isCompleted = true;
 					quickpick.hide();
@@ -230,7 +227,7 @@ class SelectProductIconThemeAction extends AbstractIconThemeAction {
 	}
 
 	protected builtInEntry: QuickPickInput<ThemeItem> = { id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') };
-	protected installMessage = undefined; //localize('installProductIconThemes', "Install Additional Product Icon Themes...");
+	protected installMessage = localize('installProductIconThemes', "Install Additional Product Icon Themes...");
 	protected placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
 	protected marketplaceTag = 'tag:product-icon-theme';
 	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {

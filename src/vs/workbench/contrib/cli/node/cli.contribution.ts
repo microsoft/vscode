@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
+import * as cp from 'child_process';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as cp from 'child_process';
 import * as pfs from 'vs/base/node/pfs';
 import * as extpath from 'vs/base/node/extpath';
 import { promisify } from 'util';
@@ -74,9 +75,9 @@ class InstallAction extends Action2 {
 					if (!isAvailable || isInstalled) {
 						return Promise.resolve(null);
 					} else {
-						return pfs.unlink(target)
+						return fs.promises.unlink(target)
 							.then(undefined, ignore('ENOENT', null))
-							.then(() => pfs.symlink(getSource(), target))
+							.then(() => fs.promises.symlink(getSource(), target))
 							.then(undefined, err => {
 								if (err.code === 'EACCES' || err.code === 'ENOENT') {
 									return new Promise<void>((resolve, reject) => {
@@ -110,12 +111,17 @@ class InstallAction extends Action2 {
 		});
 	}
 
-	private isInstalled(target: string): Promise<boolean> {
-		return pfs.lstat(target)
-			.then(stat => stat.isSymbolicLink())
-			.then(() => extpath.realpath(target))
-			.then(link => link === getSource())
-			.then(undefined, ignore('ENOENT', false));
+	private async isInstalled(target: string): Promise<boolean> {
+		try {
+			const stat = await fs.promises.lstat(target);
+			return stat.isSymbolicLink() && getSource() === await extpath.realpath(target);
+		} catch (err) {
+			if (err.code === 'ENOENT') {
+				return false;
+			}
+
+			throw err;
+		}
 	}
 }
 
@@ -149,7 +155,7 @@ class UninstallAction extends Action2 {
 			}
 
 			const uninstall = () => {
-				return pfs.unlink(target)
+				return fs.promises.unlink(target)
 					.then(undefined, ignore('ENOENT', null));
 			};
 

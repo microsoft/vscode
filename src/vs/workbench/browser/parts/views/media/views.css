@@ -63,24 +63,35 @@
 	display: none;
 }
 
-.monaco-workbench .pane > .pane-body > .welcome-view .monaco-button {
-	margin-left: auto;
-	margin-right: auto;
-}
-
-.monaco-workbench .pane > .pane-body.wide > .welcome-view .monaco-button {
-	margin-left: inherit;
-	max-width: 260px;
-}
-
 .monaco-workbench .pane > .pane-body .welcome-view-content {
-	padding: 0 20px 0 20px;
+	display: flex;
+	flex-direction: column;
+	padding: 0 20px 1em 20px;
 	box-sizing: border-box;
+	align-items: center;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container {
+	width: 100%;
+	max-width: 300px;
+	transition: 0.2s max-width ease-out;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content.wide > .button-container {
+	max-width: 100%;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > .button-container > .monaco-button {
+	max-width: 300px;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > p {
+	width: 100%;
 }
 
 .monaco-workbench .pane > .pane-body .welcome-view-content > * {
 	margin-block-start: 1em;
-	margin-block-end: 1em;
+	margin-block-end: 0;
 	margin-inline-start: 0px;
 	margin-inline-end: 0px;
 }
@@ -167,6 +178,7 @@
 
 .customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label.codicon {
 	line-height: 22px;
+	height: 22px;
 }
 
 .customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label.codicon::before {

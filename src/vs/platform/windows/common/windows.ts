@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh, isLinux, isWeb, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { PerformanceMark } from 'vs/base/common/performance';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
@@ -19,6 +20,14 @@ export const WindowMinimumSize = {
 
 export interface IBaseOpenWindowsOptions {
 	readonly forceReuseWindow?: boolean;
+	/**
+	 * The remote authority to use when windows are opened with either
+	 * - no workspace (empty window)
+	 * - a workspace that is neither `file://` nor `vscode-remote://`
+	 * Use 'null' for a local window.
+	 * If not set, defaults to the remote authority of the current window.
+	 */
+	readonly remoteAuthority?: string | null;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -48,7 +57,6 @@ export interface IOpenedWindow {
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-	readonly remoteAuthority?: string;
 }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
@@ -81,14 +89,14 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 	return !!(uriToOpen as IFileToOpen).fileUri;
 }
 
-export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden' | 'compact';
+export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
 	const titleBarStyle = getTitleBarStyle(configurationService);
-	const menuBarVisibility = configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (titleBarStyle === 'native' && menuBarVisibility === 'compact') {
-		return 'default';
+	if (menuBarVisibility === 'default' || (titleBarStyle === 'native' && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+		return 'classic';
 	} else {
 		return menuBarVisibility;
 	}
@@ -169,7 +177,7 @@ export interface IPathData {
 	readonly openOnlyIfExists?: boolean;
 
 	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
-	readonly overrideId?: string;
+	readonly editorOverrideId?: string;
 }
 
 export interface IPathsToWaitFor extends IPathsToWaitForData {
@@ -226,30 +234,26 @@ export interface IOSConfiguration {
 	readonly release: string;
 }
 
-export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
+export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 
 	windowId: number;
 	machineId: string;
 
-	appRoot: string;
 	execPath: string;
 	backupPath?: string;
 
-	nodeCachedDataDir?: string;
 	partsSplashPath: string;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
-	zoomLevel?: number;
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
 	perfMarks: PerformanceMark[];
 
-	userEnv: IProcessEnvironment;
 	filesToWait?: IPathsToWaitFor;
 
 	os: IOSConfiguration;

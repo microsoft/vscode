@@ -62,7 +62,8 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "icon": "$(code)",
+          "when": "npm:showScriptExplorer",
+          "icon": "$(json)",
           "visibility": "hidden"
         }
       ]
@@ -311,5 +312,9 @@
         "when": "shellExecutionSupported"
       }
     ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { extname } from 'vs/base/common/resources';
+import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,9 +19,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -33,6 +33,7 @@ import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEA
 import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -74,6 +75,14 @@ class SearchEditorContribution implements IWorkbenchContribution {
 	) {
 
 		this.editorService.overrideOpenEditor({
+			getEditorOverrides: (resource: URI) => {
+				return extname(resource) === SEARCH_EDITOR_EXT ? [{
+					id: SearchEditorInput.ID,
+					label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
+					detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+					active: isEqual(this.editorService.activeEditor?.resource, resource) && this.editorService.activeEditor instanceof SearchEditorInput
+				}] : [];
+			},
 			open: (editor, options, group) => {
 				const resource = editor.resource;
 				if (!resource) { return undefined; }
@@ -92,7 +101,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					override: (async () => {
 						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
 						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, override: false }, group);
+						return editorService.openEditor(input, { ...options, override: EditorOverride.DISABLED }, group);
 					})()
 				};
 			}
@@ -104,10 +113,10 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContribution, LifecyclePhase.Starting);
 //#endregion
 
-//#region Input Factory
+//#region Input Serializer
 type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
 
-class SearchEditorInputFactory implements IEditorInputFactory {
+class SearchEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(input: SearchEditorInput) {
 		return !!input.config;
@@ -155,9 +164,9 @@ class SearchEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
 	SearchEditorInput.ID,
-	SearchEditorInputFactory);
+	SearchEditorInputSerializer);
 //#endregion
 
 //#region Commands
@@ -511,11 +520,10 @@ registerAction2(class extends Action2 {
 registerAction2(class OpenSearchEditorAction extends Action2 {
 	constructor() {
 		super({
-			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: localize('search.openNewEditor', "Open New Search Editor"),
+			id: 'search.action.openNewEditorFromView',
+			title: localize('search.openNewEditor', "Open New Search Editor from View"),
 			category,
 			icon: searchNewEditorIcon,
-			f1: true,
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',

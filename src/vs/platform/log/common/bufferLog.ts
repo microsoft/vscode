@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogService, LogLevel, AbstractLogService, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, AbstractLogger, DEFAULT_LOG_LEVEL, ILogger } from 'vs/platform/log/common/log';
 
 interface ILog {
 	level: LogLevel;
 	args: any[];
 }
 
-function getLogFunction(logger: ILogService, level: LogLevel): Function {
+function getLogFunction(logger: ILogger, level: LogLevel): Function {
 	switch (level) {
 		case LogLevel.Trace: return logger.trace;
 		case LogLevel.Debug: return logger.debug;
@@ -22,11 +22,11 @@ function getLogFunction(logger: ILogService, level: LogLevel): Function {
 	}
 }
 
-export class BufferLogService extends AbstractLogService implements ILogService {
+export class BufferLogService extends AbstractLogger implements ILogService {
 
 	declare readonly _serviceBrand: undefined;
 	private buffer: ILog[] = [];
-	private _logger: ILogService | undefined = undefined;
+	private _logger: ILogger | undefined = undefined;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
 		super();
@@ -38,7 +38,7 @@ export class BufferLogService extends AbstractLogService implements ILogService 
 		}));
 	}
 
-	set logger(logger: ILogService) {
+	set logger(logger: ILogger) {
 		this._logger = logger;
 
 		for (const { level, args } of this.buffer) {

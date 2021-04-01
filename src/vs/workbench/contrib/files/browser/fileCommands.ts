@@ -27,7 +27,7 @@ import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMul
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -41,8 +41,9 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { toAction } from 'vs/base/common/actions';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 // Commands
 
@@ -353,13 +354,15 @@ CommandsRegistry.registerCommand({
 	id: OPEN_WITH_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
 			const input = editorService.createEditorInput({ resource: uri });
-			openEditorWith(accessor, input, undefined, undefined, editorGroupsService.activeGroup);
+
+			return editorService.openEditor(input, { override: EditorOverride.PICK });
 		}
+
+		return undefined;
 	}
 });
 
@@ -442,7 +445,16 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 		await editorService.save(editors, options);
 	} catch (error) {
 		if (!isPromiseCanceledError(error)) {
-			notificationService.error(nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
+			notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
+				actions: {
+					primary: [
+						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => editorService.save(editors, options) }),
+						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
+					]
+				}
+			});
 		}
 	}
 }
@@ -648,7 +660,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		description: NEW_UNTITLED_FILE_LABEL,
 		args: [
 			{
-				name: 'viewType', description: 'The editor view type', schema: {
+				isOptional: true,
+				name: 'viewType',
+				description: 'The editor view type',
+				schema: {
 					'type': 'object',
 					'required': ['viewType'],
 					'properties': {
@@ -668,7 +683,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 			const textInput = editorService.createEditorInput({ options: { pinned: true } });
 			const group = editorGroupsService.activeGroup;
-			await openEditorWith(accessor, textInput, args.viewType, { pinned: true }, group);
+			await editorService.openEditor(textInput, { override: args.viewType, pinned: true }, group);
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}

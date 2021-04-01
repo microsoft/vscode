@@ -5,55 +5,59 @@
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
-import { Location as ModeLocation } from 'vs/editor/common/modes';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
 
-export interface TestIdWithProvider {
+export interface TestIdWithSrc {
 	testId: string;
-	providerId: string;
+	src: { provider: string; tree: number };
 }
 
 /**
- * Request to them main thread to run a set of tests.
+ * Defines the path to a test, as a list of test IDs. The last element of the
+ * array is the test ID, and the predecessors are its parents, in order.
+ */
+export type TestIdPath = string[];
+
+/**
+ * Request to the main thread to run a set of tests.
  */
 export interface RunTestsRequest {
-	tests: TestIdWithProvider[];
+	tests: TestIdWithSrc[];
+	exclude?: string[];
 	debug: boolean;
+	isAutoRun?: boolean;
 }
 
 /**
  * Request from the main thread to run tests for a single provider.
  */
 export interface RunTestForProviderRequest {
-	providerId: string;
-	ids: string[];
+	runId: string;
+	excludeExtIds: string[];
+	tests: TestIdWithSrc[];
 	debug: boolean;
 }
 
 /**
- * Response to a  {@link RunTestsRequest}
+ * Location with a fully-instantiated Range and URI.
  */
-export interface RunTestsResult {
-	// todo
+export interface IRichLocation {
+	range: Range;
+	uri: URI;
 }
-
-export const EMPTY_TEST_RESULT: RunTestsResult = {};
-
-export const collectTestResults = (results: ReadonlyArray<RunTestsResult>) => {
-	return results[0] || {}; // todo
-};
 
 export interface ITestMessage {
 	message: string | IMarkdownString;
-	severity: TestMessageSeverity | undefined;
+	severity: TestMessageSeverity;
 	expectedOutput: string | undefined;
 	actualOutput: string | undefined;
-	location: ModeLocation | undefined;
+	location: IRichLocation | undefined;
 }
 
 export interface ITestState {
-	runState: TestRunState;
+	state: TestResult;
 	duration: number | undefined;
 	messages: ITestMessage[];
 }
@@ -66,29 +70,76 @@ export interface ITestItem {
 	extId: string;
 	label: string;
 	children?: never;
-	location: ModeLocation | undefined;
+	uri: URI;
+	range: IRange | undefined;
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;
-	state: ITestState;
+	expandable: boolean;
+}
+
+export const enum TestItemExpandState {
+	NotExpandable,
+	Expandable,
+	BusyExpanding,
+	Expanded,
 }
 
 /**
  * TestItem-like shape, butm with an ID and children as strings.
  */
 export interface InternalTestItem {
-	id: string;
-	providerId: string;
+	src: { provider: string; tree: number };
+	expand: TestItemExpandState;
 	parent: string | null;
 	item: ITestItem;
 }
 
-export interface InternalTestItemWithChildren extends InternalTestItem {
-	children: InternalTestItemWithChildren[];
+/**
+ * A partial update made to an existing InternalTestItem.
+ */
+export interface ITestItemUpdate {
+	extId: string;
+	expand?: TestItemExpandState;
+	item?: Partial<ITestItem>;
 }
 
-export interface InternalTestResults {
-	tests: InternalTestItemWithChildren[];
+export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate, patch: ITestItemUpdate) => {
+	if (patch.expand !== undefined) {
+		internal.expand = patch.expand;
+	}
+	if (patch.item !== undefined) {
+		Object.assign(internal.item, patch.item);
+	}
+};
+
+/**
+ * Test result item used in the main thread.
+ */
+export interface TestResultItem extends IncrementalTestCollectionItem {
+	/** Current state of this test */
+	state: ITestState;
+	/** Computed state based on children */
+	computedState: TestResult;
+	/** True if the test is outdated */
+	retired: boolean;
+	/** True if the test was directly requested by the run (is not a child or parent) */
+	direct?: boolean;
+}
+
+export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
+	& { children: string[], retired: undefined };
+
+/**
+ * Test results serialized for transport and storage.
+ */
+export interface ISerializedTestResults {
+	/** ID of these test results */
+	id: string;
+	/** Time the results were compelted */
+	completedAt: number;
+	/** Subset of test result items */
+	items: SerializedTestResultItem[];
 }
 
 export const enum TestDiffOpType {
@@ -98,17 +149,18 @@ export const enum TestDiffOpType {
 	Update,
 	/** Removes a test (and all its children) */
 	Remove,
-	/** Changes the number of providers running initial test discovery. */
-	DeltaDiscoverComplete,
 	/** Changes the number of providers who are yet to publish their collection roots. */
 	DeltaRootsComplete,
+	/** Retires a test/result */
+	Retire,
 }
 
 export type TestsDiffOp =
 	| [op: TestDiffOpType.Add, item: InternalTestItem]
-	| [op: TestDiffOpType.Update, item: InternalTestItem]
+	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
-	| [op: TestDiffOpType.DeltaDiscoverComplete | TestDiffOpType.DeltaRootsComplete, amount: number];
+	| [op: TestDiffOpType.Retire, itemId: string]
+	| [op: TestDiffOpType.DeltaRootsComplete, amount: number];
 
 /**
  * Utility function to get a unique string for a subscription to a resource,
@@ -173,6 +225,16 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	protected readonly roots = new Set<string>();
 
 	/**
+	 * Number of 'busy' providers.
+	 */
+	protected busyProviderCount = 0;
+
+	/**
+	 * Number of pending roots.
+	 */
+	protected pendingRootCount = 0;
+
+	/**
 	 * Applies the diff to the collection.
 	 */
 	public apply(diff: TestsDiff) {
@@ -181,28 +243,37 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 		for (const op of diff) {
 			switch (op[0]) {
 				case TestDiffOpType.Add: {
-					const item = op[1];
-					if (!item.parent) {
-						this.roots.add(item.id);
-						const created = this.createItem(item);
-						this.items.set(item.id, created);
+					const internalTest = op[1];
+					if (!internalTest.parent) {
+						this.roots.add(internalTest.item.extId);
+						const created = this.createItem(internalTest);
+						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
-					} else if (this.items.has(item.parent)) {
-						const parent = this.items.get(item.parent)!;
-						parent.children.add(item.id);
-						const created = this.createItem(item, parent);
-						this.items.set(item.id, created);
+					} else if (this.items.has(internalTest.parent)) {
+						const parent = this.items.get(internalTest.parent)!;
+						parent.children.add(internalTest.item.extId);
+						const created = this.createItem(internalTest, parent);
+						this.items.set(internalTest.item.extId, created);
 						changes.add(created);
+					}
+
+					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
+						this.updateBusyProviders(1);
 					}
 					break;
 				}
 
 				case TestDiffOpType.Update: {
-					const item = op[1];
-					const existing = this.items.get(item.id);
-					if (existing) {
-						Object.assign(existing.item, item.item);
-						changes.update(existing);
+					const patch = op[1];
+					const existing = this.items.get(patch.extId);
+					if (!existing) {
+						break;
+					}
+
+					applyTestItemUpdate(existing, patch);
+					changes.update(existing);
+					if (patch.expand !== undefined && existing.expand === TestItemExpandState.BusyExpanding && patch.expand !== TestItemExpandState.BusyExpanding) {
+						this.updateBusyProviders(-1);
 					}
 					break;
 				}
@@ -215,9 +286,9 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 
 					if (toRemove.parent) {
 						const parent = this.items.get(toRemove.parent)!;
-						parent.children.delete(toRemove.id);
+						parent.children.delete(toRemove.item.extId);
 					} else {
-						this.roots.delete(toRemove.id);
+						this.roots.delete(toRemove.item.extId);
 					}
 
 					const queue: Iterable<string>[] = [[op[1]]];
@@ -228,14 +299,18 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 								queue.push(existing.children);
 								this.items.delete(itemId);
 								changes.remove(existing, existing !== toRemove);
+
+								if (existing.expand === TestItemExpandState.BusyExpanding) {
+									this.updateBusyProviders(-1);
+								}
 							}
 						}
 					}
 					break;
 				}
 
-				case TestDiffOpType.DeltaDiscoverComplete:
-					this.updateBusyProviders(op[1]);
+				case TestDiffOpType.Retire:
+					this.retireTest(op[1]);
 					break;
 
 				case TestDiffOpType.DeltaRootsComplete:
@@ -248,10 +323,17 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	}
 
 	/**
+	 * Called when the extension signals a test result should be retired.
+	 */
+	protected retireTest(testId: string) {
+		// no-op
+	}
+
+	/**
 	 * Updates the number of providers who are still discovering items.
 	 */
 	protected updateBusyProviders(delta: number) {
-		// no-op
+		this.busyProviderCount += delta;
 	}
 
 	/**
@@ -259,8 +341,8 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 * the total pending test roots reaches 0, the roots for all providers
 	 * will exist in the collection.
 	 */
-	protected updatePendingRoots(delta: number) {
-		// no-op
+	public updatePendingRoots(delta: number) {
+		this.pendingRootCount += delta;
 	}
 
 	/**

@@ -22,10 +22,7 @@ export function runSelectedScript(context: vscode.ExtensionContext) {
 	}
 	let document = editor.document;
 	let contents = document.getText();
-	let selection = editor.selection;
-	let offset = document.offsetAt(selection.anchor);
-
-	let script = findScriptAtPosition(contents, offset);
+	let script = findScriptAtPosition(editor.document, contents, editor.selection.anchor);
 	if (script) {
 		runScript(context, script, document);
 	} else {

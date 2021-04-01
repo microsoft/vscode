@@ -8,7 +8,6 @@ import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/text
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -22,7 +21,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
-	private modelResolve: Promise<IUntitledTextEditorModel & IResolvedTextEditorModel> | undefined = undefined;
+	private modelResolve: Promise<void> | undefined = undefined;
 
 	constructor(
 		public readonly model: IUntitledTextEditorModel,
@@ -110,16 +109,14 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.getMode();
 	}
 
-	resolve(): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel> {
-
-		// Join a model resolve if we have had one before
-		if (this.modelResolve) {
-			return this.modelResolve;
+	async resolve(): Promise<IUntitledTextEditorModel> {
+		if (!this.modelResolve) {
+			this.modelResolve = this.model.resolve();
 		}
 
-		this.modelResolve = this.model.load();
+		await this.modelResolve;
 
-		return this.modelResolve;
+		return this.model;
 	}
 
 	matches(otherInput: unknown): boolean {

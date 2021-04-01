@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import product from 'vs/platform/product/common/product';
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -24,7 +24,7 @@ class KeybindingsReferenceAction extends Action2 {
 	constructor() {
 		super({
 			id: KeybindingsReferenceAction.ID,
-			title: { value: nls.localize('keybindingsReference', "Keyboard Shortcuts Reference"), original: 'Keyboard Shortcuts Reference' },
+			title: { value: localize('keybindingsReference', "Keyboard Shortcuts Reference"), original: 'Keyboard Shortcuts Reference' },
 			category: CATEGORIES.Help,
 			f1: true,
 			keybinding: {
@@ -54,7 +54,7 @@ class OpenDocumentationUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenDocumentationUrlAction.ID,
-			title: { value: nls.localize('openDocumentationUrl', "Documentation"), original: 'Documentation' },
+			title: { value: localize('openDocumentationUrl', "Documentation"), original: 'Documentation' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -78,7 +78,7 @@ class OpenIntroductoryVideosUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenIntroductoryVideosUrlAction.ID,
-			title: { value: nls.localize('openIntroductoryVideosUrl', "Introductory Videos"), original: 'Introductory Videos' },
+			title: { value: localize('openIntroductoryVideosUrl', "Introductory Videos"), original: 'Introductory Videos' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -102,7 +102,7 @@ class OpenTipsAndTricksUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenTipsAndTricksUrlAction.ID,
-			title: { value: nls.localize('openTipsAndTricksUrl', "Tips and Tricks"), original: 'Tips and Tricks' },
+			title: { value: localize('openTipsAndTricksUrl', "Tips and Tricks"), original: 'Tips and Tricks' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -126,7 +126,7 @@ class OpenNewsletterSignupUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenNewsletterSignupUrlAction.ID,
-			title: { value: nls.localize('newsletterSignup', "Signup for the VS Code Newsletter"), original: 'Signup for the VS Code Newsletter' },
+			title: { value: localize('newsletterSignup', "Signup for the VS Code Newsletter"), original: 'Signup for the VS Code Newsletter' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -151,7 +151,7 @@ class OpenTwitterUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenTwitterUrlAction.ID,
-			title: { value: nls.localize('openTwitterUrl', "Join Us on Twitter"), original: 'Join Us on Twitter' },
+			title: { value: localize('openTwitterUrl', "Join Us on Twitter"), original: 'Join Us on Twitter' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -175,7 +175,7 @@ class OpenRequestFeatureUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenRequestFeatureUrlAction.ID,
-			title: { value: nls.localize('openUserVoiceUrl', "Search Feature Requests"), original: 'Search Feature Requests' },
+			title: { value: localize('openUserVoiceUrl', "Search Feature Requests"), original: 'Search Feature Requests' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -199,7 +199,7 @@ class OpenLicenseUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenLicenseUrlAction.ID,
-			title: { value: nls.localize('openLicenseUrl', "View License"), original: 'View License' },
+			title: { value: localize('openLicenseUrl', "View License"), original: 'View License' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -228,7 +228,7 @@ class OpenPrivacyStatementUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenPrivacyStatementUrlAction.ID,
-			title: { value: nls.localize('openPrivacyStatement', "Privacy Statement"), original: 'Privacy Statement' },
+			title: { value: localize('openPrivacyStatement', "Privacy Statement"), original: 'Privacy Statement' },
 			category: CATEGORIES.Help,
 			f1: true
 		});
@@ -296,7 +296,7 @@ if (OpenDocumentationUrlAction.AVAILABLE) {
 		group: '1_welcome',
 		command: {
 			id: OpenDocumentationUrlAction.ID,
-			title: nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
+			title: localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
 		},
 		order: 3
 	});
@@ -308,7 +308,7 @@ if (KeybindingsReferenceAction.AVAILABLE) {
 		group: '2_reference',
 		command: {
 			id: KeybindingsReferenceAction.ID,
-			title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
+			title: localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
 		},
 		order: 1
 	});
@@ -319,7 +319,7 @@ if (OpenIntroductoryVideosUrlAction.AVAILABLE) {
 		group: '2_reference',
 		command: {
 			id: OpenIntroductoryVideosUrlAction.ID,
-			title: nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
+			title: localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
 		},
 		order: 2
 	});
@@ -330,7 +330,7 @@ if (OpenTipsAndTricksUrlAction.AVAILABLE) {
 		group: '2_reference',
 		command: {
 			id: OpenTipsAndTricksUrlAction.ID,
-			title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
+			title: localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "Tips and Tri&&cks")
 		},
 		order: 3
 	});
@@ -342,7 +342,7 @@ if (OpenTwitterUrlAction.AVAILABLE) {
 		group: '3_feedback',
 		command: {
 			id: OpenTwitterUrlAction.ID,
-			title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter")
+			title: localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter")
 		},
 		order: 1
 	});
@@ -353,7 +353,7 @@ if (OpenRequestFeatureUrlAction.AVAILABLE) {
 		group: '3_feedback',
 		command: {
 			id: OpenRequestFeatureUrlAction.ID,
-			title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
+			title: localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
 		},
 		order: 2
 	});
@@ -365,7 +365,7 @@ if (OpenLicenseUrlAction.AVAILABLE) {
 		group: '4_legal',
 		command: {
 			id: OpenLicenseUrlAction.ID,
-			title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
+			title: localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
 		},
 		order: 1
 	});
@@ -376,7 +376,7 @@ if (OpenPrivacyStatementUrlAction.AVAILABE) {
 		group: '4_legal',
 		command: {
 			id: OpenPrivacyStatementUrlAction.ID,
-			title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement")
+			title: localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "Privac&&y Statement")
 		},
 		order: 2
 	});

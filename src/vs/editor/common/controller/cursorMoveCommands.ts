@@ -297,6 +297,20 @@ export class CursorMoveCommands {
 					return this._moveDownByModelLines(viewModel, cursors, inSelectionMode, value);
 				}
 			}
+			case CursorMove.Direction.PrevBlankLine: {
+				if (unit === CursorMove.Unit.WrappedLine) {
+					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
+				} else {
+					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToPrevBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+				}
+			}
+			case CursorMove.Direction.NextBlankLine: {
+				if (unit === CursorMove.Unit.WrappedLine) {
+					return cursors.map(cursor => CursorState.fromViewState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)));
+				} else {
+					return cursors.map(cursor => CursorState.fromModelState(MoveOperations.moveToNextBlankLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)));
+				}
+			}
 			case CursorMove.Direction.WrappedLineStart: {
 				// Move to the beginning of the current view line
 				return this._moveToViewMinColumn(viewModel, cursors, inSelectionMode);
@@ -614,7 +628,7 @@ export namespace CursorMove {
 				description: `Property-value pairs that can be passed through this argument:
 					* 'to': A mandatory logical position value providing where to move the cursor.
 						\`\`\`
-						'left', 'right', 'up', 'down'
+						'left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine',
 						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
 						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter'
 						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
@@ -633,7 +647,7 @@ export namespace CursorMove {
 					'properties': {
 						'to': {
 							'type': 'string',
-							'enum': ['left', 'right', 'up', 'down', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
+							'enum': ['left', 'right', 'up', 'down', 'prevBlankLine', 'nextBlankLine', 'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter', 'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter', 'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside']
 						},
 						'by': {
 							'type': 'string',
@@ -661,6 +675,9 @@ export namespace CursorMove {
 		Right: 'right',
 		Up: 'up',
 		Down: 'down',
+
+		PrevBlankLine: 'prevBlankLine',
+		NextBlankLine: 'nextBlankLine',
 
 		WrappedLineStart: 'wrappedLineStart',
 		WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
@@ -714,6 +731,12 @@ export namespace CursorMove {
 				break;
 			case RawDirection.Down:
 				direction = Direction.Down;
+				break;
+			case RawDirection.PrevBlankLine:
+				direction = Direction.PrevBlankLine;
+				break;
+			case RawDirection.NextBlankLine:
+				direction = Direction.NextBlankLine;
 				break;
 			case RawDirection.WrappedLineStart:
 				direction = Direction.WrappedLineStart;
@@ -790,6 +813,8 @@ export namespace CursorMove {
 		Right,
 		Up,
 		Down,
+		PrevBlankLine,
+		NextBlankLine,
 
 		WrappedLineStart,
 		WrappedLineFirstNonWhitespaceCharacter,
@@ -809,6 +834,8 @@ export namespace CursorMove {
 		| Direction.Right
 		| Direction.Up
 		| Direction.Down
+		| Direction.PrevBlankLine
+		| Direction.NextBlankLine
 		| Direction.WrappedLineStart
 		| Direction.WrappedLineFirstNonWhitespaceCharacter
 		| Direction.WrappedLineColumnCenter

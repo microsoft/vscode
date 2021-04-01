@@ -11,20 +11,8 @@ declare module 'typescript/lib/protocol' {
 		readonly _serverType?: ServerType;
 	}
 
-	interface FileReferencesRequest extends FileRequest {
-	}
-	interface FileReferencesResponseBody {
-		/**
-		 * The file locations referencing the symbol.
-		 */
-		refs: readonly ReferencesResponseItem[];
-		/**
-		 * The name of the symbol.
-		 */
-		symbolName: string;
-	}
-	interface FileReferencesResponse extends Response {
-		body?: FileReferencesResponseBody;
+	interface JSDocLinkDisplayPart {
+		target: Proto.FileSpan;
 	}
 }
 

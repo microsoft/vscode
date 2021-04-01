@@ -9,9 +9,9 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IRange } from 'vs/editor/common/core/range';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { InternalTestItem, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -27,10 +27,25 @@ export interface ITestTreeProjection extends IDisposable {
 	onUpdate: Event<void>;
 
 	/**
+	 * Fired when an element in the tree is expanded.
+	 */
+	expandElement(element: ITestTreeElement, depth: number): void;
+
+	/**
+	 * Gets an element by its extension-assigned ID.
+	 */
+	getElementByTestId(testId: string): ITestTreeElement | undefined;
+
+	/**
 	 * Gets the test at the given position in th editor. Should be fast,
 	 * since it is called on each cursor move.
 	 */
 	getTestAtPosition(uri: URI, position: Position): ITestTreeElement | undefined;
+
+	/**
+	 * Gets whether any test is defined in the given URI.
+	 */
+	hasTestInDocument(uri: URI): boolean;
 
 	/**
 	 * Applies pending update to the tree.
@@ -40,13 +55,6 @@ export interface ITestTreeProjection extends IDisposable {
 
 
 export interface ITestTreeElement {
-	/**
-	 * Computed element state. Will be set automatically if not initially provided.
-	 * The projection is responsible for clearing (or updating) this if it
-	 * becomes invalid.
-	 */
-	computedState: TestRunState | undefined;
-
 	readonly children: Set<ITestTreeElement>;
 
 	/**
@@ -55,9 +63,14 @@ export interface ITestTreeElement {
 	readonly treeId: string;
 
 	/**
+	 * URI associated with the test item.
+	 */
+	readonly uri: URI;
+
+	/**
 	 * Location of the test, if any.
 	 */
-	readonly location?: { uri: URI; range: ITextEditorSelection };
+	readonly range?: IRange;
 
 	/**
 	 * Test item, if any.
@@ -77,17 +90,29 @@ export interface ITestTreeElement {
 	/**
 	 * Tests that can be run using this tree item.
 	 */
-	readonly runnable: Iterable<TestIdWithProvider>;
+	readonly runnable: Iterable<TestIdWithSrc>;
 
 	/**
 	 * Tests that can be run using this tree item.
 	 */
-	readonly debuggable: Iterable<TestIdWithProvider>;
+	readonly debuggable: Iterable<TestIdWithSrc>;
 
 	/**
-	 * State of of the tree item. Mostly used for deriving the computed state.
+	 * Expand state of the test.
 	 */
-	readonly state?: TestRunState;
+	readonly expandable: TestItemExpandState;
+
+	/**
+	 * Element state to display.
+	 */
+	state: TestResult;
+
+	/**
+	 * Whether the node's test result is 'retired' -- from an outdated test run.
+	 */
+	readonly retired: boolean;
+
+	readonly ownState: TestResult;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
 }

@@ -13,9 +13,10 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IStartupMetrics, AbstractTimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
+import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class TimerService extends AbstractTimerService {
 
@@ -80,11 +81,13 @@ export class TimerService extends AbstractTimerService {
 	}
 }
 
+registerSingleton(ITimerService, TimerService);
+
 //#region cached data logic
 
 export function didUseCachedData(): boolean {
-	// TODO@bpasero TODO@jrieken need a different way to figure out if cached data was used
-	if (context.sandbox) {
+	// TODO@sandbox need a different way to figure out if cached data was used
+	if (process.sandboxed) {
 		return true;
 	}
 	// We surely don't use cached data when we don't tell the loader to do so

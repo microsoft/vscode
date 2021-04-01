@@ -81,7 +81,7 @@ export class PreferencesEditor extends EditorPane {
 	get minimumHeight() { return 260; }
 
 	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
+	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
 
 	constructor(
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -254,11 +254,11 @@ export class PreferencesEditor extends EditorPane {
 		const promise = this.input && this.input.isDirty() ? this.editorService.save({ editor: this.input, groupId: this.group!.id }) : Promise.resolve(true);
 		promise.then(() => {
 			if (target === ConfigurationTarget.USER_LOCAL) {
-				this.preferencesService.switchSettings(ConfigurationTarget.USER_LOCAL, this.preferencesService.userSettingsResource, true);
+				this.preferencesService.switchSettings(ConfigurationTarget.USER_LOCAL, this.preferencesService.userSettingsResource);
 			} else if (target === ConfigurationTarget.WORKSPACE) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource!, true);
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource!);
 			} else if (target instanceof URI) {
-				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target, true);
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target);
 			}
 		});
 	}
@@ -1025,24 +1025,21 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		return super.setInput(input, options, context, token)
-			.then(() => this.input!.resolve()
-				.then<any>(editorModel => {
-					if (token.isCancellationRequested) {
-						return undefined;
-					}
-
-					return editorModel!.load();
-				})
-				.then(editorModel => {
-					if (token.isCancellationRequested) {
-						return;
-					}
-
-					const editor = assertIsDefined(this.getControl());
-					editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
-				}));
+	async setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
+		const editorModel = await this.input!.resolve();
+		if (!editorModel) {
+			return;
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		await editorModel.resolve();
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const editor = assertIsDefined(this.getControl());
+		editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
 	}
 
 	clearInput(): void {

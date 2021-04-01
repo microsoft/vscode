@@ -205,26 +205,28 @@ export class QueryBuilder {
 		const folderQueries: IFolderQuery[] = [];
 		const foldersToSearch: ResourceMap<IFolderQuery> = new ResourceMap();
 		const includePattern: glob.IExpression = {};
+		let hasIncludedFile = false;
 		files.forEach(file => {
 			if (file.scheme === Schemas.walkThrough) { return; }
 
 			const providerExists = isAbsolutePath(file);
 			// Special case userdata as we don't have a search provider for it, but it can be searched.
-			const isUserdata = file.scheme === Schemas.userData;
-			if (providerExists && !isUserdata) {
+			if (providerExists) {
 				const searchRoot = this.workspaceContextService.getWorkspaceFolder(file)?.uri ?? file.with({ path: path.dirname(file.fsPath) });
 
 				let folderQuery = foldersToSearch.get(searchRoot);
 				if (!folderQuery) {
+					hasIncludedFile = true;
 					folderQuery = { folder: searchRoot, includePattern: {} };
 					folderQueries.push(folderQuery);
 					foldersToSearch.set(searchRoot, folderQuery);
 				}
 
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertIsDefined(folderQuery.includePattern)[relPath] = true;
+				assertIsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
 			} else {
 				if (file.fsPath) {
+					hasIncludedFile = true;
 					includePattern[file.fsPath] = true;
 				}
 			}
@@ -234,7 +236,7 @@ export class QueryBuilder {
 			folderQueries,
 			includePattern,
 			usingSearchPaths: true,
-			excludePattern: folderQueries.length ? undefined : { '**/*': true }
+			excludePattern: hasIncludedFile ? undefined : { '**/*': true }
 		};
 	}
 

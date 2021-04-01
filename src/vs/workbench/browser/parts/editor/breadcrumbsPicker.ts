@@ -427,15 +427,9 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 	}
 
 	async _revealElement(element: IFileStat | IWorkspaceFolder, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
-		let resource: URI | undefined;
-		if (isWorkspaceFolder(element)) {
-			resource = element.uri;
-		} else if (!element.isDirectory) {
-			resource = element.resource;
-		}
-		if (resource) {
+		if (!isWorkspaceFolder(element) && element.isFile) {
 			this._onWillPickElement.fire();
-			await this._editorService.openEditor({ resource, options }, sideBySide ? SIDE_GROUP : undefined);
+			await this._editorService.openEditor({ resource: element.resource, options }, sideBySide ? SIDE_GROUP : undefined);
 			return true;
 		}
 		return false;

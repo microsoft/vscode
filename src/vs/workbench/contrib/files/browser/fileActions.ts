@@ -53,6 +53,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { listenStream } from 'vs/base/common/stream';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -392,7 +394,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 
 	// file => file1
 	// file1 => file2
-	let noExtensionRegex = RegExp('(.*)(\d*)$');
+	let noExtensionRegex = RegExp('(.*)(\\d*)$');
 	if (!isFolder && lastIndexOfDot === -1 && name.match(noExtensionRegex)) {
 		return name.replace(noExtensionRegex, (match, g1?, g2?) => {
 			let number = parseInt(g2);
@@ -465,7 +467,7 @@ export class GlobalCompareResourcesAction extends Action {
 							override: this.editorService.openEditor({
 								leftResource: activeResource,
 								rightResource: resource,
-								options: { override: false, pinned: true }
+								options: { override: EditorOverride.DISABLED, pinned: true }
 							})
 						};
 					}
@@ -475,7 +477,7 @@ export class GlobalCompareResourcesAction extends Action {
 					return {
 						override: this.editorService.openEditor({
 							resource: activeResource,
-							options: { override: false, pinned: true }
+							options: { override: EditorOverride.DISABLED, pinned: true }
 						})
 					};
 				}
@@ -1034,21 +1036,21 @@ const downloadFileHandler = async (accessor: ServicesAccessor) => {
 								reject();
 							}));
 
-							sourceStream.on('data', data => {
-								if (!disposed) {
-									target.write(data.buffer);
-									reportProgress(contents.name, contents.size, data.byteLength, operation);
+							listenStream(sourceStream, {
+								onData: data => {
+									if (!disposed) {
+										target.write(data.buffer);
+										reportProgress(contents.name, contents.size, data.byteLength, operation);
+									}
+								},
+								onError: error => {
+									disposables.dispose();
+									reject(error);
+								},
+								onEnd: () => {
+									disposables.dispose();
+									resolve();
 								}
-							});
-
-							sourceStream.on('error', error => {
-								disposables.dispose();
-								reject(error);
-							});
-
-							sourceStream.on('end', () => {
-								disposables.dispose();
-								resolve();
 							});
 						});
 					}
@@ -1209,7 +1211,6 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
 	const notificationService = accessor.get(INotificationService);
-	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 
@@ -1264,12 +1265,6 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			const pair = sourceTargetPairs[0];
 			await explorerService.select(pair.target);
-			if (sourceTargetPairs.length === 1) {
-				const item = explorerService.findClosest(pair.target);
-				if (item && !item.isDirectory) {
-					await editorService.openEditor({ resource: item.resource, options: { pinned: true, preserveFocus: true } });
-				}
-			}
 		}
 	} catch (e) {
 		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));

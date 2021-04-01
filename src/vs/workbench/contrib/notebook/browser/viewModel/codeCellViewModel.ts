@@ -23,14 +23,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 	private _outputCollection: number[] = [];
-	private _selfSizeMonitoring: boolean = false;
-	set selfSizeMonitoring(newVal: boolean) {
-		this._selfSizeMonitoring = newVal;
-	}
-
-	get selfSizeMonitoring() {
-		return this._selfSizeMonitoring;
-	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
@@ -41,7 +33,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	set editorHeight(height: number) {
 		this._editorHeight = height;
 
-		this.layoutChange({ editorHeight: true });
+		this.layoutChange({ editorHeight: true }, 'CodeCellViewModel#editorHeight');
 	}
 
 	get editorHeight() {
@@ -56,6 +48,30 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	public set outputIsHovered(v: boolean) {
 		this._hoveringOutput = v;
 		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
+	}
+
+	private _focusOnOutput: boolean = false;
+	public get outputIsFocused(): boolean {
+		return this._focusOnOutput;
+	}
+
+	public set outputIsFocused(v: boolean) {
+		this._focusOnOutput = v;
+		this._onDidChangeState.fire({ outputIsFocusedChanged: true });
+	}
+
+	private _outputMinHeight: number = 0;
+
+	private get outputMinHeight() {
+		return this._outputMinHeight;
+	}
+
+	/**
+	 * The minimum height of the output region. It's only set to non-zero temporarily when replacing an output with a new one.
+	 * It's reset to 0 when the new output is rendered, or in one second.
+	 */
+	private set outputMinHeight(newMin: number) {
+		this._outputMinHeight = newMin;
 	}
 
 	private _layoutInfo: CodeCellLayoutInfo;
@@ -112,11 +128,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return outerWidth - (CODE_CELL_LEFT_MARGIN + (CELL_MARGIN * 2) + CELL_RUN_GUTTER);
 	}
 
-	layoutChange(state: CodeCellLayoutChangeEvent) {
+	layoutChange(state: CodeCellLayoutChangeEvent, source?: string) {
 		// recompute
 		this._ensureOutputsTop();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = this.metadata?.outputCollapsed ? COLLAPSED_INDICATOR_HEIGHT : this._outputsTop!.getTotalValue();
+		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.outputCollapsed ? COLLAPSED_INDICATOR_HEIGHT : this._outputsTop!.getTotalValue());
 
 		if (!this.metadata?.inputCollapsed) {
 			let newState: CodeCellLayoutState;
@@ -159,7 +175,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				layoutState: newState
 			};
 		} else {
-			outputTotalHeight = this.metadata?.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight;
+			outputTotalHeight = Math.max(this._outputMinHeight, this.metadata?.inputCollapsed && this.metadata.outputCollapsed ? 0 : outputTotalHeight);
 			const indicatorHeight = COLLAPSED_INDICATOR_HEIGHT + outputTotalHeight + outputShowMoreContainerHeight;
 			const outputContainerOffset = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT;
 			const totalHeight = CELL_TOP_MARGIN + COLLAPSED_INDICATOR_HEIGHT + CELL_BOTTOM_MARGIN + BOTTOM_CELL_TOOLBAR_GAP + outputTotalHeight + outputShowMoreContainerHeight;
@@ -185,6 +201,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		if (state.editorHeight || state.outputHeight) {
 			state.totalHeight = true;
 		}
+
+		state.source = source;
 
 		this._fireOnDidChangeLayout(state);
 	}
@@ -262,10 +280,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	updateOutputShowMoreContainerHeight(height: number) {
-		this.layoutChange({ outputShowMoreContainerHeight: height });
+		this.layoutChange({ outputShowMoreContainerHeight: height }, 'CodeCellViewModel#updateOutputShowMoreContainerHeight');
 	}
 
-	updateOutputHeight(index: number, height: number) {
+	updateOutputMinHeight(height: number) {
+		this.outputMinHeight = height;
+	}
+
+	updateOutputHeight(index: number, height: number, source?: string) {
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
 		}
@@ -273,7 +295,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._ensureOutputsTop();
 		this._outputCollection[index] = height;
 		if (this._outputsTop!.changeValue(index, height)) {
-			this.layoutChange({ outputHeight: true });
+			this.layoutChange({ outputHeight: true }, source);
 		}
 	}
 
@@ -304,7 +326,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._outputsTop!.insertValues(start, values);
 		}
 
-		this.layoutChange({ outputHeight: true });
+		this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#spliceOutputs');
 	}
 
 	private _ensureOutputsTop(): void {

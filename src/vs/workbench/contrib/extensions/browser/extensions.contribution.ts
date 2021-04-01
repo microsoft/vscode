@@ -36,7 +36,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsService } from 'vs/workbench/common/views';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ContextKeyAndExpr, ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyOrExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyDefinedExpr, ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyNotEqualsExpr, ContextKeyOrExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
@@ -64,11 +64,11 @@ import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, f
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isArray } from 'vs/base/common/types';
-import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
+import { Promises } from 'vs/base/common/async';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -101,12 +101,18 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		name: localize('extensions', "Extensions"),
+		title: localize('extensions', "Extensions"),
+		openCommandActionDescriptor: {
+			id: VIEWLET_ID,
+			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
+			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
+			order: 4,
+		},
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: extensionsViewIcon,
 		order: 4,
 		rejectAddedViews: true,
-		alwaysUseContainerInfo: true
+		alwaysUseContainerInfo: true,
 	}, ViewContainerLocation.Sidebar);
 
 
@@ -118,8 +124,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
-				type: 'boolean',
-				description: localize('extensionsAutoUpdate', "When enabled, automatically installs updates for extensions. The updates are fetched from a Microsoft online service."),
+				enum: [true, 'onlyEnabledExtensions', false,],
+				enumItemLabels: [
+					localize('all', "All Extensions"),
+					localize('enabled', "Only Enabled Extensions"),
+					localize('none', "None"),
+				],
+				enumDescriptions: [
+					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
+					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions. Disabled extensions will not be updated automatically.'),
+					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
+				],
+				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
 				default: true,
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['usesOnlineServices']
@@ -150,7 +166,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.confirmedUriHandlerExtensionIds': {
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
-				default: []
+				default: [],
+				scope: ConfigurationScope.APPLICATION
 			},
 			'extensions.webWorker': {
 				type: 'boolean',
@@ -280,7 +297,7 @@ CommandsRegistry.registerCommand({
 });
 
 function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
-	command?.addImplementation(105, (accessor) => {
+	command?.addImplementation(105, 'extensions-editor', (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
 		if (editor instanceof ExtensionEditor) {
@@ -326,7 +343,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
@@ -371,36 +388,27 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	// Global actions
 	private registerGlobalActions(): void {
-		this.registerExtensionAction({
-			id: VIEWLET_ID,
-			title: { value: localize('toggleExtensionsViewlet', "Show Extensions"), original: 'Show Extensions' },
-			category: CATEGORIES.View,
-			menu: [{
-				id: MenuId.CommandPalette,
-			}, {
-				id: MenuId.MenubarPreferencesMenu,
+		this._register(MenuRegistry.appendMenuItems([{
+			id: MenuId.MenubarPreferencesMenu,
+			item: {
+				command: {
+					id: VIEWLET_ID,
+					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+				},
 				group: '1_settings',
 				order: 3
-			}, {
-				id: MenuId.MenubarViewMenu,
-				group: '3_views',
-				order: 5
-			}, {
-				id: MenuId.GlobalActivity,
+			}
+		}, {
+			id: MenuId.GlobalActivity,
+			item: {
+				command: {
+					id: VIEWLET_ID,
+					title: localize('showExtensions', "Extensions")
+				},
 				group: '2_configuration',
 				order: 3
-			}],
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menuTitles: {
-				[MenuId.MenubarPreferencesMenu.id]: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions"),
-				[MenuId.MenubarViewMenu.id]: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
-				[MenuId.GlobalActivity.id]: localize('showExtensions', "Extensions"),
-			},
-			run: () => runAction(this.instantiationService.createInstance(ShowViewletAction, VIEWLET_ID, 'Show Extensions', VIEWLET_ID))
-		});
+			}
+		}]));
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
@@ -410,7 +418,9 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 				when: ContextKeyAndExpr.create([CONTEXT_HAS_GALLERY, ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER])])
 			},
-			run: () => runAction(this.instantiationService.createInstance(ShowViewletAction, VIEWLET_ID, 'Install Extensions', VIEWLET_ID))
+			run: async (accessor: ServicesAccessor) => {
+				accessor.get(IViewsService).openViewContainer(VIEWLET_ID);
+			}
 		});
 
 		this.registerExtensionAction({
@@ -467,42 +477,52 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: async () => {
 				await this.extensionsWorkbenchService.checkForUpdates();
 				const outdated = this.extensionsWorkbenchService.outdated;
-				if (!outdated.length) {
-					this.notificationService.info(localize('noUpdatesAvailable', "All extensions are up to date."));
-					return;
+				if (outdated.length) {
+					return runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '));
+				} else {
+					return this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."), []);
 				}
-
-				let msgAvailableExtensions = outdated.length === 1 ? localize('singleUpdateAvailable', "An extension update is available.") : localize('updatesAvailable', "{0} extension updates are available.", outdated.length);
-
-				const disabledExtensionsCount = outdated.filter(ext => ext.local && !this.extensionEnablementService.isEnabled(ext.local)).length;
-				if (disabledExtensionsCount) {
-					if (outdated.length === 1) {
-						msgAvailableExtensions = localize('singleDisabledUpdateAvailable', "An update to an extension which is disabled is available.");
-					} else if (disabledExtensionsCount === 1) {
-						msgAvailableExtensions = localize('updatesAvailableOneDisabled', "{0} extension updates are available. One of them is for a disabled extension.", outdated.length);
-					} else if (disabledExtensionsCount === outdated.length) {
-						msgAvailableExtensions = localize('updatesAvailableAllDisabled', "{0} extension updates are available. All of them are for disabled extensions.", outdated.length);
-					} else {
-						msgAvailableExtensions = localize('updatesAvailableIncludingDisabled', "{0} extension updates are available. {1} of them are for disabled extensions.", outdated.length, disabledExtensionsCount);
-					}
-				}
-
-				this.viewletService.openViewlet(VIEWLET_ID, true);
-				this.notificationService.info(msgAvailableExtensions);
 			}
 		});
 
+		const autoUpdateExtensionsSubMenu = new MenuId('autoUpdateExtensionsSubMenu');
+		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
+			submenu: autoUpdateExtensionsSubMenu,
+			title: localize('configure auto updating extensions', "Auto Update Extensions"),
+			when: ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID),
+			group: '1_updates',
+			order: 5,
+		});
+
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: { value: localize('disableAutoUpdate', "Disable Auto Updating Extensions"), original: 'Disable Auto Updating Extensions' },
-			category: ExtensionsLocalizedLabel,
+			id: 'configureExtensionsAutoUpdate.all',
+			title: localize('configureExtensionsAutoUpdate.all', "All Extensions"),
+			toggled: ContextKeyAndExpr.create([ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`), ContextKeyNotEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions')]),
 			menu: [{
-				id: MenuId.CommandPalette,
-			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`)]),
-				group: '1_updates',
-				order: 2
+				id: autoUpdateExtensionsSubMenu,
+				order: 1,
+			}],
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
+		});
+
+		this.registerExtensionAction({
+			id: 'configureExtensionsAutoUpdate.enabled',
+			title: localize('configureExtensionsAutoUpdate.enabled', "Only Enabled Extensions"),
+			toggled: ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'),
+			menu: [{
+				id: autoUpdateExtensionsSubMenu,
+				order: 2,
+			}],
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'onlyEnabledExtensions')
+		});
+
+		this.registerExtensionAction({
+			id: 'configureExtensionsAutoUpdate.none',
+			title: localize('configureExtensionsAutoUpdate.none', "None"),
+			toggled: ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, false),
+			menu: [{
+				id: autoUpdateExtensionsSubMenu,
+				order: 3,
 			}],
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
 		});
@@ -517,7 +537,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: ContextKeyAndExpr.create([CONTEXT_HAS_GALLERY, ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER])])
 			}, {
 				id: MenuId.ViewContainerTitle,
-				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate()]),
+				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyOrExpr.create([ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate(), ContextKeyEqualsExpr.create(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions')])]),
 				group: '1_updates',
 				order: 2
 			}],
@@ -533,17 +553,18 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: { value: localize('enableAutoUpdate', "Enable Auto Updating Extensions"), original: 'Enable Auto Updating Extensions' },
+			id: 'workbench.extensions.action.disableAutoUpdate',
+			title: { value: localize('disableAutoUpdate', "Disable Auto Updating Extensions"), original: 'Disable Auto Updating Extensions' },
 			category: ExtensionsLocalizedLabel,
-			menu: [{
-				id: MenuId.CommandPalette,
-			}, {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyAndExpr.create([ContextKeyEqualsExpr.create('viewContainer', VIEWLET_ID), ContextKeyDefinedExpr.create(`config.${AutoUpdateConfigurationKey}`).negate()]),
-				group: '1_updates',
-				order: 3
-			}],
+			f1: true,
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.enableAutoUpdate',
+			title: { value: localize('enableAutoUpdate', "Enable Auto Updating All Extensions"), original: 'Enable Auto Updating All Extensions' },
+			category: ExtensionsLocalizedLabel,
+			f1: true,
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
 		});
 
@@ -665,7 +686,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const notificationService = accessor.get(INotificationService);
 
 				const extensions = Array.isArray(resources) ? resources : [resources];
-				await Promise.all(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
+				await Promises.settled(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
 					.then(async (extensions) => {
 						for (const extension of extensions) {
 							const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));
@@ -678,8 +699,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 							notificationService.prompt(
 								Severity.Info,
 								message,
-								actions,
-								{ sticky: true }
+								actions
 							);
 						}
 					});

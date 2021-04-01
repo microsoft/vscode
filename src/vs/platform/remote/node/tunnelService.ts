@@ -150,7 +150,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		if (this._tunnelProvider) {
 			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
 		} else {
-			this.logService.trace(`Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
+			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,
 				socketFactory: this.socketFactory,
@@ -161,7 +161,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 			};
 
 			const tunnel = createRemoteTunnel(options, remoteHost, remotePort, localPort);
-			this.logService.trace('Tunnel created without provider.');
+			this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;
 		}

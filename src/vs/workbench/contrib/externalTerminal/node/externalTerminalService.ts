@@ -14,6 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node/externalTerminal';
 import { FileAccess } from 'vs/base/common/network';
+import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
@@ -22,9 +23,12 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 
 	private static readonly CMD = 'cmd.exe';
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
+		@optional(IConfigurationService) configurationService: IConfigurationService
 	) {
+		this._configurationService = configurationService;
 	}
 
 	public openTerminal(cwd?: string): void {
@@ -34,7 +38,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const exec = settings.windowsExec || WindowsExternalTerminalService.getDefaultTerminalWindows();
 
@@ -121,9 +125,13 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 
 	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
-	) { }
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		this._configurationService = configurationService;
+	}
 
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
@@ -132,7 +140,7 @@ export class MacExternalTerminalService implements IExternalTerminalService {
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const terminalApp = settings.osxExec || DEFAULT_TERMINAL_OSX;
 
@@ -217,9 +225,13 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 
 	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
+	private readonly _configurationService?: IConfigurationService;
+
 	constructor(
-		@optional(IConfigurationService) private readonly _configurationService: IConfigurationService
-	) { }
+		@optional(IConfigurationService) configurationService: IConfigurationService
+	) {
+		this._configurationService = configurationService;
+	}
 
 	public openTerminal(cwd?: string): void {
 		if (this._configurationService) {
@@ -228,7 +240,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 		}
 	}
 
-	public runInTerminal(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
+	public runInTerminal(title: string, dir: string, args: string[], envVars: ITerminalEnvironment, settings: IExternalTerminalSettings): Promise<number | undefined> {
 
 		const execPromise = settings.linuxExec ? Promise.resolve(settings.linuxExec) : LinuxExternalTerminalService.getDefaultTerminalLinuxReady();
 
@@ -330,7 +342,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 /**
  * tries to turn OS errors into more meaningful error messages
  */
-function improveError(err: Error): Error {
+function improveError(err: Error & { errno?: string, path?: string }): Error {
 	if ('errno' in err && err['errno'] === 'ENOENT' && 'path' in err && typeof err['path'] === 'string') {
 		return new Error(nls.localize('ext.term.app.not.found', "can't find terminal application '{0}'", err['path']));
 	}

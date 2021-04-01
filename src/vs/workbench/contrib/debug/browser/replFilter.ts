@@ -24,6 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
 import { localize } from 'vs/nls';
+import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 
 
 type ParsedQuery = {
@@ -53,7 +54,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 
 	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
-		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
+		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult || element instanceof Variable) {
 			// Only filter the output events, everything else is visible https://github.com/microsoft/vscode/issues/105863
 			return TreeVisibility.Visible;
 		}
@@ -61,7 +62,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		let includeQueryPresent = false;
 		let includeQueryMatched = false;
 
-		const text = element.toString();
+		const text = element.toString(true);
 
 		for (let { type, query } of this._parsedQueries) {
 			if (type === 'exclude' && ReplFilter.matchQuery(query, text)) {
@@ -157,11 +158,27 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	focus(): void {
-		this.filterInputBox.focus();
+		if (this.filterInputBox) {
+			this.filterInputBox.focus();
+		}
+	}
+
+	blur(): void {
+		if (this.filterInputBox) {
+			this.filterInputBox.blur();
+		}
+	}
+
+	setFocusable(): void {
+		// noop input elements are focusable by default
 	}
 
 	getHistory(): string[] {
 		return this.filterInputBox.getHistory();
+	}
+
+	get trapsArrowNavigation(): boolean {
+		return true;
 	}
 
 	private clearFilterText(): void {

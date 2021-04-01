@@ -40,8 +40,12 @@
           "keybindings.json",
           "extensions.json",
           "argv.json",
-          "profiles.json"
-        ]
+          "profiles.json",
+          ".devcontainer.json"
+        ],
+        "filenamePatterns": [
+					"**/.devcontainer/devcontainer.json"
+				]
       }
     ],
     "jsonValidation": [
@@ -129,5 +133,9 @@
   },
   "devDependencies": {
     "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

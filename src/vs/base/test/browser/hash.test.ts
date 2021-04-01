@@ -9,53 +9,53 @@ import { sha1Hex } from 'vs/base/browser/hash';
 
 suite('Hash', () => {
 	test('string', () => {
-		assert.equal(hash('hello'), hash('hello'));
-		assert.notEqual(hash('hello'), hash('world'));
-		assert.notEqual(hash('hello'), hash('olleh'));
-		assert.notEqual(hash('hello'), hash('Hello'));
-		assert.notEqual(hash('hello'), hash('Hello '));
-		assert.notEqual(hash('h'), hash('H'));
-		assert.notEqual(hash('-'), hash('_'));
+		assert.strictEqual(hash('hello'), hash('hello'));
+		assert.notStrictEqual(hash('hello'), hash('world'));
+		assert.notStrictEqual(hash('hello'), hash('olleh'));
+		assert.notStrictEqual(hash('hello'), hash('Hello'));
+		assert.notStrictEqual(hash('hello'), hash('Hello '));
+		assert.notStrictEqual(hash('h'), hash('H'));
+		assert.notStrictEqual(hash('-'), hash('_'));
 	});
 
 	test('number', () => {
-		assert.equal(hash(1), hash(1));
-		assert.notEqual(hash(0), hash(1));
-		assert.notEqual(hash(1), hash(-1));
-		assert.notEqual(hash(0x12345678), hash(0x123456789));
+		assert.strictEqual(hash(1), hash(1));
+		assert.notStrictEqual(hash(0), hash(1));
+		assert.notStrictEqual(hash(1), hash(-1));
+		assert.notStrictEqual(hash(0x12345678), hash(0x123456789));
 	});
 
 	test('boolean', () => {
-		assert.equal(hash(true), hash(true));
-		assert.notEqual(hash(true), hash(false));
+		assert.strictEqual(hash(true), hash(true));
+		assert.notStrictEqual(hash(true), hash(false));
 	});
 
 	test('array', () => {
-		assert.equal(hash([1, 2, 3]), hash([1, 2, 3]));
-		assert.equal(hash(['foo', 'bar']), hash(['foo', 'bar']));
-		assert.equal(hash([]), hash([]));
-		assert.equal(hash([]), hash(new Array()));
-		assert.notEqual(hash(['foo', 'bar']), hash(['bar', 'foo']));
-		assert.notEqual(hash(['foo', 'bar']), hash(['bar', 'foo', null]));
-		assert.notEqual(hash(['foo', 'bar', null]), hash(['bar', 'foo', null]));
-		assert.notEqual(hash(['foo', 'bar']), hash(['bar', 'foo', undefined]));
-		assert.notEqual(hash(['foo', 'bar', undefined]), hash(['bar', 'foo', undefined]));
-		assert.notEqual(hash(['foo', 'bar', null]), hash(['foo', 'bar', undefined]));
+		assert.strictEqual(hash([1, 2, 3]), hash([1, 2, 3]));
+		assert.strictEqual(hash(['foo', 'bar']), hash(['foo', 'bar']));
+		assert.strictEqual(hash([]), hash([]));
+		assert.strictEqual(hash([]), hash(new Array()));
+		assert.notStrictEqual(hash(['foo', 'bar']), hash(['bar', 'foo']));
+		assert.notStrictEqual(hash(['foo', 'bar']), hash(['bar', 'foo', null]));
+		assert.notStrictEqual(hash(['foo', 'bar', null]), hash(['bar', 'foo', null]));
+		assert.notStrictEqual(hash(['foo', 'bar']), hash(['bar', 'foo', undefined]));
+		assert.notStrictEqual(hash(['foo', 'bar', undefined]), hash(['bar', 'foo', undefined]));
+		assert.notStrictEqual(hash(['foo', 'bar', null]), hash(['foo', 'bar', undefined]));
 	});
 
 	test('object', () => {
-		assert.equal(hash({}), hash({}));
-		assert.equal(hash({}), hash(Object.create(null)));
-		assert.equal(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar' }));
-		assert.equal(hash({ 'foo': 'bar', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'bar' }));
-		assert.notEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
-		assert.notEqual(hash({}), hash([]));
+		assert.strictEqual(hash({}), hash({}));
+		assert.strictEqual(hash({}), hash(Object.create(null)));
+		assert.strictEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar' }));
+		assert.strictEqual(hash({ 'foo': 'bar', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'bar' }));
+		assert.notStrictEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
+		assert.notStrictEqual(hash({}), hash([]));
 	});
 
 	test('array - unexpected collision', function () {
 		const a = hash([undefined, undefined, undefined, undefined, undefined]);
 		const b = hash([undefined, undefined, 'HHHHHH', [{ line: 0, character: 0 }, { line: 0, character: 0 }], undefined]);
-		assert.notEqual(a, b);
+		assert.notStrictEqual(a, b);
 	});
 
 	test('all different', () => {
@@ -65,9 +65,9 @@ suite('Hash', () => {
 		];
 		const hashes: number[] = candidates.map(hash);
 		for (let i = 0; i < hashes.length; i++) {
-			assert.equal(hashes[i], hash(candidates[i])); // verify that repeated invocation returns the same hash
+			assert.strictEqual(hashes[i], hash(candidates[i])); // verify that repeated invocation returns the same hash
 			for (let k = i + 1; k < hashes.length; k++) {
-				assert.notEqual(hashes[i], hashes[k], `Same hash ${hashes[i]} for ${JSON.stringify(candidates[i])} and ${JSON.stringify(candidates[k])}`);
+				assert.notStrictEqual(hashes[i], hashes[k], `Same hash ${hashes[i]} for ${JSON.stringify(candidates[i])} and ${JSON.stringify(candidates[k])}`);
 			}
 		}
 	});
@@ -79,11 +79,11 @@ suite('Hash', () => {
 		const hash = new StringSHA1();
 		hash.update(str);
 		let actual = hash.digest();
-		assert.equal(actual, expected);
+		assert.strictEqual(actual, expected);
 
 		// Test with crypto.subtle
 		actual = await sha1Hex(str);
-		assert.equal(actual, expected);
+		assert.strictEqual(actual, expected);
 	}
 
 	test('sha1-1', () => {

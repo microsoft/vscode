@@ -84,12 +84,14 @@ export class ReleaseNotesManager {
 				{
 					tryRestoreScrollPosition: true,
 					enableFindWidget: true,
+				},
+				{
 					localResourceRoots: []
 				},
 				undefined);
 
 			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-			this._currentReleaseNotes.onDispose(() => { this._currentReleaseNotes = undefined; });
+			this._currentReleaseNotes.onWillDispose(() => { this._currentReleaseNotes = undefined; });
 
 			this._currentReleaseNotes.webview.html = html;
 		}
@@ -288,7 +290,7 @@ export class ReleaseNotesManager {
 					}
 
 					code {
-						font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+						font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
 						font-size: 14px;
 						line-height: 19px;
 					}

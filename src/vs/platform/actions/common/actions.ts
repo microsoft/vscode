@@ -87,8 +87,10 @@ export class MenuId {
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly EditorContext = new MenuId('EditorContext');
+	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorTitle = new MenuId('EditorTitle');
+	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
@@ -97,6 +99,7 @@ export class MenuId {
 	static readonly MenubarAppearanceMenu = new MenuId('MenubarAppearanceMenu');
 	static readonly MenubarDebugMenu = new MenuId('MenubarDebugMenu');
 	static readonly MenubarEditMenu = new MenuId('MenubarEditMenu');
+	static readonly MenubarCopy = new MenuId('MenubarCopy');
 	static readonly MenubarFileMenu = new MenuId('MenubarFileMenu');
 	static readonly MenubarGoMenu = new MenuId('MenubarGoMenu');
 	static readonly MenubarHelpMenu = new MenuId('MenubarHelpMenu');
@@ -120,11 +123,14 @@ export class MenuId {
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
+	static readonly TestItem = new MenuId('TestItem');
 	static readonly TouchBarContext = new MenuId('TouchBarContext');
 	static readonly TitleBarContext = new MenuId('TitleBarContext');
 	static readonly TunnelContext = new MenuId('TunnelContext');
-	static readonly TunnelInline = new MenuId('TunnelInline');
+	static readonly TunnelPortInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
+	static readonly TunnelLocalAddressInline = new MenuId('TunnelLocalAddressInline');
+	static readonly TunnelOriginInline = new MenuId('TunnelOriginInline');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
 	static readonly ViewContainerTitle = new MenuId('ViewContainerTitle');
 	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
@@ -134,10 +140,12 @@ export class MenuId {
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
 	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
+	static readonly NotebookCellExecute = new MenuId('NotebookCellExecute');
 	static readonly NotebookDiffCellInputTitle = new MenuId('NotebookDiffCellInputTitle');
 	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
 	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
@@ -148,6 +156,7 @@ export class MenuId {
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
+	static readonly TerminalContext = new MenuId('TerminalContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -174,7 +183,7 @@ export interface IMenuService {
 
 	readonly _serviceBrand: undefined;
 
-	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
+	createMenu(id: MenuId, contextKeyService: IContextKeyService, emitEventsForSubmenuChanges?: boolean): IMenu;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
@@ -319,34 +328,30 @@ export class ExecuteCommandAction extends Action {
 
 export class SubmenuItemAction extends SubmenuAction {
 
-	readonly item: ISubmenuItem;
-
 	constructor(
-		item: ISubmenuItem,
-		menuService: IMenuService,
-		contextKeyService: IContextKeyService,
-		options?: IMenuActionOptions
+		readonly item: ISubmenuItem,
+		private readonly _menuService: IMenuService,
+		private readonly _contextKeyService: IContextKeyService,
+		private readonly _options?: IMenuActionOptions
 	) {
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
+	}
+
+	get actions(): readonly IAction[] {
 		const result: IAction[] = [];
-		const menu = menuService.createMenu(item.submenu, contextKeyService);
-		const groups = menu.getActions(options);
+		const menu = this._menuService.createMenu(this.item.submenu, this._contextKeyService);
+		const groups = menu.getActions(this._options);
 		menu.dispose();
-
-		for (let group of groups) {
-			const [, actions] = group;
-
+		for (const [, actions] of groups) {
 			if (actions.length > 0) {
 				result.push(...actions);
 				result.push(new Separator());
 			}
 		}
-
 		if (result.length) {
 			result.pop(); // remove last separator
 		}
-
-		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, result, 'submenu');
-		this.item = item;
+		return result;
 	}
 }
 

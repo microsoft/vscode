@@ -4,58 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResult } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Test tree element element that groups be hierarchy.
  */
 export class HierarchicalElement implements ITestTreeElement {
 	public readonly children = new Set<HierarchicalElement>();
-	public computedState: TestRunState | undefined;
 	public readonly depth: number = this.parentItem.depth + 1;
 
 	public get treeId() {
-		return `hitest:${this.test.id}`;
+		return generateUuid();
 	}
 
 	public get label() {
 		return this.test.item.label;
 	}
 
-	public get state() {
-		return this.test.item.state.runState;
+	public get uri() {
+		return this.test.item.uri;
 	}
 
-	public get location() {
-		return this.test.item.location;
+	public get range() {
+		return this.test.item.range;
 	}
 
-	public get runnable(): Iterable<TestIdWithProvider> {
+	public get runnable(): Iterable<TestIdWithSrc> {
 		return this.test.item.runnable
-			? [{ providerId: this.test.providerId, testId: this.test.id }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
 
 	public get debuggable() {
 		return this.test.item.debuggable
-			? [{ providerId: this.test.providerId, testId: this.test.id }]
+			? [{ src: this.test.src, testId: this.test.item.extId }]
 			: Iterable.empty();
 	}
+
+	public get expandable() {
+		return this.test.expand;
+	}
+
+	public get folder(): IWorkspaceFolder {
+		return this.parentItem.folder;
+	}
+
+	public state = TestResult.Unset;
+	public retired = false;
+	public ownState = TestResult.Unset;
 
 	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchicalFolder | HierarchicalElement) {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
 	}
 
-	public update(actual: InternalTestItem, addUpdated: (n: ITestTreeElement) => void) {
-		const stateChange = actual.item.state.runState !== this.state;
-		Object.assign(this.test, actual);
-		if (stateChange) {
-			refreshComputedState(this, addUpdated);
-		}
+	public update(patch: ITestItemUpdate) {
+		applyTestItemUpdate(this.test, patch);
 	}
 }
 
@@ -66,81 +73,35 @@ export class HierarchicalFolder implements ITestTreeElement {
 	public readonly children = new Set<HierarchicalElement>();
 	public readonly parentItem = null;
 	public readonly depth = 0;
-	public computedState: TestRunState | undefined;
+	public computedState: TestResult | undefined;
 
 	public get treeId() {
-		return `hifolder:${this.folder.index}`;
+		return generateUuid();
 	}
 
 	public get runnable() {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));
 	}
 
+	public get uri() {
+		return this.folder.uri;
+	}
+
 	public get debuggable() {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
 	}
 
-	constructor(private readonly folder: IWorkspaceFolder) { }
+	public get expandable() {
+		return TestItemExpandState.Expanded;
+	}
+
+	public retired = false;
+	public state = TestResult.Unset;
+	public ownState = TestResult.Unset;
+
+	constructor(public readonly folder: IWorkspaceFolder) { }
 
 	public get label() {
 		return this.folder.name;
 	}
 }
-
-/**
- * Gets the computed state for the node.
- */
-export const getComputedState = (node: ITestTreeElement) => {
-	if (node.computedState === undefined) {
-		node.computedState = node.state ?? TestRunState.Unset;
-		for (const child of node.children) {
-			node.computedState = maxPriority(node.computedState, getComputedState(child));
-		}
-	}
-
-	return node.computedState;
-};
-
-/**
- * Refreshes the computed state for the node and its parents. Any changes
- * elements cause `addUpdated` to be called.
- */
-export const refreshComputedState = (node: ITestTreeElement, addUpdated: (n: ITestTreeElement) => void) => {
-	if (node.computedState === undefined) {
-		return;
-	}
-
-	const oldPriority = statePriority[node.computedState];
-	node.computedState = undefined;
-	const newState = getComputedState(node);
-	const newPriority = statePriority[getComputedState(node)];
-	if (newPriority === oldPriority) {
-		return;
-	}
-
-	addUpdated(node);
-	if (newPriority > oldPriority) {
-		// Update all parents to ensure they're at least this priority.
-		for (let parent = node.parentItem; parent; parent = parent.parentItem) {
-			const prev = parent.computedState;
-			if (prev !== undefined && statePriority[prev] >= newPriority) {
-				break;
-			}
-
-			parent.computedState = newState;
-			addUpdated(parent);
-		}
-	} else if (newPriority < oldPriority) {
-		// Re-render all parents of this node whose computed priority might have come from this node
-		for (let parent = node.parentItem; parent; parent = parent.parentItem) {
-			const prev = parent.computedState;
-			if (prev === undefined || statePriority[prev] > oldPriority) {
-				break;
-			}
-
-			parent.computedState = undefined;
-			parent.computedState = getComputedState(parent);
-			addUpdated(parent);
-		}
-	}
-};

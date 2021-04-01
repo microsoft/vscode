@@ -2,11 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+
+/// <reference no-default-lib="true"/>
 /// <reference lib="webworker" />
+
+const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
 const VERSION = 1;
 
-const rootPath = self.location.pathname.replace(/\/service-worker.js$/, '');
+const resourceCacheName = `vscode-resource-cache-${VERSION}`;
+
+const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
 /**
  * Root path for resources
@@ -24,80 +31,68 @@ const resolveTimeout = 30000;
  */
 
 /**
+ * Caches
  * @template T
  */
 class RequestStore {
 	constructor() {
-		/** @type {Map<string, RequestStoreEntry<T>>} */
+		/** @type {Map<number, RequestStoreEntry<T>>} */
 		this.map = new Map();
+
+		this.requestPool = 0;
 	}
 
 	/**
-	 * @param {string} webviewId
-	 * @param {string} path
+	 * @param {number} requestId
 	 * @return {Promise<T> | undefined}
 	 */
-	get(webviewId, path) {
-		const entry = this.map.get(this._key(webviewId, path));
+	get(requestId) {
+		const entry = this.map.get(requestId);
 		return entry && entry.promise;
 	}
 
 	/**
-	 * @param {string} webviewId
-	 * @param {string} path
-	 * @returns {Promise<T>}
+	 * @returns {{ requestId: number, promise: Promise<T> }}
 	 */
-	create(webviewId, path) {
-		const existing = this.get(webviewId, path);
-		if (existing) {
-			return existing;
-		}
+	create() {
+		const requestId = ++this.requestPool;
+
 		let resolve;
 		const promise = new Promise(r => resolve = r);
 		const entry = { resolve, promise };
-		const key = this._key(webviewId, path);
-		this.map.set(key, entry);
+		this.map.set(requestId, entry);
 
 		const dispose = () => {
 			clearTimeout(timeout);
-			const existingEntry = this.map.get(key);
+			const existingEntry = this.map.get(requestId);
 			if (existingEntry === entry) {
-				return this.map.delete(key);
+				return this.map.delete(requestId);
 			}
 		};
 		const timeout = setTimeout(dispose, resolveTimeout);
-		return promise;
+		return { requestId, promise };
 	}
 
 	/**
-	 * @param {string} webviewId
-	 * @param {string} path
+	 * @param {number} requestId
 	 * @param {T} result
 	 * @return {boolean}
 	 */
-	resolve(webviewId, path, result) {
-		const entry = this.map.get(this._key(webviewId, path));
+	resolve(requestId, result) {
+		const entry = this.map.get(requestId);
 		if (!entry) {
 			return false;
 		}
 		entry.resolve(result);
+		this.map.delete(requestId);
 		return true;
-	}
-
-	/**
-	 * @param {string} webviewId
-	 * @param {string} path
-	 * @return {string}
-	 */
-	_key(webviewId, path) {
-		return `${webviewId}@@@${path}`;
 	}
 }
 
 /**
  * Map of requested paths to responses.
- *
- * @type {RequestStore<{ body: any, mime: string } | undefined>}
+ * @typedef {{ type: 'response', body: any, mime: string, etag: string | undefined, } | { type: 'not-modified', mime: string } | undefined} ResourceResponse
+ * @type {RequestStore<ResourceResponse>}
  */
 const resourceRequestStore = new RequestStore();
 
@@ -111,11 +106,12 @@ const localhostRequestStore = new RequestStore();
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
 
-self.addEventListener('message', async (event) => {
+sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
 		case 'version':
 			{
-				self.clients.get(event.source.id).then(client => {
+				const source = /** @type {Client} */ (event.source);
+				sw.clients.get(source.id).then(client => {
 					if (client) {
 						client.postMessage({
 							channel: 'version',
@@ -127,23 +123,33 @@ self.addEventListener('message', async (event) => {
 			}
 		case 'did-load-resource':
 			{
-				const webviewId = getWebviewIdForClient(event.source);
-				const data = event.data.data;
-				const response = data.status === 200
-					? { body: data.data, mime: data.mime }
-					: undefined;
+				/** @type {ResourceResponse} */
+				let response = undefined;
 
-				if (!resourceRequestStore.resolve(webviewId, data.path, response)) {
+				const data = event.data.data;
+				switch (data.status) {
+					case 200:
+						{
+							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag };
+							break;
+						}
+					case 304:
+						{
+							response = { type: 'not-modified', mime: data.mime };
+							break;
+						}
+				}
+
+				if (!resourceRequestStore.resolve(data.id, response)) {
 					console.log('Could not resolve unknown resource', data.path);
 				}
 				return;
 			}
-
 		case 'did-load-localhost':
 			{
 				const webviewId = getWebviewIdForClient(event.source);
 				const data = event.data.data;
-				if (!localhostRequestStore.resolve(webviewId, data.origin, data.location)) {
+				if (!localhostRequestStore.resolve(data.id, data.location)) {
 					console.log('Could not resolve unknown localhost', data.origin);
 				}
 				return;
@@ -153,46 +159,78 @@ self.addEventListener('message', async (event) => {
 	console.log('Unknown message');
 });
 
-self.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
 
 	// See if it's a resource request
-	if (requestUrl.origin === self.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
+	if (requestUrl.origin === sw.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
 		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
 	// See if it's a localhost request
-	if (requestUrl.origin !== self.origin && requestUrl.host.match(/^localhost:(\d+)$/)) {
+	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^localhost:(\d+)$/)) {
 		return event.respondWith(processLocalhostRequest(event, requestUrl));
 	}
 });
 
-self.addEventListener('install', (event) => {
-	event.waitUntil(self.skipWaiting()); // Activate worker immediately
+sw.addEventListener('install', (event) => {
+	event.waitUntil(sw.skipWaiting()); // Activate worker immediately
 });
 
-self.addEventListener('activate', (event) => {
-	event.waitUntil(self.clients.claim()); // Become available to all pages
+sw.addEventListener('activate', (event) => {
+	event.waitUntil(sw.clients.claim()); // Become available to all pages
 });
 
+/**
+ * @param {FetchEvent} event
+ * @param {URL} requestUrl
+ */
 async function processResourceRequest(event, requestUrl) {
-	const client = await self.clients.get(event.clientId);
+	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		console.log('Could not find inner client for request');
 		return notFound();
 	}
 
 	const webviewId = getWebviewIdForClient(client);
-	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) :  requestUrl.pathname;
+	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) : requestUrl.pathname;
 
-	function resolveResourceEntry(entry) {
+	/**
+	 * @param {ResourceResponse} entry
+	 * @param {Response | undefined} cachedResponse
+	 */
+	async function resolveResourceEntry(entry, cachedResponse) {
 		if (!entry) {
 			return notFound();
 		}
-		return new Response(entry.body, {
+
+		if (entry.type === 'not-modified') {
+			if (cachedResponse) {
+				return cachedResponse.clone();
+			} else {
+				throw new Error('No cache found');
+			}
+		}
+
+		const cacheHeaders = entry.etag ? {
+			'ETag': entry.etag,
+			'Cache-Control': 'no-cache'
+		} : {};
+
+		const response = new Response(entry.body, {
 			status: 200,
-			headers: { 'Content-Type': entry.mime }
+			headers: {
+				'Content-Type': entry.mime,
+				...cacheHeaders
+			}
 		});
+
+		if (entry.etag) {
+			caches.open(resourceCacheName).then(cache => {
+				return cache.put(event.request, response);
+			});
+		}
+		return response.clone();
 	}
 
 	const parentClient = await getOuterIframeClient(webviewId);
@@ -201,19 +239,18 @@ async function processResourceRequest(event, requestUrl) {
 		return notFound();
 	}
 
-	// Check if we've already resolved this request
-	const existing = resourceRequestStore.get(webviewId, resourcePath);
-	if (existing) {
-		return existing.then(resolveResourceEntry);
-	}
+	const cache = await caches.open(resourceCacheName);
+	const cached = await cache.match(event.request);
 
+	const { requestId, promise } = resourceRequestStore.create();
 	parentClient.postMessage({
 		channel: 'load-resource',
-		path: resourcePath
+		id: requestId,
+		path: resourcePath,
+		ifNoneMatch: cached?.headers.get('ETag'),
 	});
 
-	return resourceRequestStore.create(webviewId, resourcePath)
-		.then(resolveResourceEntry);
+	return promise.then(entry => resolveResourceEntry(entry, cached));
 }
 
 /**
@@ -221,7 +258,7 @@ async function processResourceRequest(event, requestUrl) {
  * @param {URL} requestUrl
  */
 async function processLocalhostRequest(event, requestUrl) {
-	const client = await self.clients.get(event.clientId);
+	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		// This is expected when requesting resources on other localhost ports
 		// that are not spawned by vs code
@@ -230,7 +267,10 @@ async function processLocalhostRequest(event, requestUrl) {
 	const webviewId = getWebviewIdForClient(client);
 	const origin = requestUrl.origin;
 
-	const resolveRedirect = redirectOrigin => {
+	/**
+	 * @param {string} redirectOrigin
+	 */
+	const resolveRedirect = (redirectOrigin) => {
 		if (!redirectOrigin) {
 			return fetch(event.request);
 		}
@@ -249,19 +289,14 @@ async function processLocalhostRequest(event, requestUrl) {
 		return notFound();
 	}
 
-	// Check if we've already resolved this request
-	const existing = localhostRequestStore.get(webviewId, origin);
-	if (existing) {
-		return existing.then(resolveRedirect);
-	}
-
+	const { requestId, promise } = localhostRequestStore.create();
 	parentClient.postMessage({
 		channel: 'load-localhost',
-		origin: origin
+		origin: origin,
+		id: requestId,
 	});
 
-	return localhostRequestStore.create(webviewId, origin)
-		.then(resolveRedirect);
+	return promise.then(resolveRedirect);
 }
 
 function getWebviewIdForClient(client) {
@@ -270,7 +305,7 @@ function getWebviewIdForClient(client) {
 }
 
 async function getOuterIframeClient(webviewId) {
-	const allClients = await self.clients.matchAll({ includeUncontrolled: true });
+	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.find(client => {
 		const clientUrl = new URL(client.url);
 		return (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`) && clientUrl.search.match(new RegExp('\\bid=' + webviewId));

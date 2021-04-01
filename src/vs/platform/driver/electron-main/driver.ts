@@ -62,7 +62,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
@@ -101,7 +101,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 
 		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
@@ -207,10 +207,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 export async function serve(
 	windowServer: IPCServer,
 	handle: string,
-	environmentService: IEnvironmentMainService,
+	environmentMainService: IEnvironmentMainService,
 	instantiationService: IInstantiationService
 ): Promise<IDisposable> {
-	const verbose = environmentService.driverVerbose;
+	const verbose = environmentMainService.driverVerbose;
 	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
 
 	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);

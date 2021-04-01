@@ -9,7 +9,7 @@ import { IListVirtualDelegate, IIdentityProvider, IListDragAndDrop, IListDragOve
 import { ITreeElement, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeSorter, ICollapseStateChangeEvent, IAsyncDataSource, ITreeDragAndDrop, TreeError, WeakMapper, ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-import { timeout, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { timeout, CancelablePromise, createCancelablePromise, Promises } from 'vs/base/common/async';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
@@ -616,7 +616,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.isCollapsible(this.getDataNode(element));
 	}
 
-	isCollapsed(element: T): boolean {
+	isCollapsed(element: TInput | T): boolean {
 		return this.tree.isCollapsed(this.getDataNode(element));
 	}
 
@@ -626,6 +626,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	refilter(): void {
 		this.tree.refilter();
+	}
+
+	setAnchor(element: T | undefined): void {
+		this.tree.setAnchor(typeof element === 'undefined' ? undefined : this.getDataNode(element));
+	}
+
+	getAnchor(): T | undefined {
+		const node = this.tree.getAnchor();
+		return node?.element as T;
 	}
 
 	setSelection(elements: T[], browserEvent?: UIEvent): void {
@@ -651,12 +660,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.focusPrevious(n, loop, browserEvent);
 	}
 
-	focusNextPage(browserEvent?: UIEvent): void {
-		this.tree.focusNextPage(browserEvent);
+	focusNextPage(browserEvent?: UIEvent): Promise<void> {
+		return this.tree.focusNextPage(browserEvent);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent): void {
-		this.tree.focusPreviousPage(browserEvent);
+	focusPreviousPage(browserEvent?: UIEvent): Promise<void> {
+		return this.tree.focusPreviousPage(browserEvent);
 	}
 
 	focusLast(browserEvent?: UIEvent): void {
@@ -740,7 +749,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const childrenToRefresh = await this.doRefreshNode(node, recursive, viewStateContext);
 			node.stale = false;
 
-			await Promise.all(childrenToRefresh.map(child => this.doRefreshSubTree(child, recursive, viewStateContext)));
+			await Promises.settled(childrenToRefresh.map(child => this.doRefreshSubTree(child, recursive, viewStateContext)));
 		} finally {
 			done!();
 		}
@@ -990,16 +999,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const expanded: string[] = [];
 		const root = this.tree.getNode();
-		const queue = [root];
+		const stack = [root];
 
-		while (queue.length > 0) {
-			const node = queue.shift()!;
+		while (stack.length > 0) {
+			const node = stack.pop()!;
 
 			if (node !== root && node.collapsible && !node.collapsed) {
 				expanded.push(getId(node.element!.element as T));
 			}
 
-			queue.push(...node.children);
+			stack.push(...node.children);
 		}
 
 		return { focus, selection, expanded, scrollTop: this.scrollTop };

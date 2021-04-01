@@ -1,9 +1,9 @@
 trigger:
   branches:
-    include: ["master", "release/*"]
+    include: ["main", "release/*"]
 pr:
   branches:
-    include: ["master", "release/*"]
+    include: ["main", "release/*"]
 
 steps:
   - task: NodeTool@0
@@ -31,8 +31,8 @@ steps:
       git remote add distro "https://github.com/$VSCODE_MIXIN_REPO.git"
       git fetch distro
 
-      # Push master branch into oss/master
-      git push distro origin/master:refs/heads/oss/master
+      # Push main branch into oss/main
+      git push distro origin/main:refs/heads/oss/main
 
       # Push every release branch into oss/release
       git for-each-ref --format="%(refname:short)" refs/remotes/origin/release/* | sed 's/^origin\/\(.*\)$/\0:refs\/heads\/oss\/\1/' | xargs git push distro

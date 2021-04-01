@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as pfs from 'vs/base/node/pfs';
+import { writeFile } from 'vs/base/node/pfs';
+import { promises } from 'fs';
 import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -73,10 +74,10 @@ export class LocalizationsService extends Disposable implements ILocalizationsSe
 			});
 	}
 
-	update(): Promise<boolean> {
-		return Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()])
-			.then(([current, installed]) => this.cache.update(installed)
-				.then(updated => !equals(Object.keys(current), Object.keys(updated))));
+	async update(): Promise<boolean> {
+		const [current, installed] = await Promise.all([this.cache.getLanguagePacks(), this.extensionManagementService.getInstalled()]);
+		const updated = await this.cache.update(installed);
+		return !equals(Object.keys(current), Object.keys(updated));
 	}
 }
 
@@ -157,7 +158,7 @@ class LanguagePacksCache extends Disposable {
 	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Promise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
-			return pfs.readFile(this.languagePacksFilePath, 'utf8')
+			return promises.readFile(this.languagePacksFilePath, 'utf8')
 				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(languagePacks => { result = fn(languagePacks); return languagePacks; })
@@ -171,7 +172,7 @@ class LanguagePacksCache extends Disposable {
 					this.initializedCache = true;
 					const raw = JSON.stringify(this.languagePacks);
 					this.logService.debug('Writing language packs', raw);
-					return pfs.writeFile(this.languagePacksFilePath, raw);
+					return writeFile(this.languagePacksFilePath, raw);
 				})
 				.then(() => result, error => this.logService.error(error));
 		});

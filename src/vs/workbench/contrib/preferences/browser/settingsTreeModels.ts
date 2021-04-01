@@ -556,8 +556,17 @@ function isObjectSetting({
 		schemas.push(objectAdditionalProperties);
 	}
 
+	// Flatten anyof schemas
+	const flatSchemas = arrays.flatten(schemas.map((schema): IJSONSchema[] => {
+		if (Array.isArray(schema.anyOf)) {
+			return schema.anyOf;
+		}
+		return [schema];
+	}));
+
+
 	// This should not render boolean only objects
-	return schemas.every(isObjectRenderableSchema) && schemas.some(({ type }) => type === 'string');
+	return flatSchemas.every(isObjectRenderableSchema) && flatSchemas.some(({ type }) => type === 'string');
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {

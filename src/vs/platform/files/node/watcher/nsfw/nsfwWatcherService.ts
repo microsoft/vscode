@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nsfw from 'vscode-nsfw';
+import * as nsfw from 'nsfw';
 import * as glob from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -61,9 +61,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		});
 
 		// Logging
-		if (this.verboseLogging) {
-			this.log(`Start watching: [${rootsToStartWatching.map(r => r.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
-		}
+		this.debug(`Start watching: [${rootsToStartWatching.map(r => r.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
 
 		// Stop watching some roots
 		rootsToStopWatching.forEach(root => {
@@ -133,9 +131,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 			}
 		}
 
-		if (this.verboseLogging) {
-			this.log(`Start watching with nsfw: ${request.path}`);
-		}
+		this.debug(`Start watching with nsfw: ${request.path}`);
 
 		nsfw(request.path, events => {
 			for (const e of events) {
@@ -248,5 +244,9 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 	private error(message: string) {
 		this._onDidLogMessage.fire({ type: 'error', message: `[File Watcher (nsfw)] ` + message });
+	}
+
+	private debug(message: string) {
+		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (nsfw)] ` + message });
 	}
 }

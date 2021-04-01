@@ -17,10 +17,11 @@ import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -118,10 +119,11 @@ export class LaunchMainService implements ILaunchMainService {
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
+		const remoteAuthority = args.remote || undefined;
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
 		}
 
 		// Start without file/folder arguments
@@ -162,7 +164,8 @@ export class LaunchMainService implements ILaunchMainService {
 					userEnv,
 					forceNewWindow: true,
 					forceEmpty: true,
-					waitMarkerFileURI
+					waitMarkerFileURI,
+					remoteAuthority
 				});
 			}
 
@@ -174,7 +177,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true });
+					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
 				}
 			}
 		}
@@ -192,7 +195,8 @@ export class LaunchMainService implements ILaunchMainService {
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				waitMarkerFileURI,
-				gotoLineMode: args.goto
+				gotoLineMode: args.goto,
+				remoteAuthority
 			});
 		}
 
@@ -293,8 +297,9 @@ export class LaunchMainService implements ILaunchMainService {
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
 		const folderURIs = this.getFolderURIs(window);
+		const win = assertIsDefined(window.win);
 
-		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
+		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
 	}
 
 	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {

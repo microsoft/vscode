@@ -80,6 +80,7 @@ import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQui
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -255,6 +256,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -545,10 +547,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private getTaskSystemInfo(key: string): TaskSystemInfo | undefined {
-		if (this.environmentService.remoteAuthority) {
-			return this._taskSystemInfos.get(key);
-		}
-		return undefined;
+		return this._taskSystemInfos.get(key);
 	}
 
 	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
@@ -773,7 +772,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of folderToTasksMap.keys()) {
 			let custom: CustomTask[] = [];
 			let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
-			await this.computeTasksForSingleConfig(folderMap[key] ?? this.workspaceFolders[0], {
+			await this.computeTasksForSingleConfig(folderMap[key] ?? await this.getAFolder(), {
 				version: '2.0.0',
 				tasks: folderToTasksMap.get(key)
 			}, TaskRunSource.System, custom, customized, folderMap[key] ? TaskConfig.TaskConfigSource.TasksJson : TaskConfig.TaskConfigSource.User, true);
@@ -911,7 +910,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
-					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, workspaceTasks);
+					RunAutomaticTasks.promptForPermission(this, this.storageService, this.notificationService, this.workspaceTrustService, this.openerService, workspaceTasks);
 				});
 			}
 			return value;
@@ -1868,6 +1867,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected abstract updateWorkspaceTasks(runSource: TaskRunSource | void): void;
 
+	private async getAFolder(): Promise<IWorkspaceFolder> {
+		let folder = this.workspaceFolders.length > 0 ? this.workspaceFolders[0] : undefined;
+		if (!folder) {
+			const userhome = await this.pathService.userHome();
+			folder = new WorkspaceFolder({ uri: userhome, name: resources.basename(userhome), index: 0 });
+		}
+		return folder;
+	}
+
 	protected computeWorkspaceTasks(runSource: TaskRunSource = TaskRunSource.User): Promise<Map<string, WorkspaceFolderTaskResult>> {
 		let promises: Promise<WorkspaceFolderTaskResult | undefined>[] = [];
 		for (let folder of this.workspaceFolders) {
@@ -1880,11 +1888,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					result.set(value.workspaceFolder.uri.toString(), value);
 				}
 			}
-			let folder = this.workspaceFolders.length > 0 ? this.workspaceFolders[0] : undefined;
-			if (!folder) {
-				const userhome = await this.pathService.userHome();
-				folder = new WorkspaceFolder({ uri: userhome, name: resources.basename(userhome), index: 0 });
-			}
+			const folder = await this.getAFolder();
 			const userTasks = await this.computeUserTasks(folder, runSource).then((value) => value, () => undefined);
 			if (userTasks) {
 				result.set(USER_TASKS_GROUP_KEY, userTasks);
@@ -2054,6 +2058,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			let workspaceFolder: IWorkspaceFolder = this.contextService.getWorkspace().folders[0];
 			workspaceFolders.push(workspaceFolder);
 			executionEngine = this.computeExecutionEngine(workspaceFolder);
+			const telemetryData: { [key: string]: any; } = {
+				executionEngineVersion: executionEngine
+			};
+			/* __GDPR__
+				"taskService.engineVersion" : {
+					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('taskService.engineVersion', telemetryData);
 			schemaVersion = this.computeJsonSchemaVersion(workspaceFolder);
 		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			workspace = this.contextService.getWorkspace();

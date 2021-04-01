@@ -12,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
@@ -169,11 +169,9 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 		key: string;
 		edit?: boolean;
 	};
+	focusSearch?: boolean;
 }
 
-/**
- * TODO Why do we need this class?
- */
 export class SettingsEditorOptions extends EditorOptions implements ISettingsEditorOptions {
 
 	target?: ConfigurationTarget;
@@ -183,17 +181,26 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 		key: string;
 		edit?: boolean;
 	};
+	focusSearch?: boolean;
 
-	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
-		const options = new SettingsEditorOptions();
-		options.overwrite(settings);
+	static create(options: ISettingsEditorOptions): SettingsEditorOptions {
+		const newOptions = new SettingsEditorOptions();
+		options = {
+			...<IEditorOptions>{
+				override: EditorOverride.DISABLED,
+				pinned: true
+			},
+			...options
+		};
+		newOptions.overwrite(options);
 
-		options.target = settings.target;
-		options.folderUri = settings.folderUri;
-		options.query = settings.query;
-		options.revealSetting = settings.revealSetting;
+		newOptions.target = options.target;
+		newOptions.folderUri = options.folderUri;
+		newOptions.query = options.query;
+		newOptions.revealSetting = options.revealSetting;
+		newOptions.focusSearch = options.focusSearch;
 
-		return options;
+		return newOptions;
 	}
 }
 
@@ -223,7 +230,7 @@ export interface IPreferencesService {
 	openRemoteSettings(): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
+	switchSettings(target: ConfigurationTarget, resource: URI): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
