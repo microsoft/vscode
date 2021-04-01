@@ -270,7 +270,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						updateItems.push({
 							output: key,
 							cellTop: cellTop,
-							outputOffset: outputOffset
+							outputOffset: outputOffset,
+							forceDisplay: false
 						});
 					}
 				}
@@ -280,7 +281,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			removedItems.forEach(output => activeWebview.removeInset(output));
 
 			if (updateItems.length) {
-				activeWebview.updateViewScrollTop(-scrollTop, false, updateItems);
+				activeWebview.updateScrollTops(updateItems, []);
 			}
 		}
 	}
@@ -575,10 +576,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				await activeWebview.createOutput({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-				const scrollTop = this._list.scrollTop;
 				const outputIndex = cellViewModel.outputsViewModels.indexOf(output.source);
 				const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-				activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
+				activeWebview.updateScrollTops([{ output: output.source, cellTop, outputOffset, forceDisplay: true }], []);
 			}
 		});
 	}
@@ -622,10 +622,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			}
 
 			const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-			const scrollTop = this._list.scrollTop;
 			const outputIndex = cellViewModel.outputsViewModels.indexOf(displayOutput);
 			const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-			activeWebview.updateViewScrollTop(-scrollTop, true, [{ output: displayOutput, cellTop, outputOffset }]);
+			activeWebview.updateScrollTops([{ output: displayOutput, cellTop, outputOffset, forceDisplay: true }], []);
 		});
 	}
 

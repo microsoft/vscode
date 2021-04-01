@@ -78,10 +78,6 @@ class ModelData implements IDisposable {
 			this._languageSelectionListener.dispose();
 			this._languageSelectionListener = null;
 		}
-		if (this._languageSelection) {
-			this._languageSelection.dispose();
-			this._languageSelection = null;
-		}
 	}
 
 	public dispose(): void {

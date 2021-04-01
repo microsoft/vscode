@@ -95,6 +95,9 @@ export class RemoteTerminalChannelClient {
 	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
+	public get onProcessBinary(): Event<{ id: number, event: string }> {
+		return this._channel.listen<{ id: number, event: string }>('$onProcessBinaryEvent');
+	}
 	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
 	}
@@ -232,11 +235,12 @@ export class RemoteTerminalChannelClient {
 	public attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}
-
-	public listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
-		return this._channel.call('$listProcesses', [reduceGraceTime]);
+	public listProcesses(): Promise<IProcessDetails[]> {
+		return this._channel.call('$listProcesses');
 	}
-
+	public reduceConnectionGraceTime(): Promise<void> {
+		return this._channel.call('$reduceConnectionGraceTime');
+	}
 	public start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}
@@ -261,7 +265,6 @@ export class RemoteTerminalChannelClient {
 	public orphanQuestionReply(id: number): Promise<void> {
 		return this._channel.call('$orphanQuestionReply', [id]);
 	}
-
 	public sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
 		return this._channel.call<void>('$sendCommandResult', [reqId, isError, payload]);
 	}

@@ -49,6 +49,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = channel;
 
 			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+			channel.onProcessBinary(e => this._ptys.get(e.id)?.processBinary(e.event));
 			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
@@ -168,8 +169,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	public async listProcesses(reduceGraceTime: boolean = false): Promise<IRemoteTerminalAttachTarget[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(reduceGraceTime) : [];
+	public async listProcesses(): Promise<IRemoteTerminalAttachTarget[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
 				id: termDto.id,
@@ -190,8 +191,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
 	}
 
+	public reduceConnectionGraceTime(): void {
+		if (!this._remoteTerminalChannel) {
+			throw new Error('Cannot reduce grace time when there is no remote');
+		}
+		this._remoteTerminalChannel.reduceConnectionGraceTime();
+	}
+
 	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		await this._remoteTerminalChannel?.listProcesses(true);
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
 		}

@@ -45,14 +45,14 @@ export interface IWorkspaceTrustModel {
 }
 
 export interface WorkspaceTrustRequestButton {
-	label: string;
-	type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+	readonly label: string;
+	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
 }
 
 export interface WorkspaceTrustRequestOptions {
-	buttons?: WorkspaceTrustRequestButton[];
-	message?: string;
-	modal: boolean;
+	readonly buttons?: WorkspaceTrustRequestButton[];
+	readonly message?: string;
+	readonly modal: boolean;
 }
 
 export interface IWorkspaceTrustRequestModel {
@@ -68,8 +68,8 @@ export interface IWorkspaceTrustRequestModel {
 }
 
 export interface WorkspaceTrustStateChangeEvent {
-	previousTrustState: WorkspaceTrustState;
-	currentTrustState: WorkspaceTrustState;
+	readonly previousTrustState: WorkspaceTrustState;
+	readonly currentTrustState: WorkspaceTrustState;
 }
 
 export type WorkspaceTrustChangeEvent = Event<WorkspaceTrustStateChangeEvent>;
@@ -84,7 +84,7 @@ export interface IWorkspaceTrustService {
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState>;
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
 }
 
 export interface IWorkspaceTrustUriInfo {

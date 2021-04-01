@@ -238,6 +238,7 @@
 
 				try {
 					if (validateIPC(windowConfigIpcChannel)) {
+						/** @type {import('../common/sandboxTypes').ISandboxConfiguration} */
 						const configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
 
 						// Apply zoom level early before even building the

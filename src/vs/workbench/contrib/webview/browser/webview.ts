@@ -33,6 +33,11 @@ export interface IWebviewService {
 	readonly activeWebview: Webview | undefined;
 
 	/**
+	 * Fired when the currently focused webview changes.
+	 */
+	readonly onDidChangeActiveWebview: Event<Webview | undefined>;
+
+	/**
 	 * Create a basic webview dom element.
 	 */
 	createWebviewElement(

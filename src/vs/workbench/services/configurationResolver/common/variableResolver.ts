@@ -40,10 +40,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private _envVariables?: IProcessEnvironment;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
-
-	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariables?: IProcessEnvironment) {
+	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariables?: IProcessEnvironment, _envVariablesPromise?: Promise<IProcessEnvironment>) {
 		this._context = _context;
 		this._labelService = _labelService;
+		// TODO: delete _envVariables in favor of _envVariablesPromise https://github.com/microsoft/vscode/issues/108804
 		if (_envVariables) {
 			if (isWindows) {
 				// windows env variables are case insensitive
@@ -65,6 +65,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
+	/**
+	 * @deprecated Use the async version of `resolve` instead.
+	 */
 	public resolve(root: IWorkspaceFolder | undefined, value: string): string;
 	public resolve(root: IWorkspaceFolder | undefined, value: string[]): string[];
 	public resolve(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
@@ -72,6 +75,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.recursiveResolve(root ? root.uri : undefined, value);
 	}
 
+	/**
+	 * @deprecated Use the async version of `resolve` instead.
+	 */
 	public resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 
 		const result = objects.deepClone(config) as any;

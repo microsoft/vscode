@@ -24,6 +24,4 @@ export interface ISandboxConfiguration {
 	zoomLevel?: number;
 
 	nodeCachedDataDir?: string;
-
-	forceEnableDeveloperKeybindings?: boolean;
 }

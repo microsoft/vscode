@@ -25,7 +25,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
@@ -64,18 +64,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		this._register(this.globalExtensionEnablementService.onDidChangeEnablement(({ extensions, source }) => this.onDidChangeExtensions(extensions, source)));
 		this._register(extensionManagementService.onDidInstallExtension(this._onDidInstallExtension, this));
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
+		this._register(this.workspaceTrustService.onDidChangeTrustState(this._onDidChangeTrustState, this));
 
 		// Trusted extensions notification
 		// TODO: Confirm that this is the right lifecycle phase
 		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			if (this.extensionsDisabledByTrustRequirement.length > 0) {
-				this.workspaceTrustService.requireWorkspaceTrust({ modal: false })
-					.then(trustState => {
-						if (trustState === WorkspaceTrustState.Trusted) {
-							this._onEnablementChanged.fire(this.extensionsDisabledByTrustRequirement);
-							this.extensionsDisabledByTrustRequirement = [];
-						}
-					});
+				this.workspaceTrustService.requestWorkspaceTrust({ modal: false });
 			}
 		});
 
@@ -174,7 +169,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		const result = await Promises.settled(extensions.map(e => {
 			if (this._isDisabledByTrustRequirement(e)) {
-				return this.workspaceTrustService.requireWorkspaceTrust()
+				return this.workspaceTrustService.requestWorkspaceTrust()
 					.then(trustState => {
 						if (trustState === WorkspaceTrustState.Trusted) {
 							return this._setEnablement(e, newState);
@@ -447,13 +442,21 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _onDidInstallExtension({ local, error }: DidInstallExtensionEvent): void {
 		if (local && !error && this._isDisabledByTrustRequirement(local)) {
-			this.workspaceTrustService.requireWorkspaceTrust();
+			this.workspaceTrustService.requestWorkspaceTrust({ modal: false });
+			this._onEnablementChanged.fire([local]);
 		}
 	}
 
 	private _onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
 		if (!error) {
 			this._reset(identifier);
+		}
+	}
+
+	private _onDidChangeTrustState({ currentTrustState }: WorkspaceTrustStateChangeEvent): void {
+		if (currentTrustState === WorkspaceTrustState.Trusted && this.extensionsDisabledByTrustRequirement.length > 0) {
+			this._onEnablementChanged.fire(this.extensionsDisabledByTrustRequirement);
+			this.extensionsDisabledByTrustRequirement = [];
 		}
 	}
 

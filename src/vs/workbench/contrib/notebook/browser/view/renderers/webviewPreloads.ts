@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -136,6 +136,26 @@ function webviewPreloads() {
 
 	const outputObservers = new Map<string, ResizeObserver>();
 
+	const dimensionUpdater = new class {
+		private readonly pending = new Map<string, DimensionUpdate>();
+
+		update(id: string, update: DimensionUpdate) {
+			if (!this.pending.size) {
+				setTimeout(() => {
+					if (!this.pending.size) {
+						return;
+					}
+
+					postNotebookMessage<IDimensionMessage>('dimension', {
+						updates: Array.from(this.pending.values())
+					});
+					this.pending.clear();
+				}, 0);
+			}
+			this.pending.set(id, update);
+		}
+	};
+
 	const resizeObserve = (container: Element, id: string, output: boolean) => {
 		const resizeObserver = new ResizeObserver(entries => {
 			for (const entry of entries) {
@@ -145,27 +165,20 @@ function webviewPreloads() {
 
 				if (entry.target.id === id && entry.contentRect) {
 					if (output) {
+						let height = 0;
 						if (entry.contentRect.height !== 0) {
 							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-							postNotebookMessage<IDimensionMessage>('dimension', {
-								id: id,
-								data: {
-									height: entry.contentRect.height + __outputNodePadding__ * 2
-								},
-								isOutput: true
-							});
+							height = entry.contentRect.height + __outputNodePadding__ * 2;
 						} else {
 							entry.target.style.padding = `0px`;
-							postNotebookMessage<IDimensionMessage>('dimension', {
-								id: id,
-								data: {
-									height: entry.contentRect.height
-								},
-								isOutput: true
-							});
 						}
+						dimensionUpdater.update(id, {
+							id: id,
+							data: { height },
+							isOutput: true
+						});
 					} else {
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(id, {
 							id: id,
 							data: {
 								// entry.contentRect does not include padding
@@ -537,12 +550,22 @@ function webviewPreloads() {
 					}
 				}
 				break;
-			case 'updateMarkdownPreviewSelectionState':
+			case 'updateSelectedMarkdownPreviews':
 				{
-					const data = event.data;
-					const previewNode = document.getElementById(`${data.id}_preview`);
-					if (previewNode) {
-						previewNode.classList.toggle('selected', data.isSelected);
+					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
+
+					for (const oldSelected of document.querySelectorAll('.preview.selected')) {
+						const id = oldSelected.id.replace('_preview', '');
+						if (!selectedCellIds.has(id)) {
+							oldSelected.classList.remove('selected');
+						}
+					}
+
+					for (const newSelected of selectedCellIds) {
+						const previewNode = document.getElementById(`${newSelected}_preview`);
+						if (previewNode) {
+							previewNode.classList.add('selected');
+						}
 					}
 				}
 				break;
@@ -634,7 +657,7 @@ function webviewPreloads() {
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(outputId, {
 							id: outputId,
 							isOutput: true,
 							init: true,
@@ -645,7 +668,7 @@ function webviewPreloads() {
 
 						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 					} else {
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(outputId, {
 							id: outputId,
 							isOutput: true,
 							init: true,
@@ -656,7 +679,7 @@ function webviewPreloads() {
 					}
 
 					// don't hide until after this step so that the height is right
-					cellOutputContainer.style.display = data.initiallyHidden ? 'none' : 'block';
+					cellOutputContainer.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 				});
 				break;
 			case 'view-scroll':
@@ -664,34 +687,22 @@ function webviewPreloads() {
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					for (let i = 0; i < event.data.widgets.length; i++) {
-						const widget = document.getElementById(event.data.widgets[i].id)!;
+					for (const request of event.data.widgets) {
+						const widget = document.getElementById(request.id)!;
 						if (widget) {
-							widget.style.top = event.data.widgets[i].top + 'px';
-							if (event.data.forceDisplay) {
-								widget.parentElement!.style.display = 'block';
+							widget.style.top = request.top + 'px';
+							if (request.forceDisplay) {
+								widget.parentElement!.style.visibility = 'visible';
 							}
 						}
 					}
-					break;
-				}
-			case 'view-scroll-markdown':
-				{
-					// const date = new Date();
-					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: view-scroll-markdown', event.data.cells);
-					event.data.cells.map(cell => {
-						const widget = document.getElementById(`${cell.id}_preview`)!;
 
+					for (const cell of event.data.markdownPreviews) {
+						const widget = document.getElementById(`${cell.id}_preview`)!;
 						if (widget) {
 							widget.style.top = `${cell.top}px`;
 						}
-
-						const markdownPreview = document.getElementById(`${cell.id}`);
-
-						if (markdownPreview) {
-							markdownPreview.style.display = 'block';
-						}
-					});
+					}
 
 					break;
 				}
@@ -721,7 +732,7 @@ function webviewPreloads() {
 				enqueueOutputAction(event.data, ({ outputId }) => {
 					const container = document.getElementById(outputId)?.parentElement;
 					if (container) {
-						container.style.display = 'none';
+						container.style.visibility = 'hidden';
 					}
 				});
 				break;
@@ -729,10 +740,10 @@ function webviewPreloads() {
 				enqueueOutputAction(event.data, ({ outputId, top }) => {
 					const output = document.getElementById(outputId);
 					if (output) {
-						output.parentElement!.style.display = 'block';
+						output.parentElement!.style.visibility = 'visible';
 						output.style.top = top + 'px';
 
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(outputId, {
 							id: outputId,
 							isOutput: true,
 							data: {
@@ -767,13 +778,8 @@ function webviewPreloads() {
 			case 'decorations':
 				{
 					const outputContainer = document.getElementById(event.data.cellId);
-					event.data.addedClassNames.forEach(n => {
-						outputContainer?.classList.add(n);
-					});
-
-					event.data.removedClassNames.forEach(n => {
-						outputContainer?.classList.remove(n);
-					});
+					outputContainer?.classList.add(...event.data.addedClassNames);
+					outputContainer?.classList.remove(...event.data.removedClassNames);
 				}
 
 				break;
@@ -839,8 +845,7 @@ function webviewPreloads() {
 
 		cellContainer.appendChild(previewContainerNode);
 
-		previewContainerNode.attachShadow({ mode: 'open' });
-		const previewRoot = previewContainerNode.shadowRoot! as any as HTMLElement;
+		const previewRoot = previewContainerNode.attachShadow({ mode: 'open' });
 
 		// Add default webview style
 		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
@@ -894,7 +899,7 @@ function webviewPreloads() {
 			}
 		}
 
-		postNotebookMessage<IDimensionMessage>('dimension', {
+		dimensionUpdater.update(`${cellId}_preview`, {
 			id: `${cellId}_preview`,
 			data: {
 				height: previewContainerNode.clientHeight,

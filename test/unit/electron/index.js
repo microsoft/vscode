@@ -130,12 +130,15 @@ app.on('ready', () => {
 		}
 	});
 
+	ipcMain.handle('vscode:test-vscode-window-config', async () => Object.create(null));
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
 		show: false,
 		webPreferences: {
 			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			enableWebSQL: false,
 			enableRemoteModule: false,

@@ -140,6 +140,7 @@ export interface IDisplayOutputLayoutUpdateRequest {
 	output: IDisplayOutputViewModel;
 	cellTop: number;
 	outputOffset: number;
+	forceDisplay: boolean;
 }
 
 export interface ICommonCellInfo {
@@ -480,7 +481,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	unhideMarkdownPreview(cell: ICellViewModel): Promise<void>;
 	hideMarkdownPreview(cell: ICellViewModel): Promise<void>;
 	removeMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void>;
 
 	/**
 	 * Render the output in webview layer

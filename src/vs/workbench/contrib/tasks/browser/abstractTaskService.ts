@@ -2058,6 +2058,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			let workspaceFolder: IWorkspaceFolder = this.contextService.getWorkspace().folders[0];
 			workspaceFolders.push(workspaceFolder);
 			executionEngine = this.computeExecutionEngine(workspaceFolder);
+			const telemetryData: { [key: string]: any; } = {
+				executionEngineVersion: executionEngine
+			};
+			/* __GDPR__
+				"taskService.engineVersion" : {
+					"executionEngineVersion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this.telemetryService.publicLog('taskService.engineVersion', telemetryData);
 			schemaVersion = this.computeJsonSchemaVersion(workspaceFolder);
 		} else if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			workspace = this.contextService.getWorkspace();

@@ -26,6 +26,7 @@ import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workb
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import * as nls from 'vs/nls';
+import { coalesce } from 'vs/base/common/arrays';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -35,12 +36,16 @@ export interface WebviewIntialized extends BaseToWebviewMessage {
 	type: 'initialized';
 }
 
-export interface IDimensionMessage extends BaseToWebviewMessage {
-	type: 'dimension';
+export interface DimensionUpdate {
 	id: string;
 	init?: boolean;
 	data: { height: number };
 	isOutput?: boolean;
+}
+
+export interface IDimensionMessage extends BaseToWebviewMessage {
+	type: 'dimension';
+	updates: readonly DimensionUpdate[];
 }
 
 export interface IMouseEnterMessage extends BaseToWebviewMessage {
@@ -183,20 +188,13 @@ export interface ICreationRequestMessage {
 export interface IContentWidgetTopRequest {
 	id: string;
 	top: number;
-	left: number;
+	forceDisplay: boolean;
 }
 
 export interface IViewScrollTopRequestMessage {
 	type: 'view-scroll';
-	top?: number;
-	forceDisplay: boolean;
 	widgets: IContentWidgetTopRequest[];
-	version: number;
-}
-
-export interface IViewScrollMarkdownRequestMessage {
-	type: 'view-scroll-markdown';
-	cells: { id: string; top: number }[];
+	markdownPreviews: { id: string; top: number }[];
 }
 
 export interface IScrollRequestMessage {
@@ -287,10 +285,9 @@ export interface IShowMarkdownMessage {
 	top: number;
 }
 
-export interface IUpdateMarkdownPreviewSelectionState {
-	readonly type: 'updateMarkdownPreviewSelectionState',
-	readonly id: string;
-	readonly isSelected: boolean;
+export interface IUpdateSelectedMarkdownPreviews {
+	readonly type: 'updateSelectedMarkdownPreviews',
+	readonly selectedCellIds: readonly string[]
 }
 
 export interface IInitializeMarkdownMessage {
@@ -337,9 +334,8 @@ export type ToWebviewMessage =
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
 	| IUnhideMarkdownMessage
-	| IUpdateMarkdownPreviewSelectionState
-	| IInitializeMarkdownMessage
-	| IViewScrollMarkdownRequestMessage;
+	| IUpdateSelectedMarkdownPreviews
+	| IInitializeMarkdownMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -367,12 +363,11 @@ export interface IResolvedBackLayerWebview {
 	webview: WebviewElement;
 }
 
-let version = 0;
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
+	readonly markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -838,18 +833,20 @@ var requirejs = (function() {
 			switch (data.type) {
 				case 'dimension':
 					{
-						if (data.isOutput) {
-							const height = data.data.height;
-							const outputHeight = height;
+						for (const update of data.updates) {
+							if (update.isOutput) {
+								const height = update.data.height;
+								const outputHeight = height;
 
-							const resolvedResult = this.resolveOutputId(data.id);
-							if (resolvedResult) {
-								const { cellInfo, output } = resolvedResult;
-								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init, 'webview#dimension');
+								const resolvedResult = this.resolveOutputId(update.id);
+								if (resolvedResult) {
+									const { cellInfo, output } = resolvedResult;
+									this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!update.init, 'webview#dimension');
+								}
+							} else {
+								const cellId = update.id.substr(0, update.id.length - '_preview'.length);
+								this.notebookEditor.updateMarkdownCellHeight(cellId, update.data.height, !!update.init);
 							}
-						} else {
-							const cellId = data.id.substr(0, data.id.length - '_preview'.length);
-							this.notebookEditor.updateMarkdownCellHeight(cellId, data.data.height, !!data.init);
 						}
 						break;
 					}
@@ -1109,20 +1106,16 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateMarkdownScrollTop(items: { id: string, top: number }[]) {
-		this._sendMessageToWebview({
-			type: 'view-scroll-markdown',
-			cells: items
-		});
-	}
-
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
+	updateScrollTops(outputs: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		const widgets: IContentWidgetTopRequest[] = items.map(item => {
-			const outputCache = this.insetMapping.get(item.output)!;
+		const widgets = coalesce(outputs.map((item): IContentWidgetTopRequest | undefined => {
+			const outputCache = this.insetMapping.get(item.output);
+			if (!outputCache) {
+				return;
+			}
 			const id = outputCache.outputId;
 			const outputOffset = item.outputOffset;
 			outputCache.cachedCreation.top = outputOffset;
@@ -1131,16 +1124,18 @@ var requirejs = (function() {
 			return {
 				id: id,
 				top: outputOffset,
-				left: 0
+				forceDisplay: item.forceDisplay,
 			};
-		});
+		}));
+
+		if (!widgets.length && !markdownPreviews.length) {
+			return;
+		}
 
 		this._sendMessageToWebview({
-			top,
 			type: 'view-scroll',
-			version: version++,
-			forceDisplay,
-			widgets: widgets
+			widgets: widgets,
+			markdownPreviews,
 		});
 	}
 
@@ -1256,21 +1251,14 @@ var requirejs = (function() {
 		});
 	}
 
-	async updateMarkdownPreviewSelectionState(cellId: any, isSelected: boolean) {
+	async updateMarkdownPreviewSelections(selectedCellsIds: string[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		if (!this.markdownPreviewMapping.has(cellId)) {
-			// TODO: this currently seems expected on first load
-			// console.error(`Try to update selection state for preview that does not exist: ${cellId}`);
-			return;
-		}
-
 		this._sendMessageToWebview({
-			type: 'updateMarkdownPreviewSelectionState',
-			id: cellId,
-			isSelected
+			type: 'updateSelectedMarkdownPreviews',
+			selectedCellIds: selectedCellsIds.filter(id => this.markdownPreviewMapping.has(id)),
 		});
 	}
 

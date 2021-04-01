@@ -149,7 +149,7 @@ class ViewMenuActions extends CompositeMenuActions {
 		const scopedContextKeyService = contextKeyService.createScoped(element);
 		scopedContextKeyService.createKey('view', viewId);
 		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
-		super(menuId, contextMenuId, undefined, scopedContextKeyService, menuService);
+		super(menuId, contextMenuId, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
 		this._register(scopedContextKeyService);
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
 	}

@@ -680,12 +680,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			if (this.supportDynamicHeights) {
 				this._rerender(this.scrollTop, this.renderHeight);
 			}
+		}
 
-			if (this.horizontalScrolling) {
-				this.scrollableElement.setScrollDimensions({
-					width: typeof width === 'number' ? width : getContentWidth(this.domNode)
-				});
-			}
+		if (this.horizontalScrolling) {
+			this.scrollableElement.setScrollDimensions({
+				width: typeof width === 'number' ? width : getContentWidth(this.domNode)
+			});
 		}
 	}
 
