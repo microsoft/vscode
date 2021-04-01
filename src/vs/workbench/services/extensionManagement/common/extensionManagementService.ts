@@ -368,7 +368,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 					message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
 					buttons: [
 						{ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' },
-						{ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' }
+						{ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' },
+						{ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' }
 					]
 				});
 				return Promise.resolve();
