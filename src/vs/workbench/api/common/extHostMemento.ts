@@ -8,6 +8,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
+interface PromiseRecord {
+	promise: Promise<void>;
+	resolve: () => void;
+	reject: (error?: any) => void;
+}
+
 export class ExtensionMemento implements vscode.Memento {
 
 	protected readonly _id: string;
@@ -17,6 +23,9 @@ export class ExtensionMemento implements vscode.Memento {
 	private readonly _init: Promise<ExtensionMemento>;
 	private _value?: { [n: string]: any; };
 	private readonly _storageListener: IDisposable;
+
+	private _promiseRecords: { [key: string]: PromiseRecord } = {};
+	private _timeout: NodeJS.Timeout | undefined;
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
 		this._id = id;
@@ -51,7 +60,51 @@ export class ExtensionMemento implements vscode.Memento {
 
 	update(key: string, value: any): Promise<void> {
 		this._value![key] = value;
-		return this._storage.setValue(this._shared, this._id, this._value!);
+
+
+		let record = this._promiseRecords[key];
+		if (record !== undefined) {
+			return record.promise;
+		}
+
+		let resolveFn: () => void | undefined;
+		let rejectFn: () => void | undefined;
+		let promise = new Promise<void>((resolve, reject) => {
+			resolveFn = resolve;
+			rejectFn = reject;
+		});
+
+		record = {
+			promise,
+			resolve: resolveFn!,
+			reject: rejectFn!,
+		};
+
+		this._promiseRecords[key] = record;
+
+		if (this._timeout) {
+			clearTimeout(this._timeout);
+		}
+
+		this._timeout = setTimeout(() => {
+			const records = { ...this._promiseRecords };
+			this._promiseRecords = {};
+			(async () => {
+				try {
+					await this._storage.setValue(this._shared, this._id, this._value!);
+					for (key of Object.keys(records)) {
+						records[key].resolve();
+					}
+				} catch (e) {
+					for (key of Object.keys(records)) {
+						records[key].reject(e);
+					}
+				}
+			})();
+			this._promiseRecords = {};
+		}, 0);
+
+		return promise;
 	}
 
 	dispose(): void {
