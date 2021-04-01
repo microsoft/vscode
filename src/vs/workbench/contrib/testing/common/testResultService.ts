@@ -18,7 +18,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IncrementalTestCollectionItem, ISerializedTestResults, ITestMessage, ITestState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, ISerializedTestResults, ITestMessage, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
