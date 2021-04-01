@@ -1034,7 +1034,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		}
 
 		const editor = assertIsDefined(this.getControl());
-		editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
+		editor.setModel(editorModel.textEditorModel);
 	}
 
 	clearInput(): void {
