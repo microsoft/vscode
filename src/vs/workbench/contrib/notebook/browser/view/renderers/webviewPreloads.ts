@@ -679,7 +679,7 @@ function webviewPreloads() {
 					}
 
 					// don't hide until after this step so that the height is right
-					cellOutputContainer.style.display = data.initiallyHidden ? 'none' : 'block';
+					cellOutputContainer.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 				});
 				break;
 			case 'view-scroll':
@@ -692,7 +692,7 @@ function webviewPreloads() {
 						if (widget) {
 							widget.style.top = request.top + 'px';
 							if (request.forceDisplay) {
-								widget.parentElement!.style.display = 'block';
+								widget.parentElement!.style.visibility = 'visible';
 							}
 						}
 					}
@@ -701,11 +701,6 @@ function webviewPreloads() {
 						const widget = document.getElementById(`${cell.id}_preview`)!;
 						if (widget) {
 							widget.style.top = `${cell.top}px`;
-						}
-
-						const markdownPreview = document.getElementById(`${cell.id}`);
-						if (markdownPreview) {
-							markdownPreview.style.display = 'block';
 						}
 					}
 
@@ -737,7 +732,7 @@ function webviewPreloads() {
 				enqueueOutputAction(event.data, ({ outputId }) => {
 					const container = document.getElementById(outputId)?.parentElement;
 					if (container) {
-						container.style.display = 'none';
+						container.style.visibility = 'hidden';
 					}
 				});
 				break;
@@ -745,7 +740,7 @@ function webviewPreloads() {
 				enqueueOutputAction(event.data, ({ outputId, top }) => {
 					const output = document.getElementById(outputId);
 					if (output) {
-						output.parentElement!.style.display = 'block';
+						output.parentElement!.style.visibility = 'visible';
 						output.style.top = top + 'px';
 
 						dimensionUpdater.update(outputId, {
