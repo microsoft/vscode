@@ -1025,24 +1025,21 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		return super.setInput(input, options, context, token)
-			.then(() => this.input!.resolve()
-				.then<any>(editorModel => {
-					if (token.isCancellationRequested) {
-						return undefined;
-					}
-
-					return editorModel!.resolve();
-				})
-				.then(editorModel => {
-					if (token.isCancellationRequested) {
-						return;
-					}
-
-					const editor = assertIsDefined(this.getControl());
-					editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
-				}));
+	async setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
+		const editorModel = await this.input!.resolve();
+		if (!editorModel) {
+			return;
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		await editorModel.resolve();
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const editor = assertIsDefined(this.getControl());
+		editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
 	}
 
 	clearInput(): void {
