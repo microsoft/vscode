@@ -87,7 +87,7 @@ export class ExtensionMemento implements vscode.Memento {
 		}
 
 		this._timeout = setTimeout(() => {
-			const records = { ...this._promiseRecords };
+			const records = this._promiseRecords;
 			this._promiseRecords = {};
 			(async () => {
 				try {
@@ -101,7 +101,6 @@ export class ExtensionMemento implements vscode.Memento {
 					}
 				}
 			})();
-			this._promiseRecords = {};
 		}, 0);
 
 		return promise;
