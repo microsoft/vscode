@@ -583,7 +583,7 @@ export function getEmmetConfiguration(syntax: string) {
 		) {
 			syntaxProfiles[syntax] = {
 				...syntaxProfiles[syntax],
-				selfClosingStyle: 'xml'
+				selfClosingStyle: syntax === 'jsx' ? 'xhtml' : 'xml'
 			};
 		}
 	}

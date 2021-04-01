@@ -223,6 +223,11 @@
               "default": false,
               "description": "%emmetPreferencesOutputReverseAttributes%"
             },
+            "output.selfClosingStyle": {
+              "type": "string",
+              "default": "html",
+              "description": "%emmetPreferencesOutputSelfClosingStyle%"
+            },
             "css.color.short": {
               "type": "boolean",
               "default": true,
