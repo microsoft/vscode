@@ -301,7 +301,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// FindNext must be false for a first request
 		const findOptions: FindInPageOptions = {
 			forward: options.forward,
-			findNext: false,
+			findNext: true,
 			matchCase: options.matchCase,
 			medialCapitalAsWordStart: options.medialCapitalAsWordStart
 		};
@@ -327,7 +327,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			return;
 		}
 
-		const options = { findNext: true, forward: !previous };
+		const options = { findNext: false, forward: !previous };
 		if (!this._findStarted) {
 			this.startFind(value, options);
 			return;
