@@ -8,6 +8,7 @@ import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { copyCellRange, joinNotebookCells, moveCellRange } from 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
+import { runDeleteAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
@@ -269,6 +270,178 @@ suite('CellOperations', () => {
 						cells: []
 					}
 				));
+			});
+	});
+
+	test('Delete focus cell', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(0)!);
+				assert.strictEqual(viewModel.length, 2);
+			});
+	});
+
+	test('Delete selected cells', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 2 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(0)!);
+				assert.strictEqual(viewModel.length, 1);
+			});
+	});
+
+	test('Delete focus cell out of a selection', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 2, end: 4 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(0)!);
+				assert.strictEqual(viewModel.length, 3);
+			});
+	});
+
+	test('Delete UI target', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(2)!);
+				assert.strictEqual(viewModel.length, 2);
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), 'var a = 1;');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 2;');
+			});
+	});
+
+	test('Delete UI target 2', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }, { start: 3, end: 5 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(1)!);
+				assert.strictEqual(viewModel.length, 4);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }, { start: 2, end: 4 }]);
+			});
+	});
+
+	test('Delete UI target 3', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 2, end: 3 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(0)!);
+				assert.strictEqual(viewModel.length, 4);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
+			});
+	});
+
+	test('Delete UI target 4', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 2, end: 3 }, [{ start: 3, end: 5 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(0)!);
+				assert.strictEqual(viewModel.length, 4);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 2, end: 4 }]);
+			});
+	});
+
+
+	test('Delete last cell sets selection correctly', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 2, end: 3 }, [{ start: 2, end: 3 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(2)!);
+				assert.strictEqual(viewModel.length, 2);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+			});
+	});
+
+	test('#120187. Delete should work on multiple distinct selection', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }, { start: 3, end: 4 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(0)!);
+				assert.strictEqual(viewModel.length, 2);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+			});
+	});
+
+	test('#120187. Delete should work on multiple distinct selection 2', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}],
+				['var e = 5;', 'javascript', CellKind.Code, [], {}],
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.setSelections({ start: 1, end: 2 }, [{ start: 1, end: 2 }, { start: 3, end: 5 }]);
+				runDeleteAction(viewModel, viewModel.cellAt(1)!);
+				assert.strictEqual(viewModel.length, 2);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
 			});
 	});
 });
