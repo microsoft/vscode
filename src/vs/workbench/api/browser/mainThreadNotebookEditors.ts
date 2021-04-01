@@ -161,7 +161,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			return;
 		}
 		const viewModel = notebookEditor.viewModel;
-		const cell = viewModel.viewCells[range.start];
+		const cell = viewModel.cellAt(range.start);
 		if (!cell) {
 			return;
 		}

@@ -55,7 +55,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 		const viewModel = this._notebookEditor.viewModel;
 
-		for (let i = 0; i < viewModel.viewCells.length; i++) {
+		for (let i = 0; i < viewModel.length; i++) {
 			const cell = viewModel.viewCells[i];
 
 			this._cellStateListeners.push(cell.onDidChangeLayout(e => {

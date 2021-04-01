@@ -73,7 +73,7 @@ class JSONRendererContrib extends Disposable implements IOutputRendererContribut
 
 		container.style.height = `${height + 8}px`;
 
-		return { type: RenderOutputType.Mainframe };
+		return { type: RenderOutputType.Mainframe, initHeight: height };
 	}
 }
 

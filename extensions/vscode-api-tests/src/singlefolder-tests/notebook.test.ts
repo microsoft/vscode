@@ -1025,6 +1025,27 @@ suite('Notebook API tests', function () {
 		await saveFileAndCloseAll(resource);
 	});
 
+	test('change cell language when notebook editor is not open', async function () {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const firstCell = vscode.window.activeNotebookEditor!.document.cellAt(0);
+		const cellUri = firstCell.document.uri;
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+		let cellDoc = await vscode.workspace.openTextDocument(cellUri);
+		cellDoc = await vscode.languages.setTextDocumentLanguage(cellDoc, 'css');
+		assert.strictEqual(cellDoc.languageId, 'css');
+	});
+
+	test('change cell language when notebook editor is open', async function () {
+		const resource = await createRandomFile('', undefined, '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const firstCell = vscode.window.activeNotebookEditor!.document.cellAt(0);
+		const cellDoc = await vscode.languages.setTextDocumentLanguage(firstCell.document, 'css');
+		assert.strictEqual(cellDoc.languageId, 'css');
+	});
+
 	test('multiple tabs: dirty + clean', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');

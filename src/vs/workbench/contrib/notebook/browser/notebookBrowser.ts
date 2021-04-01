@@ -83,6 +83,7 @@ export const enum RenderOutputType {
 export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
 	supportAppend?: boolean;
+	initHeight?: number;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -239,7 +240,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
 	readonly layoutInfo: { totalHeight: number; };
-	readonly onDidChangeLayout: Event<any>;
+	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -593,7 +594,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
 	 */
-	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[];
+	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel>;
 
 	/**
 	 * Set hidden areas on cell text models.

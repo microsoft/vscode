@@ -33,6 +33,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -192,7 +193,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private get selectionHandles() {
 		const handlesSet = new Set<number>();
 		const handles: number[] = [];
-		cellRangesToIndexes(this._selectionCollection.selections).map(index => this.getCellByIndex(index)).forEach(cell => {
+		cellRangesToIndexes(this._selectionCollection.selections).map(index => this.cellAt(index)).forEach(cell => {
 			if (cell && !handlesSet.has(cell.handle)) {
 				handles.push(cell.handle);
 			}
@@ -228,13 +229,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		private _layoutInfo: NotebookLayoutInfo | null,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IUndoRedoService private readonly _undoService: IUndoRedoService
+		@IUndoRedoService private readonly _undoService: IUndoRedoService,
+		@IModelService modelService: IModelService,
 	) {
 		super();
 
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
+
+
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -387,6 +391,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 	}
 
+	setSelections(focus: ICellRange, selections: ICellRange[]) {
+		this.updateSelectionsState({ kind: SelectionStateType.Index, focus, selections }, 'model');
+	}
+
 	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction
 	updateSelectionsState(state: ISelectionState, source: 'view' | 'model' = 'model') {
 		if (this._focused) {
@@ -502,8 +510,32 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
-	getCellByIndex(index: number) {
+	cellAt(index: number): CellViewModel | undefined {
+		// if (index < 0 || index >= this.length) {
+		// 	throw new Error(`Invalid index ${index}`);
+		// }
+
 		return this._viewCells[index];
+	}
+
+	getCells(range?: ICellRange): ReadonlyArray<ICellViewModel> {
+		if (!range) {
+			return this._viewCells.slice(0);
+		}
+
+		const validatedRange = this.validateRange(range);
+
+		if (validatedRange) {
+			const result: ICellViewModel[] = [];
+
+			for (let i = validatedRange.start; i < validatedRange.end; i++) {
+				result.push(this._viewCells[i]);
+			}
+
+			return result;
+		}
+
+		return [];
 	}
 
 	/**

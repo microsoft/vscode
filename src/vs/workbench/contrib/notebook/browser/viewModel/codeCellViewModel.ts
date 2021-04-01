@@ -260,11 +260,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	 * Text model is used for editing.
 	 */
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this.textModel) {
-			const ref = await this.model.resolveTextModelRef();
-			this.textModel = ref.object.textEditorModel;
-			this._register(ref);
-			this._register(this.textModel.onDidChangeContent(() => {
+		if (!this._textModelRef || !this.textModel) {
+			this._textModelRef = await this.model.resolveTextModelRef();
+			this._register(this.textModel!.onDidChangeContent(() => {
 				if (this.editState !== CellEditState.Editing) {
 					this.editState = CellEditState.Editing;
 					this._onDidChangeState.fire({ contentChanged: true });
@@ -272,7 +270,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}));
 		}
 
-		return this.textModel;
+		return this.textModel!;
 	}
 
 	onDeselect() {
