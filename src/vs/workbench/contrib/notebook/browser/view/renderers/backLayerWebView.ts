@@ -1123,12 +1123,15 @@ var requirejs = (function() {
 	}
 
 	updateViewScrollTop(forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
-		if (this._disposed || !items.length) {
+		if (!items.length) {
 			return;
 		}
 
-		const widgets = items.map((item): IContentWidgetTopRequest => {
-			const outputCache = this.insetMapping.get(item.output)!;
+		const widgets = coalesce(items.map((item): IContentWidgetTopRequest | undefined => {
+			const outputCache = this.insetMapping.get(item.output);
+			if (!outputCache) {
+				return;
+			}
 			const id = outputCache.outputId;
 			const outputOffset = item.outputOffset;
 			outputCache.cachedCreation.top = outputOffset;
@@ -1138,7 +1141,11 @@ var requirejs = (function() {
 				id: id,
 				top: outputOffset,
 			};
-		});
+		}));
+
+		if (!widgets.length) {
+			return;
+		}
 
 		this._sendMessageToWebview({
 			type: 'view-scroll',
