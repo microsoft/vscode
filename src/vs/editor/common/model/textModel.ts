@@ -2106,10 +2106,42 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._matchBracket(this.validatePosition(position));
 	}
 
+	private _establishBracketSearchOffsets(position: Position, lineTokens: LineTokens, modeBrackets: RichEditBrackets, tokenIndex: number) {
+		const tokenCount = lineTokens.getCount();
+		const currentLanguageId = lineTokens.getLanguageId(tokenIndex);
+
+		// limit search to not go before `maxBracketLength`
+		let searchStartOffset = Math.max(0, position.column - 1 - modeBrackets.maxBracketLength);
+		for (let i = tokenIndex - 1; i >= 0; i--) {
+			const tokenEndOffset = lineTokens.getEndOffset(i);
+			if (tokenEndOffset <= searchStartOffset) {
+				break;
+			}
+			if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i)) || lineTokens.getLanguageId(i) !== currentLanguageId) {
+				searchStartOffset = tokenEndOffset;
+				break;
+			}
+		}
+
+		// limit search to not go after `maxBracketLength`
+		let searchEndOffset = Math.min(lineTokens.getLineContent().length, position.column - 1 + modeBrackets.maxBracketLength);
+		for (let i = tokenIndex + 1; i < tokenCount; i++) {
+			const tokenStartOffset = lineTokens.getStartOffset(i);
+			if (tokenStartOffset >= searchEndOffset) {
+				break;
+			}
+			if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i)) || lineTokens.getLanguageId(i) !== currentLanguageId) {
+				searchEndOffset = tokenStartOffset;
+				break;
+			}
+		}
+
+		return { searchStartOffset, searchEndOffset };
+	}
+
 	private _matchBracket(position: Position): [Range, Range] | null {
 		const lineNumber = position.lineNumber;
 		const lineTokens = this._getLineTokens(lineNumber);
-		const tokenCount = lineTokens.getCount();
 		const lineText = this._buffer.getLineContent(lineNumber);
 
 		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
@@ -2120,19 +2152,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		// check that the token is not to be ignored
 		if (currentModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex))) {
-			// limit search to not go before `maxBracketLength`
-			let searchStartOffset = Math.max(0, position.column - 1 - currentModeBrackets.maxBracketLength);
-			for (let i = tokenIndex - 1; i >= 0; i--) {
-				const tokenEndOffset = lineTokens.getEndOffset(i);
-				if (tokenEndOffset <= searchStartOffset) {
-					break;
-				}
-				if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i))) {
-					searchStartOffset = tokenEndOffset;
-				}
-			}
-			// limit search to not go after `maxBracketLength`
-			const searchEndOffset = Math.min(lineText.length, position.column - 1 + currentModeBrackets.maxBracketLength);
+
+			let { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, currentModeBrackets, tokenIndex);
 
 			// it might be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
 			// `bestResult` will contain the most right-side result
@@ -2171,18 +2192,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			// check that previous token is not to be ignored
 			if (prevModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(prevTokenIndex))) {
-				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
-				const searchStartOffset = Math.max(0, position.column - 1 - prevModeBrackets.maxBracketLength);
-				let searchEndOffset = Math.min(lineText.length, position.column - 1 + prevModeBrackets.maxBracketLength);
-				for (let i = prevTokenIndex + 1; i < tokenCount; i++) {
-					const tokenStartOffset = lineTokens.getStartOffset(i);
-					if (tokenStartOffset >= searchEndOffset) {
-						break;
-					}
-					if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i))) {
-						searchEndOffset = tokenStartOffset;
-					}
-				}
+
+				let { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, prevModeBrackets, prevTokenIndex);
+
 				const foundBracket = BracketsUtils.findPrevBracketInRange(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 
 				// check that we didn't hit a bracket too far away from position
