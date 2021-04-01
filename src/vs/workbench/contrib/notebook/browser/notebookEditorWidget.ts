@@ -214,6 +214,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _eventDispatcher: NotebookEventDispatcher | undefined;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private _localStore: DisposableStore = this._register(new DisposableStore());
+	private _localCellStateListeners: IDisposable[] = [];
 	private _fontInfo: BareFontInfo | undefined;
 	private _dimension: DOM.Dimension | null = null;
 	private _shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
@@ -978,6 +979,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _detachModel() {
 		this._localStore.clear();
+		dispose(this._localCellStateListeners);
 		this._list.detachViewModel();
 		this.viewModel?.dispose();
 		// avoid event
@@ -1222,6 +1224,31 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			this._list.attachViewModel(this.viewModel);
 		}
+
+		// model attached
+		this._localCellStateListeners = this.viewModel.viewCells.map(cell => cell.onDidChangeLayout(e => {
+			if (e.totalHeight !== undefined || e.outerWidth) {
+				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+			}
+		}));
+
+		this._localStore.add(this.viewModel.onDidChangeViewCells((e) => {
+			if (this._isDisposed) {
+				return;
+			}
+
+			// update resize listener
+			e.splices.reverse().forEach(splice => {
+				const [start, deleted, newCells] = splice;
+				const deletedCells = this._localCellStateListeners.splice(start, deleted, ...newCells.map(cell => cell.onDidChangeLayout(e => {
+					if (e.totalHeight !== undefined || e.outerWidth) {
+						this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+					}
+				})));
+
+				dispose(deletedCells);
+			});
+		}));
 
 		if (this._dimension) {
 			this._list.layout(this._dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, this._dimension.width);
@@ -2349,6 +2376,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._contributions.clear();
 
 		this._localStore.clear();
+		dispose(this._localCellStateListeners);
 		this._list.dispose();
 		this._listTopCellToolbar?.dispose();
 

@@ -8,7 +8,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { Range } from 'vs/editor/common/core/range';
@@ -86,8 +86,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _isInLayout: boolean = false;
 
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
-
-	private _cellStateListeners: IDisposable[] = [];
 
 	constructor(
 		private listUser: string,
@@ -262,29 +260,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	attachViewModel(model: NotebookViewModel) {
 		this._viewModel = model;
-
-		this._cellStateListeners = this._viewModel.viewCells.map(cell => cell.onDidChangeLayout(e => {
-			if (e.totalHeight !== undefined || e.outerWidth) {
-				this._layoutCell(cell, cell.layoutInfo.totalHeight);
-			}
-		}));
-
 		this._viewModelStore.add(model.onDidChangeViewCells((e) => {
 			if (this._isDisposed) {
 				return;
 			}
-
-			// update resize listener
-			e.splices.reverse().forEach(splice => {
-				const [start, deleted, newCells] = splice;
-				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => cell.onDidChangeLayout(e => {
-					if (e.totalHeight !== undefined || e.outerWidth) {
-						this._layoutCell(cell, cell.layoutInfo.totalHeight);
-					}
-				})));
-
-				dispose(deletedCells);
-			});
 
 			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
 			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
@@ -340,50 +319,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		});
 
 		this.splice2(0, 0, viewCells);
-	}
-
-	private _pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
-	private async _layoutCell(cell: ICellViewModel, height: number): Promise<void> {
-		const viewIndex = this.getViewIndex(cell);
-		if (viewIndex === undefined) {
-			// the cell is hidden
-			return;
-		}
-
-		const relayout = (cell: ICellViewModel, height: number) => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			this.updateElementHeight2(cell, height);
-		};
-
-		if (this._pendingLayouts.has(cell)) {
-			this._pendingLayouts.get(cell)!.dispose();
-		}
-
-		let r: () => void;
-		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			if (this.elementHeight(cell) === height) {
-				return;
-			}
-
-			this._pendingLayouts.delete(cell);
-
-			relayout(cell, height);
-			r();
-		});
-
-		this._pendingLayouts.set(cell, toDisposable(() => {
-			layoutDisposable.dispose();
-			r();
-		}));
-
-		return new Promise(resolve => { r = resolve; });
 	}
 
 	private _updateElementsInWebview(viewDiffs: ISplice<CellViewModel>[]) {
@@ -1328,7 +1263,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	dispose() {
 		this._isDisposed = true;
-		dispose(this._cellStateListeners);
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
 		super.dispose();
