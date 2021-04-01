@@ -1184,21 +1184,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					}
 				}
 
-				if (this._webview?.markdownPreviewMapping) {
-					const updateItems: { id: string, top: number }[] = [];
-					this._webview.markdownPreviewMapping.forEach((_, cellId) => {
-						const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
-						if (cell) {
-							const cellTop = this._list.getAbsoluteTopOfElement(cell);
-							updateItems.push({ id: cellId, top: cellTop });
-						}
-					});
-
-					if (updateItems.length) {
-						this._debug('_list.onDidChangeContentHeight/markdown', updateItems);
-						this._webview?.updateMarkdownScrollTop(updateItems);
+				const updateItems: { id: string, top: number }[] = [];
+				for (const cellId of this._webview.markdownPreviewMapping.keys()) {
+					const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
+					if (cell) {
+						const cellTop = this._list.getAbsoluteTopOfElement(cell);
+						updateItems.push({ id: cellId, top: cellTop });
 					}
+				}
 
+				if (updateItems.length) {
+					this._debug('_list.onDidChangeContentHeight/markdown', updateItems);
+					this._webview?.updateMarkdownScrollTop(updateItems);
 				}
 			});
 		}));
