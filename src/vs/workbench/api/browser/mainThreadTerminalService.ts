@@ -100,9 +100,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public dispose(): void {
 		this._toDispose.dispose();
 		this._linkProvider?.dispose();
-
-		// TODO@Daniel: Should all the previously created terminals be disposed
-		// when the extension host process goes down ?
 	}
 
 	private _getTerminalId(id: TerminalIdentifier): number | undefined {
@@ -157,17 +154,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $dispose(id: TerminalIdentifier): void {
-		const terminalInstance = this._getTerminalInstance(id);
-		if (terminalInstance) {
-			terminalInstance.dispose();
-		}
+		this._getTerminalInstance(id)?.dispose();
 	}
 
 	public $sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): void {
-		const terminalInstance = this._getTerminalInstance(id);
-		if (terminalInstance) {
-			terminalInstance.sendText(text, addNewLine);
-		}
+		this._getTerminalInstance(id)?.sendText(text, addNewLine);
 	}
 
 	public $startSendingDataEvents(): void {
@@ -183,10 +174,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $stopSendingDataEvents(): void {
-		if (this._dataEventTracker) {
-			this._dataEventTracker.dispose();
-			this._dataEventTracker = undefined;
-		}
+		this._dataEventTracker?.dispose();
+		this._dataEventTracker = undefined;
 	}
 
 	public $startLinkProvider(): void {
@@ -288,53 +277,31 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitData(data);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitData(data);
 	}
 
 	public $sendProcessReady(terminalId: number, pid: number, cwd: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitReady(pid, cwd);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd);
 	}
 
 	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitExit(exitCode);
-			this._terminalProcessProxies.delete(terminalId);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
 	}
 
 	public $sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitOverrideDimensions(dimensions);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitOverrideDimensions(dimensions);
 	}
 
 	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitInitialCwd(initialCwd);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitInitialCwd(initialCwd);
 	}
 
 	public $sendProcessCwd(terminalId: number, cwd: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitCwd(cwd);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitCwd(cwd);
 	}
 
 	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
-		const instance = this._terminalService.getInstanceFromId(terminalId);
-		if (instance) {
-			this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
-		}
+		this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
 	}
 
 	private async _onRequestLatency(terminalId: number): Promise<void> {
