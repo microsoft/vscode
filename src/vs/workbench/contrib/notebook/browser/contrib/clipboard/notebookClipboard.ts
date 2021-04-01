@@ -156,6 +156,23 @@ export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor,
 		}
 	}
 
+	const focus = viewModel.getFocus();
+	const containingSelection = selections.find(selection => selection.start <= focus.start && focus.end <= selection.end);
+
+	if (!containingSelection) {
+		// focus is out of any selection, we should only cut this cell
+		const targetCell = viewModel.cellAt(focus.start)!;
+		clipboardService.writeText(targetCell.getText());
+		const newFocus = focus.end === viewModel.length ? { start: focus.start - 1, end: focus.end - 1 } : focus;
+		const newSelections = selections.map(selection => (selection.end <= focus.start ? selection : { start: selection.start - 1, end: selection.end - 1 }));
+		viewModel.notebookDocument.applyEdits([
+			{ editType: CellEditType.Replace, index: focus.start, count: 1, cells: [] }
+		], true, { kind: SelectionStateType.Index, focus: viewModel.getFocus(), selections: selections }, () => ({ kind: SelectionStateType.Index, focus: newFocus, selections: newSelections }), undefined, true);
+
+		notebookService.setToCopy([targetCell.model], false);
+		return true;
+	}
+
 	const selectionRanges = expandCellRangesWithHiddenCells(editor, viewModel, viewModel.getSelections());
 	const selectedCells = cellRangeToViewCells(viewModel, selectionRanges);
 

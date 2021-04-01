@@ -251,4 +251,54 @@ suite('Notebook Clipboard', () => {
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
 			});
 	});
+
+	test('cut focus cell still works if the focus is not part of any selection', async () => {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+			],
+			async (editor, accessor) => {
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					setToCopy() { }
+					getToCopy() {
+						return { items: [], isCopy: true };
+					}
+				});
+
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 2, end: 4 }] }, 'model');
+				assert.ok(runCutCells(accessor, editor, undefined));
+				assert.strictEqual(viewModel.length, 3);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 3 }]);
+			});
+	});
+
+	test('cut focus cell still works if the focus is not part of any selection 2', async () => {
+		await withTestNotebook(
+			[
+				['# header 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['paragraph 3', 'markdown', CellKind.Markdown, [], {}],
+			],
+			async (editor, accessor) => {
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() {
+					setToCopy() { }
+					getToCopy() {
+						return { items: [], isCopy: true };
+					}
+				});
+
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 3, end: 4 }, selections: [{ start: 0, end: 2 }] }, 'model');
+				assert.ok(runCutCells(accessor, editor, undefined));
+				assert.strictEqual(viewModel.length, 3);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 2 }]);
+			});
+	});
 });
