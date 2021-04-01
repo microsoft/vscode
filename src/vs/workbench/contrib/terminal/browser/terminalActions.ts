@@ -76,7 +76,7 @@ async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITe
 }
 
 export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
-	accessor.get(ITerminalService).doWithActiveInstance(t => {
+	accessor.get(ITerminalService).doWithActiveInstance(async t => {
 		if (!args?.text) {
 			return;
 		}
@@ -85,7 +85,7 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
+		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, args.text);
 		t.sendText(resolvedText, false);
 	});
 };
