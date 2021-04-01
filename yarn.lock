@@ -6625,7 +6625,12 @@ node-addon-api@*:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
   integrity sha512-flmrDNB06LIl5lywUz7YlNGZH/5p0M7W28k8hzd9Lshtdh1wshD2Y+U4h9LD6KObOy1f+fEVdgprPrEymjM5uw==
 
-node-addon-api@^3.0.0, node-addon-api@^3.0.2:
+node-addon-api@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.0.0.tgz#812446a1001a54f71663bed188314bba07e09247"
+  integrity sha512-sSHCgWfJ+Lui/u+0msF3oyCgvdkhxDbkCS6Q8uiJquzOimkJBvX6hl5aSSA7DR1XbMpdM8r7phjcF63sF4rkKg==
+
+node-addon-api@^3.0.2:
   version "3.0.2"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.0.2.tgz#04bc7b83fd845ba785bb6eae25bc857e1ef75681"
   integrity sha512-+D4s2HCnxPd5PjjI0STKwncjXTUKKqm74MDMz9OPXavjsGmjkvwgLtA5yoxJUdmpj52+2u+RrXgPipahKczMKg==
@@ -6650,11 +6655,6 @@ node-gyp@^7.1.0:
     semver "^7.3.2"
     tar "^6.0.1"
     which "^2.0.2"
-
-node-addon-api@^3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.0.0.tgz#812446a1001a54f71663bed188314bba07e09247"
-  integrity sha512-sSHCgWfJ+Lui/u+0msF3oyCgvdkhxDbkCS6Q8uiJquzOimkJBvX6hl5aSSA7DR1XbMpdM8r7phjcF63sF4rkKg==
 
 node-libs-browser@^2.2.1:
   version "2.2.1"
@@ -10157,10 +10157,10 @@ vscode-ripgrep@^1.11.2:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
 
-vscode-sqlite3@5.0.3:
-  version "5.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-5.0.3.tgz#9761a5a0e122637aeca1bca80f38d1884d4db488"
-  integrity sha512-JEhwOLIksKcPiVqz6X+eg5+8q/RZHi2F9pYXlpqZqpWSaNf53z6+75ob+pePhDMc7V7TbpcpxfiG6XwnVBNrpw==
+vscode-sqlite3@5.0.4:
+  version "5.0.4"
+  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-5.0.4.tgz#2baf11a9bda6666142a4f7f7a4021cdf63b183cd"
+  integrity sha512-v8mv+OFEu6U62VaQN3LsTqkO+8sBKz2lSl+yq/WNVb3i+AAPrUT3jUih0PksfH1yKweJYG6B/YAnR9seXBh97A==
   dependencies:
     node-addon-api "^3.0.0"
 
