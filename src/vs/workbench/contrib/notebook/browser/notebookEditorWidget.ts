@@ -1126,8 +1126,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}));
 
+		let hasPendingChangeContentHeight = false;
 		this._localStore.add(this._list.onDidChangeContentHeight(() => {
+			if (hasPendingChangeContentHeight) {
+				return;
+			}
+			hasPendingChangeContentHeight = true;
+
 			DOM.scheduleAtNextAnimationFrame(() => {
+				hasPendingChangeContentHeight = false;
 				if (this._isDisposed || !this._webview?.isResolved()) {
 					return;
 				}
