@@ -965,12 +965,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (options?.cellSelections && this.viewModel) {
 			const focusCellIndex = options.cellSelections[0].start;
 			const focusedCell = this.viewModel.cellAt(focusCellIndex);
-			this.viewModel.updateSelectionsState({
-				kind: SelectionStateType.Index,
-				focus: { start: focusCellIndex, end: focusCellIndex + 1 },
-				selections: options.cellSelections
-			});
-			this.revealInCenterIfOutsideViewport(focusedCell);
+			if (focusedCell) {
+				this.viewModel.updateSelectionsState({
+					kind: SelectionStateType.Index,
+					focus: { start: focusCellIndex, end: focusCellIndex + 1 },
+					selections: options.cellSelections
+				});
+				this.revealInCenterIfOutsideViewport(focusedCell);
+			}
 		}
 	}
 
@@ -1279,7 +1281,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			let requests: [ICellViewModel, number][] = [];
 
 			for (let i = 0; i < viewModel.length; i++) {
-				const cell = viewModel.cellAt(i);
+				const cell = viewModel.cellAt(i)!;
 
 				if (offset + (totalHeightCache[i] ?? 0) < scrollTop) {
 					offset += (totalHeightCache ? totalHeightCache[i] : 0);
@@ -1309,7 +1311,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			let offsetUpdateRequests: { id: string, top: number }[] = [];
 			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
 			for (let i = 0; i < viewModel.length; i++) {
-				const cell = viewModel.cellAt(i);
+				const cell = viewModel.cellAt(i)!;
 				if (cell.cellKind === CellKind.Markdown) {
 					offsetUpdateRequests.push({ id: cell.id, top: offset });
 				}
@@ -1828,7 +1830,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			} else if (cell?.cellKind === CellKind.Markdown) {
 				const nearestCodeCellIndex = this._nearestCodeCellIndex(index);
 				if (nearestCodeCellIndex > -1) {
-					language = this.viewModel.cellAt(nearestCodeCellIndex).language;
+					language = this.viewModel.cellAt(nearestCodeCellIndex)!.language;
 				} else {
 					language = defaultLanguage;
 				}
@@ -1975,8 +1977,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 
 			const viewCell = this.viewModel.cellAt(desiredIndex);
-			this._list.revealElementInView(viewCell);
-			r(viewCell);
+			if (viewCell) {
+				this._list.revealElementInView(viewCell);
+				r(viewCell);
+			} else {
+				r(null);
+			}
 		});
 
 		return new Promise(resolve => { r = resolve; });

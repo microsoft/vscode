@@ -506,7 +506,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
-	cellAt(index: number) {
+	cellAt(index: number): CellViewModel | undefined {
+		// if (index < 0 || index >= this.length) {
+		// 	throw new Error(`Invalid index ${index}`);
+		// }
+
 		return this._viewCells[index];
 	}
 

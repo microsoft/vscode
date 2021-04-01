@@ -324,7 +324,7 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 			if (widget) {
 				return {
 					notebookEditor: widget,
-					cell: widget.viewModel.cellAt(context.start)
+					cell: widget.viewModel.cellAt(context.start)!
 				};
 			} else {
 				throw new Error(`There is no editor opened for resource ${uri}`);
@@ -340,7 +340,7 @@ registerAction2(class ExecuteCell extends NotebookCellAction<ICellRange> {
 		// TODO@rebornix, support multiple cells
 		return {
 			notebookEditor: activeEditorContext.notebookEditor,
-			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)
+			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)!
 		};
 	}
 
@@ -408,7 +408,7 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 				if (widget) {
 					return {
 						notebookEditor: widget,
-						cell: widget.viewModel.cellAt(context.start)
+						cell: widget.viewModel.cellAt(context.start)!
 					};
 				}
 			}
@@ -423,7 +423,7 @@ registerAction2(class CancelExecuteCell extends NotebookCellAction<ICellRange> {
 		// TODO@rebornix, support multiple cells
 		return {
 			notebookEditor: activeEditorContext.notebookEditor,
-			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)
+			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)!
 		};
 	}
 
@@ -1241,7 +1241,9 @@ registerAction2(class extends NotebookAction {
 		}
 
 		const firstCell = editor.viewModel.cellAt(0);
-		editor.focusNotebookCell(firstCell, 'container');
+		if (firstCell) {
+			editor.focusNotebookCell(firstCell, 'container');
+		}
 	}
 });
 
@@ -1266,7 +1268,9 @@ registerAction2(class extends NotebookAction {
 		}
 
 		const firstCell = editor.viewModel.cellAt(editor.viewModel.length - 1);
-		editor.focusNotebookCell(firstCell, 'container');
+		if (firstCell) {
+			editor.focusNotebookCell(firstCell, 'container');
+		}
 	}
 });
 
@@ -1383,7 +1387,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction<ICellRange> {
 		// TODO@rebornix, support multiple cells
 		return {
 			notebookEditor: activeEditorContext.notebookEditor,
-			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start),
+			cell: activeEditorContext.notebookEditor.viewModel.cellAt(context.start)!,
 			language
 		};
 	}

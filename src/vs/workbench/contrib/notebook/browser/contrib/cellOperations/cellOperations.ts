@@ -223,7 +223,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index).model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -238,7 +238,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		// insert down, move selections
 		const focus = viewModel.getFocus();
 		const selections = viewModel.getSelections();
-		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index).model));
+		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model));
 		const countDelta = newCells.length;
 		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
 		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
@@ -247,7 +247,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index).model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -440,7 +440,7 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 				|| selection.start === 0 && direction === 'above'
 			) {
 				if (containFocus) {
-					cell = viewModel.cellAt(focus.start);
+					cell = viewModel.cellAt(focus.start)!;
 				}
 
 				cells.push(...viewModel.getCells(selection));
