@@ -240,7 +240,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
 	readonly layoutInfo: { totalHeight: number; };
-	readonly onDidChangeLayout: Event<any>;
+	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
