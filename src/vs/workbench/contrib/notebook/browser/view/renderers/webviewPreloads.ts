@@ -139,7 +139,7 @@ function webviewPreloads() {
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, DimensionUpdate>();
 
-		update(id: string, update: DimensionUpdate) {
+		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
 					if (!this.pending.size) {
@@ -152,7 +152,11 @@ function webviewPreloads() {
 					this.pending.clear();
 				}, 0);
 			}
-			this.pending.set(id, update);
+			this.pending.set(id, {
+				id,
+				height,
+				...options,
+			});
 		}
 	};
 
@@ -172,18 +176,12 @@ function webviewPreloads() {
 						} else {
 							entry.target.style.padding = `0px`;
 						}
-						dimensionUpdater.update(id, {
-							id: id,
-							data: { height },
+						dimensionUpdater.update(id, height, {
 							isOutput: true
 						});
 					} else {
-						dimensionUpdater.update(id, {
-							id: id,
-							data: {
-								// entry.contentRect does not include padding
-								height: entry.contentRect.height + __previewNodePadding__ * 2
-							},
+						// entry.contentRect does not include padding
+						dimensionUpdater.update(id, entry.contentRect.height + __previewNodePadding__ * 2, {
 							isOutput: false
 						});
 					}
@@ -657,24 +655,16 @@ function webviewPreloads() {
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.update(outputId, {
-							id: outputId,
+						dimensionUpdater.update(outputId, clientHeight + __outputNodePadding__ * 2, {
 							isOutput: true,
 							init: true,
-							data: {
-								height: clientHeight + __outputNodePadding__ * 2
-							}
 						});
 
 						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 					} else {
-						dimensionUpdater.update(outputId, {
-							id: outputId,
+						dimensionUpdater.update(outputId, outputNode.clientHeight, {
 							isOutput: true,
 							init: true,
-							data: {
-								height: outputNode.clientHeight
-							}
 						});
 					}
 
@@ -743,12 +733,8 @@ function webviewPreloads() {
 						output.parentElement!.style.visibility = 'visible';
 						output.style.top = top + 'px';
 
-						dimensionUpdater.update(outputId, {
-							id: outputId,
+						dimensionUpdater.update(outputId, output.clientHeight, {
 							isOutput: true,
-							data: {
-								height: output.clientHeight
-							}
 						});
 					}
 				});
@@ -899,11 +885,7 @@ function webviewPreloads() {
 			}
 		}
 
-		dimensionUpdater.update(`${cellId}_preview`, {
-			id: `${cellId}_preview`,
-			data: {
-				height: previewContainerNode.clientHeight,
-			},
+		dimensionUpdater.update(`${cellId}_preview`, previewContainerNode.clientHeight, {
 			isOutput: false
 		});
 	}

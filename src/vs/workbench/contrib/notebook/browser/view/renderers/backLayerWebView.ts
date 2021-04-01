@@ -39,7 +39,7 @@ export interface WebviewIntialized extends BaseToWebviewMessage {
 export interface DimensionUpdate {
 	id: string;
 	init?: boolean;
-	data: { height: number };
+	height: number;
 	isOutput?: boolean;
 }
 
@@ -834,18 +834,16 @@ var requirejs = (function() {
 				case 'dimension':
 					{
 						for (const update of data.updates) {
+							const height = update.height;
 							if (update.isOutput) {
-								const height = update.data.height;
-								const outputHeight = height;
-
 								const resolvedResult = this.resolveOutputId(update.id);
 								if (resolvedResult) {
 									const { cellInfo, output } = resolvedResult;
-									this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!update.init, 'webview#dimension');
+									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								}
 							} else {
 								const cellId = update.id.substr(0, update.id.length - '_preview'.length);
-								this.notebookEditor.updateMarkdownCellHeight(cellId, update.data.height, !!update.init);
+								this.notebookEditor.updateMarkdownCellHeight(cellId, height, !!update.init);
 							}
 						}
 						break;
