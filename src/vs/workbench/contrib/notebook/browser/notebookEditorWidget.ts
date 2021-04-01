@@ -1121,24 +1121,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._localStore.add(this._list.onWillScroll(e => {
 			if (this._webview?.isResolved()) {
-				this._webview.updateViewScrollTop(-e.scrollTop, true, []);
+				this._webview.updateViewScrollTop(true, []);
 				this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 			}
 		}));
 
 		this._localStore.add(this._list.onDidChangeContentHeight(() => {
 			DOM.scheduleAtNextAnimationFrame(() => {
-				if (this._isDisposed) {
+				if (this._isDisposed || !this._webview?.isResolved()) {
 					return;
 				}
 
-				const scrollTop = this._list.scrollTop;
 				const scrollHeight = this._list.scrollHeight;
-
-				if (!this._webview?.isResolved()) {
-					return;
-				}
-
 				this._webview!.element.style.height = `${scrollHeight}px`;
 
 				const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
@@ -1179,7 +1173,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				if (updateItems.length) {
 					this._debug('_list.onDidChangeContentHeight/outputs', updateItems);
-					this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
+					this._webview?.updateViewScrollTop(false, updateItems);
 				}
 
 				const markdownUpdateItems: { id: string, top: number }[] = [];
@@ -2218,11 +2212,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				await this._webview!.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cell);
-				const scrollTop = this._list.scrollTop;
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
 				const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
-				this._webview!.updateViewScrollTop(-scrollTop, true, [{ output: output.source, cellTop, outputOffset }]);
+				this._webview!.updateViewScrollTop(true, [{ output: output.source, cellTop, outputOffset }]);
 			}
 		});
 	}

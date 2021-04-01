@@ -183,15 +183,12 @@ export interface ICreationRequestMessage {
 export interface IContentWidgetTopRequest {
 	id: string;
 	top: number;
-	left: number;
 }
 
 export interface IViewScrollTopRequestMessage {
 	type: 'view-scroll';
-	top?: number;
 	forceDisplay: boolean;
 	widgets: IContentWidgetTopRequest[];
-	version: number;
 }
 
 export interface IViewScrollMarkdownRequestMessage {
@@ -367,12 +364,11 @@ export interface IResolvedBackLayerWebview {
 	webview: WebviewElement;
 }
 
-let version = 0;
 export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
+	readonly markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -1120,12 +1116,12 @@ var requirejs = (function() {
 		});
 	}
 
-	updateViewScrollTop(top: number, forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
+	updateViewScrollTop(forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
 		if (this._disposed || !items.length) {
 			return;
 		}
 
-		const widgets: IContentWidgetTopRequest[] = items.map(item => {
+		const widgets = items.map((item): IContentWidgetTopRequest => {
 			const outputCache = this.insetMapping.get(item.output)!;
 			const id = outputCache.outputId;
 			const outputOffset = item.outputOffset;
@@ -1135,14 +1131,11 @@ var requirejs = (function() {
 			return {
 				id: id,
 				top: outputOffset,
-				left: 0
 			};
 		});
 
 		this._sendMessageToWebview({
-			top,
 			type: 'view-scroll',
-			version: version++,
 			forceDisplay,
 			widgets: widgets
 		});
