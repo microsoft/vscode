@@ -812,6 +812,19 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal initial text https://github.com/microsoft/vscode/issues/120368
+
+	export interface TerminalOptions {
+		/**
+		 * Initial text to write to the terminal, note that this is not sent to the process but
+		 * rather written directly to the terminal. This supports escape sequences such a setting
+		 * text style.
+		 */
+		readonly initialText?: string;
+	}
+
+	//#endregion
+
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
