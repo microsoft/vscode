@@ -104,7 +104,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 					this._model.setMode(e);
 				}
 			}));
-			this._modelDisposables.push(langId);
 			this._modelDisposables.push(this._extensionService.onDidChangeExtensionsStatus(this._updateModel, this));
 
 			writeTransientState(this._model, { wordWrapOverride: 'off' }, this._editorService);
