@@ -384,9 +384,9 @@ export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined
 	if (!currentNode) { return; }
 
 	// If the currentNode is a script one, first set up its subtree and then find HTML node.
-	if (currentNode.name === 'script') {
+	if (currentNode.name === 'script' && currentNode.children.length === 0) {
 		setUpScriptNodeSubtree(documentText, currentNode);
-		currentNode = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
+		currentNode = <HtmlFlatNode | undefined>getFlatNode(currentNode, offset, includeNodeBoundary) ?? currentNode;
 	}
 	return currentNode;
 }
