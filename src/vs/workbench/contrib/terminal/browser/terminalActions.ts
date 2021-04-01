@@ -683,9 +683,13 @@ export function registerTerminalActions() {
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
 			const notificationService = accessor.get(INotificationService);
-			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
-			const remoteTerms = await offProcTerminalService.listProcesses();
-			const unattachedTerms = remoteTerms.filter(term => !terminalService.isAttachedToTerminal(term));
+			let offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
+
+			const terms = await offProcTerminalService.listProcesses();
+
+			offProcTerminalService.reduceConnectionGraceTime();
+
+			const unattachedTerms = terms.filter(term => !terminalService.isAttachedToTerminal(term));
 			const items = unattachedTerms.map(term => {
 				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
 				return {
