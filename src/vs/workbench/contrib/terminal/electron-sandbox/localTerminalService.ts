@@ -120,6 +120,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.listProcesses();
 	}
 
+	public reduceConnectionGraceTime(): void {
+		this._localPtyService.reduceConnectionGraceTime();
+	}
+
 	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),

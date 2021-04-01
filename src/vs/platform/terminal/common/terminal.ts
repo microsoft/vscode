@@ -96,6 +96,7 @@ export interface IOffProcessTerminalService {
 	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
+	reduceConnectionGraceTime(): void;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');

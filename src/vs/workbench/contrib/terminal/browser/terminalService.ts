@@ -211,6 +211,7 @@ export class TerminalService implements ITerminalService {
 		}
 		// Reattach to all local terminals
 		const layoutInfo = await this._localTerminalService.getTerminalLayoutInfo();
+		this._localTerminalService.reduceConnectionGraceTime();
 		if (layoutInfo && layoutInfo.tabs.length > 0) {
 			this._recreateTerminalTabs(layoutInfo);
 		}

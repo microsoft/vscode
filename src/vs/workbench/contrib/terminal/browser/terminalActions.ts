@@ -674,9 +674,7 @@ export function registerTerminalActions() {
 
 			const terms = await offProcTerminalService.listProcesses();
 
-			if ('reduceConnectionGraceTime' in offProcTerminalService) {
-				offProcTerminalService.reduceConnectionGraceTime();
-			}
+			offProcTerminalService.reduceConnectionGraceTime();
 
 			const unattachedTerms = terms.filter(term => !terminalService.isAttachedToTerminal(term));
 			const items = unattachedTerms.map(term => {
