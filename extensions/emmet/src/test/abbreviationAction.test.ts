@@ -439,7 +439,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.strictEqual(editor.document.getText(), '<img src="" alt=""/>');
+			assert.strictEqual(editor.document.getText(), '<img src="" alt="" />');
 			return Promise.resolve();
 		});
 	});
@@ -449,7 +449,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		return withRandomFileEditor('img', 'javascriptreact', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'javascriptreact' });
-			assert.strictEqual(editor.document.getText(), '<img src=\'\' alt=\'\'/>');
+			assert.strictEqual(editor.document.getText(), '<img src=\'\' alt=\'\' />');
 			return workspace.getConfiguration('emmet').update('syntaxProfiles', oldValueForSyntaxProfiles ? oldValueForSyntaxProfiles.globalValue : undefined, ConfigurationTarget.Global);
 		});
 	});
