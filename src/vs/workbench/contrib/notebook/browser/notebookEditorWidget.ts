@@ -1141,61 +1141,59 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				this._webview!.element.style.height = `${scrollHeight}px`;
 
-				if (this._webview?.insetMapping) {
-					const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
-					const removedItems: ICellOutputViewModel[] = [];
-					this._webview?.insetMapping.forEach((value, key) => {
-						const cell = this.viewModel?.getCellByHandle(value.cellInfo.cellHandle);
-						if (!cell || !(cell instanceof CodeCellViewModel)) {
-							return;
-						}
-
-						this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
-						const viewIndex = this._list.getViewIndex(cell);
-
-						if (viewIndex === undefined) {
-							return;
-						}
-
-						if (cell.outputsViewModels.indexOf(key) < 0) {
-							// output is already gone
-							removedItems.push(key);
-						}
-
-						const cellTop = this._list.getAbsoluteTopOfElement(cell);
-						if (this._webview!.shouldUpdateInset(cell, key, cellTop)) {
-							const outputIndex = cell.outputsViewModels.indexOf(key);
-
-							const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
-
-							updateItems.push({
-								output: key,
-								cellTop: cellTop,
-								outputOffset
-							});
-						}
-					});
-
-					removedItems.forEach(output => this._webview?.removeInset(output));
-
-					if (updateItems.length) {
-						this._debug('_list.onDidChangeContentHeight/outputs', updateItems);
-						this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
+				const updateItems: IDisplayOutputLayoutUpdateRequest[] = [];
+				const removedItems: ICellOutputViewModel[] = [];
+				this._webview?.insetMapping.forEach((value, key) => {
+					const cell = this.viewModel?.getCellByHandle(value.cellInfo.cellHandle);
+					if (!cell || !(cell instanceof CodeCellViewModel)) {
+						return;
 					}
+
+					this.viewModel?.viewCells.find(cell => cell.handle === value.cellInfo.cellHandle);
+					const viewIndex = this._list.getViewIndex(cell);
+
+					if (viewIndex === undefined) {
+						return;
+					}
+
+					if (cell.outputsViewModels.indexOf(key) < 0) {
+						// output is already gone
+						removedItems.push(key);
+					}
+
+					const cellTop = this._list.getAbsoluteTopOfElement(cell);
+					if (this._webview!.shouldUpdateInset(cell, key, cellTop)) {
+						const outputIndex = cell.outputsViewModels.indexOf(key);
+
+						const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
+
+						updateItems.push({
+							output: key,
+							cellTop: cellTop,
+							outputOffset
+						});
+					}
+				});
+
+				removedItems.forEach(output => this._webview?.removeInset(output));
+
+				if (updateItems.length) {
+					this._debug('_list.onDidChangeContentHeight/outputs', updateItems);
+					this._webview?.updateViewScrollTop(-scrollTop, false, updateItems);
 				}
 
-				const updateItems: { id: string, top: number }[] = [];
+				const markdownUpdateItems: { id: string, top: number }[] = [];
 				for (const cellId of this._webview.markdownPreviewMapping.keys()) {
 					const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 					if (cell) {
 						const cellTop = this._list.getAbsoluteTopOfElement(cell);
-						updateItems.push({ id: cellId, top: cellTop });
+						markdownUpdateItems.push({ id: cellId, top: cellTop });
 					}
 				}
 
-				if (updateItems.length) {
-					this._debug('_list.onDidChangeContentHeight/markdown', updateItems);
-					this._webview?.updateMarkdownScrollTop(updateItems);
+				if (markdownUpdateItems.length) {
+					this._debug('_list.onDidChangeContentHeight/markdown', markdownUpdateItems);
+					this._webview?.updateMarkdownScrollTop(markdownUpdateItems);
 				}
 			});
 		}));
