@@ -569,7 +569,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
 					}
 
-					#container > div > div.preview {
+					#container > div.preview {
 						width: 100%;
 						box-sizing: border-box;
 						white-space: nowrap;
@@ -581,14 +581,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						cursor: grab;
 					}
 
-					#container > div > div.preview.emptyMarkdownCell::before {
+					#container > div.preview.emptyMarkdownCell::before {
 						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
 						font-style: italic;
 						opacity: 0.6;
 					}
 
 					/* markdown */
-					#container > div > div.preview {
+					#container > div.preview {
 						color: var(--vscode-foreground);
 						width: 100%;
 						padding-left: ${this.options.leftMargin}px;
@@ -596,11 +596,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						padding-bottom: ${this.options.previewNodePadding}px;
 					}
 
-					#container > div > div.preview.selected {
+					#container > div.preview.selected {
 						background: var(--vscode-notebook-selectedCellBackground);
 					}
 
-					#container > div > div.preview.dragging {
+					#container > div.preview.dragging {
 						background-color: var(--vscode-editor-background);
 					}
 
@@ -842,8 +842,7 @@ var requirejs = (function() {
 									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								}
 							} else {
-								const cellId = update.id.substr(0, update.id.length - '_preview'.length);
-								this.notebookEditor.updateMarkdownCellHeight(cellId, height, !!update.init);
+								this.notebookEditor.updateMarkdownCellHeight(update.id, height, !!update.init);
 							}
 						}
 						break;
