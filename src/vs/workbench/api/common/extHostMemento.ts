@@ -25,7 +25,7 @@ export class ExtensionMemento implements vscode.Memento {
 	private readonly _storageListener: IDisposable;
 
 	private _promiseRecords: { [key: string]: PromiseRecord } = {};
-	private _timeout: number | undefined;
+	private _timeout: any;
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
 		this._id = id;
