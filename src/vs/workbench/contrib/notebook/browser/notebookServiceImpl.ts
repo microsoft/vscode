@@ -533,7 +533,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return Array.from(this._markdownRenderersInfos);
 	}
 
-	// --- notebook documents: create, destory, retrieve, enumerate
+	// --- notebook documents: create, destroy, retrieve, enumerate
 
 	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel {
 		if (this._models.has(uri)) {

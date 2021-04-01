@@ -912,7 +912,7 @@ declare module 'vscode' {
 		 * Handle when the underlying resource for a custom editor is renamed.
 		 *
 		 * This allows the webview for the editor be preserved throughout the rename. If this method is not implemented,
-		 * VS Code will destory the previous custom editor and create a replacement one.
+		 * VS Code will destroy the previous custom editor and create a replacement one.
 		 *
 		 * @param newDocument New text document to use for the custom editor.
 		 * @param existingWebviewPanel Webview panel for the custom editor.
@@ -1046,13 +1046,13 @@ declare module 'vscode' {
 	export interface NotebookDocumentContentOptions {
 		/**
 		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+		 * Default to false. If the content provider doesn't persist the outputs in the file document, this should be set to true.
 		 */
 		transientOutputs: boolean;
 
 		/**
-		 * Controls if a meetadata property change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		 * Controls if a metadata property change will trigger notebook document content change and if it will be used in the diff editor
+		 * Default to false. If the content provider doesn't persist a metadata property in the file document, it should be set to true.
 		 */
 		transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
 	}
@@ -1098,7 +1098,7 @@ declare module 'vscode' {
 
 		/**
 		 * Get the cells of this notebook. A subset can be retrieved by providing
-		 * a range. The range will be adjuset to the notebook.
+		 * a range. The range will be adjusted to the notebook.
 		 *
 		 * @param range A notebook range.
 		 * @returns The cells contained by the range or all cells.
@@ -1485,7 +1485,7 @@ declare module 'vscode' {
 
 		/**
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
-		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
+		 * resolve the raw content for `uri` as the resource is not necessarily a file on disk.
 		 */
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext, token: CancellationToken): NotebookData | Thenable<NotebookData>;
 
@@ -2100,7 +2100,7 @@ declare module 'vscode' {
 		General activation events:
 			- `onLanguage:*` most test extensions will want to activate when their
 				language is opened to provide code lenses.
-			- `onTests:*` new activation event very simiular to `workspaceContains`,
+			- `onTests:*` new activation event very similar to `workspaceContains`,
 				but only fired when the user wants to run tests or opens the test explorer.
 	*/
 	export namespace test {
@@ -2144,7 +2144,7 @@ declare module 'vscode' {
 		export function publishTestResult(results: TestResults, persist?: boolean): void;
 
 		/**
-		* List of test results stored by VS Code, sorted in descnding
+		* List of test results stored by VS Code, sorted in descending
 		* order by their `completedAt` time.
 		*/
 		export const testResults: ReadonlyArray<TestResults>;
@@ -2426,7 +2426,7 @@ declare module 'vscode' {
 		 * Requests the children of the test item. Extensions should override this
 		 * method for any test that can discover children.
 		 *
-		 * When called, the item should discover tests and update its's `children`.
+		 * When called, the item should discover tests and update its `children`.
 		 * The provider will be marked as 'busy' when this method is called, and
 		 * the provider should report `{ busy: false }` to {@link Progress.report}
 		 * once discovery is complete.

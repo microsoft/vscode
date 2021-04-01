@@ -78,7 +78,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		container.id = `webview-${this.id}`;
 		container.style.visibility = 'hidden';
 
-		// Webviews cannot be reparented in the dom as it will destory their contents.
+		// Webviews cannot be reparented in the dom as it will destroy their contents.
 		// Mount them to a high level node to avoid this.
 		this._layoutService.container.appendChild(container);
 
