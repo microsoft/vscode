@@ -276,6 +276,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
+		// Since title events can only come from vscode.Pseudoterminals right now, these are routed
+		// directly to the instance as API source events such that they will replace the initial
+		// `name` property provided for the Pseudoterminal. If we support showing both Api and
+		// Process titles at the same time we may want to pass this through as a Process source
+		// event.
 		const instance = this._terminalService.getInstanceFromId(terminalId);
 		if (instance) {
 			instance.setTitle(title, TitleEventSource.Api);
