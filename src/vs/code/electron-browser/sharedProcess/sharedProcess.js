@@ -28,7 +28,16 @@
 
 	/**
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown) => Promise<unknown>
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperKeybindings?: (config: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	     canModifyDOM?: (config: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
+	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *       beforeRequire?: () => void
+	 *     }
+	 *   ) => Promise<unknown>
 	 * }}
 	 */
 	function bootstrapWindowLib() {

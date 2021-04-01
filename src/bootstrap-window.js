@@ -34,11 +34,9 @@
 	 * @param {string[]} modulePaths
 	 * @param {(result: unknown, configuration: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
-	 * 	forceEnableDeveloperKeybindings?: boolean,
-	 * 	disallowReloadKeybinding?: boolean,
-	 * 	removeDeveloperKeybindingsAfterLoad?: boolean,
+	 * 	configureDeveloperKeybindings?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
 	 * 	canModifyDOM?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
-	 * 	beforeLoaderConfig?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration, loaderConfig: object) => void,
+	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *  beforeRequire?: () => void
 	 * }} [options]
 	 */
@@ -55,11 +53,12 @@
 		const configuration = await preloadGlobals.context.configuration;
 		performance.mark('code/didWaitForWindowConfig');
 
-		// Developer tools
-		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || configuration.forceEnableDeveloperKeybindings || options?.forceEnableDeveloperKeybindings;
+		// Developer keybindings
+		const { forceEnableDeveloperKeybindings, disallowReloadKeybinding, removeDeveloperKeybindingsAfterLoad } = typeof options?.configureDeveloperKeybindings === 'function' ? options.configureDeveloperKeybindings(configuration) : { forceEnableDeveloperKeybindings: false, disallowReloadKeybinding: false, removeDeveloperKeybindingsAfterLoad: false };
+		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || forceEnableDeveloperKeybindings;
 		let developerDeveloperKeybindingsDisposable;
 		if (enableDeveloperKeybindings) {
-			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(options?.disallowReloadKeybinding);
+			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
 		// Enable ASAR support
@@ -143,7 +142,7 @@
 
 		// Signal before require.config()
 		if (typeof options?.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(configuration, loaderConfig);
+			options.beforeLoaderConfig(loaderConfig);
 		}
 
 		// Configure loader
@@ -177,7 +176,7 @@
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 
-					if (developerDeveloperKeybindingsDisposable && options?.removeDeveloperKeybindingsAfterLoad) {
+					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 						developerDeveloperKeybindingsDisposable();
 					}
 				}
@@ -267,7 +266,6 @@
 	}
 
 	return {
-		load,
-		globals
+		load
 	};
 }));

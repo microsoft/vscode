@@ -189,18 +189,9 @@ export class IssueMainService implements ICommonIssueService {
 			if (this.issueReporterParentWindow) {
 				const issueReporterDisposables = new DisposableStore();
 
-				interface IIssueReporterWindowConfig extends ISandboxConfiguration {
-					[key: string]: unknown;
-				}
-
-				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IIssueReporterWindowConfig>());
-				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
-
-				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
-
-				const configuration: IIssueReporterWindowConfig = {
+				const configuration = {
 					appRoot: this.environmentMainService.appRoot,
-					windowId: this.issueReporterWindow.id,
+					windowId: 0, // filled in later
 					machineId: this.machineId,
 					userEnv: this.userEnv,
 					data,
@@ -220,6 +211,14 @@ export class IssueMainService implements ICommonIssueService {
 						reportMarketplaceIssueUrl: this.productService.reportMarketplaceIssueUrl
 					}
 				};
+
+				interface IIssueReporterWindowConfig extends ISandboxConfiguration, Extract<typeof configuration, any> { }
+
+				const issueReporterWindowConfigUrl = issueReporterDisposables.add(this.protocolMainService.createIPCObjectUrl<IIssueReporterWindowConfig>());
+				const position = this.getWindowPosition(this.issueReporterParentWindow, 700, 800);
+
+				this.issueReporterWindow = this.createBrowserWindow(position, issueReporterWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
+				configuration.windowId = this.issueReporterWindow.id;
 
 				// Store into config object URL
 				issueReporterWindowConfigUrl.update(configuration);
@@ -254,22 +253,21 @@ export class IssueMainService implements ICommonIssueService {
 			if (this.processExplorerParentWindow) {
 				const processExplorerDisposables = new DisposableStore();
 
-				interface IProcessExplorerWindowConfig extends ISandboxConfiguration {
-					[key: string]: unknown;
-				}
+				const configuration = {
+					appRoot: this.environmentMainService.appRoot,
+					windowId: 0, // filled in later
+					userEnv: this.userEnv,
+					machineId: this.machineId,
+					data
+				};
+
+				interface IProcessExplorerWindowConfig extends ISandboxConfiguration, Extract<typeof configuration, any> { }
 
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<IProcessExplorerWindowConfig>());
 				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
-
-				const configuration: IProcessExplorerWindowConfig = {
-					appRoot: this.environmentMainService.appRoot,
-					windowId: this.processExplorerWindow.id,
-					userEnv: this.userEnv,
-					machineId: this.machineId,
-					data
-				};
+				configuration.windowId = this.processExplorerWindow.id;
 
 				// Store into config object URL
 				processExplorerWindowConfigUrl.update(configuration);

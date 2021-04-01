@@ -871,9 +871,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			release: release()
 		};
 
-		// Force enable developer tools for extension development
-		configuration.forceEnableDeveloperKeybindings = Array.isArray(configuration.extensionDevelopmentPath);
-
 		// Store into config object URL
 		this.configObjectUrl.update(configuration);
 	}

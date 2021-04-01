@@ -32,11 +32,16 @@
 			return require('vs/workbench/electron-sandbox/desktop.main').main(configuration);
 		},
 		{
-			removeDeveloperKeybindingsAfterLoad: true,
+			configureDeveloperKeybindings: function (windowConfig) {
+				return {
+					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath),
+					removeDeveloperKeybindingsAfterLoad: true
+				};
+			},
 			canModifyDOM: function (windowConfig) {
 				// TODO@sandbox part-splash is non-sandboxed only
 			},
-			beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			beforeLoaderConfig: function (loaderConfig) {
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function () {
@@ -66,7 +71,16 @@
 
 	/**
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => unknown, options: object) => Promise<unknown>
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperKeybindings?: (config: import('../../../platform/windows/common/windows').INativeWindowConfiguration & object) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	     canModifyDOM?: (config: import('../../../platform/windows/common/windows').INativeWindowConfiguration & object) => void,
+	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *       beforeRequire?: () => void
+	 *     }
+	 *   ) => Promise<unknown>
 	 * }}
 	 */
 	function bootstrapWindowLib() {

@@ -181,7 +181,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			}
 		});
 
-		const config: ISharedProcessConfiguration = {
+		// Store into config object URL
+		configObjectUrl.update({
 			machineId: this.machineId,
 			windowId: this.window.id,
 			appRoot: this.environmentMainService.appRoot,
@@ -190,10 +191,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
 			logLevel: this.logService.getLevel()
-		};
-
-		// Store into config object URL
-		configObjectUrl.update(config);
+		});
 
 		// Load with config
 		this.window.loadURL(FileAccess.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require).toString(true));
