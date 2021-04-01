@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, ICustomRendererMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -136,6 +136,26 @@ function webviewPreloads() {
 
 	const outputObservers = new Map<string, ResizeObserver>();
 
+	const dimensionUpdater = new class {
+		private readonly pending = new Map<string, DimensionUpdate>();
+
+		update(id: string, update: DimensionUpdate) {
+			if (!this.pending.size) {
+				setTimeout(() => {
+					if (!this.pending.size) {
+						return;
+					}
+
+					postNotebookMessage<IDimensionMessage>('dimension', {
+						updates: Array.from(this.pending.values())
+					});
+					this.pending.clear();
+				}, 0);
+			}
+			this.pending.set(id, update);
+		}
+	};
+
 	const resizeObserve = (container: Element, id: string, output: boolean) => {
 		const resizeObserver = new ResizeObserver(entries => {
 			for (const entry of entries) {
@@ -152,14 +172,13 @@ function webviewPreloads() {
 						} else {
 							entry.target.style.padding = `0px`;
 						}
-
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(id, {
 							id: id,
 							data: { height },
 							isOutput: true
 						});
 					} else {
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(id, {
 							id: id,
 							data: {
 								// entry.contentRect does not include padding
@@ -628,7 +647,7 @@ function webviewPreloads() {
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(outputId, {
 							id: outputId,
 							isOutput: true,
 							init: true,
@@ -639,7 +658,7 @@ function webviewPreloads() {
 
 						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 					} else {
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(outputId, {
 							id: outputId,
 							isOutput: true,
 							init: true,
@@ -724,7 +743,7 @@ function webviewPreloads() {
 						output.parentElement!.style.display = 'block';
 						output.style.top = top + 'px';
 
-						postNotebookMessage<IDimensionMessage>('dimension', {
+						dimensionUpdater.update(outputId, {
 							id: outputId,
 							isOutput: true,
 							data: {
@@ -880,7 +899,7 @@ function webviewPreloads() {
 			}
 		}
 
-		postNotebookMessage<IDimensionMessage>('dimension', {
+		dimensionUpdater.update(`${cellId}_preview`, {
 			id: `${cellId}_preview`,
 			data: {
 				height: previewContainerNode.clientHeight,

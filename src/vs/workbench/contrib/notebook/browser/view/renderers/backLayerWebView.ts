@@ -35,12 +35,16 @@ export interface WebviewIntialized extends BaseToWebviewMessage {
 	type: 'initialized';
 }
 
-export interface IDimensionMessage extends BaseToWebviewMessage {
-	type: 'dimension';
+export interface DimensionUpdate {
 	id: string;
 	init?: boolean;
 	data: { height: number };
 	isOutput?: boolean;
+}
+
+export interface IDimensionMessage extends BaseToWebviewMessage {
+	type: 'dimension';
+	updates: readonly DimensionUpdate[];
 }
 
 export interface IMouseEnterMessage extends BaseToWebviewMessage {
@@ -834,18 +838,20 @@ var requirejs = (function() {
 			switch (data.type) {
 				case 'dimension':
 					{
-						if (data.isOutput) {
-							const height = data.data.height;
-							const outputHeight = height;
+						for (const update of data.updates) {
+							if (update.isOutput) {
+								const height = update.data.height;
+								const outputHeight = height;
 
-							const resolvedResult = this.resolveOutputId(data.id);
-							if (resolvedResult) {
-								const { cellInfo, output } = resolvedResult;
-								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init, 'webview#dimension');
+								const resolvedResult = this.resolveOutputId(update.id);
+								if (resolvedResult) {
+									const { cellInfo, output } = resolvedResult;
+									this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!update.init, 'webview#dimension');
+								}
+							} else {
+								const cellId = update.id.substr(0, update.id.length - '_preview'.length);
+								this.notebookEditor.updateMarkdownCellHeight(cellId, update.data.height, !!update.init);
 							}
-						} else {
-							const cellId = data.id.substr(0, data.id.length - '_preview'.length);
-							this.notebookEditor.updateMarkdownCellHeight(cellId, data.data.height, !!data.init);
 						}
 						break;
 					}
