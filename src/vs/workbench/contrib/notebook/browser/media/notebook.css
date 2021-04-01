@@ -365,7 +365,7 @@
 	height: 26px;
 	top: -14px;
 	/* this lines up the bottom toolbar border with the current line when on line 01 */
-	z-index: 30;
+	z-index: 50;
 }
 
 .monaco-workbench .notebookOverlay.cell-title-toolbar-right > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
