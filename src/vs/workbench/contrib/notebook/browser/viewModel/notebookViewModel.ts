@@ -33,6 +33,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -228,13 +229,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		private _layoutInfo: NotebookLayoutInfo | null,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IUndoRedoService private readonly _undoService: IUndoRedoService
+		@IUndoRedoService private readonly _undoService: IUndoRedoService,
+		@IModelService modelService: IModelService,
 	) {
 		super();
 
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
+
+
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {

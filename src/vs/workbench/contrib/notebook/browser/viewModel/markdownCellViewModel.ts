@@ -103,7 +103,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		private readonly _mdRenderer: MarkdownRenderer,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(viewType, model, UUID.generateUuid(), configurationService);
 
@@ -225,13 +225,10 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	async resolveTextModel(): Promise<model.ITextModel> {
-		if (!this.textModel) {
-			const ref = await this.model.resolveTextModelRef();
-			this.textModel = ref.object.textEditorModel;
-			this._version = this.textModel.getVersionId();
-
-			this._register(ref);
-			this._register(this.textModel.onDidChangeContent(() => {
+		if (!this._textModelRef || !this.textModel) {
+			this._textModelRef = await this.model.resolveTextModelRef();
+			this._version = this.textModel!.getVersionId();
+			this._register(this.textModel!.onDidChangeContent(() => {
 				this._html = null;
 				if (this.textModel) {
 					this._version = this.textModel.getVersionId();
@@ -239,7 +236,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
-		return this.textModel;
+		return this.textModel!;
 	}
 
 	onDeselect() {

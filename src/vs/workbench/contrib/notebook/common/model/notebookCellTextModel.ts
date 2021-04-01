@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { hash } from 'vs/base/common/hash';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
@@ -53,6 +53,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set language(newLanguage: string) {
+		if (this._language === newLanguage) {
+			return;
+		}
+
 		this._language = newLanguage;
 		this._hash = null;
 		this._onDidChangeLanguage.fire(newLanguage);
@@ -82,6 +86,31 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	private _hash: number | null = null;
 
+	private _textModelDisposables = new DisposableStore();
+	private _textModel: model.ITextModel | undefined = undefined;
+	get textModel(): model.ITextModel | undefined {
+		return this._textModel;
+	}
+
+	set textModel(m: model.ITextModel | undefined) {
+		if (this._textModel === m) {
+			return;
+		}
+
+		this._textModelDisposables.clear();
+		this._textModel = m;
+		if (this._textModel) {
+			// Init language from text model
+			this.language = this._textModel.getLanguageIdentifier().language;
+
+			// Listen to language changes on the model
+			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
+				this.language = e.newLanguage;
+				this._onDidChangeContent.fire();
+			}));
+			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
+		}
+	}
 
 	constructor(
 		readonly uri: URI,
@@ -170,6 +199,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	async resolveTextModelRef() {
 		const ref = await this._modelService.createModelReference(this.uri);
+		this.textModel = ref.object.textEditorModel;
 		return ref;
 	}
 

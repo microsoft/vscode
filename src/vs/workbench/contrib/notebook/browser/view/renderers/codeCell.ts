@@ -8,7 +8,6 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -33,8 +32,7 @@ export class CodeCell extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IOpenerService readonly openerService: IOpenerService,
-		@ITextFileService readonly textFileService: ITextFileService,
-		@IModeService private readonly _modeService: IModeService,
+		@ITextFileService readonly textFileService: ITextFileService
 		// @IKeybindingService private readonly _keybindingService: IKeybindingService,
 
 	) {
@@ -105,13 +103,6 @@ export class CodeCell extends Disposable {
 				this.viewCell.layoutChange({});
 				updateForCollapseState();
 				this.relayoutCell();
-			}
-		}));
-
-		this._register(viewCell.onDidChangeState((e) => {
-			if (e.languageChanged) {
-				const mode = this._modeService.create(viewCell.language);
-				templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
 			}
 		}));
 
