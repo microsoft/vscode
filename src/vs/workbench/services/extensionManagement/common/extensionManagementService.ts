@@ -363,7 +363,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
 		if (getExtensionWorkspaceTrustRequirement(manifest) === 'onStart') {
 			try {
-				await this.workspaceTrustService.requireWorkspaceTrust({
+				await this.workspaceTrustService.requestWorkspaceTrust({
 					modal: true,
 					message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
 					buttons: [
