@@ -7,7 +7,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
 import { dirname, joinPath } from 'vs/base/common/resources';
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { IProductConfiguration } from 'vs/base/common/product';
 
 let product: IProductConfiguration;
 
