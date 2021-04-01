@@ -83,6 +83,7 @@ export const enum RenderOutputType {
 export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
 	supportAppend?: boolean;
+	initHeight?: number;
 }
 
 export interface IRenderPlainHtmlOutput {

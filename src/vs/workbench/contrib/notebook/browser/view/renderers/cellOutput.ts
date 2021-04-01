@@ -167,7 +167,7 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// let's use resize listener for them
-		const offsetHeight = Math.ceil(this.domNode.offsetHeight);
+		const offsetHeight = this.renderResult?.initHeight !== undefined ? this.renderResult?.initHeight : Math.ceil(this.domNode.offsetHeight);
 		const dimension = {
 			width: this.viewCell.layoutInfo.editorWidth,
 			height: offsetHeight
