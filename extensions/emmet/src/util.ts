@@ -376,30 +376,34 @@ export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-t
  * If position is inside a script tag of type template, then it will be parsed to find the inner HTML node as well
  */
 export function getHtmlFlatNode(documentText: string, root: FlatNode | undefined, offset: number, includeNodeBoundary: boolean): HtmlFlatNode | undefined {
-	const currentNode: HtmlFlatNode | undefined = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
+	let currentNode: HtmlFlatNode | undefined = <HtmlFlatNode | undefined>getFlatNode(root, offset, includeNodeBoundary);
 	if (!currentNode) { return; }
 
-	const isTemplateScript = currentNode.name === 'script' &&
-		(currentNode.attributes &&
-			currentNode.attributes.some(x => x.name.toString() === 'type'
-				&& allowedMimeTypesInScriptTag.includes(x.value.toString())));
-	if (isTemplateScript
-		&& currentNode.open
-		&& offset > currentNode.open.end
-		&& (!currentNode.close || offset < currentNode.close.start)) {
-		// blank out the rest of the document and search for the node within
-		const beforePadding = ' '.repeat(currentNode.open.end);
-		const endToUse = currentNode.close ? currentNode.close.start : currentNode.end;
-		const scriptBodyText = beforePadding + documentText.substring(currentNode.open.end, endToUse);
-		const innerRoot: HtmlFlatNode = parse(scriptBodyText);
-		const scriptBodyNode = getHtmlFlatNode(scriptBodyText, innerRoot, offset, includeNodeBoundary);
-		if (scriptBodyNode) {
-			scriptBodyNode.parent = currentNode;
-			currentNode.children.push(scriptBodyNode);
-			return scriptBodyNode;
-		}
+	// If the currentNode is a script one, first set up its subtree and then find HTML node.
+	if (currentNode.name === 'script' && currentNode.children.length === 0) {
+		setUpScriptNodeSubtree(documentText, currentNode);
+		currentNode = <HtmlFlatNode | undefined>getFlatNode(currentNode, offset, includeNodeBoundary) ?? currentNode;
 	}
 	return currentNode;
+}
+
+export function setUpScriptNodeSubtree(documentText: string, scriptNode: HtmlFlatNode): void {
+	const isTemplateScript = scriptNode.name === 'script' &&
+		(scriptNode.attributes &&
+			scriptNode.attributes.some(x => x.name.toString() === 'type'
+				&& allowedMimeTypesInScriptTag.includes(x.value.toString())));
+	if (isTemplateScript
+		&& scriptNode.open) {
+		// blank out the rest of the document and generate the subtree.
+		const beforePadding = ' '.repeat(scriptNode.open.end);
+		const endToUse = scriptNode.close ? scriptNode.close.start : scriptNode.end;
+		const scriptBodyText = beforePadding + documentText.substring(scriptNode.open.end, endToUse);
+		const innerRoot: HtmlFlatNode = parse(scriptBodyText);
+		innerRoot.children.forEach(child => {
+			scriptNode.children.push(child);
+			child.parent = scriptNode;
+		});
+	}
 }
 
 export function isOffsetInsideOpenOrCloseTag(node: FlatNode, offset: number): boolean {
