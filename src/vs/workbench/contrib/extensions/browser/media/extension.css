@@ -187,6 +187,7 @@
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label {
 	margin-right: 4px;
+	border-radius: 0;
 }
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {

@@ -162,6 +162,10 @@
 	display: none;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions .action-label {
+	padding: 2px;
+}
+
 .customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {

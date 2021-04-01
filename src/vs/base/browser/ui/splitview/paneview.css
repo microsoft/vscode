@@ -52,6 +52,10 @@
 	margin-left: auto;
 }
 
+.monaco-pane-view .pane > .pane-header > .actions .action-label {
+	padding: 2px;
+}
+
 /* TODO: actions should be part of the pane, but they aren't yet */
 .monaco-pane-view .pane:hover > .pane-header.expanded > .actions,
 .monaco-pane-view .pane:focus-within > .pane-header.expanded > .actions,

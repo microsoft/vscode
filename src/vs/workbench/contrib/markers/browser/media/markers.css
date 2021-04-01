@@ -171,13 +171,6 @@
 	margin-left: 6px;
 }
 
-.markers-panel .monaco-tl-contents .codicon {
-	margin-right: 6px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-source,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .related-info-resource-separator,
@@ -190,8 +183,12 @@
 	font-weight: bold;
 }
 
-.markers-panel .monaco-tl-contents .codicon {
+.markers-panel .monaco-tl-contents .marker-icon {
 	height: 22px;
+	margin: 0 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .markers-panel .monaco-tl-contents .actions .monaco-action-bar {
@@ -210,13 +207,16 @@
 	display: block;
 }
 
-.markers-panel .monaco-tl-contents .multiline-actions .action-label,
-.markers-panel .monaco-tl-contents .actions .action-label {
-	width: 16px;
+.markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar {
+	height: 22px;
 }
 
-.markers-panel .monaco-tl-contents .multiline-actions .action-label {
-	line-height: 22px;
+.markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar .action-label {
+	padding: 2px;
+}
+
+.markers-panel .monaco-tl-contents .actions .action-label {
+	width: 16px;
 }
 
 .markers-panel .monaco-tl-contents .multiline-actions .action-item.disabled,
