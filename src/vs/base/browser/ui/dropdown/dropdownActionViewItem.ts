@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./dropdown';
-import { IAction, IActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
+import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { append, $, addClasses } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { asArray } from 'vs/base/common/arrays';
+import { Codicon } from 'vs/base/common/codicons';
+import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
@@ -36,6 +37,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	private menuActionsOrProvider: readonly IAction[] | IActionProvider;
 	private dropdownMenu: DropdownMenu | undefined;
 	private contextMenuProvider: IContextMenuProvider;
+	private actionItem: HTMLElement | null = null;
 
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
@@ -57,19 +59,26 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	render(container: HTMLElement): void {
+		this.actionItem = container;
+
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label'));
 
-			const classNames = this.options.classNames ? asArray(this.options.classNames) : [];
+			let classNames: string[] = [];
+
+			if (typeof this.options.classNames === 'string') {
+				classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
+			} else if (this.options.classNames) {
+				classNames = this.options.classNames;
+			}
 
 			// todo@aeschli: remove codicon, should come through `this.options.classNames`
 			if (!classNames.find(c => c === 'icon')) {
 				classNames.push('codicon');
 			}
 
-			addClasses(this.element, ...classNames);
+			this.element.classList.add(...classNames);
 
-			this.element.tabIndex = 0;
 			this.element.setAttribute('role', 'button');
 			this.element.setAttribute('aria-haspopup', 'true');
 			this.element.setAttribute('aria-expanded', 'false');
@@ -110,6 +119,8 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 				}
 			};
 		}
+
+		this.updateEnabled();
 	}
 
 	setActionContext(newContext: unknown): void {
@@ -127,6 +138,49 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	show(): void {
 		if (this.dropdownMenu) {
 			this.dropdownMenu.show();
+		}
+	}
+
+	protected updateEnabled(): void {
+		const disabled = !this.getAction().enabled;
+		this.actionItem?.classList.toggle('disabled', disabled);
+		this.element?.classList.toggle('disabled', disabled);
+	}
+}
+
+export interface IActionWithDropdownActionViewItemOptions extends IActionViewItemOptions {
+	readonly menuActionsOrProvider: readonly IAction[] | IActionProvider;
+	readonly menuActionClassNames?: string[];
+}
+
+export class ActionWithDropdownActionViewItem extends ActionViewItem {
+
+	protected dropdownMenuActionViewItem: DropdownMenuActionViewItem | undefined;
+
+	constructor(
+		context: unknown,
+		action: IAction,
+		options: IActionWithDropdownActionViewItemOptions,
+		private readonly contextMenuProvider: IContextMenuProvider
+	) {
+		super(context, action, options);
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+		if (this.element) {
+			this.element.classList.add('action-dropdown-item');
+			const menuActionsProvider = {
+				getActions: () => {
+					const actionsProvider = (<IActionWithDropdownActionViewItemOptions>this.options).menuActionsOrProvider;
+					return [this._action, ...(Array.isArray(actionsProvider)
+						? actionsProvider
+						: (actionsProvider as IActionProvider).getActions()) // TODO: microsoft/TypeScript#42768
+					];
+				}
+			};
+			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', undefined)), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...Codicon.dropDownButton.classNamesArray, ...(<IActionWithDropdownActionViewItemOptions>this.options).menuActionClassNames || []] });
+			this.dropdownMenuActionViewItem.render(this.element);
 		}
 	}
 }

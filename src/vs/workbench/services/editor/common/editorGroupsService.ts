@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -18,16 +19,6 @@ export const enum GroupDirection {
 	DOWN,
 	LEFT,
 	RIGHT
-}
-
-export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
-	const openSideBySideDirection = configurationService.getValue<'right' | 'down'>('workbench.editor.openSideBySideDirection');
-
-	if (openSideBySideDirection === 'down') {
-		return GroupDirection.DOWN;
-	}
-
-	return GroupDirection.RIGHT;
 }
 
 export const enum GroupOrientation {
@@ -77,14 +68,6 @@ export interface EditorGroupLayout {
 	groups: GroupLayoutArgument[];
 }
 
-export interface IMoveEditorOptions {
-	index?: number;
-	inactive?: boolean;
-	preserveFocus?: boolean;
-}
-
-export interface ICopyEditorOptions extends IMoveEditorOptions { }
-
 export interface IAddGroupOptions {
 	activate?: boolean;
 }
@@ -118,6 +101,12 @@ export interface IEditorReplacement {
 	editor: IEditorInput;
 	replacement: IEditorInput;
 	options?: IEditorOptions | ITextEditorOptions;
+
+	/**
+	 * Skips asking the user for confirmation and doesn't
+	 * save the document. Only use this if you really need to!
+	 */
+	forceReplaceDirty?: boolean;
 }
 
 export const enum GroupsOrder {
@@ -146,7 +135,7 @@ export interface IEditorGroupsService {
 	 * An event for when the active editor group changes. The active editor
 	 * group is the default location for new editors to open.
 	 */
-	readonly onDidActiveGroupChange: Event<IEditorGroup>;
+	readonly onDidChangeActiveGroup: Event<IEditorGroup>;
 
 	/**
 	 * An event for when a new group was added.
@@ -176,7 +165,7 @@ export interface IEditorGroupsService {
 	/**
 	 * An event for when the index of a group changes.
 	 */
-	readonly onDidGroupIndexChange: Event<IEditorGroup>;
+	readonly onDidChangeGroupIndex: Event<IEditorGroup>;
 
 	/**
 	 * The size of the editor groups area.
@@ -322,6 +311,11 @@ export interface IEditorGroupsService {
 	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
 
 	/**
+	 * Merge all editor groups into the active one.
+	 */
+	mergeAllGroups(): IEditorGroup;
+
+	/**
 	 * Copy a group to a new group in the editor area.
 	 *
 	 * @param group the group to copy
@@ -338,7 +332,7 @@ export interface IEditorGroupsService {
 	/**
 	 * An event that notifies when editor part options change.
 	 */
-	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Enforce editor part options temporarily.
@@ -391,6 +385,12 @@ export interface IEditorGroup {
 	 * An event that is fired when an editor is about to close.
 	 */
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
+	 * An event that is fired when an editor is about to move to
+	 * a different group.
+	 */
+	readonly onWillMoveEditor: Event<IEditorMoveEvent>;
 
 	/**
 	 * A unique identifier of this group that remains identical even if the
@@ -451,6 +451,11 @@ export interface IEditorGroup {
 	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
+	 * The scoped context key service for this group.
+	 */
+	readonly scopedContextKeyService: IContextKeyService;
+
+	/**
 	 * Get all editors that are currently opened in the group.
 	 *
 	 * @param order the order of the editors to use
@@ -474,7 +479,7 @@ export interface IEditorGroup {
 	 * @returns a promise that resolves around an IEditor instance unless
 	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Opens editors in this group.
@@ -511,14 +516,14 @@ export interface IEditorGroup {
 	/**
 	 * Move an editor from this group either within this group or to another group.
 	 */
-	moveEditor(editor: IEditorInput, target: IEditorGroup, options?: IMoveEditorOptions): void;
+	moveEditor(editor: IEditorInput, target: IEditorGroup, options?: IEditorOptions | ITextEditorOptions): void;
 
 	/**
 	 * Copy an editor from this group to another group.
 	 *
 	 * Note: It is currently not supported to show the same editor more than once in the same group.
 	 */
-	copyEditor(editor: IEditorInput, target: IEditorGroup, options?: ICopyEditorOptions): void;
+	copyEditor(editor: IEditorInput, target: IEditorGroup, options?: IEditorOptions | ITextEditorOptions): void;
 
 	/**
 	 * Close an editor from the group. This may trigger a confirmation dialog if
@@ -588,9 +593,19 @@ export interface IEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
-
-	/**
-	 * Invoke a function in the context of the services of this group.
-	 */
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 }
+
+
+//#region Editor Group Helpers
+
+export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
+	const openSideBySideDirection = configurationService.getValue<'right' | 'down'>('workbench.editor.openSideBySideDirection');
+
+	if (openSideBySideDirection === 'down') {
+		return GroupDirection.DOWN;
+	}
+
+	return GroupDirection.RIGHT;
+}
+
+//#endregion

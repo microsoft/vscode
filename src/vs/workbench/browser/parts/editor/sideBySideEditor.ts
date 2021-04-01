@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
+import { Dimension, $, clearNode } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditorPane, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -51,12 +51,12 @@ export class SideBySideEditor extends EditorPane {
 	private secondaryEditorContainer: HTMLElement | undefined;
 
 	private splitview: SplitView | undefined;
-	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
+	private dimension: Dimension = new Dimension(0, 0);
 
 	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 
-	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange = Event.any(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
+	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = Event.any(this.onDidCreateEditors.event, this._onDidChangeSizeConstraints.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -73,19 +73,19 @@ export class SideBySideEditor extends EditorPane {
 		const splitview = this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
 		this._register(this.splitview.onDidSashReset(() => splitview.distributeViewSizes()));
 
-		this.secondaryEditorContainer = DOM.$('.secondary-editor-container');
+		this.secondaryEditorContainer = $('.secondary-editor-container');
 		this.splitview.addView({
 			element: this.secondaryEditorContainer,
-			layout: size => this.secondaryEditorPane && this.secondaryEditorPane.layout(new DOM.Dimension(size, this.dimension.height)),
+			layout: size => this.secondaryEditorPane?.layout(new Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
 		}, Sizing.Distribute);
 
-		this.primaryEditorContainer = DOM.$('.primary-editor-container');
+		this.primaryEditorContainer = $('.primary-editor-container');
 		this.splitview.addView({
 			element: this.primaryEditorContainer,
-			layout: size => this.primaryEditorPane && this.primaryEditorPane.layout(new DOM.Dimension(size, this.dimension.height)),
+			layout: size => this.primaryEditorPane?.layout(new Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
@@ -139,7 +139,7 @@ export class SideBySideEditor extends EditorPane {
 		}
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 
 		const splitview = assertIsDefined(this.splitview);
@@ -205,9 +205,9 @@ export class SideBySideEditor extends EditorPane {
 		this.secondaryEditorPane = secondary;
 		this.primaryEditorPane = primary;
 
-		this._onDidSizeConstraintsChange.input = Event.any(
-			Event.map(secondary.onDidSizeConstraintsChange, () => undefined),
-			Event.map(primary.onDidSizeConstraintsChange, () => undefined)
+		this._onDidChangeSizeConstraints.input = Event.any(
+			Event.map(secondary.onDidChangeSizeConstraints, () => undefined),
+			Event.map(primary.onDidChangeSizeConstraints, () => undefined)
 		);
 
 		this.onDidCreateEditors.fire(undefined);
@@ -238,11 +238,11 @@ export class SideBySideEditor extends EditorPane {
 		}
 
 		if (this.secondaryEditorContainer) {
-			DOM.clearNode(this.secondaryEditorContainer);
+			clearNode(this.secondaryEditorContainer);
 		}
 
 		if (this.primaryEditorContainer) {
-			DOM.clearNode(this.primaryEditorContainer);
+			clearNode(this.primaryEditorContainer);
 		}
 	}
 

@@ -5,10 +5,12 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { extUri } from 'vs/base/common/resources';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { LocationLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry, ProviderResult, ReferenceProviderRegistry } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
+import { Location, LocationLink, DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, DeclarationProviderRegistry, ProviderResult, ReferenceProviderRegistry } from 'vs/editor/common/modes';
 import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureRegistry';
 
 
@@ -37,7 +39,8 @@ function getLocationLinks<T>(
 				result.push(value);
 			}
 		}
-		return result;
+
+		return sortAndDeduplicate(result);
 	});
 }
 
@@ -78,6 +81,22 @@ export function getReferencesAtPosition(model: ITextModel, position: Position, c
 		}
 		return result;
 	});
+}
+
+export function sortAndDeduplicate(locations: Location[]): Location[] {
+	const result: LocationLink[] = [];
+	let last: LocationLink | undefined;
+	for (const link of locations.sort(compareLocations)) {
+		if (last === undefined || compareLocations(last, link) !== 0) {
+			result.push(link);
+			last = link;
+		}
+	}
+	return result;
+}
+
+function compareLocations(a: Location, b: Location): number {
+	return extUri.compare(a.uri, b.uri) || Range.compareRangesUsingStarts(a.range, b.range);
 }
 
 registerModelAndPositionCommand('_executeDefinitionProvider', (model, position) => getDefinitionsAtPosition(model, position, CancellationToken.None));

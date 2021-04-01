@@ -16,40 +16,40 @@ suite('Common Editor Config', () => {
 		const zoom = EditorZoom;
 
 		zoom.setZoomLevel(0);
-		assert.equal(zoom.getZoomLevel(), 0);
+		assert.strictEqual(zoom.getZoomLevel(), 0);
 
 		zoom.setZoomLevel(-0);
-		assert.equal(zoom.getZoomLevel(), 0);
+		assert.strictEqual(zoom.getZoomLevel(), 0);
 
 		zoom.setZoomLevel(5);
-		assert.equal(zoom.getZoomLevel(), 5);
+		assert.strictEqual(zoom.getZoomLevel(), 5);
 
 		zoom.setZoomLevel(-1);
-		assert.equal(zoom.getZoomLevel(), -1);
+		assert.strictEqual(zoom.getZoomLevel(), -1);
 
 		zoom.setZoomLevel(9);
-		assert.equal(zoom.getZoomLevel(), 9);
+		assert.strictEqual(zoom.getZoomLevel(), 9);
 
 		zoom.setZoomLevel(-9);
-		assert.equal(zoom.getZoomLevel(), -5);
+		assert.strictEqual(zoom.getZoomLevel(), -5);
 
 		zoom.setZoomLevel(20);
-		assert.equal(zoom.getZoomLevel(), 20);
+		assert.strictEqual(zoom.getZoomLevel(), 20);
 
 		zoom.setZoomLevel(-10);
-		assert.equal(zoom.getZoomLevel(), -5);
+		assert.strictEqual(zoom.getZoomLevel(), -5);
 
 		zoom.setZoomLevel(9.1);
-		assert.equal(zoom.getZoomLevel(), 9.1);
+		assert.strictEqual(zoom.getZoomLevel(), 9.1);
 
 		zoom.setZoomLevel(-9.1);
-		assert.equal(zoom.getZoomLevel(), -5);
+		assert.strictEqual(zoom.getZoomLevel(), -5);
 
 		zoom.setZoomLevel(Infinity);
-		assert.equal(zoom.getZoomLevel(), 20);
+		assert.strictEqual(zoom.getZoomLevel(), 20);
 
 		zoom.setZoomLevel(Number.NEGATIVE_INFINITY);
-		assert.equal(zoom.getZoomLevel(), -5);
+		assert.strictEqual(zoom.getZoomLevel(), -5);
 	});
 
 	class TestWrappingConfiguration extends TestConfiguration {
@@ -69,8 +69,8 @@ suite('Common Editor Config', () => {
 	function assertWrapping(config: TestConfiguration, isViewportWrapping: boolean, wrappingColumn: number): void {
 		const options = config.options;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
-		assert.equal(wrappingInfo.isViewportWrapping, isViewportWrapping);
-		assert.equal(wrappingInfo.wrappingColumn, wrappingColumn);
+		assert.strictEqual(wrappingInfo.isViewportWrapping, isViewportWrapping);
+		assert.strictEqual(wrappingInfo.wrappingColumn, wrappingColumn);
 	}
 
 	test('wordWrap default', () => {
@@ -186,26 +186,26 @@ suite('Common Editor Config', () => {
 		});
 		let config = new TestConfiguration({ hover: hoverOptions });
 
-		assert.equal(config.options.get(EditorOption.hover).enabled, true);
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, true);
 		config.updateOptions({ hover: { enabled: false } });
-		assert.equal(config.options.get(EditorOption.hover).enabled, false);
+		assert.strictEqual(config.options.get(EditorOption.hover).enabled, false);
 	});
 
 	test('does not emit event when nothing changes', () => {
 		const config = new TestConfiguration({ glyphMargin: true, roundedSelection: false });
 		let event: ConfigurationChangedEvent | null = null;
 		config.onDidChange(e => event = e);
-		assert.equal(config.options.get(EditorOption.glyphMargin), true);
+		assert.strictEqual(config.options.get(EditorOption.glyphMargin), true);
 
 		config.updateOptions({ glyphMargin: true });
 		config.updateOptions({ roundedSelection: false });
-		assert.equal(event, null);
+		assert.strictEqual(event, null);
 	});
 
 	test('issue #94931: Unable to open source file', () => {
 		const config = new TestConfiguration({ quickSuggestions: null! });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
-		assert.deepEqual(actual, {
+		assert.deepStrictEqual(actual, {
 			other: true,
 			comments: false,
 			strings: false
@@ -216,7 +216,7 @@ suite('Common Editor Config', () => {
 		const config = new TestConfiguration({ quickSuggestions: null! });
 		config.updateOptions({ quickSuggestions: { strings: true } });
 		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
-		assert.deepEqual(actual, {
+		assert.deepStrictEqual(actual, {
 			other: true,
 			comments: false,
 			strings: true

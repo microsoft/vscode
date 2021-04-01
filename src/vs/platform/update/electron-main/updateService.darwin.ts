@@ -11,10 +11,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { State, IUpdate, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
@@ -31,11 +32,12 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: INativeEnvironmentService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IRequestService requestService: IRequestService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IProductService productService: IProductService
 	) {
-		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
+		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
 	initialize(): void {
@@ -56,7 +58,13 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		const url = createUpdateURL('darwin', quality);
+		let assetID: string;
+		if (!this.productService.darwinUniversalAssetId) {
+			assetID = process.arch === 'x64' ? 'darwin' : 'darwin-arm64';
+		} else {
+			assetID = this.productService.darwinUniversalAssetId;
+		}
+		const url = createUpdateURL(assetID, quality, this.productService);
 		try {
 			electron.autoUpdater.setFeedURL({ url });
 		} catch (e) {

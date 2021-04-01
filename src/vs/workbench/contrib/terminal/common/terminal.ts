@@ -7,54 +7,55 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
-export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
+export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false, true);
 
 /** A context key that is set when the integrated terminal has focus. */
-export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false);
+export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('terminalFocus', false, nls.localize('terminalFocusContextKey', "Whether the terminal is focused"));
 
 export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY = 'terminalShellType';
 /** A context key that is set to the detected shell for the most recently active terminal, this is set to the last known value when no terminals exist. */
-export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined);
+export const KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE = new RawContextKey<string>(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, undefined, { type: 'string', description: nls.localize('terminalShellTypeContextKey', "The shell type of the active terminal") });
+
+export const KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE = new RawContextKey<boolean>('terminalAltBufferActive', false, true);
 
 /** A context key that is set when the integrated terminal does not have focus. */
 export const KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FOCUS.toNegated();
 
 /** A context key that is set when the user is navigating the accessibility tree */
-export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false);
+export const KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS = new RawContextKey<boolean>('terminalA11yTreeFocus', false, true);
 
 /** A keybinding context key that is set when the integrated terminal has text selected. */
-export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false);
+export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boolean>('terminalTextSelected', false, nls.localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal"));
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
 /**  A context key that is set when the find widget in integrated terminal is visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE = new RawContextKey<boolean>('terminalFindVisible', false);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE = new RawContextKey<boolean>('terminalFindVisible', false, true);
 /**  A context key that is set when the find widget in integrated terminal is not visible. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.toNegated();
 /**  A context key that is set when the find widget find input in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindInputFocused', false);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindInputFocused', false, true);
 /**  A context key that is set when the find widget in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolean>('terminalFindFocused', false);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolean>('terminalFindFocused', false, true);
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
 
-export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false);
+export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false, nls.localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched"));
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
-// The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
-// this delay is to allow the terminal instance to initialize correctly and have its ID set before
-// trying to create the corressponding object on the ext host.
-export const EXT_HOST_CREATION_DELAY = 100;
+export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
+
+export const SUGGESTED_RENDERER_TYPE = 'terminal.integrated.suggestedRendererType';
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -78,6 +79,12 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 
 export type FontWeight = 'normal' | 'bold' | number;
 
+export interface ITerminalProfiles {
+	linux: { [key: string]: ITerminalProfileObject };
+	osx: { [key: string]: ITerminalProfileObject };
+	windows: { [key: string]: ITerminalProfileObject };
+}
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string | null;
@@ -94,9 +101,12 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
+	profiles: ITerminalProfiles;
+	useWslProfiles: boolean;
+	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
+	gpuAcceleration: 'auto' | 'on' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -108,6 +118,7 @@ export interface ITerminalConfiguration {
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
 	mouseWheelScrollSensitivity: number;
+	sendKeybindingsToShell: boolean;
 	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
@@ -127,6 +138,7 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
+	environmentChangesRelaunch: boolean;
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
@@ -135,7 +147,13 @@ export interface ITerminalConfiguration {
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
 	experimentalLinkProvider: boolean;
+	localEchoLatencyThreshold: number;
+	localEchoExcludePrograms: ReadonlyArray<string>;
+	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
+	enablePersistentSessions: boolean;
 }
+
+export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
@@ -146,7 +164,13 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
+	/**
+	 * Checks and returns whether it's safe to launch the process. If the user has not yet been
+	 * asked, ask for future calls and return false.
+	 * @param osOverride Use a custom OS (eg. remote).
+	 * @param profile The profile if this is launching with a profile.
+	 */
+	checkIsProcessLaunchSafe(osOverride?: OperatingSystem, profile?: ITerminalProfile): boolean;
 	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
@@ -159,79 +183,14 @@ export interface ITerminalFont {
 	charHeight?: number;
 }
 
-export interface ITerminalEnvironment {
-	[key: string]: string | null;
-}
-
-export interface IShellLaunchConfig {
-	/**
-	 * The name of the terminal, if this is not set the name of the process will be used.
-	 */
-	name?: string;
-
-	/**
-	 * The shell executable (bash, cmd, etc.).
-	 */
-	executable?: string;
-
-	/**
-	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
-	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
-	 * only supported on Windows and will throw an exception if used on macOS or Linux.
-	 */
-	args?: string[] | string;
-
-	/**
-	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
-	 * settings key.
-	 */
-	cwd?: string | URI;
-
-	/**
-	 * A custom environment for the terminal, if this is not set the environment will be inherited
-	 * from the VS Code process.
-	 */
-	env?: ITerminalEnvironment;
-
-	/**
-	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (e.g. if the
-	 * shell is being launched by an extension).
-	 */
-	ignoreConfigurationCwd?: boolean;
-
-	/** Whether to wait for a key press before closing the terminal. */
-	waitOnExit?: boolean | string;
-
-	/**
-	 * A string including ANSI escape sequences that will be written to the terminal emulator
-	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
-	 * This allows for example the terminal instance to display a styled message as the first line
-	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
-	 */
-	initialText?: string;
-
-	/**
-	 * Whether an extension is controlling the terminal via a `vscode.Pseudoterminal`.
-	 */
-	isExtensionTerminal?: boolean;
-
-	/**
-	 * Whether the terminal process environment should be exactly as provided in
-	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
-	 * window's environment and also apply configured platform settings like
-	 * `terminal.integrated.windows.env` on top. When this is true, the complete environment must be
-	 * provided as nothing will be inherited from the process or any configuration.
-	 */
-	strictEnv?: boolean;
-
-	/**
-	 * When enabled the terminal will run the process as normal but not be surfaced to the user
-	 * until `Terminal.show` is called. The typical usage for this is when you need to run
-	 * something that may need interactivity but only want to tell the user about it when
-	 * interaction is needed. Note that the terminals will still be exposed to all extensions
-	 * as normal.
-	 */
-	hideFromUser?: boolean;
+export interface IRemoteTerminalAttachTarget {
+	id: number;
+	pid: number;
+	title: string;
+	cwd: string;
+	workspaceId: string;
+	workspaceName: string;
+	isOrphan: boolean;
 }
 
 /**
@@ -247,23 +206,6 @@ export interface ITerminalNativeWindowsDelegate {
 	 * @param path The Windows path.
 	 */
 	getWslPath(path: string): Promise<string>;
-}
-
-export interface IShellDefinition {
-	label: string;
-	path: string;
-}
-
-export interface ITerminalDimensions {
-	/**
-	 * The columns of the terminal.
-	 */
-	readonly cols: number;
-
-	/**
-	 * The rows of the terminal.
-	 */
-	readonly rows: number;
 }
 
 export interface ICommandTracker {
@@ -289,6 +231,45 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
+export interface ITerminalProfile {
+	profileName: string;
+	path: string;
+	isAutoDetected?: boolean;
+	isWorkspaceProfile?: boolean;
+	args?: string | string[] | undefined;
+	overrideName?: boolean;
+}
+
+export const enum ProfileSource {
+	GitBash = 'Git Bash',
+	Pwsh = 'PowerShell'
+}
+
+export interface ITerminalExecutable {
+	path: string | string[];
+	args?: string | string[] | undefined;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
+}
+
+export interface ITerminalProfileSource {
+	source: ProfileSource;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
+	args?: string | string[] | undefined;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
+
+export interface IAvailableProfilesRequest {
+	callback: (shells: ITerminalProfile[]) => void;
+	configuredProfilesOnly: boolean;
+}
+export interface IDefaultShellAndArgsRequest {
+	useAutomationShell: boolean;
+	callback: (shell: string, args: string[] | string | undefined) => void;
+}
+
 export interface ITerminalProcessManager extends IDisposable {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
@@ -297,20 +278,35 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
+	readonly persistentProcessId: number | undefined;
+	readonly shouldPersist: boolean;
+	readonly isDisconnected: boolean;
+	/** Whether the process has had data written to it yet. */
+	readonly hasWrittenData: boolean;
+
+	readonly onPtyDisconnect: Event<void>;
+	readonly onPtyReconnect: Event<void>;
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
-	readonly onProcessData: Event<string>;
+	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessTitle: Event<string>;
+	readonly onProcessShellTypeChanged: Event<TerminalShellType>;
 	readonly onProcessExit: Event<number | undefined>;
-	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
+	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
+	detachFromProcess(): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
+	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
-	setDimensions(cols: number, rows: number): void;
+	setDimensions(cols: number, rows: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: true): void;
+	acknowledgeDataEvent(charCount: number): void;
+	processBinary(data: string): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -337,7 +333,7 @@ export const enum ProcessState {
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
-	readonly terminalId: number;
+	readonly instanceId: number;
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;
@@ -351,20 +347,11 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	onInput: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
+	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
 	onRequestCwd: Event<void>;
 	onRequestLatency: Event<void>;
-}
-
-export interface ISpawnExtHostProcessRequest {
-	proxy: ITerminalProcessExtHostProxy;
-	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI | undefined;
-	cols: number;
-	rows: number;
-	isWorkspaceShellAllowed: boolean;
-	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IStartExtensionTerminalRequest {
@@ -372,10 +359,6 @@ export interface IStartExtensionTerminalRequest {
 	cols: number;
 	rows: number;
 	callback: (error: ITerminalLaunchError | undefined) => void;
-}
-
-export interface IAvailableShellsRequest {
-	callback: (shells: IShellDefinition[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {
@@ -398,51 +381,7 @@ export enum TitleEventSource {
 	Sequence
 }
 
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChange: Event<string>;
-
-	getShellName(): Promise<string>;
-}
-
-export interface ITerminalLaunchError {
-	message: string;
-	code?: number;
-}
-
-/**
- * An interface representing a raw terminal child process, this contains a subset of the
- * child_process.ChildProcess node.js interface.
- */
-export interface ITerminalChildProcess {
-	onProcessData: Event<string>;
-	onProcessExit: Event<number | undefined>;
-	onProcessReady: Event<{ pid: number, cwd: string }>;
-	onProcessTitleChanged: Event<string>;
-	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
-
-	/**
-	 * Starts the process.
-	 *
-	 * @returns undefined when the process was successfully started, otherwise an object containing
-	 * information on what went wrong.
-	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
-
-	/**
-	 * Shutdown the terminal process.
-	 *
-	 * @param immediate When true the process will be killed immediately, otherwise the process will
-	 * be given some time to make sure no additional data comes through.
-	 */
-	shutdown(immediate: boolean): void;
-	input(data: string): void;
-	resize(cols: number, rows: number): void;
-
-	getInitialCwd(): Promise<string>;
-	getCwd(): Promise<string>;
-	getLatency(): Promise<number>;
-}
+export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TERMINAL_COMMAND_ID {
 	FIND_NEXT = 'workbench.action.terminal.findNext',
@@ -450,6 +389,7 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE = 'workbench.action.terminal.toggleTerminal',
 	KILL = 'workbench.action.terminal.kill',
 	QUICK_KILL = 'workbench.action.terminal.quickKill',
+	CONFIGURE_TERMINAL_SETTINGS = 'workbench.action.terminal.openSettings',
 	COPY_SELECTION = 'workbench.action.terminal.copySelection',
 	SELECT_ALL = 'workbench.action.terminal.selectAll',
 	DELETE_WORD_LEFT = 'workbench.action.terminal.deleteWordLeft',
@@ -461,6 +401,7 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW_WITH_CWD = 'workbench.action.terminal.newWithCwd',
 	NEW_LOCAL = 'workbench.action.terminal.newLocal',
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
+	NEW_WITH_PROFILE = 'workbench.action.terminal.newWithProfile',
 	SPLIT = 'workbench.action.terminal.split',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
@@ -474,7 +415,8 @@ export const enum TERMINAL_COMMAND_ID {
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
 	FOCUS_PREVIOUS = 'workbench.action.terminal.focusPrevious',
 	PASTE = 'workbench.action.terminal.paste',
-	SELECT_DEFAULT_SHELL = 'workbench.action.terminal.selectDefaultShell',
+	PASTE_SELECTION = 'workbench.action.terminal.pasteSelection',
+	SELECT_DEFAULT_PROFILE = 'workbench.action.terminal.selectDefaultShell',
 	RUN_SELECTED_TEXT = 'workbench.action.terminal.runSelectedText',
 	RUN_ACTIVE_FILE = 'workbench.action.terminal.runActiveFile',
 	SWITCH_TERMINAL = 'workbench.action.terminal.switchTerminal',
@@ -507,7 +449,8 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
 	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation',
-	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace'
+	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace',
+	ATTACH_TO_REMOTE_TERMINAL = 'workbench.action.terminal.attachToSession'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -535,6 +478,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
 	TERMINAL_COMMAND_ID.NEW,
 	TERMINAL_COMMAND_ID.PASTE,
+	TERMINAL_COMMAND_ID.PASTE_SELECTION,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,

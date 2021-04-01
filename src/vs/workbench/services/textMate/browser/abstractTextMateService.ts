@@ -19,7 +19,7 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
@@ -445,11 +445,11 @@ class TMTokenizationSupport implements ITokenizationSupport {
 		return this._actual.getInitialState();
 	}
 
-	tokenize(line: string, state: IState, offsetDelta: number): TokenizationResult {
+	tokenize(line: string, hasEOL: boolean, state: IState, offsetDelta: number): TokenizationResult {
 		throw new Error('Not supported!');
 	}
 
-	tokenize2(line: string, state: StackElement, offsetDelta: number): TokenizationResult2 {
+	tokenize2(line: string, hasEOL: boolean, state: StackElement, offsetDelta: number): TokenizationResult2 {
 		if (offsetDelta !== 0) {
 			throw new Error('Unexpected: offsetDelta should be 0.');
 		}
@@ -464,7 +464,7 @@ class TMTokenizationSupport implements ITokenizationSupport {
 					[{
 						label: nls.localize('neverAgain', "Don't Show Again"),
 						isSecondary: true,
-						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL)
+						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL, StorageTarget.USER)
 					}]
 				);
 			}

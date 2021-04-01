@@ -167,7 +167,11 @@ interface ISchemaAssociation {
    * A match succeeds when there is at least one pattern matching and last matching pattern does not start with '!'.
    */
   fileMatch: string[];
-
+  /*
+   * The schema for the given URI.
+   * If no schema is provided, the schema will be fetched with the schema request service (if available).
+   */
+  schema?: JSONSchema;
 }
 
 ```
@@ -198,30 +202,30 @@ The JSON language server is shipped with [Visual Studio Code](https://code.visua
 If you plan to integrate the JSON language server into an editor and IDE, check out [this page](https://microsoft.github.io/language-server-protocol/implementors/tools/) if there's already an LSP client integration available.
 
 You can also launch the language server as a command and connect to it.
-For that, install the `json-language-server` npm module:
+For that, install the `vscode-json-languageserver` npm module:
 
-`npm install -g json-language-server`
+`npm install -g vscode-json-languageserver`
 
-Start the language server with the `json-language-server` command. Use a command line argument to specify the preferred communication channel:
+Start the language server with the `vscode-json-languageserver` command. Use a command line argument to specify the preferred communication channel:
 
 ```
-json-language-server --node-ipc
-json-language-server --stdio
-json-language-server --socket=<port>
+vscode-json-languageserver --node-ipc
+vscode-json-languageserver --stdio
+vscode-json-languageserver --socket=<port>
 ```
 
 To connect to the server from NodeJS, see Remy Suen's great write-up on [how to communicate with the server](https://github.com/rcjsuen/dockerfile-language-server-nodejs#communicating-with-the-server) through the available communication channels.
 
 ## Participate
 
-The source code of the JSON language server can be found in the [VSCode repository](https://github.com/Microsoft/vscode) at [extensions/json-language-features/server](https://github.com/Microsoft/vscode/tree/master/extensions/json-language-features/server).
+The source code of the JSON language server can be found in the [VSCode repository](https://github.com/microsoft/vscode) at [extensions/json-language-features/server](https://github.com/microsoft/vscode/tree/master/extensions/json-language-features/server).
 
-File issues and pull requests in the [VSCode GitHub Issues](https://github.com/Microsoft/vscode/issues). See the document [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-Contribute) on how to build and run from source.
+File issues and pull requests in the [VSCode GitHub Issues](https://github.com/microsoft/vscode/issues). See the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) on how to build and run from source.
 
 Most of the functionality of the server is located in libraries:
-- [jsonc-parser](https://github.com/Microsoft/node-jsonc-parser) contains the JSON parser and scanner.
-- [vscode-json-languageservice](https://github.com/Microsoft/vscode-json-languageservice) contains the implementation of all features as a re-usable library.
-- [vscode-languageserver-node](https://github.com/Microsoft/vscode-languageserver-node) contains the implementation of language server for NodeJS.
+- [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) contains the JSON parser and scanner.
+- [vscode-json-languageservice](https://github.com/microsoft/vscode-json-languageservice) contains the implementation of all features as a re-usable library.
+- [vscode-languageserver-node](https://github.com/microsoft/vscode-languageserver-node) contains the implementation of language server for NodeJS.
 
 Help on any of these projects is very welcome.
 

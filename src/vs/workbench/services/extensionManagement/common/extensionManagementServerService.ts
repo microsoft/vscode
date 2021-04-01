@@ -49,7 +49,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 			this.webExtensionManagementServer = {
 				id: 'web',
 				extensionManagementService,
-				label: localize('web', "Web")
+				label: localize('browser', "Browser")
 			};
 		}
 	}

@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostWebview, ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
+import { ExtHostWebview, ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
@@ -51,6 +51,8 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		this.#isDisposed = true;
 		this.#onDidDispose.fire();
 
+		this.#webview.dispose();
+
 		super.dispose();
 	}
 
@@ -93,7 +95,7 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 	public get viewType(): string { return this.#viewType; }
 
 	/* internal */ _setVisible(visible: boolean) {
-		if (visible === this.#isVisible) {
+		if (visible === this.#isVisible || this.#isDisposed) {
 			return;
 		}
 
@@ -144,7 +146,10 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		}
 
 		this._viewProviders.set(viewType, { provider, extension });
-		this._proxy.$registerWebviewViewProvider(viewType, webviewOptions);
+		this._proxy.$registerWebviewViewProvider(toExtensionData(extension), viewType, {
+			retainContextWhenHidden: webviewOptions?.retainContextWhenHidden,
+			serializeBuffersForPostMessage: false,
+		});
 
 		return new extHostTypes.Disposable(() => {
 			this._viewProviders.delete(viewType);
@@ -186,6 +191,8 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		const webviewView = this.getWebviewView(webviewHandle);
 		this._webviewViews.delete(webviewHandle);
 		webviewView.dispose();
+
+		this._extHostWebview.deleteWebview(webviewHandle);
 	}
 
 	private getWebviewView(handle: string): ExtHostWebviewView {

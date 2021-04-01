@@ -21,7 +21,7 @@ import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTok
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
-import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
@@ -153,6 +153,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher.dispose();
 	}
 
+	public createLineBreaksComputer(): ILineBreaksComputer {
+		return this._lines.createLineBreaksComputer();
+	}
+
 	public addViewEventHandler(eventHandler: ViewEventHandler): void {
 		this._eventDispatcher.addViewEventHandler(eventHandler);
 	}
@@ -177,6 +181,14 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._cursor.setHasFocus(hasFocus);
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
 		this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
+	}
+
+	public onCompositionStart(): void {
+		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionStartEvent());
+	}
+
+	public onCompositionEnd(): void {
+		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionEndEvent());
 	}
 
 	public onDidColorThemeChange(): void {
@@ -886,6 +898,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getCursorColumnSelectData(): IColumnSelectData {
 		return this._cursor.getCursorColumnSelectData();
 	}
+	public getCursorAutoClosedCharacters(): Range[] {
+		return this._cursor.getAutoClosedCharacters();
+	}
 	public setCursorColumnSelectData(columnSelectData: IColumnSelectData): void {
 		this._cursor.setCursorColumnSelectData(columnSelectData);
 	}
@@ -904,8 +919,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getPosition(): Position {
 		return this._cursor.getPrimaryCursorState().modelState.position;
 	}
-	public setSelections(source: string | null | undefined, selections: readonly ISelection[]): void {
-		this._withViewEventsCollector(eventsCollector => this._cursor.setSelections(eventsCollector, source, selections));
+	public setSelections(source: string | null | undefined, selections: readonly ISelection[], reason = CursorChangeReason.NotSet): void {
+		this._withViewEventsCollector(eventsCollector => this._cursor.setSelections(eventsCollector, source, selections, reason));
 	}
 	public saveCursorState(): ICursorState[] {
 		return this._cursor.saveState();
@@ -936,8 +951,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	public type(text: string, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.type(eventsCollector, text, source));
 	}
-	public replacePreviousChar(text: string, replaceCharCnt: number, source?: string | null | undefined): void {
-		this._executeCursorEdit(eventsCollector => this._cursor.replacePreviousChar(eventsCollector, text, replaceCharCnt, source));
+	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number, source?: string | null | undefined): void {
+		this._executeCursorEdit(eventsCollector => this._cursor.compositionType(eventsCollector, text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source));
 	}
 	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));

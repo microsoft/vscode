@@ -5,14 +5,14 @@
 
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UndoCommand, RedoCommand } from 'vs/editor/browser/editorExtensions';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 function getFocusedElectronBasedWebviewDelegate(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
 	const editorService = accessor.get(IEditorService);
-	const editor = getActiveNotebookEditor(editorService);
+	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 	if (!editor?.hasFocus()) {
 		return;
 	}
@@ -37,25 +37,25 @@ function withWebview(accessor: ServicesAccessor, f: (webviewe: ElectronWebviewBa
 	return false;
 }
 
-const PRIORITY = 100;
+const PRIORITY = 105;
 
-UndoCommand.addImplementation(PRIORITY, accessor => {
+UndoCommand.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.undo());
 });
 
-RedoCommand.addImplementation(PRIORITY, accessor => {
+RedoCommand.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.redo());
 });
 
-CopyAction?.addImplementation(PRIORITY, accessor => {
+CopyAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.copy());
 });
 
-PasteAction?.addImplementation(PRIORITY, accessor => {
+PasteAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.paste());
 });
 
-CutAction?.addImplementation(PRIORITY, accessor => {
+CutAction?.addImplementation(PRIORITY, 'notebook-webview', accessor => {
 	return withWebview(accessor, webview => webview.cut());
 });
 

@@ -12,7 +12,7 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findCloseIcon, findNextMatchIcon, findPreviousMatchIcon, findReplaceIcon, findReplaceAllIcon } from 'vs/editor/contrib/find/findWidget';
+import { SimpleButton, findNextMatchIcon, findPreviousMatchIcon, findReplaceIcon, findReplaceAllIcon } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -21,6 +21,7 @@ import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/b
 import { ReplaceInput, IReplaceInputStyles } from 'vs/base/browser/ui/findinput/replaceInput';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -140,12 +141,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setRegex(this._state.isRegex);
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
+			this._replaceInput.setPreserveCase(this._state.preserveCase);
 			this.findFirst();
 		}));
 
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			className: findPreviousMatchIcon.classNames,
+			icon: findPreviousMatchIcon,
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -153,7 +155,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
-			className: findNextMatchIcon.classNames,
+			icon: findNextMatchIcon,
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -161,7 +163,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
-			className: findCloseIcon.classNames,
+			icon: widgetClose,
 			onTrigger: () => {
 				this.hide();
 			}
@@ -219,7 +221,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL,
-			className: findReplaceIcon.classNames,
+			icon: findReplaceIcon,
 			onTrigger: () => {
 				this.replaceOne();
 			}
@@ -228,7 +230,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL,
-			className: findReplaceAllIcon.classNames,
+			icon: findReplaceAllIcon,
 			onTrigger: () => {
 				this.replaceAll();
 			}
@@ -314,7 +316,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
-		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 	}
 
@@ -345,8 +347,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 		}, 0);
@@ -364,8 +365,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 
 			this.focus();
@@ -391,8 +391,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 			this._updateButtons();
 
@@ -402,13 +401,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public hide(): void {
 		if (this._isVisible) {
-			dom.removeClass(this._domNode, 'visible-transition');
+			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				dom.removeClass(this._domNode, 'visible');
+				this._domNode.classList.remove('visible');
 			}, 200);
 		}
 	}
@@ -454,6 +453,6 @@ registerThemingParticipant((theme, collector) => {
 
 	const widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-workbench .simple-fr-find-part-wrapper { box-shadow: 0 0 8px 2px ${widgetShadowColor}; }`);
 	}
 });

@@ -28,6 +28,7 @@ export interface NativeParsedArgs {
 	'prof-startup'?: boolean;
 	'prof-startup-prefix'?: string;
 	'prof-append-timers'?: string;
+	'prof-v8-extensions'?: boolean;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
@@ -38,11 +39,13 @@ export interface NativeParsedArgs {
 	'extensions-dir'?: string;
 	'extensions-download-dir'?: string;
 	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
+	extensionDevelopmentPath?: string[]; // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
+	extensionDevelopmentKind?: string[];
 	'inspect-extensions'?: string;
 	'inspect-brk-extensions'?: string;
 	debugId?: string;
+	debugRenderer?: boolean; // whether we expect a debugger (js-debug) to attach to the renderer, incl webviews+webworker
 	'inspect-search'?: string;
 	'inspect-brk-search'?: string;
 	'disable-extensions'?: boolean;
@@ -51,16 +54,17 @@ export interface NativeParsedArgs {
 	'show-versions'?: boolean;
 	'category'?: string;
 	'install-extension'?: string[]; // undefined or array of 1 or more
+	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
 	'skip-release-notes'?: boolean;
-	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
+	'disable-keytar'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;
@@ -71,12 +75,13 @@ export interface NativeParsedArgs {
 	'driver'?: string;
 	'driver-verbose'?: boolean;
 	'remote'?: string;
-	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
 	'force-user-env'?: boolean;
+	'force-disable-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
 	'__sandbox'?: boolean;
+	'logsPath'?: string;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;
@@ -93,4 +98,5 @@ export interface NativeParsedArgs {
 	'ignore-certificate-errors'?: boolean;
 	'allow-insecure-localhost'?: boolean;
 	'log-net-log'?: string;
+	'vmodule'?: string;
 }

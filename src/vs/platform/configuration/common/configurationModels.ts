@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IFileService } from 'vs/platform/files/common/files';
-import { dirname } from 'vs/base/common/resources';
+import { IExtUri } from 'vs/base/common/resources';
 
 export class ConfigurationModel implements IConfigurationModel {
 
@@ -348,11 +348,14 @@ export class UserSettings extends Disposable {
 	constructor(
 		private readonly userSettingsResource: URI,
 		private readonly scopes: ConfigurationScope[] | undefined,
+		extUri: IExtUri,
 		private readonly fileService: IFileService
 	) {
 		super();
 		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString(), this.scopes);
-		this._register(this.fileService.watch(dirname(this.userSettingsResource)));
+		this._register(this.fileService.watch(extUri.dirname(this.userSettingsResource)));
+		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
+		this._register(this.fileService.watch(this.userSettingsResource));
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.userSettingsResource))(() => this._onDidChange.fire()));
 	}
 

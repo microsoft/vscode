@@ -9,7 +9,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { ITextModel } from 'vs/editor/common/model';
-import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
+import { LanguageFilter, LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 
 interface Entry<T> {
@@ -25,7 +25,7 @@ function isExclusive(selector: LanguageSelector): boolean {
 	} else if (Array.isArray(selector)) {
 		return selector.every(isExclusive);
 	} else {
-		return !!selector.exclusive;
+		return !!(selector as LanguageFilter).exclusive; // TODO: microsoft/TypeScript#42768
 	}
 }
 
@@ -207,10 +207,11 @@ export class LanguageFeatureRequestDelays {
 
 	get(model: ITextModel): number {
 		const key = this._key(model);
-		return this._clamp(this._cache.get(key)?.value);
+		const avg = this._cache.get(key);
+		return this._clamp(avg?.value);
 	}
 
-	update(model: ITextModel, value: number) {
+	update(model: ITextModel, value: number): number {
 		const key = this._key(model);
 		let avg = this._cache.get(key);
 		if (!avg) {
@@ -218,5 +219,6 @@ export class LanguageFeatureRequestDelays {
 			this._cache.set(key, avg);
 		}
 		avg.update(value);
+		return this.get(model);
 	}
 }

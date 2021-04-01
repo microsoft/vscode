@@ -68,7 +68,7 @@ export function withRandomFileEditor(
 	});
 }
 
-export const wait = (ms: number) => new Promise<undefined>(resolve => setTimeout(() => resolve(), ms));
+export const wait = (ms: number) => new Promise<void>(resolve => setTimeout(() => resolve(), ms));
 
 export const joinLines = (...args: string[]) => args.join(os.platform() === 'win32' ? '\r\n' : '\n');
 
@@ -105,7 +105,7 @@ export async function updateConfig(documentUri: vscode.Uri, newConfig: VsCodeCon
 
 	for (const configKey of Object.keys(newConfig)) {
 		oldConfig[configKey] = config.get(configKey);
-		await new Promise((resolve, reject) =>
+		await new Promise<void>((resolve, reject) =>
 			config.update(configKey, newConfig[configKey], vscode.ConfigurationTarget.Global)
 				.then(() => resolve(), reject));
 	}

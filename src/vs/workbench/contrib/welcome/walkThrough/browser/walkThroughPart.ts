@@ -15,7 +15,6 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import * as marked from 'vs/base/common/marked/marked';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,11 +34,11 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, size } from 'vs/base/browser/dom';
+import { Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { domEvent } from 'vs/base/browser/event';
-import { EndOfLinePreference } from 'vs/editor/common/model';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -79,7 +78,8 @@ export class WalkThroughPart extends EditorPane {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService, storageService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
@@ -88,6 +88,7 @@ export class WalkThroughPart extends EditorPane {
 
 	createEditor(container: HTMLElement): void {
 		this.content = document.createElement('div');
+		this.content.classList.add('welcomePageFocusElement');
 		this.content.tabIndex = 0;
 		this.content.style.outlineStyle = 'none';
 
@@ -210,6 +211,10 @@ export class WalkThroughPart extends EditorPane {
 				disposable.layout();
 			}
 		});
+		const walkthroughInput = this.input instanceof WalkThroughInput && this.input;
+		if (walkthroughInput && walkthroughInput.layout) {
+			walkthroughInput.layout(dimension);
+		}
 		this.scrollbar.scanDomNode();
 	}
 
@@ -267,11 +272,16 @@ export class WalkThroughPart extends EditorPane {
 			this.saveTextEditorViewState(this.input);
 		}
 
-		this.contentDisposables = dispose(this.contentDisposables);
+		const store = new DisposableStore();
+		this.contentDisposables.push(store);
+
 		this.content.innerText = '';
 
 		return super.setInput(input, options, context, token)
-			.then(() => {
+			.then(async () => {
+				if (input.resource.path.endsWith('.md')) {
+					await this.extensionService.whenInstalledExtensionsRegistered();
+				}
 				return input.resolve();
 			})
 			.then(model => {
@@ -279,14 +289,15 @@ export class WalkThroughPart extends EditorPane {
 					return;
 				}
 
-				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
-				if (!strings.endsWith(input.resource.path, '.md')) {
-					this.content.innerHTML = content;
+				const content = model.main;
+				if (!input.resource.path.endsWith('.md')) {
+					safeInnerHtml(this.content, content);
+
 					this.updateSizeClasses();
 					this.decorateContent();
 					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
 					if (input.onReady) {
-						input.onReady(this.content.firstElementChild as HTMLElement);
+						input.onReady(this.content.firstElementChild as HTMLElement, store);
 					}
 					this.scrollbar.scanDomNode();
 					this.loadTextEditorViewState(input);
@@ -294,16 +305,10 @@ export class WalkThroughPart extends EditorPane {
 					return;
 				}
 
-				let i = 0;
-				const renderer = new marked.Renderer();
-				renderer.code = (code, lang) => {
-					const id = `snippet-${model.snippets[i++].textEditorModel.uri.fragment}`;
-					return `<div id="${id}" class="walkThroughEditorContainer" ></div>`;
-				};
 				const innerContent = document.createElement('div');
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
-				innerContent.innerHTML = marked(markdown, { renderer });
+				safeInnerHtml(innerContent, markdown);
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -402,13 +407,13 @@ export class WalkThroughPart extends EditorPane {
 					}
 				}));
 				if (input.onReady) {
-					input.onReady(innerContent);
+					input.onReady(innerContent, store);
 				}
 				this.scrollbar.scanDomNode();
 				this.loadTextEditorViewState(input);
 				this.updatedScrollPosition();
 				this.contentDisposables.push(Gesture.addTarget(innerContent));
-				this.contentDisposables.push(domEvent(innerContent, TouchEventType.Change)(this.onTouchChange, this, this.disposables));
+				this.contentDisposables.push(domEvent(innerContent, TouchEventType.Change)(e => this.onTouchChange(e as GestureEvent), this, this.disposables));
 			});
 	}
 
@@ -498,6 +503,7 @@ export class WalkThroughPart extends EditorPane {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
+		this.contentDisposables = dispose(this.contentDisposables);
 		super.clearInput();
 	}
 

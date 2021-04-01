@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
+import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -31,8 +31,8 @@ export class EditorControl extends Disposable {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	readonly onDidSizeConstraintsChange = this._onDidSizeConstraintsChange.event;
+	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
 
 	private _activeEditorPane: EditorPane | null = null;
 	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
@@ -107,7 +107,7 @@ export class EditorControl extends Disposable {
 		// Create editor container as needed
 		if (!editorPane.getContainer()) {
 			const editorPaneContainer = document.createElement('div');
-			addClass(editorPaneContainer, 'editor-instance');
+			editorPaneContainer.classList.add('editor-instance');
 			editorPaneContainer.setAttribute('data-editor-id', descriptor.getId());
 
 			editorPane.create(editorPaneContainer);
@@ -139,12 +139,12 @@ export class EditorControl extends Disposable {
 
 		// Listen to editor pane changes
 		if (editorPane) {
-			this.activeEditorPaneDisposables.add(editorPane.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeEditorPaneDisposables.add(editorPane.onDidChangeSizeConstraints(e => this._onDidChangeSizeConstraints.fire(e)));
 			this.activeEditorPaneDisposables.add(editorPane.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
 		// Indicate that size constraints could have changed due to new editor
-		this._onDidSizeConstraintsChange.fire(undefined);
+		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
 	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {

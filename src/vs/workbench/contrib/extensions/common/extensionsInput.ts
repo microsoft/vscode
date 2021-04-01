@@ -9,6 +9,7 @@ import { localize } from 'vs/nls';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { join } from 'vs/base/common/path';
 
 export class ExtensionsInput extends EditorInput {
 
@@ -17,7 +18,7 @@ export class ExtensionsInput extends EditorInput {
 	get resource() {
 		return URI.from({
 			scheme: Schemas.extension,
-			path: this.extension.identifier.id
+			path: join(this.extension.identifier.id, 'extension')
 		});
 	}
 

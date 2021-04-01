@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -64,7 +64,7 @@ suite('Experimental Prompts', () => {
 		storageData = {};
 		instantiationService.stub(IStorageService, <Partial<IStorageService>>{
 			get: (a: string, b: StorageScope, c?: string) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
-			store: (a, b, c) => {
+			store: (a, b, c, d) => {
 				if (a === 'experiments.experiment1') {
 					storageData = JSON.parse(b + '');
 				}
@@ -96,8 +96,8 @@ suite('Experimental Prompts', () => {
 
 		instantiationService.stub(INotificationService, {
 			prompt: (a: Severity, b: string, c: IPromptChoice[]) => {
-				assert.equal(b, promptText);
-				assert.equal(c.length, 2);
+				assert.strictEqual(b, promptText);
+				assert.strictEqual(c.length, 2);
 				c[1].run();
 				return undefined!;
 			}
@@ -107,7 +107,7 @@ suite('Experimental Prompts', () => {
 		onExperimentEnabledEvent.fire(experiment);
 
 		return Promise.resolve(null).then(result => {
-			assert.equal(storageData['state'], ExperimentState.Complete);
+			assert.strictEqual(storageData['state'], ExperimentState.Complete);
 		});
 
 	});
@@ -146,7 +146,7 @@ suite('Experimental Prompts', () => {
 
 		return Promise.resolve(null).then(result => {
 			assert.deepStrictEqual(stub.args[0], ['greet', 'world']);
-			assert.equal(storageData['state'], ExperimentState.Complete);
+			assert.strictEqual(storageData['state'], ExperimentState.Complete);
 		});
 
 	});
@@ -160,8 +160,8 @@ suite('Experimental Prompts', () => {
 
 		instantiationService.stub(INotificationService, {
 			prompt: (a: Severity, b: string, c: IPromptChoice[], options: IPromptOptions) => {
-				assert.equal(b, promptText);
-				assert.equal(c.length, 2);
+				assert.strictEqual(b, promptText);
+				assert.strictEqual(c.length, 2);
 				options.onCancel!();
 				return undefined!;
 			}
@@ -171,7 +171,7 @@ suite('Experimental Prompts', () => {
 		onExperimentEnabledEvent.fire(experiment);
 
 		return Promise.resolve(null).then(result => {
-			assert.equal(storageData['state'], ExperimentState.Complete);
+			assert.strictEqual(storageData['state'], ExperimentState.Complete);
 		});
 
 	});
@@ -203,14 +203,14 @@ suite('Experimental Prompts', () => {
 			commands: []
 		};
 
-		assert.equal(ExperimentalPrompts.getLocalizedText(simpleTextCase.promptText, 'any-language'), simpleTextCase.promptText);
+		assert.strictEqual(ExperimentalPrompts.getLocalizedText(simpleTextCase.promptText, 'any-language'), simpleTextCase.promptText);
 		const multipleLocalePromptText = multipleLocaleCase.promptText as LocalizedPromptText;
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocalePromptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocalePromptText['de']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocalePromptText['en-au']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocalePromptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocalePromptText['en']);
-		assert.equal(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), (englishUSTextCase.promptText as LocalizedPromptText)['en-us']);
-		assert.equal(!!ExperimentalPrompts.getLocalizedText(noEnglishTextCase.promptText, 'fr'), false);
+		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en'), multipleLocalePromptText['en']);
+		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'de'), multipleLocalePromptText['de']);
+		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-au'), multipleLocalePromptText['en-au']);
+		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'en-gb'), multipleLocalePromptText['en']);
+		assert.strictEqual(ExperimentalPrompts.getLocalizedText(multipleLocaleCase.promptText, 'fr'), multipleLocalePromptText['en']);
+		assert.strictEqual(ExperimentalPrompts.getLocalizedText(englishUSTextCase.promptText, 'fr'), (englishUSTextCase.promptText as LocalizedPromptText)['en-us']);
+		assert.strictEqual(!!ExperimentalPrompts.getLocalizedText(noEnglishTextCase.promptText, 'fr'), false);
 	});
 });

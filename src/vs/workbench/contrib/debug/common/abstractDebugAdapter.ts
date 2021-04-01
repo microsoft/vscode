@@ -41,7 +41,7 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 	}
 
 	onMessage(callback: (message: DebugProtocol.ProtocolMessage) => void): void {
-		if (this.eventCallback) {
+		if (this.messageCallback) {
 			this._onError.fire(new Error(`attempt to set more than one 'Message' callback`));
 		}
 		this.messageCallback = callback;

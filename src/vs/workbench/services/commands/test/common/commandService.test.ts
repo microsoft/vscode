@@ -56,7 +56,7 @@ suite('CommandService', function () {
 		await extensionService.whenInstalledExtensionsRegistered();
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
-			assert.equal(err.message, 'bad_activate');
+			assert.strictEqual(err.message, 'bad_activate');
 		});
 	});
 
@@ -72,7 +72,7 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		service.executeCommand('bar');
-		assert.equal(callCounter, 1);
+		assert.strictEqual(callCounter, 1);
 		reg.dispose();
 	});
 
@@ -89,21 +89,21 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		let r = service.executeCommand('bar');
-		assert.equal(callCounter, 0);
+		assert.strictEqual(callCounter, 0);
 
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 		resolveFunc!(true);
 
 		return r.then(() => {
 			reg.dispose();
-			assert.equal(callCounter, 1);
+			assert.strictEqual(callCounter, 1);
 		});
 	});
 
 	test('Stop waiting for * extensions to activate when trigger is satisfied #62457', function () {
 
 		let callCounter = 0;
-		const dispoables = new DisposableStore();
+		const disposable = new DisposableStore();
 		let events: string[] = [];
 		let service = new CommandService(new InstantiationService(), new class extends NullExtensionService {
 
@@ -118,7 +118,7 @@ suite('CommandService', function () {
 							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
 								callCounter += 1;
 							});
-							dispoables.add(reg);
+							disposable.add(reg);
 							resolve();
 						}, 0);
 					});
@@ -129,10 +129,10 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		return service.executeCommand('farboo').then(() => {
-			assert.equal(callCounter, 1);
-			assert.deepEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
+			assert.strictEqual(callCounter, 1);
+			assert.deepStrictEqual(events.sort(), ['*', 'onCommand:farboo'].sort());
 		}).finally(() => {
-			dispoables.dispose();
+			disposable.dispose();
 		});
 	});
 
@@ -170,7 +170,7 @@ suite('CommandService', function () {
 		}, new NullLogService());
 
 		return service.executeCommand('farboo2').then(() => {
-			assert.deepEqual(actualOrder, expectedOrder);
+			assert.deepStrictEqual(actualOrder, expectedOrder);
 		}).finally(() => {
 			disposables.dispose();
 		});

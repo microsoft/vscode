@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as glob from 'vs/base/common/glob';
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorModel } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
-import { INotebookEditorModel, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Schemas } from 'vs/base/common/network';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -22,8 +21,8 @@ interface NotebookEditorInputOptions {
 
 class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
 	constructor(
-		readonly original: NotebookEditorModel,
-		readonly modified: NotebookEditorModel,
+		readonly original: IResolvedNotebookEditorModel,
+		readonly modified: IResolvedNotebookEditorModel,
 	) {
 		super();
 	}
@@ -36,11 +35,11 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 	}
 
 	async resolveOriginalFromDisk() {
-		await this.original.load({ forceReadFromDisk: true });
+		await this.original.load({ forceReadFromFile: true });
 	}
 
 	async resolveModifiedFromDisk() {
-		await this.modified.load({ forceReadFromDisk: true });
+		await this.modified.load({ forceReadFromFile: true });
 	}
 
 	dispose(): void {
@@ -49,14 +48,14 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 }
 
 export class NotebookDiffEditorInput extends EditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, name: string, originalResource: URI, originalName: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookDiffEditorInput, resource, name, originalResource, originalName, viewType, options);
+	static create(instantiationService: IInstantiationService, resource: URI, name: string, originalResource: URI, originalName: string, textDiffName: string, viewType: string | undefined, options: NotebookEditorInputOptions = {}) {
+		return instantiationService.createInstance(NotebookDiffEditorInput, resource, name, originalResource, originalName, textDiffName, viewType, options);
 	}
 
 	static readonly ID: string = 'workbench.input.diffNotebookInput';
 
-	private _textModel: IReference<INotebookEditorModel> | null = null;
-	private _originalTextModel: IReference<INotebookEditorModel> | null = null;
+	private _modifiedTextModel: IReference<IResolvedNotebookEditorModel> | null = null;
+	private _originalTextModel: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _defaultDirtyState: boolean = false;
 
 	constructor(
@@ -64,13 +63,12 @@ export class NotebookDiffEditorInput extends EditorInput {
 		public readonly name: string,
 		public readonly originalResource: URI,
 		public readonly originalName: string,
+		public readonly textDiffName: string,
 		public readonly viewType: string | undefined,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		// @IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService
 	) {
 		super();
 		this._defaultDirtyState = !!options.startDirty;
@@ -81,47 +79,31 @@ export class NotebookDiffEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return nls.localize('sideBySideLabels', "{0} ↔ {1}", this.originalName, this.name);
+		return this.textDiffName;
 	}
 
 	isDirty() {
-		if (!this._textModel) {
-			return !!this._defaultDirtyState;
+		if (!this._modifiedTextModel) {
+			return this._defaultDirtyState;
 		}
-		return this._textModel.object.isDirty();
+		return this._modifiedTextModel.object.isDirty();
 	}
 
 	isUntitled(): boolean {
-		return this._textModel?.object.isUntitled() || false;
+		return this._modifiedTextModel?.object.resource.scheme === Schemas.untitled;
 	}
 
 	isReadonly() {
 		return false;
 	}
 
-	isSaving(): boolean {
-		if (this.isUntitled()) {
-			return false; // untitled is never saving automatically
-		}
-
-		if (!this.isDirty()) {
-			return false; // the editor needs to be dirty for being saved
-		}
-
-		if (this._filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // a short auto save is configured, treat this as being saved
-		}
-
-		return false;
-	}
-
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (this._textModel) {
+		if (this._modifiedTextModel) {
 
 			if (this.isUntitled()) {
 				return this.saveAs(group, options);
 			} else {
-				await this._textModel.object.save();
+				await this._modifiedTextModel.object.save();
 			}
 
 			return this;
@@ -131,7 +113,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		if (!this._textModel || !this.viewType) {
+		if (!this._modifiedTextModel || !this.viewType) {
 			return undefined;
 		}
 
@@ -141,19 +123,23 @@ export class NotebookDiffEditorInput extends EditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this._textModel.object.resource;
+		const dialogPath = this._modifiedTextModel.object.resource;
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
 		}
 
 		if (!provider.matches(target)) {
-			const patterns = provider.selector.map(pattern => {
-				if (pattern.excludeFileNamePattern) {
-					return `${pattern.filenamePattern} (exclude: ${pattern.excludeFileNamePattern})`;
+			const patterns = provider.selectors.map(pattern => {
+				if (typeof pattern === 'string') {
+					return pattern;
 				}
 
-				return pattern.filenamePattern;
+				if (glob.isRelativePattern(pattern)) {
+					return `${pattern} (base ${pattern.base})`;
+				}
+
+				return `${pattern.include} (exclude: ${pattern.exclude})`;
 			}).join(', ');
 			throw new Error(`File name ${target} is not supported by ${provider.providerDisplayName}.
 
@@ -162,7 +148,7 @@ ${patterns}
 `);
 		}
 
-		if (!await this._textModel.object.saveAs(target)) {
+		if (!await this._modifiedTextModel.object.saveAs(target)) {
 			return undefined;
 		}
 
@@ -171,10 +157,10 @@ ${patterns}
 
 	// called when users rename a notebook document
 	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
-		if (this._textModel) {
+		if (this._modifiedTextModel) {
 			const contributedNotebookProviders = this._notebookService.getContributedNotebookProviders(target);
 
-			if (contributedNotebookProviders.find(provider => provider.id === this._textModel!.object.viewType)) {
+			if (contributedNotebookProviders.find(provider => provider.id === this._modifiedTextModel!.object.viewType)) {
 				return this._move(group, target);
 			}
 		}
@@ -186,8 +172,8 @@ ${patterns}
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		if (this._textModel && this._textModel.object.isDirty()) {
-			await this._textModel.object.revert(options);
+		if (this._modifiedTextModel && this._modifiedTextModel.object.isDirty()) {
+			await this._modifiedTextModel.object.revert(options);
 		}
 
 		return;
@@ -198,12 +184,19 @@ ${patterns}
 			return null;
 		}
 
-		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+		if (!this._modifiedTextModel) {
+			this._modifiedTextModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+			this._register(this._modifiedTextModel.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+			if (this._modifiedTextModel.object.isDirty() !== this._defaultDirtyState) {
+				this._onDidChangeDirty.fire();
+			}
+
+		}
+		if (!this._originalTextModel) {
 			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!);
 		}
 
-		return new NotebookDiffEditorModel(this._originalTextModel!.object as NotebookEditorModel, this._textModel.object as NotebookEditorModel);
+		return new NotebookDiffEditorModel(this._originalTextModel.object, this._modifiedTextModel.object);
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -218,10 +211,10 @@ ${patterns}
 	}
 
 	dispose() {
-		if (this._textModel) {
-			this._textModel.dispose();
-			this._textModel = null;
-		}
+		this._modifiedTextModel?.dispose();
+		this._modifiedTextModel = null;
+		this._originalTextModel?.dispose();
+		this._originalTextModel = null;
 		super.dispose();
 	}
 }

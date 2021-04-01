@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size, IDimension } from 'vs/base/browser/dom';
+import { Event, Emitter } from 'vs/base/common/event';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -14,15 +14,15 @@ import { pathsToEditors, SideBySideEditorInput } from 'vs/workbench/common/edito
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
-import { Position, Parts, IWorkbenchLayoutService, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
+import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -41,12 +41,13 @@ import { INotificationService, NotificationsFilter } from 'vs/platform/notificat
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { URI } from 'vs/base/common/uri';
-import { IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Promises } from 'vs/base/common/async';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -54,6 +55,7 @@ export enum Settings {
 
 	SIDEBAR_POSITION = 'workbench.sideBar.location',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
+	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 }
@@ -68,6 +70,7 @@ enum Storage {
 	PANEL_DIMENSION = 'workbench.panel.dimension',
 	PANEL_LAST_NON_MAXIMIZED_WIDTH = 'workbench.panel.lastNonMaximizedWidth',
 	PANEL_LAST_NON_MAXIMIZED_HEIGHT = 'workbench.panel.lastNonMaximizedHeight',
+	PANEL_LAST_IS_MAXIMIZED = 'workbench.panel.lastIsMaximized',
 
 	EDITOR_HIDDEN = 'workbench.editor.hidden',
 
@@ -76,7 +79,9 @@ enum Storage {
 
 	GRID_LAYOUT = 'workbench.grid.layout',
 	GRID_WIDTH = 'workbench.grid.width',
-	GRID_HEIGHT = 'workbench.grid.height'
+	GRID_HEIGHT = 'workbench.grid.height',
+
+	MENU_VISIBILITY = 'window.menuBarVisibility'
 }
 
 enum Classes {
@@ -88,47 +93,35 @@ enum Classes {
 	WINDOW_BORDER = 'border'
 }
 
-interface PanelActivityState {
-	id: string;
-	name?: string;
-	pinned: boolean;
-	order: number;
-	visible: boolean;
-}
-
-interface SideBarActivityState {
-	id: string;
-	pinned: boolean;
-	order: number;
-	visible: boolean;
-}
-
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
 	declare readonly _serviceBrand: undefined;
 
 	//#region Events
 
-	private readonly _onZenModeChange = this._register(new Emitter<boolean>());
-	readonly onZenModeChange = this._onZenModeChange.event;
+	private readonly _onDidChangeZenMode = this._register(new Emitter<boolean>());
+	readonly onDidChangeZenMode = this._onDidChangeZenMode.event;
 
-	private readonly _onFullscreenChange = this._register(new Emitter<boolean>());
-	readonly onFullscreenChange = this._onFullscreenChange.event;
+	private readonly _onDidChangeFullscreen = this._register(new Emitter<boolean>());
+	readonly onDidChangeFullscreen = this._onDidChangeFullscreen.event;
 
-	private readonly _onCenteredLayoutChange = this._register(new Emitter<boolean>());
-	readonly onCenteredLayoutChange = this._onCenteredLayoutChange.event;
+	private readonly _onDidChangeCenteredLayout = this._register(new Emitter<boolean>());
+	readonly onDidChangeCenteredLayout = this._onDidChangeCenteredLayout.event;
 
-	private readonly _onMaximizeChange = this._register(new Emitter<boolean>());
-	readonly onMaximizeChange = this._onMaximizeChange.event;
+	private readonly _onDidChangeWindowMaximized = this._register(new Emitter<boolean>());
+	readonly onDidChangeWindowMaximized = this._onDidChangeWindowMaximized.event;
 
-	private readonly _onPanelPositionChange = this._register(new Emitter<string>());
-	readonly onPanelPositionChange = this._onPanelPositionChange.event;
+	private readonly _onDidChangePanelPosition = this._register(new Emitter<string>());
+	readonly onDidChangePanelPosition = this._onDidChangePanelPosition.event;
 
-	private readonly _onPartVisibilityChange = this._register(new Emitter<void>());
-	readonly onPartVisibilityChange = this._onPartVisibilityChange.event;
+	private readonly _onDidChangePartVisibility = this._register(new Emitter<void>());
+	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
 
-	private readonly _onLayout = this._register(new Emitter<IDimension>());
-	readonly onLayout = this._onLayout.event;
+	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
+
+	private readonly _onDidLayout = this._register(new Emitter<IDimension>());
+	readonly onDidLayout = this._onDidLayout.event;
 
 	//#endregion
 
@@ -175,13 +168,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private titleService!: ITitleService;
 	private viewletService!: IViewletService;
 	private viewDescriptorService!: IViewDescriptorService;
-	private viewsService!: IViewsService;
 	private contextService!: IWorkspaceContextService;
 	private backupFileService!: IBackupFileService;
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
 	private activityBarService!: IActivityBarService;
 	private statusBarService!: IStatusbarService;
+	private logService!: ILogService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -190,7 +183,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		windowBorder: false,
 
 		menuBar: {
-			visibility: 'default' as MenuBarVisibility,
+			visibility: 'classic' as MenuBarVisibility,
 			toggled: false
 		},
 
@@ -218,6 +211,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			position: Position.BOTTOM,
 			lastNonMaximizedWidth: 300,
 			lastNonMaximizedHeight: 300,
+			wasLastMaximized: false,
 			panelToRestore: undefined as string | undefined
 		},
 
@@ -238,7 +232,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore(),
 			setNotificationsFilter: false,
-			editorWidgetSet: new Set<IEditor>()
 		}
 	};
 
@@ -260,6 +253,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.backupFileService = accessor.get(IBackupFileService);
 		this.themeService = accessor.get(IThemeService);
 		this.extensionService = accessor.get(IExtensionService);
+		this.logService = accessor.get(ILogService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -267,7 +261,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelService = accessor.get(IPanelService);
 		this.viewletService = accessor.get(IViewletService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
-		this.viewsService = accessor.get(IViewsService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
 		this.activityBarService = accessor.get(IActivityBarService);
@@ -315,7 +308,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if ((isWindows || isLinux || isWeb) && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 
@@ -330,12 +323,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (visible !== this.state.menuBar.toggled) {
 			this.state.menuBar.toggled = visible;
 
-			if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default')) {
-				// Propagate to grid
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
-				this.layout();
+			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
+			if (isWeb && this.state.menuBar.visibility === 'toggle') {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 			}
+			// The menu bar toggles the title bar in full screen for toggle and classic settings
+			else if (this.state.fullscreen && (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'classic')) {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
+			}
+
+			// Move layout call to any time the menubar
+			// is toggled to update consumers of offset
+			// see issue #115267
+			this.layout();
 		}
 	}
 
@@ -344,17 +345,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Apply as CSS class
 		if (this.state.fullscreen) {
-			addClass(this.container, Classes.FULLSCREEN);
+			this.container.classList.add(Classes.FULLSCREEN);
 		} else {
-			removeClass(this.container, Classes.FULLSCREEN);
+			this.container.classList.remove(Classes.FULLSCREEN);
 
 			if (this.state.zenMode.transitionedToFullScreen && this.state.zenMode.active) {
 				this.toggleZenMode();
 			}
 		}
 
+		// Change edge snapping accordingly
+		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
+
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
-		if (getTitleBarStyle(this.configurationService, this.environmentService) === 'custom') {
+		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 
@@ -363,7 +367,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.layout(); // handle title bar when fullscreen changes
 		}
 
-		this._onFullscreenChange.fire(this.state.fullscreen);
+		this._onDidChangeFullscreen.fire(this.state.fullscreen);
 	}
 
 	private onWindowFocusChanged(hasFocus: boolean): void {
@@ -403,7 +407,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Menubar visibility
-		const newMenubarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		const newMenubarVisibility = getMenuBarVisibility(this.configurationService);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
 		// Centered Layout
@@ -421,10 +425,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Adjust CSS
 		const activityBarContainer = assertIsDefined(activityBar.getContainer());
 		const sideBarContainer = assertIsDefined(sideBar.getContainer());
-		removeClass(activityBarContainer, oldPositionValue);
-		removeClass(sideBarContainer, oldPositionValue);
-		addClass(activityBarContainer, newPositionValue);
-		addClass(sideBarContainer, newPositionValue);
+		activityBarContainer.classList.remove(oldPositionValue);
+		sideBarContainer.classList.remove(oldPositionValue);
+		activityBarContainer.classList.add(newPositionValue);
+		sideBarContainer.classList.add(newPositionValue);
 
 		// Update Styles
 		activityBar.updateStyles();
@@ -447,7 +451,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private updateWindowBorder(skipLayout: boolean = false) {
-		if (isWeb || getTitleBarStyle(this.configurationService, this.environmentService) !== 'custom') {
+		if (isWeb || getTitleBarStyle(this.configurationService) !== 'custom') {
 			return;
 		}
 
@@ -471,7 +475,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.state.windowBorder = windowBorder;
 
-		toggleClass(this.container, Classes.WINDOW_BORDER, windowBorder);
+		this.container.classList.toggle(Classes.WINDOW_BORDER, windowBorder);
 
 		if (!skipLayout) {
 			this.layout();
@@ -491,7 +495,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.fullscreen = isFullscreen();
 
 		// Menubar visibility
-		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService, this.environmentService);
+		this.state.menuBar.visibility = getMenuBarVisibility(this.configurationService);
 
 		// Activity bar visibility
 		this.state.activityBar.hidden = !this.configurationService.getValue<string>(Settings.ACTIVITYBAR_VISIBLE);
@@ -532,6 +536,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Panel visibility
 		this.state.panel.hidden = this.storageService.getBoolean(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE, true);
 
+		// Whether or not the panel was last maximized
+		this.state.panel.wasLastMaximized = this.storageService.getBoolean(Storage.PANEL_LAST_IS_MAXIMIZED, StorageScope.WORKSPACE, false);
+
 		// Panel position
 		this.updatePanelPosition();
 
@@ -568,174 +575,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		if (!storageService.isNew(StorageScope.WORKSPACE)) {
+		if (!defaultLayout.force && !storageService.isNew(StorageScope.WORKSPACE)) {
 			return;
 		}
 
 		const { views } = defaultLayout;
 		if (views?.length) {
 			this.state.views.defaults = views.map(v => v.id);
-
-			return;
-		}
-
-		// TODO@eamodio Everything below here is deprecated and will be removed once Codespaces migrates
-
-		const { sidebar } = defaultLayout;
-		if (sidebar) {
-			if (sidebar.visible !== undefined) {
-				if (sidebar.visible) {
-					storageService.remove(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE);
-				} else {
-					storageService.store(Storage.SIDEBAR_HIDDEN, true, StorageScope.WORKSPACE);
-				}
-			}
-
-			if (sidebar.containers?.length) {
-				const sidebarState: SideBarActivityState[] = [];
-
-				let order = -1;
-				for (const container of sidebar.containers.sort((a, b) => (a.order ?? 1) - (b.order ?? 1))) {
-					let viewletId;
-					switch (container.id) {
-						case 'explorer':
-							viewletId = 'workbench.view.explorer';
-							break;
-						case 'run':
-							viewletId = 'workbench.view.debug';
-							break;
-						case 'scm':
-							viewletId = 'workbench.view.scm';
-							break;
-						case 'search':
-							viewletId = 'workbench.view.search';
-							break;
-						case 'extensions':
-							viewletId = 'workbench.view.extensions';
-							break;
-						case 'remote':
-							viewletId = 'workbench.view.remote';
-							break;
-						default:
-							viewletId = `workbench.view.extension.${container.id}`;
-					}
-
-					if (container.active) {
-						storageService.store(SidebarPart.activeViewletSettingsKey, viewletId, StorageScope.WORKSPACE);
-					}
-
-					if (container.order !== undefined || (container.active === undefined && container.visible !== undefined)) {
-						order = container.order ?? (order + 1);
-						const state: SideBarActivityState = {
-							id: viewletId,
-							order: order,
-							pinned: (container.active || container.visible) ?? true,
-							visible: (container.active || container.visible) ?? true
-						};
-
-						sidebarState.push(state);
-					}
-
-					if (container.views !== undefined) {
-						const viewsState: { id: string, isHidden?: boolean, order?: number }[] = [];
-						const viewsWorkspaceState: { [id: string]: { collapsed: boolean, isHidden?: boolean, size?: number } } = {};
-
-						for (const view of container.views) {
-							if (view.order !== undefined || view.visible !== undefined) {
-								viewsState.push({
-									id: view.id,
-									isHidden: view.visible === undefined ? undefined : !view.visible,
-									order: view.order === undefined ? undefined : view.order
-								});
-							}
-
-							if (view.collapsed !== undefined) {
-								viewsWorkspaceState[view.id] = {
-									collapsed: view.collapsed,
-									isHidden: view.visible === undefined ? undefined : !view.visible,
-								};
-							}
-						}
-
-						storageService.store(`${viewletId}.state.hidden`, JSON.stringify(viewsState), StorageScope.GLOBAL);
-						storageService.store(`${viewletId}.state`, JSON.stringify(viewsWorkspaceState), StorageScope.WORKSPACE);
-					}
-				}
-
-				if (sidebarState.length) {
-					storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, JSON.stringify(sidebarState), StorageScope.GLOBAL);
-				}
-			}
-		}
-
-		const { panel } = defaultLayout;
-		if (panel) {
-			if (panel.visible !== undefined) {
-				if (panel.visible) {
-					storageService.store(Storage.PANEL_HIDDEN, false, StorageScope.WORKSPACE);
-				} else {
-					storageService.remove(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE);
-				}
-			}
-
-			if (panel.containers?.length) {
-				const panelState: PanelActivityState[] = [];
-
-				let order = -1;
-				for (const container of panel.containers.sort((a, b) => (a.order ?? 1) - (b.order ?? 1))) {
-					let name;
-					let panelId = container.id;
-					switch (panelId) {
-						case 'terminal':
-							name = 'Terminal';
-							panelId = 'workbench.panel.terminal';
-							break;
-						case 'debug':
-							name = 'Debug Console';
-							panelId = 'workbench.panel.repl';
-							break;
-						case 'problems':
-							name = 'Problems';
-							panelId = 'workbench.panel.markers';
-							break;
-						case 'output':
-							name = 'Output';
-							panelId = 'workbench.panel.output';
-							break;
-						case 'comments':
-							name = 'Comments';
-							panelId = 'workbench.panel.comments';
-							break;
-						case 'refactor':
-							name = 'Refactor Preview';
-							panelId = 'refactorPreview';
-							break;
-						default:
-							continue;
-					}
-
-					if (container.active) {
-						storageService.store(PanelPart.activePanelSettingsKey, panelId, StorageScope.WORKSPACE);
-					}
-
-					if (container.order !== undefined || (container.active === undefined && container.visible !== undefined)) {
-						order = container.order ?? (order + 1);
-						const state: PanelActivityState = {
-							id: panelId,
-							name: name,
-							order: order,
-							pinned: (container.active || container.visible) ?? true,
-							visible: (container.active || container.visible) ?? true
-						};
-
-						panelState.push(state);
-					}
-				}
-
-				if (panelState.length) {
-					storageService.store(PanelPart.PINNED_PANELS, JSON.stringify(panelState), StorageScope.GLOBAL);
-				}
-			}
 		}
 	}
 
@@ -743,7 +589,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const initialFilesToOpen = this.getInitialFilesToOpen();
 
 		// Only restore editors if we are not instructed to open files initially
-		this.state.editor.restoreEditors = initialFilesToOpen === undefined;
+		// or when `window.restoreWindows` setting is explicitly set to `preserve`
+		const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
+		this.state.editor.restoreEditors = !!forceRestoreEditors || initialFilesToOpen === undefined;
 
 		// Files to open, diff or create
 		if (initialFilesToOpen !== undefined) {
@@ -783,33 +631,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private _openedDefaultEditors: boolean = false;
-	get openedDefaultEditors() {
-		return this._openedDefaultEditors;
-	}
+	get openedDefaultEditors() { return this._openedDefaultEditors; }
 
-	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[] } | undefined {
+	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
 		const defaultLayout = this.environmentService.options?.defaultLayout;
-		if (defaultLayout?.editors?.length && this.storageService.isNew(StorageScope.WORKSPACE)) {
+		if (defaultLayout?.editors?.length && (defaultLayout.force || this.storageService.isNew(StorageScope.WORKSPACE))) {
 			this._openedDefaultEditors = true;
 
 			return {
-				filesToOpenOrCreate: defaultLayout.editors
-					.map<IPath>(f => {
-						// Support the old path+scheme api until embedders can migrate
-						if ('path' in f && 'scheme' in f) {
-							return { fileUri: URI.file((f as any).path).with({ scheme: (f as any).scheme }) };
-						}
-						return { fileUri: URI.revive(f.uri), openOnlyIfExists: f.openOnlyIfExists, overrideId: f.openWith };
-					})
+				filesToOpenOrCreate: defaultLayout.editors.map<IPath>(file => {
+					return { fileUri: URI.revive(file.uri), openOnlyIfExists: file.openOnlyIfExists, editorOverrideId: file.openWith };
+				})
 			};
 		}
 
-		const configuration = this.environmentService.configuration;
-		if (configuration.filesToOpenOrCreate || configuration.filesToDiff) {
-			return {
-				filesToOpenOrCreate: configuration.filesToOpenOrCreate,
-				filesToDiff: configuration.filesToDiff
-			};
+		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
+		if (filesToOpenOrCreate || filesToDiff) {
+			return { filesToOpenOrCreate, filesToDiff };
 		}
 
 		return undefined;
@@ -820,7 +658,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editors
 		restorePromises.push((async () => {
-			mark('willRestoreEditors');
+			mark('code/willRestoreEditors');
 
 			// first ensure the editor part is restored
 			await this.editorGroupService.whenRestored;
@@ -837,63 +675,70 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				await this.editorService.openEditors(editors);
 			}
 
-			mark('didRestoreEditors');
+			mark('code/didRestoreEditors');
 		})());
 
 		// Restore default views
 		const restoreDefaultViewsPromise = (async () => {
 			if (this.state.views.defaults?.length) {
-				mark('willOpenDefaultViews');
+				mark('code/willOpenDefaultViews');
 
-				const defaultViews = [...this.state.views.defaults];
+				let locationsRestored: { id: string; order: number; }[] = [];
 
-				let locationsRestored: boolean[] = [];
+				const tryOpenView = (view: { id: string; order: number; }): boolean => {
+					const location = this.viewDescriptorService.getViewLocationById(view.id);
+					if (location !== null) {
+						const container = this.viewDescriptorService.getViewContainerByViewId(view.id);
+						if (container) {
+							if (view.order >= (locationsRestored?.[location]?.order ?? 0)) {
+								locationsRestored[location] = { id: container.id, order: view.order };
+							}
 
-				const tryOpenView = async (viewId: string, index: number) => {
-					const location = this.viewDescriptorService.getViewLocationById(viewId);
-					if (location) {
+							const containerModel = this.viewDescriptorService.getViewContainerModel(container);
+							containerModel.setCollapsed(view.id, false);
+							containerModel.setVisible(view.id, true);
 
-						// If the view is in the same location that has already been restored, remove it and continue
-						if (locationsRestored[location]) {
-							defaultViews.splice(index, 1);
-
-							return;
-						}
-
-						const view = await this.viewsService.openView(viewId);
-						if (view) {
-							locationsRestored[location] = true;
-							defaultViews.splice(index, 1);
+							return true;
 						}
 					}
+
+					return false;
 				};
 
-				let i = -1;
-				for (const viewId of defaultViews) {
-					await tryOpenView(viewId, ++i);
+				const defaultViews = [...this.state.views.defaults].reverse().map((v, index) => ({ id: v, order: index }));
+
+				let i = defaultViews.length;
+				while (i) {
+					i--;
+					if (tryOpenView(defaultViews[i])) {
+						defaultViews.splice(i, 1);
+					}
 				}
 
 				// If we still have views left over, wait until all extensions have been registered and try again
 				if (defaultViews.length) {
 					await this.extensionService.whenInstalledExtensionsRegistered();
 
-					let i = -1;
-					for (const viewId of defaultViews) {
-						await tryOpenView(viewId, ++i);
+					let i = defaultViews.length;
+					while (i) {
+						i--;
+						if (tryOpenView(defaultViews[i])) {
+							defaultViews.splice(i, 1);
+						}
 					}
 				}
 
 				// If we opened a view in the sidebar, stop any restore there
 				if (locationsRestored[ViewContainerLocation.Sidebar]) {
-					this.state.sideBar.viewletToRestore = undefined;
+					this.state.sideBar.viewletToRestore = locationsRestored[ViewContainerLocation.Sidebar].id;
 				}
 
 				// If we opened a view in the panel, stop any restore there
 				if (locationsRestored[ViewContainerLocation.Panel]) {
-					this.state.panel.panelToRestore = undefined;
+					this.state.panel.panelToRestore = locationsRestored[ViewContainerLocation.Panel].id;
 				}
 
-				mark('didOpenDefaultViews');
+				mark('code/didOpenDefaultViews');
 			}
 		})();
 		restorePromises.push(restoreDefaultViewsPromise);
@@ -908,14 +753,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
-			mark('willRestoreViewlet');
+			mark('code/willRestoreViewlet');
 
 			const viewlet = await this.viewletService.openViewlet(this.state.sideBar.viewletToRestore);
 			if (!viewlet) {
 				await this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
 			}
 
-			mark('didRestoreViewlet');
+			mark('code/didRestoreViewlet');
 		})());
 
 		// Restore Panel
@@ -928,14 +773,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
-			mark('willRestorePanel');
+			mark('code/willRestorePanel');
 
 			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore!);
 			if (!panel) {
 				await this.panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
 			}
 
-			mark('didRestorePanel');
+			mark('code/didRestorePanel');
 		})());
 
 		// Restore Zen Mode
@@ -949,7 +794,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Await restore to be done
-		await Promise.all(restorePromises);
+		await Promises.settled(restorePromises);
 	}
 
 	private updatePanelPosition() {
@@ -972,6 +817,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return part;
 	}
 
+	registerNotifications(delegate: { onDidChangeNotificationsVisibility: Event<boolean> }): void {
+		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
+	}
+
 	isRestored(): boolean {
 		return this.lifecycleService.phase >= LifecyclePhase.Restored;
 	}
@@ -984,7 +833,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const container = this.getContainer(part);
 
-		return !!container && isAncestor(activeElement, container);
+		return !!container && isAncestorUsingFlowTo(activeElement, container);
 	}
 
 	focusPart(part: Parts): void {
@@ -1038,19 +887,35 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				if (getTitleBarStyle(this.configurationService, this.environmentService) === 'native') {
+				// Using the native title bar, don't ever show the custom one
+				if (getTitleBarStyle(this.configurationService) === 'native') {
 					return false;
-				} else if (!this.state.fullscreen && !isWeb) {
-					return true;
-				} else if (isMacintosh && isNative) {
-					return false;
-				} else if (this.state.menuBar.visibility === 'visible') {
-					return true;
-				} else if (this.state.menuBar.visibility === 'toggle' || this.state.menuBar.visibility === 'default') {
-					return this.state.menuBar.toggled;
 				}
 
-				return false;
+				// macOS desktop does not need a title bar when full screen
+				if (isMacintosh && isNative) {
+					return !this.state.fullscreen;
+				}
+
+				// non-fullscreen native must show the title bar
+				if (isNative && !this.state.fullscreen) {
+					return true;
+				}
+
+				// remaining behavior is based on menubar visibility
+				switch (this.state.menuBar.visibility) {
+					case 'classic':
+						return !this.state.fullscreen || this.state.menuBar.toggled;
+					case 'compact':
+					case 'hidden':
+						return false;
+					case 'toggle':
+						return this.state.menuBar.toggled;
+					case 'visible':
+						return true;
+					default:
+						return isWeb ? false : !this.state.fullscreen || this.state.menuBar.toggled;
+				}
 			case Parts.SIDEBAR_PART:
 				return !this.state.sideBar.hidden;
 			case Parts.PANEL_PART:
@@ -1089,11 +954,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const availableWidth = this.dimension.width - takenWidth;
 		const availableHeight = this.dimension.height - takenHeight;
 
-		return { width: availableWidth, height: availableHeight };
-	}
-
-	getWorkbenchContainer(): HTMLElement {
-		return this.parent;
+		return new Dimension(availableWidth, availableHeight);
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
@@ -1114,23 +975,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				editor.updateOptions({ lineNumbers });
 			};
 
-			const editorControlSet = this.state.zenMode.editorWidgetSet;
 			if (!lineNumbers) {
 				// Reset line numbers on all editors visible and non-visible
-				for (const editor of editorControlSet) {
-					setEditorLineNumbers(editor);
-				}
-				editorControlSet.clear();
-			} else {
-				this.editorService.visibleTextEditorControls.forEach(editorControl => {
-					if (!editorControlSet.has(editorControl)) {
-						editorControlSet.add(editorControl);
-						this.state.zenMode.transitionDisposables.add(editorControl.onDidDispose(() => {
-							editorControlSet.delete(editorControl);
-						}));
-					}
+				for (const editorControl of this.editorService.visibleTextEditorControls) {
 					setEditorLineNumbers(editorControl);
-				});
+				}
+			} else {
+				for (const editorControl of this.editorService.visibleTextEditorControls) {
+					setEditorLineNumbers(editorControl);
+				}
 			}
 		};
 
@@ -1230,11 +1083,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Event
-		this._onZenModeChange.fire(this.state.zenMode.active);
+		this._onDidChangeZenMode.fire(this.state.zenMode.active);
 
 		// State
 		if (this.state.zenMode.active) {
-			this.storageService.store(Storage.ZEN_MODE_ENABLED, true, StorageScope.WORKSPACE);
+			this.storageService.store(Storage.ZEN_MODE_ENABLED, true, StorageScope.WORKSPACE, StorageTarget.USER);
 
 			// Exit zen mode on shutdown unless configured to keep
 			this.state.zenMode.transitionDisposables.add(this.storageService.onWillSaveState(e => {
@@ -1254,9 +1107,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.STATUSBAR_HIDDEN);
+			this.container.classList.add(Classes.STATUSBAR_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.STATUSBAR_HIDDEN);
+			this.container.classList.remove(Classes.STATUSBAR_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -1288,7 +1141,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.STATUSBAR_PART]: this.statusBarPartView
 		};
 
-		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
+		const fromJSON = ({ type }: { type: Parts; }) => viewMap[type];
 		const workbenchGrid = SerializableGrid.deserialize(
 			this.createGridDescriptor(),
 			{ fromJSON },
@@ -1298,10 +1151,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.container.prepend(workbenchGrid.element);
 		this.container.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
+		this.workbenchGrid.edgeSnapping = this.state.fullscreen;
 
-		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
+		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar]) {
 			this._register(part.onDidVisibilityChange((visible) => {
-				this._onPartVisibilityChange.fire();
 				if (part === sideBar) {
 					this.setSideBarHidden(!visible, true);
 				} else if (part === panelPart) {
@@ -1309,8 +1162,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				} else if (part === editorPart) {
 					this.setEditorHidden(!visible, true);
 				}
+				this._onDidChangePartVisibility.fire();
 			}));
-		});
+		}
 
 		this._register(this.storageService.onWillSaveState(() => {
 			const grid = this.workbenchGrid as SerializableGrid<ISerializableView>;
@@ -1319,18 +1173,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				? grid.getViewCachedVisibleSize(this.sideBarPartView)
 				: grid.getViewSize(this.sideBarPartView).width;
 
-			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL);
+			this.storageService.store(Storage.SIDEBAR_SIZE, sideBarSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			const panelSize = this.state.panel.hidden
 				? grid.getViewCachedVisibleSize(this.panelPartView)
 				: (this.state.panel.position === Position.BOTTOM ? grid.getViewSize(this.panelPartView).height : grid.getViewSize(this.panelPartView).width);
 
-			this.storageService.store(Storage.PANEL_SIZE, panelSize, StorageScope.GLOBAL);
-			this.storageService.store(Storage.PANEL_DIMENSION, positionToString(this.state.panel.position), StorageScope.GLOBAL);
+			this.storageService.store(Storage.PANEL_SIZE, panelSize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(Storage.PANEL_DIMENSION, positionToString(this.state.panel.position), StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 			const gridSize = grid.getViewSize();
-			this.storageService.store(Storage.GRID_WIDTH, gridSize.width, StorageScope.GLOBAL);
-			this.storageService.store(Storage.GRID_HEIGHT, gridSize.height, StorageScope.GLOBAL);
+			this.storageService.store(Storage.GRID_WIDTH, gridSize.width, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(Storage.GRID_HEIGHT, gridSize.height, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}));
 	}
 
@@ -1341,6 +1195,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	layout(): void {
 		if (!this.disposed) {
 			this._dimension = this.getClientArea();
+			this.logService.trace(`Layout#layout, height: ${this._dimension.height}, width: ${this._dimension.width}`);
 
 			position(this.container, 0, 0, 0, 0, 'relative');
 			size(this.container, this._dimension.width, this._dimension.height);
@@ -1349,7 +1204,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
 
 			// Emit as event
-			this._onLayout.fire(this._dimension);
+			this._onDidLayout.fire(this._dimension);
 		}
 	}
 
@@ -1360,7 +1215,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.state.editor.centered = active;
 
-		this.storageService.store(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE);
+		this.storageService.store(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE, StorageTarget.USER);
 
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
@@ -1387,12 +1242,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		}
 
-		this._onCenteredLayoutChange.fire(this.state.editor.centered);
+		this._onDidChangeCenteredLayout.fire(this.state.editor.centered);
 	}
 
-	resizePart(part: Parts, sizeChange: number): void {
-		const sizeChangePxWidth = this.workbenchGrid.width * sizeChange / 100;
-		const sizeChangePxHeight = this.workbenchGrid.height * sizeChange / 100;
+	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
+		const sizeChangePxWidth = this.workbenchGrid.width * sizeChangeWidth / 100;
+		const sizeChangePxHeight = this.workbenchGrid.height * sizeChangeHeight / 100;
 
 		let viewSize: IViewSize;
 
@@ -1421,24 +1276,28 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 				// Single Editor Group
 				if (this.editorGroupService.count === 1) {
-					if (this.isVisible(Parts.SIDEBAR_PART)) {
-						this.workbenchGrid.resizeView(this.editorPartView,
-							{
-								width: viewSize.width + sizeChangePxWidth,
-								height: viewSize.height
-							});
-					} else if (this.isVisible(Parts.PANEL_PART)) {
-						this.workbenchGrid.resizeView(this.editorPartView,
-							{
-								width: viewSize.width + (this.getPanelPosition() !== Position.BOTTOM ? sizeChangePxWidth : 0),
-								height: viewSize.height + (this.getPanelPosition() !== Position.BOTTOM ? 0 : sizeChangePxHeight)
-							});
-					}
+					this.workbenchGrid.resizeView(this.editorPartView,
+						{
+							width: viewSize.width + sizeChangePxWidth,
+							height: viewSize.height + sizeChangePxHeight
+						});
 				} else {
 					const activeGroup = this.editorGroupService.activeGroup;
 
 					const { width, height } = this.editorGroupService.getSize(activeGroup);
 					this.editorGroupService.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
+
+					// After resizing the editor group
+					// if it does not change in either direction
+					// try resizing the full editor part
+					const { width: newWidth, height: newHeight } = this.editorGroupService.getSize(activeGroup);
+					if ((sizeChangePxHeight && height === newHeight) || (sizeChangePxWidth && width === newWidth)) {
+						this.workbenchGrid.resizeView(this.editorPartView,
+							{
+								width: viewSize.width + (sizeChangePxWidth && width === newWidth ? sizeChangePxWidth : 0),
+								height: viewSize.height + (sizeChangePxHeight && height === newHeight ? sizeChangePxHeight : 0)
+							});
+					}
 				}
 
 				break;
@@ -1459,9 +1318,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.EDITOR_HIDDEN);
+			this.container.classList.add(Classes.EDITOR_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.EDITOR_HIDDEN);
+			this.container.classList.remove(Classes.EDITOR_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -1469,7 +1328,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Remember in settings
 		if (hidden) {
-			this.storageService.store(Storage.EDITOR_HIDDEN, true, StorageScope.WORKSPACE);
+			this.storageService.store(Storage.EDITOR_HIDDEN, true, StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(Storage.EDITOR_HIDDEN, StorageScope.WORKSPACE);
 		}
@@ -1495,9 +1354,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.SIDEBAR_HIDDEN);
+			this.container.classList.add(Classes.SIDEBAR_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.SIDEBAR_HIDDEN);
+			this.container.classList.remove(Classes.SIDEBAR_HIDDEN);
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -1530,13 +1389,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Remember in settings
 		const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		if (hidden !== defaultHidden) {
-			this.storageService.store(Storage.SIDEBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+			this.storageService.store(Storage.SIDEBAR_HIDDEN, hidden ? 'true' : 'false', StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(Storage.SIDEBAR_HIDDEN, StorageScope.WORKSPACE);
 		}
 	}
 
 	setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+		const wasHidden = this.state.panel.hidden;
 		this.state.panel.hidden = hidden;
 
 		// Return if not initialized fully #105480
@@ -1544,11 +1404,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
+		const isPanelMaximized = this.isPanelMaximized();
+		const panelOpensMaximized = this.panelOpensMaximized();
+
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.PANEL_HIDDEN);
+			this.container.classList.add(Classes.PANEL_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.PANEL_HIDDEN);
+			this.container.classList.remove(Classes.PANEL_HIDDEN);
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
@@ -1560,31 +1423,71 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// If panel part becomes visible, show last active panel or default panel
 		else if (!hidden && !this.panelService.getActivePanel()) {
-			const panelToOpen = this.panelService.getLastActivePanelId();
+			let panelToOpen: string | undefined = this.panelService.getLastActivePanelId();
+			const hasViews = (id: string): boolean => {
+				const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+				if (!viewContainer) {
+					return false;
+				}
+
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (!viewContainerModel) {
+					return false;
+				}
+
+				return viewContainerModel.activeViewDescriptors.length >= 1;
+			};
+
+			// verify that the panel we try to open has views before we default to it
+			// otherwise fall back to any view that has views still refs #111463
+			if (!panelToOpen || !hasViews(panelToOpen)) {
+				panelToOpen = this.viewDescriptorService
+					.getViewContainersByLocation(ViewContainerLocation.Panel)
+					.find(viewContainer => hasViews(viewContainer.id))?.id;
+			}
+
 			if (panelToOpen) {
 				const focus = !skipLayout;
 				this.panelService.openPanel(panelToOpen, focus);
 			}
 		}
 
-		// If not maximized and hiding, unmaximize before hiding to allow caching of size
-		if (this.isPanelMaximized() && hidden) {
+		// If maximized and in process of hiding, unmaximize before hiding to allow caching of non-maximized size
+		if (hidden && isPanelMaximized) {
 			this.toggleMaximizedPanel();
 		}
 
-		// Propagate to grid
-		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
-
-		// Remember in settings
-		if (!hidden) {
-			this.storageService.store(Storage.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE);
+		// Don't proceed if we have already done this before
+		if (wasHidden === hidden) {
+			return;
 		}
 
-		// The editor and panel cannot be hidden at the same time
-		if (hidden && this.state.editor.hidden) {
-			this.setEditorHidden(false, true);
+		// Propagate layout changes to grid
+		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
+		// If in process of showing, toggle whether or not panel is maximized
+		if (!hidden) {
+			if (isPanelMaximized !== panelOpensMaximized) {
+				this.toggleMaximizedPanel();
+			}
+		}
+		else {
+			// If in process of hiding, remember whether the panel is maximized or not
+			this.state.panel.wasLastMaximized = isPanelMaximized;
+		}
+		// Remember in settings
+		if (!hidden) {
+			this.storageService.store(Storage.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE, StorageTarget.USER);
+		}
+		else {
+			this.storageService.remove(Storage.PANEL_HIDDEN, StorageScope.WORKSPACE);
+
+			// Remember this setting only when panel is hiding
+			if (this.state.panel.wasLastMaximized) {
+				this.storageService.store(Storage.PANEL_LAST_IS_MAXIMIZED, true, StorageScope.WORKSPACE, StorageTarget.USER);
+			}
+			else {
+				this.storageService.remove(Storage.PANEL_LAST_IS_MAXIMIZED, StorageScope.WORKSPACE);
+			}
 		}
 
 		if (focusEditor) {
@@ -1598,10 +1501,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (!this.state.panel.hidden) {
 				if (this.state.panel.position === Position.BOTTOM) {
 					this.state.panel.lastNonMaximizedHeight = size.height;
-					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL);
+					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_HEIGHT, this.state.panel.lastNonMaximizedHeight, StorageScope.GLOBAL, StorageTarget.MACHINE);
 				} else {
 					this.state.panel.lastNonMaximizedWidth = size.width;
-					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, this.state.panel.lastNonMaximizedWidth, StorageScope.GLOBAL);
+					this.storageService.store(Storage.PANEL_LAST_NON_MAXIMIZED_WIDTH, this.state.panel.lastNonMaximizedWidth, StorageScope.GLOBAL, StorageTarget.MACHINE);
 				}
 			}
 
@@ -1610,6 +1513,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setEditorHidden(false);
 			this.workbenchGrid.resizeView(this.panelPartView, { width: this.state.panel.position === Position.BOTTOM ? size.width : this.state.panel.lastNonMaximizedWidth, height: this.state.panel.position === Position.BOTTOM ? this.state.panel.lastNonMaximizedHeight : size.height });
 		}
+	}
+
+	/**
+	 * Returns whether or not the panel opens maximized
+	 */
+	private panelOpensMaximized() {
+		const panelOpensMaximized = panelOpensMaximizedFromString(this.configurationService.getValue<string>(Settings.PANEL_OPENS_MAXIMIZED));
+		const panelLastIsMaximized = this.state.panel.wasLastMaximized;
+
+		return panelOpensMaximized === PanelOpensMaximizedOptions.ALWAYS || (panelOpensMaximized === PanelOpensMaximizedOptions.REMEMBER_LAST && panelLastIsMaximized);
 	}
 
 	hasWindowBorder(): boolean {
@@ -1625,10 +1538,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
-		if (!this.workbenchGrid) {
-			return false;
-		}
-
 		return this.state.editor.hidden;
 	}
 
@@ -1651,6 +1560,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.state.menuBar.visibility;
 	}
 
+	toggleMenuBar(): void {
+		let currentVisibilityValue = getMenuBarVisibility(this.configurationService);
+		if (typeof currentVisibilityValue !== 'string') {
+			currentVisibilityValue = 'classic';
+		}
+
+		let newVisibilityValue: string;
+		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
+			newVisibilityValue = 'compact';
+		} else {
+			newVisibilityValue = 'classic';
+		}
+
+		this.configurationService.updateValue(Storage.MENU_VISIBILITY, newVisibilityValue);
+	}
+
 	getPanelPosition(): Position {
 		return this.state.panel.position;
 	}
@@ -1666,12 +1591,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.panel.position = position;
 
 		// Save panel position
-		this.storageService.store(Storage.PANEL_POSITION, newPositionValue, StorageScope.WORKSPACE);
+		this.storageService.store(Storage.PANEL_POSITION, newPositionValue, StorageScope.WORKSPACE, StorageTarget.USER);
 
 		// Adjust CSS
 		const panelContainer = assertIsDefined(panelPart.getContainer());
-		removeClass(panelContainer, oldPositionValue);
-		addClass(panelContainer, newPositionValue);
+		panelContainer.classList.remove(oldPositionValue);
+		panelContainer.classList.add(newPositionValue);
 
 		// Update Styles
 		panelPart.updateStyles();
@@ -1704,7 +1629,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Reset sidebar to original size before shifting the panel
 		this.workbenchGrid.resizeView(this.sideBarPartView, sideBarSize);
 
-		this._onPanelPositionChange.fire(newPositionValue);
+		this._onDidChangePanelPosition.fire(newPositionValue);
 	}
 
 	isWindowMaximized() {
@@ -1719,7 +1644,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.maximized = maximized;
 
 		this.updateWindowBorder();
-		this._onMaximizeChange.fire(maximized);
+		this._onDidChangeWindowMaximized.fire(maximized);
 	}
 
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined {

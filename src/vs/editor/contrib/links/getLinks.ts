@@ -11,7 +11,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry, ILinksList } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { isDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertType } from 'vs/base/common/types';
 
@@ -66,12 +66,14 @@ export class Link implements ILink {
 	}
 }
 
-export class LinksList extends Disposable {
+export class LinksList {
 
 	readonly links: Link[];
 
+	private readonly _disposables = new DisposableStore();
+
 	constructor(tuples: [ILinksList, LinkProvider][]) {
-		super();
+
 		let links: Link[] = [];
 		for (const [list, provider] of tuples) {
 			// merge all links
@@ -79,10 +81,15 @@ export class LinksList extends Disposable {
 			links = LinksList._union(links, newLinks);
 			// register disposables
 			if (isDisposable(list)) {
-				this._register(list);
+				this._disposables.add(list);
 			}
 		}
 		this.links = links;
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+		this.links.length = 0;
 	}
 
 	private static _union(oldLinks: Link[], newLinks: Link[]): Link[] {

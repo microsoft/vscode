@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OnBeforeRequestListenerDetails, session } from 'electron';
+import { OnBeforeRequestListenerDetails, session, webContents } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
@@ -21,12 +22,14 @@ interface PortMappingData {
 	readonly resolvedAuthority: IAddress | null | undefined;
 }
 
+interface WebviewData {
+	readonly manager: WebviewPortMappingManager;
+	readonly metadata: PortMappingData;
+}
+
 export class WebviewPortMappingProvider extends Disposable {
 
-	private readonly _webviewData = new Map<string, {
-		readonly manager: WebviewPortMappingManager;
-		metadata: PortMappingData;
-	}>();
+	private readonly _webviewData = new Map<string, WebviewData>();
 
 	constructor(
 		@ITunnelService private readonly _tunnelService: ITunnelService,
@@ -34,7 +37,6 @@ export class WebviewPortMappingProvider extends Disposable {
 		super();
 
 		const sess = session.fromPartition(webviewPartitionId);
-
 		sess.webRequest.onBeforeRequest({
 			urls: [
 				'*://localhost:*/*',
@@ -42,14 +44,26 @@ export class WebviewPortMappingProvider extends Disposable {
 				'*://0.0.0.0:*/*',
 			]
 		}, async (details: OnBeforeRequestListenerDetails_Extended, callback) => {
-			let origin: URI;
+			let webviewId: string | undefined;
 			try {
-				origin = URI.parse(details.lastCommittedOrigin!);
+				if (details.lastCommittedOrigin) {
+					const origin = URI.parse(details.lastCommittedOrigin);
+					webviewId = origin.authority;
+				} else if (typeof details.webContentsId === 'number') {
+					const contents = webContents.fromId(details.webContentsId);
+					const url = URI.parse(contents.getURL());
+					if (url.scheme === Schemas.vscodeWebview) {
+						webviewId = url.authority;
+					}
+				}
 			} catch {
 				return callback({});
 			}
 
-			const webviewId = origin.authority;
+			if (!webviewId) {
+				return callback({});
+			}
+
 			const entry = this._webviewData.get(webviewId);
 			if (!entry) {
 				return callback({});

@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "vscode",
+  "license": "MIT",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.41.0"
@@ -52,16 +53,18 @@
     "vscode:prepublish": "npm run compile"
   },
   "dependencies": {
-    "node-fetch": "2.6.0",
+    "node-fetch": "2.6.1",
     "uuid": "8.1.0",
-    "vscode-extension-telemetry": "0.1.1",
+    "vscode-extension-telemetry": "0.1.7",
     "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
-    "@types/keytar": "^4.4.2",
-    "@types/node": "^10.12.21",
-    "@types/node-fetch": "2.5.7",
-    "@types/uuid": "8.0.0",
-    "typescript": "^3.7.5"
+    "@types/node": "^12.19.9",
+    "@types/node-fetch": "^2.5.7",
+    "@types/uuid": "8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

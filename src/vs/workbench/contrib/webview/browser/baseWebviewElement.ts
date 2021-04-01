@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -14,8 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -27,6 +25,7 @@ export const enum WebviewMessageChannels {
 	didLoad = 'did-load',
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
+	setConfirmBeforeClose = 'set-confirm-before-close',
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
@@ -81,9 +80,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	constructor(
 		public readonly id: string,
-		options: WebviewOptions,
+		private readonly options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-		public readonly extension: WebviewExtensionDescription | undefined,
+		public extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
@@ -103,9 +102,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
 			this._logService.debug(`Webview(${this.id}): webview ready`);
 
-			if (this.element) {
-				addClass(this.element, 'ready');
-			}
+			this.element?.classList.add('ready');
 
 			if (this._state.type === WebviewState.Type.Initializing) {
 				this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
@@ -123,8 +120,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this._onDidClickLink.fire(uri);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
-			this._onMessage.fire(data);
+		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any, transfer?: ArrayBuffer[] }) => {
+			this._onMessage.fire({
+				message: data.message,
+				transfer: data.transfer,
+			});
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
@@ -160,7 +160,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			// Electron: workaround for https://github.com/electron/electron/issues/14258
 			// We have to detect keyboard events in the <webview> and dispatch them to our
 			// keybinding service because these events do not bubble to the parent window anymore.
-			this.handleKeyDown(data);
+			this.handleKeyEvent('keydown', data);
+		}));
+
+		this._register(this.on('did-keyup', (data: KeyboardEvent) => {
+			this.handleKeyEvent('keyup', data);
 		}));
 
 		this.style();
@@ -187,7 +191,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidReload = this._register(new Emitter<void>());
 	public readonly onDidReload = this._onDidReload.event;
 
-	private readonly _onMessage = this._register(new Emitter<any>());
+	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
 	public readonly onMessage = this._onMessage.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
@@ -208,8 +212,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
-	public postMessage(data: any): void {
-		this._send('message', data);
+	public postMessage(message: any, transfer?: ArrayBuffer[]): void {
+		this._send('message', { message, transfer });
 	}
 
 	protected _send(channel: string, data?: any): void {
@@ -273,7 +277,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	public set contentOptions(options: WebviewContentOptions) {
 		this._logService.debug(`Webview(${this.id}): will update content options`);
 
-		if (areWebviewInputOptionsEqual(options, this.content.options)) {
+		if (areWebviewContentOptionsEqual(options, this.content.options)) {
 			this._logService.debug(`Webview(${this.id}): skipping content options update`);
 			return;
 		}
@@ -315,7 +319,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	protected style(): void {
-		const { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		let { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		if (this.options.transformCssVariables) {
+			styles = this.options.transformCssVariables(styles);
+		}
+
 		this._send('styles', { styles, activeTheme, themeName: themeLabel });
 	}
 
@@ -328,9 +336,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		}
 	}
 
-	private handleKeyDown(event: IKeydownEvent) {
+	private handleKeyEvent(type: 'keydown' | 'keyup', event: IKeydownEvent) {
 		// Create a fake KeyboardEvent from the data provided
-		const emulatedKeyboardEvent = new KeyboardEvent('keydown', event);
+		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
 		// Force override the target
 		Object.defineProperty(emulatedKeyboardEvent, 'target', {
 			get: () => this.element,

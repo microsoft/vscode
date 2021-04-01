@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/actions';
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
@@ -27,16 +27,15 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-const developerCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class InspectContextKeysAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.inspectContextKeys',
-			title: { value: nls.localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
-			category: developerCategory,
+			title: { value: localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -97,8 +96,8 @@ class ToggleScreencastModeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
-			title: { value: nls.localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
-			category: developerCategory,
+			title: { value: localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -242,8 +241,8 @@ class LogStorageAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logStorage',
-			title: { value: nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
-			category: developerCategory,
+			title: { value: localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -258,8 +257,8 @@ class LogWorkingCopiesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.logWorkingCopies',
-			title: { value: nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
-			category: developerCategory,
+			title: { value: localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -285,13 +284,14 @@ registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 
+// --- Configuration
 
-// Screencast Mode
+// Screen Cast Mode
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'screencastMode',
 	order: 9,
-	title: nls.localize('screencastModeConfigurationTitle', "Screencast Mode"),
+	title: localize('screencastModeConfigurationTitle', "Screencast Mode"),
 	type: 'object',
 	properties: {
 		'screencastMode.verticalOffset': {
@@ -299,18 +299,18 @@ configurationRegistry.registerConfiguration({
 			default: 20,
 			minimum: 0,
 			maximum: 90,
-			description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+			description: localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
 		},
 		'screencastMode.fontSize': {
 			type: 'number',
 			default: 56,
 			minimum: 20,
 			maximum: 100,
-			description: nls.localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
+			description: localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
-			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
+			description: localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
 			default: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {
@@ -318,20 +318,20 @@ configurationRegistry.registerConfiguration({
 			default: 800,
 			minimum: 500,
 			maximum: 5000,
-			description: nls.localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
+			description: localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
 		},
 		'screencastMode.mouseIndicatorColor': {
 			type: 'string',
 			format: 'color-hex',
 			default: '#FF0000',
-			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
+			description: localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
 		},
 		'screencastMode.mouseIndicatorSize': {
 			type: 'number',
 			default: 20,
 			minimum: 20,
 			maximum: 100,
-			description: nls.localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
+			description: localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
 		},
 	}
 });

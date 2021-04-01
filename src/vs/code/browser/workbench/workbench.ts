@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions } from 'vs/workbench/workbench.web.api';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -16,6 +16,26 @@ import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
+import product from 'vs/platform/product/common/product';
+import { parseLogLevel } from 'vs/platform/log/common/log';
+
+function doCreateUri(path: string, queryValues: Map<string, string>): URI {
+	let query: string | undefined = undefined;
+
+	if (queryValues) {
+		let index = 0;
+		queryValues.forEach((value, key) => {
+			if (!query) {
+				query = '';
+			}
+
+			const prefix = (index++ === 0) ? '' : '&';
+			query += `${prefix}${key}=${encodeURIComponent(value)}`;
+		});
+	}
+
+	return URI.parse(window.location.href).with({ path, query });
+}
 
 interface ICredential {
 	service: string;
@@ -26,6 +46,32 @@ interface ICredential {
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+
+	private readonly authService: string | undefined;
+
+	constructor() {
+		let authSessionInfo: { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean, readonly scopes: string[][] } | undefined;
+		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
+		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
+		if (authSessionElementAttribute) {
+			try {
+				authSessionInfo = JSON.parse(authSessionElementAttribute);
+			} catch (error) { /* Invalid session is passed. Ignore. */ }
+		}
+
+		if (authSessionInfo) {
+			// Settings Sync Entry
+			this.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(authSessionInfo));
+
+			// Auth extension Entry
+			this.authService = `${product.urlProtocol}-${authSessionInfo.providerId}.login`;
+			this.setPassword(this.authService, 'account', JSON.stringify(authSessionInfo.scopes.map(scopes => ({
+				id: authSessionInfo!.id,
+				scopes,
+				accessToken: authSessionInfo!.accessToken
+			}))));
+		}
+	}
 
 	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
@@ -68,14 +114,39 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.deletePassword(service, account);
+		this.doDeletePassword(service, account);
 
 		this.credentials.push({ service, account, password });
 
 		this.save();
+
+		try {
+			if (password && service === this.authService) {
+				const value = JSON.parse(password);
+				if (Array.isArray(value) && value.length === 0) {
+					await this.logout(service);
+				}
+			}
+		} catch (error) {
+			console.log(error);
+		}
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
+		const result = await this.doDeletePassword(service, account);
+
+		if (result && service === this.authService) {
+			try {
+				await this.logout(service);
+			} catch (error) {
+				console.log(error);
+			}
+		}
+
+		return result;
+	}
+
+	private async doDeletePassword(service: string, account: string): Promise<boolean> {
 		let found = false;
 
 		this._credentials = this.credentials.filter(credential => {
@@ -103,6 +174,16 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		return this.credentials
 			.filter(credential => credential.service === service)
 			.map(({ account, password }) => ({ account, password }));
+	}
+
+	private async logout(service: string): Promise<void> {
+		const queryValues: Map<string, string> = new Map();
+		queryValues.set('logout', String(true));
+		queryValues.set('service', service);
+
+		await request({
+			url: doCreateUri('/auth/logout', queryValues).toString(true)
+		}, CancellationToken.None);
 	}
 }
 
@@ -154,7 +235,7 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		// Start to poll on the callback being fired
 		this.periodicFetchCallback(requestId, Date.now());
 
-		return this.doCreateUri('/callback', queryValues);
+		return doCreateUri('/callback', queryValues);
 	}
 
 	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
@@ -164,7 +245,7 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
 
 		const result = await request({
-			url: this.doCreateUri('/fetch-callback', queryValues).toString(true)
+			url: doCreateUri('/fetch-callback', queryValues).toString(true)
 		}, CancellationToken.None);
 
 		// Check for callback results
@@ -184,24 +265,6 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
 		}
 	}
-
-	private doCreateUri(path: string, queryValues: Map<string, string>): URI {
-		let query: string | undefined = undefined;
-
-		if (queryValues) {
-			let index = 0;
-			queryValues.forEach((value, key) => {
-				if (!query) {
-					query = '';
-				}
-
-				const prefix = (index++ === 0) ? '' : '&';
-				query += `${prefix}${key}=${encodeURIComponent(value)}`;
-			});
-		}
-
-		return URI.parse(window.location.href).with({ path, query });
-	}
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {
@@ -211,6 +274,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	static QUERY_PARAM_WORKSPACE = 'workspace';
 
 	static QUERY_PARAM_PAYLOAD = 'payload';
+
+	readonly trusted = true;
 
 	constructor(
 		public readonly workspace: IWorkspace,
@@ -354,6 +419,7 @@ class WindowIndicator implements IWindowIndicator {
 	let foundWorkspace = false;
 	let workspace: IWorkspace;
 	let payload = Object.create(null);
+	let logLevel: string | undefined = undefined;
 
 	const query = new URL(document.location.href).searchParams;
 	query.forEach((value, key) => {
@@ -385,6 +451,11 @@ class WindowIndicator implements IWindowIndicator {
 					console.error(error); // possible invalid JSON
 				}
 				break;
+
+			// Log level
+			case 'logLevel':
+				logLevel = value;
+				break;
 		}
 	});
 
@@ -404,7 +475,7 @@ class WindowIndicator implements IWindowIndicator {
 
 	// Home Indicator
 	const homeIndicator: IHomeIndicator = {
-		href: 'https://github.com/Microsoft/vscode',
+		href: 'https://github.com/microsoft/vscode',
 		icon: 'code',
 		title: localize('home', "Home")
 	};
@@ -430,29 +501,34 @@ class WindowIndicator implements IWindowIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
-	// Credentials (with support of predefined ones via meta element)
-	const credentialsProvider = new LocalStorageCredentialsProvider();
+	// settings sync options
+	const settingsSyncOptions: ISettingsSyncOptions | undefined = config.settingsSyncOptions ? {
+		enabled: config.settingsSyncOptions.enabled,
+		enablementHandler: (enablement) => {
+			let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
 
-	const credentialsElement = document.getElementById('vscode-workbench-credentials');
-	const credentialsElementAttribute = credentialsElement ? credentialsElement.getAttribute('data-settings') : undefined;
-	let credentials = undefined;
-	if (credentialsElementAttribute) {
-		try {
-			credentials = JSON.parse(credentialsElementAttribute);
-			for (const { service, account, password } of credentials) {
-				credentialsProvider.setPassword(service, account, password);
-			}
-		} catch (error) { /* Invalid credentials are passed. Ignore. */ }
-	}
+			// Save all other query params we might have
+			const query = new URL(document.location.href).searchParams;
+			query.forEach((value, key) => {
+				if (key !== 'settingsSync') {
+					queryString += `&${key}=${value}`;
+				}
+			});
+
+			window.location.href = `${window.location.origin}?${queryString}`;
+		}
+	} : undefined;
 
 	// Finally create workbench
 	create(document.body, {
 		...config,
+		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
+		settingsSyncOptions,
 		homeIndicator,
 		windowIndicator,
 		productQualityChangeHandler,
 		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider
+		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
 })();

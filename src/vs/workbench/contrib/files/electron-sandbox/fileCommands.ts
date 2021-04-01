@@ -9,21 +9,21 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { sequence } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 // Commands
 
-export function revealResourcesInOS(resources: URI[], electronService: IElectronService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
+export function revealResourcesInOS(resources: URI[], nativeHostService: INativeHostService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
 		sequence(resources.map(r => async () => {
 			if (r.scheme === Schemas.file || r.scheme === Schemas.userData) {
-				electronService.showItemInFolder(r.fsPath);
+				nativeHostService.showItemInFolder(r.fsPath);
 			}
 		}));
 	} else if (workspaceContextService.getWorkspace().folders.length) {
 		const uri = workspaceContextService.getWorkspace().folders[0].uri;
 		if (uri.scheme === Schemas.file) {
-			electronService.showItemInFolder(uri.fsPath);
+			nativeHostService.showItemInFolder(uri.fsPath);
 		}
 	} else {
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));

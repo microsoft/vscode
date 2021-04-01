@@ -23,7 +23,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { mergeSort } from 'vs/base/common/arrays';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { dirname } from 'vs/base/common/resources';
+import { Promises } from 'vs/base/common/async';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -72,7 +74,7 @@ class ReplacePreviewModel extends Disposable {
 		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
 		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
 		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
-		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
+		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/microsoft/vscode/issues/17073)
 		this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
 		this._register(sourceModel.onWillDispose(() => this.dispose()));
 		return replacePreviewModel;
@@ -93,7 +95,8 @@ export class ReplaceService implements IReplaceService {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IBulkEditService private readonly bulkEditorService: IBulkEditService
+		@IBulkEditService private readonly bulkEditorService: IBulkEditService,
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	replace(match: Match): Promise<any>;
@@ -103,7 +106,7 @@ export class ReplaceService implements IReplaceService {
 		const edits = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply(edits, { progress });
 
-		return Promise.all(edits.map(e => this.textFileService.files.get(e.resource)?.save()));
+		return Promises.settled(edits.map(async e => this.textFileService.files.get(e.resource)?.save()));
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
@@ -113,6 +116,7 @@ export class ReplaceService implements IReplaceService {
 			leftResource: fileMatch.resource,
 			rightResource: toReplaceResource(fileMatch.resource),
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
+			description: this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true }),
 			options: {
 				preserveFocus,
 				pinned,
@@ -165,7 +169,7 @@ export class ReplaceService implements IReplaceService {
 				resourceEdit.textEdit.text)
 			);
 		}
-		replaceModel.pushEditOperations([], mergeSort(modelEdits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
+		replaceModel.pushEditOperations([], modelEdits.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), () => []);
 	}
 
 	private createEdits(arg: FileMatchOrMatch | FileMatch[], resource: URI | null = null): ResourceTextEdit[] {

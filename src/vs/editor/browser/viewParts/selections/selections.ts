@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./selections';
-import * as browser from 'vs/base/browser/browser';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
 import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -56,12 +55,6 @@ function toStyledRange(item: HorizontalRange): HorizontalRangeWithStyle {
 function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
 	return new LineVisibleRangesWithStyle(item.lineNumber, item.ranges.map(toStyledRange));
 }
-
-// TODO@Alex: Remove this once IE11 fixes Bug #524217
-// The problem in IE11 is that it does some sort of auto-zooming to accomodate for displays with different pixel density.
-// Unfortunately, this auto-zooming is buggy around dealing with rounded borders
-const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdge;
-
 
 export class SelectionsOverlay extends DynamicViewOverlay {
 
@@ -254,7 +247,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		const linesVisibleRanges = _linesVisibleRanges.map(toStyled);
 		const visibleRangesHaveGaps = this._visibleRangesHaveGaps(linesVisibleRanges);
 
-		if (!isIEWithZoomingIssuesNearRoundedBorders && !visibleRangesHaveGaps && this._roundedSelection) {
+		if (!visibleRangesHaveGaps && this._roundedSelection) {
 			this._enrichVisibleRangesWithStyle(ctx.visibleRange, linesVisibleRanges, previousFrame);
 		}
 

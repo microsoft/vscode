@@ -35,10 +35,10 @@ export function testCommand(
 
 		cursor.executeCommand(commandFactory(cursor.getSelection()), 'tests');
 
-		assert.deepEqual(model.getLinesContent(), expectedLines);
+		assert.deepStrictEqual(model.getLinesContent(), expectedLines);
 
 		let actualSelection = cursor.getSelection();
-		assert.deepEqual(actualSelection.toString(), expectedSelection.toString());
+		assert.deepStrictEqual(actualSelection.toString(), expectedSelection.toString());
 
 	});
 	model.dispose();

@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import { localize } from 'vs/nls';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { RuntimeExtensionsEditor } from 'vs/workbench/contrib/extensions/browser/browserRuntimeExtensionsEditor';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 
-// TODO@sandbox TODO@ben move back into common/extensions.contribution.ts when 'semver-umd' can be loaded
-registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
+// Running Extensions
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(RuntimeExtensionsEditor, RuntimeExtensionsEditor.ID, localize('runtimeExtension', "Running Extensions")),
+	[new SyncDescriptor(RuntimeExtensionsInput)]
+);

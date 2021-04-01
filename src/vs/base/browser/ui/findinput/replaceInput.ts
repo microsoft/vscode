@@ -28,6 +28,7 @@ export interface IReplaceInputOptions extends IReplaceInputStyles {
 	readonly flexibleWidth?: boolean;
 	readonly flexibleMaxHeight?: number;
 
+	readonly appendPreserveCaseLabel?: string;
 	readonly history?: string[];
 }
 
@@ -128,13 +129,14 @@ export class ReplaceInput extends Widget {
 		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
 		this.inputValidationErrorForeground = options.inputValidationErrorForeground;
 
+		const appendPreserveCaseLabel = options.appendPreserveCaseLabel || '';
 		const history = options.history || [];
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;
 
 		this.domNode = document.createElement('div');
-		dom.addClass(this.domNode, 'monaco-findInput');
+		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
 			ariaLabel: this.label || '',
@@ -161,7 +163,7 @@ export class ReplaceInput extends Widget {
 		}));
 
 		this.preserveCase = this._register(new PreserveCaseCheckbox({
-			appendTitle: '',
+			appendTitle: appendPreserveCaseLabel,
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
 			inputActiveOptionForeground: this.inputActiveOptionForeground,
@@ -203,6 +205,7 @@ export class ReplaceInput extends Widget {
 
 					if (event.equals(KeyCode.Escape)) {
 						indexes[index].blur();
+						this.inputBox.focus();
 					} else if (newIndex >= 0) {
 						indexes[newIndex].focus();
 					}
@@ -231,13 +234,13 @@ export class ReplaceInput extends Widget {
 	}
 
 	public enable(): void {
-		dom.removeClass(this.domNode, 'disabled');
+		this.domNode.classList.remove('disabled');
 		this.inputBox.enable();
 		this.preserveCase.enable();
 	}
 
 	public disable(): void {
-		dom.addClass(this.domNode, 'disabled');
+		this.domNode.classList.add('disabled');
 		this.inputBox.disable();
 		this.preserveCase.disable();
 	}
@@ -344,9 +347,9 @@ export class ReplaceInput extends Widget {
 
 	private _lastHighlightFindOptions: number = 0;
 	public highlightFindOptions(): void {
-		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this.domNode.classList.remove('highlight-' + (this._lastHighlightFindOptions));
 		this._lastHighlightFindOptions = 1 - this._lastHighlightFindOptions;
-		dom.addClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this.domNode.classList.add('highlight-' + (this._lastHighlightFindOptions));
 	}
 
 	public validate(): void {

@@ -137,8 +137,8 @@ function getSafeTokenizationSupport(languageIdentifier: LanguageIdentifier): ITo
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, state: IState, deltaOffset: number) => nullTokenize(languageIdentifier.language, line, state, deltaOffset),
-		tokenize2: (line: string, state: IState, deltaOffset: number) => nullTokenize2(languageIdentifier.id, line, state, deltaOffset)
+		tokenize: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize(languageIdentifier.language, line, state, deltaOffset),
+		tokenize2: (line: string, hasEOL: boolean, state: IState, deltaOffset: number) => nullTokenize2(languageIdentifier.id, line, state, deltaOffset)
 	};
 }
 
@@ -293,8 +293,8 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	private _getTokensAtLine(lineNumber: number): ICompleteLineTokenization {
 		let stateBeforeLine = this._getStateBeforeLine(lineNumber);
 
-		let tokenizationResult1 = this._tokenizationSupport.tokenize(this._model.getLineContent(lineNumber), stateBeforeLine, 0);
-		let tokenizationResult2 = this._tokenizationSupport.tokenize2(this._model.getLineContent(lineNumber), stateBeforeLine, 0);
+		let tokenizationResult1 = this._tokenizationSupport.tokenize(this._model.getLineContent(lineNumber), true, stateBeforeLine, 0);
+		let tokenizationResult2 = this._tokenizationSupport.tokenize2(this._model.getLineContent(lineNumber), true, stateBeforeLine, 0);
 
 		return {
 			startState: stateBeforeLine,
@@ -308,7 +308,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		let state: IState = this._tokenizationSupport.getInitialState();
 
 		for (let i = 1; i < lineNumber; i++) {
-			let tokenizationResult = this._tokenizationSupport.tokenize(this._model.getLineContent(i), state, 0);
+			let tokenizationResult = this._tokenizationSupport.tokenize(this._model.getLineContent(i), true, state, 0);
 			state = tokenizationResult.endState;
 		}
 

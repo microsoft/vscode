@@ -26,6 +26,9 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
 
+		for (let entry of _fileService.listCapabilities()) {
+			infoProxy.$acceptProviderInfos(entry.scheme, entry.capabilities);
+		}
 		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider?.capabilities ?? null)));
 		this._disposables.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider.capabilities)));
 	}
@@ -36,7 +39,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.clear();
 	}
 
-	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void {
+	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): Promise<void> {
 		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, handle, this._proxy));
 	}
 

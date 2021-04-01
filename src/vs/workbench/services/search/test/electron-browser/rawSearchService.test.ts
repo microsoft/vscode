@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
@@ -12,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISearchProgressItem, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFileMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { DiskSearch } from 'vs/workbench/services/search/electron-browser/searchService';
+import { flakySuite, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
 const TEST_FOLDER_QUERIES = [
 	{ folder: URI.file(path.normalize('/some/where')) }
@@ -70,9 +70,7 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 	}
 }
 
-const testTimeout = 5000;
-
-suite('RawSearchService', () => {
+flakySuite('RawSearchService', () => {
 
 	const rawSearch: IFileQuery = {
 		type: QueryType.File,
@@ -91,7 +89,6 @@ suite('RawSearchService', () => {
 	};
 
 	test('Individual results', async function () {
-		this.timeout(testTimeout);
 		let i = 5;
 		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
 		const service = new RawSearchService();
@@ -111,7 +108,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Batch results', async function () {
-		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
 		const service = new RawSearchService();
@@ -133,7 +129,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Collect batched results', async function () {
-		this.timeout(testTimeout);
 		const uriPath = '/some/where';
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
@@ -171,7 +166,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Multi-root with include pattern and maxResults', async function () {
-		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
 		const query: IFileQuery = {
@@ -189,7 +183,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Handles maxResults=0 correctly', async function () {
-		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
 		const query: IFileQuery = {
@@ -208,7 +201,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Multi-root with include pattern and exists', async function () {
-		this.timeout(testTimeout);
 		const service = new RawSearchService();
 
 		const query: IFileQuery = {
@@ -227,7 +219,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Sorted results', async function () {
-		this.timeout(testTimeout);
 		const paths = ['bab', 'bbc', 'abb'];
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: path.normalize('/some/where'),
@@ -260,7 +251,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Sorted result batches', async function () {
-		this.timeout(testTimeout);
 		let i = 25;
 		const Engine = TestSearchEngine.bind(null, () => i-- ? rawMatch : null);
 		const service = new RawSearchService();
@@ -287,7 +277,6 @@ suite('RawSearchService', () => {
 	});
 
 	test('Cached results', function () {
-		this.timeout(testTimeout);
 		const paths = ['bcb', 'bbc', 'aab'];
 		const matches: IRawFileMatch[] = paths.map(relativePath => ({
 			base: path.normalize('/some/where'),

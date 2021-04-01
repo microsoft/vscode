@@ -8,7 +8,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export class BrowserHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 
@@ -38,15 +37,20 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 		return this._onDidSchemeChangeEvent.event;
 	}
 
-	get colorScheme(): ColorScheme {
-		if (window.matchMedia(`(forced-colors: active)`).matches) {
-			return ColorScheme.HIGH_CONTRAST;
-		} else if (window.matchMedia(`(prefers-color-scheme: light)`).matches) {
-			return ColorScheme.LIGHT;
+	get dark(): boolean {
+		if (window.matchMedia(`(prefers-color-scheme: light)`).matches) {
+			return false;
 		} else if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
-			return ColorScheme.DARK;
+			return true;
 		}
-		return this.environmentService.configuration.colorScheme;
+		return this.environmentService.configuration.colorScheme.dark;
+	}
+
+	get highContrast(): boolean {
+		if (window.matchMedia(`(forced-colors: active)`).matches) {
+			return true;
+		}
+		return this.environmentService.configuration.colorScheme.highContrast;
 	}
 
 }

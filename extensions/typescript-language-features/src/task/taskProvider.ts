@@ -7,7 +7,11 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
+import { coalesce, flatten } from '../utils/arrays';
+import { Disposable } from '../utils/dispose';
+import { exists } from '../utils/fs';
 import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
@@ -15,17 +19,13 @@ import { TSConfig, TsConfigProvider } from './tsconfigProvider';
 
 const localize = nls.loadMessageBundle();
 
-type AutoDetect = 'on' | 'off' | 'build' | 'watch';
+enum AutoDetect {
+	on = 'on',
+	off = 'off',
+	build = 'build',
+	watch = 'watch'
+}
 
-const exists = async (resource: vscode.Uri): Promise<boolean> => {
-	try {
-		const stat = await vscode.workspace.fs.stat(resource);
-		// stat.type is an enum flag
-		return !!(stat.type & vscode.FileType.File);
-	} catch {
-		return false;
-	}
-};
 
 interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 	tsconfig: string;
@@ -35,29 +35,27 @@ interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 /**
  * Provides tasks for building `tsconfig.json` files in a project.
  */
-class TscTaskProvider implements vscode.TaskProvider {
+class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 
 	private readonly projectInfoRequestTimeout = 2000;
-	private autoDetect: AutoDetect = 'on';
+	private readonly findConfigFilesTimeout = 5000;
+
+	private autoDetect = AutoDetect.on;
 	private readonly tsconfigProvider: TsConfigProvider;
-	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
 		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
+		super();
 		this.tsconfigProvider = new TsConfigProvider();
 
-		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
+		this._register(vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this.onConfigurationChanged();
-	}
-
-	dispose() {
-		this.disposables.forEach(x => x.dispose());
 	}
 
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
 		const folders = vscode.workspace.workspaceFolders;
-		if ((this.autoDetect === 'off') || !folders || !folders.length) {
+		if ((this.autoDetect === AutoDetect.off) || !folders || !folders.length) {
 			return [];
 		}
 
@@ -100,17 +98,14 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<TSConfig[]> {
-		const out = new Set<TSConfig>();
-		const configs = [
-			...await this.getTsConfigForActiveFile(token),
-			...await this.getTsConfigsInWorkspace()
-		];
-		for (const config of configs) {
-			if (await exists(config.uri)) {
-				out.add(config);
-			}
-		}
-		return Array.from(out);
+		const configs = flatten(await Promise.all([
+			this.getTsConfigForActiveFile(token),
+			this.getTsConfigsInWorkspace(token),
+		]));
+
+		return Promise.all(
+			configs.map(async config => await exists(config.uri) ? config : undefined),
+		).then(coalesce);
 	}
 
 	private async getTsConfigForActiveFile(token: vscode.CancellationToken): Promise<TSConfig[]> {
@@ -159,8 +154,17 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return [];
 	}
 
-	private async getTsConfigsInWorkspace(): Promise<TSConfig[]> {
-		return Array.from(await this.tsconfigProvider.getConfigsForWorkspace());
+	private async getTsConfigsInWorkspace(token: vscode.CancellationToken): Promise<TSConfig[]> {
+		const getConfigsTimeout = new vscode.CancellationTokenSource();
+		token.onCancellationRequested(() => getConfigsTimeout.cancel());
+
+		return Promise.race([
+			this.tsconfigProvider.getConfigsForWorkspace(getConfigsTimeout.token).then(x => Array.from(x)),
+			wait(this.findConfigFilesTimeout).then(() => {
+				getConfigsTimeout.cancel();
+				return [];
+			}),
+		]);
 	}
 
 	private static async getCommand(project: TSConfig): Promise<string> {
@@ -235,11 +239,11 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		const tasks: vscode.Task[] = [];
 
-		if (this.autoDetect === 'build' || this.autoDetect === 'on') {
+		if (this.autoDetect === AutoDetect.build || this.autoDetect === AutoDetect.on) {
 			tasks.push(this.getBuildTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label }));
 		}
 
-		if (this.autoDetect === 'watch' || this.autoDetect === 'on') {
+		if (this.autoDetect === AutoDetect.watch || this.autoDetect === AutoDetect.on) {
 			tasks.push(this.getWatchTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label, option: 'watch' }));
 		}
 
@@ -288,7 +292,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private onConfigurationChanged(): void {
 		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
-		this.autoDetect = typeof type === 'undefined' ? 'on' : type;
+		this.autoDetect = typeof type === 'undefined' ? AutoDetect.on : type;
 	}
 }
 

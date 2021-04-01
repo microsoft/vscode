@@ -28,7 +28,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution, Extensions as WorkbenchContributionsExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
@@ -287,8 +287,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			? setting
 			: Object.keys(setting).filter(x => setting[x]);
 
-		const codeActionsOnSave = settingItems
-			.map(x => new CodeActionKind(x));
+		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
 		if (!Array.isArray(setting)) {
 			codeActionsOnSave.sort((a, b) => {
@@ -319,6 +318,15 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
 	}
 
+	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {
+		const kinds = settingItems.map(x => new CodeActionKind(x));
+
+		// Remove subsets
+		return kinds.filter(kind => {
+			return kinds.every(otherKind => otherKind.equals(kind) || !otherKind.contains(kind));
+		});
+	}
+
 	private async applyOnSaveActions(model: ITextModel, codeActionsOnSave: readonly CodeActionKind[], excludes: readonly CodeActionKind[], progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		const getActionProgress = new class implements IProgress<CodeActionProvider> {
@@ -344,7 +352,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
 			try {
 				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.title) });
+					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 					await this.instantiationService.invokeFunction(applyCodeAction, action);
 				}
 			} catch {

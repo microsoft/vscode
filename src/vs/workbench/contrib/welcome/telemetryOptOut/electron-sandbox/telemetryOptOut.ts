@@ -15,7 +15,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractTelemetryOptOut } from 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 
@@ -31,7 +31,7 @@ export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 		@IProductService productService: IProductService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService, environmentService, jsonEditingService);
 
@@ -39,6 +39,6 @@ export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 	}
 
 	protected getWindowCount(): Promise<number> {
-		return this.electronService.getWindowCount();
+		return this.nativeHostService.getWindowCount();
 	}
 }

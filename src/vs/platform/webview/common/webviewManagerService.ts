@@ -11,6 +11,24 @@ import { IWebviewPortMapping } from 'vs/platform/webview/common/webviewPortMappi
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
+export interface WebviewWebContentsId {
+	readonly webContentsId: number;
+}
+
+export interface WebviewWindowId {
+	readonly windowId: number;
+}
+
+export type WebviewManagerDidLoadResourceResponse =
+	VSBuffer
+	| 'not-modified'
+	| 'access-denied'
+	| 'not-found';
+
+export interface WebviewManagerDidLoadResourceResponseDetails {
+	readonly etag?: string;
+}
+
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
@@ -18,9 +36,10 @@ export interface IWebviewManagerService {
 	unregisterWebview(id: string): Promise<void>;
 	updateWebviewMetadata(id: string, metadataDelta: Partial<RegisterWebviewMetadata>): Promise<void>;
 
-	didLoadResource(requestId: number, content: VSBuffer | undefined): void;
+	/** Note: the VSBuffer must be a top level argument so that it can be serialized and deserialized properly */
+	didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse, responseDetails?: WebviewManagerDidLoadResourceResponseDetails): void;
 
-	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void>;
+	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 }
 
 export interface RegisterWebviewMetadata {

@@ -19,10 +19,10 @@ function testCommand(lines: string[], selections: Selection[], edits: IIdentifie
 
 		model.applyEdits(edits);
 
-		assert.deepEqual(model.getLinesContent(), expectedLines);
+		assert.deepStrictEqual(model.getLinesContent(), expectedLines);
 
 		let actualSelections = viewModel.getSelections();
-		assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
+		assert.deepStrictEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 
 	});
 }
@@ -202,7 +202,7 @@ suite('SideEditing', () => {
 				forceMoveMarkers: editForceMoveMarkers
 			}]);
 			const actual = viewModel.getSelection();
-			assert.deepEqual(actual.toString(), expected.toString(), msg);
+			assert.deepStrictEqual(actual.toString(), expected.toString(), msg);
 		});
 	}
 

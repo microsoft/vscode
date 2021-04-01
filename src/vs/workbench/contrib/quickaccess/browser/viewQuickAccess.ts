@@ -21,6 +21,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 interface IViewQuickPickItem extends IPickerQuickAccessItem {
 	containerLabel: string;
@@ -188,8 +189,6 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 
 //#region Actions
 
-const viewCategory = { value: localize('view', "View"), original: 'View' };
-
 export class OpenViewPickerAction extends Action2 {
 
 	static readonly ID = 'workbench.action.openView';
@@ -198,7 +197,7 @@ export class OpenViewPickerAction extends Action2 {
 		super({
 			id: OpenViewPickerAction.ID,
 			title: { value: localize('openView', "Open View"), original: 'Open View' },
-			category: viewCategory,
+			category: CATEGORIES.View,
 			f1: true
 		});
 	}
@@ -221,7 +220,7 @@ export class QuickAccessViewPickerAction extends Action2 {
 		super({
 			id: QuickAccessViewPickerAction.ID,
 			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
-			category: viewCategory,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

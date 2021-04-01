@@ -15,6 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Promises } from 'vs/base/common/async';
 
 export class ExtensionDependencyChecker extends Disposable implements IWorkbenchContribution {
 
@@ -62,7 +63,7 @@ export class ExtensionDependencyChecker extends Disposable implements IWorkbench
 		if (missingDependencies.length) {
 			const extensions = (await this.extensionsWorkbenchService.queryGallery({ names: missingDependencies, pageSize: missingDependencies.length }, CancellationToken.None)).firstPage;
 			if (extensions.length) {
-				await Promise.all(extensions.map(extension => this.extensionsWorkbenchService.install(extension)));
+				await Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.install(extension)));
 				this.notificationService.notify({
 					severity: Severity.Info,
 					message: localize('finished installing missing deps', "Finished installing missing dependencies. Please reload the window now."),

@@ -15,7 +15,7 @@ import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 class FsLinkProvider {
 
@@ -119,7 +119,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private _linkProviderRegistration?: IDisposable;
 	private _handlePool: number = 0;
 
-	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures, private _extHostFileSystemInfo: IExtHostFileSystemInfo) {
+	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
 	}
 
@@ -133,9 +133,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		}
 	}
 
-	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
+	registerFileSystemProvider(extension: ExtensionIdentifier, scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
 
-		if (this._registeredSchemes.has(scheme) || !this._extHostFileSystemInfo.isFreeScheme(scheme)) {
+		if (this._registeredSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
 		}
 
@@ -163,7 +163,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 			capabilities += files.FileSystemProviderCapabilities.FileOpenReadWriteClose;
 		}
 
-		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities);
+		this._proxy.$registerFileSystemProvider(handle, scheme, capabilities).catch(err => {
+			console.error(`FAILED to register filesystem provider of ${extension.value}-extension for the scheme ${scheme}`);
+			console.error(err);
+		});
 
 		const subscription = provider.onDidChangeFile(event => {
 			const mapped: IFileChangeDto[] = [];

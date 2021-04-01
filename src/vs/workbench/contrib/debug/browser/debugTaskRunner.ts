@@ -12,12 +12,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IAction } from 'vs/base/common/actions';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
-import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { createErrorWithActions } from 'vs/base/common/errors';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
 	return (listener, thisArgs = null, disposables?) => {
@@ -36,6 +36,8 @@ export const enum TaskRunResult {
 	Success
 }
 
+const DEBUG_TASK_ERROR_CHOICE_KEY = 'debug.taskerrorchoice';
+
 export class DebugTaskRunner {
 
 	private canceled = false;
@@ -46,13 +48,14 @@ export class DebugTaskRunner {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) { }
 
 	cancel(): void {
 		this.canceled = true;
 	}
 
-	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined, onError: (msg: string, actions: IAction[]) => Promise<void>): Promise<TaskRunResult> {
+	async runTaskAndCheckErrors(root: IWorkspaceFolder | IWorkspace | undefined, taskId: string | TaskIdentifier | undefined): Promise<TaskRunResult> {
 		try {
 			this.canceled = false;
 			const taskSummary = await this.runTask(root, taskId);
@@ -109,8 +112,36 @@ export class DebugTaskRunner {
 			await this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
 			return Promise.resolve(TaskRunResult.Failure);
 		} catch (err) {
-			await onError(err.message, [this.taskService.configureAction()]);
-			return TaskRunResult.Failure;
+			const taskConfigureAction = this.taskService.configureAction();
+			const choiceMap: { [key: string]: number } = JSON.parse(this.storageService.get(DEBUG_TASK_ERROR_CHOICE_KEY, StorageScope.WORKSPACE, '{}'));
+
+			let choice = -1;
+			if (choiceMap[err.message] !== undefined) {
+				choice = choiceMap[err.message];
+			} else {
+				const showResult = await this.dialogService.show(
+					severity.Error,
+					err.message,
+					[nls.localize('debugAnyway', "Debug Anyway"), taskConfigureAction.label, nls.localize('cancel', "Cancel")],
+					{
+						cancelId: 2,
+						checkbox: {
+							label: nls.localize('rememberTask', "Remember my choice for this task")
+						}
+					}
+				);
+				choice = showResult.choice;
+				if (showResult.checkboxChecked) {
+					choiceMap[err.message] = choice;
+					this.storageService.store(DEBUG_TASK_ERROR_CHOICE_KEY, JSON.stringify(choiceMap), StorageScope.WORKSPACE, StorageTarget.USER);
+				}
+			}
+
+			if (choice === 1) {
+				await taskConfigureAction.run();
+			}
+
+			return choice === 0 ? TaskRunResult.Success : TaskRunResult.Failure;
 		}
 	}
 
@@ -169,20 +200,27 @@ export class DebugTaskRunner {
 			return taskPromise.then(withUndefinedAsNull);
 		});
 
-		return new Promise((c, e) => {
+		return new Promise(async (c, e) => {
+			const waitForInput = new Promise<void>(resolve => once(e => (e.kind === TaskEventKind.AcquiredInput) && e.taskId === task._id, this.taskService.onDidStateChange)(() => {
+				resolve();
+			}));
+
 			promise.then(result => {
 				taskStarted = true;
 				c(result);
 			}, error => e(error));
 
+			await waitForInput;
+			const waitTime = task.configurationProperties.isBackground ? 5000 : 10000;
+
 			setTimeout(() => {
 				if (!taskStarted) {
 					const errorMessage = typeof taskId === 'string'
-						? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked.")
-						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", JSON.stringify(taskId));
+						? nls.localize('taskNotTrackedWithTaskId', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", taskId)
+						: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked. Make sure to have a problem matcher defined.", JSON.stringify(taskId));
 					e({ severity: severity.Error, message: errorMessage });
 				}
-			}, 10000);
+			}, waitTime);
 		});
 	}
 }

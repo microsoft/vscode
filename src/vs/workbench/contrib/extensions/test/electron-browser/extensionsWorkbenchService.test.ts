@@ -13,7 +13,8 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionRecommendationsService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -35,17 +36,18 @@ import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionType, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { Schemas } from 'vs/base/common/network';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -67,12 +69,12 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IProgressService, ProgressService);
-		instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
 		instantiationService.stub(IProductService, {});
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, NativeURLService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
@@ -154,26 +156,26 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(expected));
 
 		return testObject.queryGallery(CancellationToken.None).then(pagedResponse => {
-			assert.equal(1, pagedResponse.firstPage.length);
+			assert.strictEqual(1, pagedResponse.firstPage.length);
 			const actual = pagedResponse.firstPage[0];
 
-			assert.equal(ExtensionType.User, actual.type);
-			assert.equal('expectedName', actual.name);
-			assert.equal('expectedDisplayName', actual.displayName);
-			assert.equal('expectedpublisher.expectedname', actual.identifier.id);
-			assert.equal('expectedPublisher', actual.publisher);
-			assert.equal('expectedPublisherDisplayName', actual.publisherDisplayName);
-			assert.equal('1.5.0', actual.version);
-			assert.equal('1.5.0', actual.latestVersion);
-			assert.equal('expectedDescription', actual.description);
-			assert.equal('uri:icon', actual.iconUrl);
-			assert.equal('fallback:icon', actual.iconUrlFallback);
-			assert.equal('uri:license', actual.licenseUrl);
-			assert.equal(ExtensionState.Uninstalled, actual.state);
-			assert.equal(1000, actual.installCount);
-			assert.equal(4, actual.rating);
-			assert.equal(100, actual.ratingCount);
-			assert.equal(false, actual.outdated);
+			assert.strictEqual(ExtensionType.User, actual.type);
+			assert.strictEqual('expectedName', actual.name);
+			assert.strictEqual('expectedDisplayName', actual.displayName);
+			assert.strictEqual('expectedpublisher.expectedname', actual.identifier.id);
+			assert.strictEqual('expectedPublisher', actual.publisher);
+			assert.strictEqual('expectedPublisherDisplayName', actual.publisherDisplayName);
+			assert.strictEqual('1.5.0', actual.version);
+			assert.strictEqual('1.5.0', actual.latestVersion);
+			assert.strictEqual('expectedDescription', actual.description);
+			assert.strictEqual('uri:icon', actual.iconUrl);
+			assert.strictEqual('fallback:icon', actual.iconUrlFallback);
+			assert.strictEqual('uri:license', actual.licenseUrl);
+			assert.strictEqual(ExtensionState.Uninstalled, actual.state);
+			assert.strictEqual(1000, actual.installCount);
+			assert.strictEqual(4, actual.rating);
+			assert.strictEqual(100, actual.ratingCount);
+			assert.strictEqual(false, actual.outdated);
 			assert.deepEqual(['pub.1', 'pub.2'], actual.dependencies);
 		});
 	});
@@ -212,43 +214,43 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 
 		const actuals = testObject.local;
-		assert.equal(2, actuals.length);
+		assert.strictEqual(2, actuals.length);
 
 		let actual = actuals[0];
-		assert.equal(ExtensionType.User, actual.type);
-		assert.equal('local1', actual.name);
-		assert.equal('localDisplayName1', actual.displayName);
-		assert.equal('localpublisher1.local1', actual.identifier.id);
-		assert.equal('localPublisher1', actual.publisher);
-		assert.equal('1.1.0', actual.version);
-		assert.equal('1.1.0', actual.latestVersion);
-		assert.equal('localDescription1', actual.description);
-		assert.equal('file:///localPath1/localIcon1', actual.iconUrl);
-		assert.equal('file:///localPath1/localIcon1', actual.iconUrlFallback);
-		assert.equal(null, actual.licenseUrl);
-		assert.equal(ExtensionState.Installed, actual.state);
-		assert.equal(null, actual.installCount);
-		assert.equal(null, actual.rating);
-		assert.equal(null, actual.ratingCount);
-		assert.equal(false, actual.outdated);
+		assert.strictEqual(ExtensionType.User, actual.type);
+		assert.strictEqual('local1', actual.name);
+		assert.strictEqual('localDisplayName1', actual.displayName);
+		assert.strictEqual('localpublisher1.local1', actual.identifier.id);
+		assert.strictEqual('localPublisher1', actual.publisher);
+		assert.strictEqual('1.1.0', actual.version);
+		assert.strictEqual('1.1.0', actual.latestVersion);
+		assert.strictEqual('localDescription1', actual.description);
+		assert.ok(actual.iconUrl === 'file:///localPath1/localIcon1' || actual.iconUrl === 'vscode-file://vscode-app/localPath1/localIcon1');
+		assert.ok(actual.iconUrlFallback === 'file:///localPath1/localIcon1' || actual.iconUrlFallback === 'vscode-file://vscode-app/localPath1/localIcon1');
+		assert.strictEqual(undefined, actual.licenseUrl);
+		assert.strictEqual(ExtensionState.Installed, actual.state);
+		assert.strictEqual(undefined, actual.installCount);
+		assert.strictEqual(undefined, actual.rating);
+		assert.strictEqual(undefined, actual.ratingCount);
+		assert.strictEqual(false, actual.outdated);
 		assert.deepEqual(['pub.1', 'pub.2'], actual.dependencies);
 
 		actual = actuals[1];
-		assert.equal(ExtensionType.System, actual.type);
-		assert.equal('local2', actual.name);
-		assert.equal('localDisplayName2', actual.displayName);
-		assert.equal('localpublisher2.local2', actual.identifier.id);
-		assert.equal('localPublisher2', actual.publisher);
-		assert.equal('1.2.0', actual.version);
-		assert.equal('1.2.0', actual.latestVersion);
-		assert.equal('localDescription2', actual.description);
+		assert.strictEqual(ExtensionType.System, actual.type);
+		assert.strictEqual('local2', actual.name);
+		assert.strictEqual('localDisplayName2', actual.displayName);
+		assert.strictEqual('localpublisher2.local2', actual.identifier.id);
+		assert.strictEqual('localPublisher2', actual.publisher);
+		assert.strictEqual('1.2.0', actual.version);
+		assert.strictEqual('1.2.0', actual.latestVersion);
+		assert.strictEqual('localDescription2', actual.description);
 		assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
-		assert.equal(null, actual.licenseUrl);
-		assert.equal(ExtensionState.Installed, actual.state);
-		assert.equal(null, actual.installCount);
-		assert.equal(null, actual.rating);
-		assert.equal(null, actual.ratingCount);
-		assert.equal(false, actual.outdated);
+		assert.strictEqual(undefined, actual.licenseUrl);
+		assert.strictEqual(ExtensionState.Installed, actual.state);
+		assert.strictEqual(undefined, actual.installCount);
+		assert.strictEqual(undefined, actual.rating);
+		assert.strictEqual(undefined, actual.ratingCount);
+		assert.strictEqual(false, actual.outdated);
 		assert.deepEqual([], actual.dependencies);
 	});
 
@@ -306,43 +308,43 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return eventToPromise(testObject.onChange).then(() => {
 			const actuals = testObject.local;
-			assert.equal(2, actuals.length);
+			assert.strictEqual(2, actuals.length);
 
 			let actual = actuals[0];
-			assert.equal(ExtensionType.User, actual.type);
-			assert.equal('local1', actual.name);
-			assert.equal('expectedDisplayName', actual.displayName);
-			assert.equal('localpublisher1.local1', actual.identifier.id);
-			assert.equal('localPublisher1', actual.publisher);
-			assert.equal('1.1.0', actual.version);
-			assert.equal('1.5.0', actual.latestVersion);
-			assert.equal('expectedDescription', actual.description);
-			assert.equal('uri:icon', actual.iconUrl);
-			assert.equal('fallback:icon', actual.iconUrlFallback);
-			assert.equal(ExtensionState.Installed, actual.state);
-			assert.equal('uri:license', actual.licenseUrl);
-			assert.equal(1000, actual.installCount);
-			assert.equal(4, actual.rating);
-			assert.equal(100, actual.ratingCount);
-			assert.equal(true, actual.outdated);
+			assert.strictEqual(ExtensionType.User, actual.type);
+			assert.strictEqual('local1', actual.name);
+			assert.strictEqual('expectedDisplayName', actual.displayName);
+			assert.strictEqual('localpublisher1.local1', actual.identifier.id);
+			assert.strictEqual('localPublisher1', actual.publisher);
+			assert.strictEqual('1.1.0', actual.version);
+			assert.strictEqual('1.5.0', actual.latestVersion);
+			assert.strictEqual('expectedDescription', actual.description);
+			assert.strictEqual('uri:icon', actual.iconUrl);
+			assert.strictEqual('fallback:icon', actual.iconUrlFallback);
+			assert.strictEqual(ExtensionState.Installed, actual.state);
+			assert.strictEqual('uri:license', actual.licenseUrl);
+			assert.strictEqual(1000, actual.installCount);
+			assert.strictEqual(4, actual.rating);
+			assert.strictEqual(100, actual.ratingCount);
+			assert.strictEqual(true, actual.outdated);
 			assert.deepEqual(['pub.1'], actual.dependencies);
 
 			actual = actuals[1];
-			assert.equal(ExtensionType.System, actual.type);
-			assert.equal('local2', actual.name);
-			assert.equal('localDisplayName2', actual.displayName);
-			assert.equal('localpublisher2.local2', actual.identifier.id);
-			assert.equal('localPublisher2', actual.publisher);
-			assert.equal('1.2.0', actual.version);
-			assert.equal('1.2.0', actual.latestVersion);
-			assert.equal('localDescription2', actual.description);
+			assert.strictEqual(ExtensionType.System, actual.type);
+			assert.strictEqual('local2', actual.name);
+			assert.strictEqual('localDisplayName2', actual.displayName);
+			assert.strictEqual('localpublisher2.local2', actual.identifier.id);
+			assert.strictEqual('localPublisher2', actual.publisher);
+			assert.strictEqual('1.2.0', actual.version);
+			assert.strictEqual('1.2.0', actual.latestVersion);
+			assert.strictEqual('localDescription2', actual.description);
 			assert.ok(fs.existsSync(URI.parse(actual.iconUrl).fsPath));
-			assert.equal(null, actual.licenseUrl);
-			assert.equal(ExtensionState.Installed, actual.state);
-			assert.equal(null, actual.installCount);
-			assert.equal(null, actual.rating);
-			assert.equal(null, actual.ratingCount);
-			assert.equal(false, actual.outdated);
+			assert.strictEqual(undefined, actual.licenseUrl);
+			assert.strictEqual(ExtensionState.Installed, actual.state);
+			assert.strictEqual(undefined, actual.installCount);
+			assert.strictEqual(undefined, actual.rating);
+			assert.strictEqual(undefined, actual.ratingCount);
+			assert.strictEqual(false, actual.outdated);
 			assert.deepEqual([], actual.dependencies);
 		});
 	});
@@ -354,7 +356,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
-			assert.equal(ExtensionState.Uninstalled, extension.state);
+			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
 			const identifier = gallery.identifier;
@@ -362,27 +364,27 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			// Installing
 			installEvent.fire({ identifier, gallery });
 			let local = testObject.local;
-			assert.equal(1, local.length);
+			assert.strictEqual(1, local.length);
 			const actual = local[0];
-			assert.equal(`${gallery.publisher}.${gallery.name}`, actual.identifier.id);
-			assert.equal(ExtensionState.Installing, actual.state);
+			assert.strictEqual(`${gallery.publisher}.${gallery.name}`, actual.identifier.id);
+			assert.strictEqual(ExtensionState.Installing, actual.state);
 
 			// Installed
 			didInstallEvent.fire({ identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, { identifier }) });
-			assert.equal(ExtensionState.Installed, actual.state);
-			assert.equal(1, testObject.local.length);
+			assert.strictEqual(ExtensionState.Installed, actual.state);
+			assert.strictEqual(1, testObject.local.length);
 
 			testObject.uninstall(actual);
 
 			// Uninstalling
 			uninstallEvent.fire(identifier);
-			assert.equal(ExtensionState.Uninstalling, actual.state);
+			assert.strictEqual(ExtensionState.Uninstalling, actual.state);
 
 			// Uninstalled
 			didUninstallEvent.fire({ identifier });
-			assert.equal(ExtensionState.Uninstalled, actual.state);
+			assert.strictEqual(ExtensionState.Uninstalled, actual.state);
 
-			assert.equal(0, testObject.local.length);
+			assert.strictEqual(0, testObject.local.length);
 		});
 	});
 
@@ -438,7 +440,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
-			assert.equal(ExtensionState.Uninstalled, extension.state);
+			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
 			installEvent.fire({ identifier: gallery.identifier, gallery });
@@ -459,7 +461,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		return testObject.queryGallery(CancellationToken.None).then(page => {
 			const extension = page.firstPage[0];
-			assert.equal(ExtensionState.Uninstalled, extension.state);
+			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
 			testObject.install(extension);
 			testObject.onChange(target);
@@ -506,7 +508,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
 				return testObject.queryGallery(CancellationToken.None).then(pagedResponse => {
 					const actual = pagedResponse.firstPage[0];
-					assert.equal(actual.enablementState, EnablementState.EnabledGlobally);
+					assert.strictEqual(actual.enablementState, EnablementState.EnabledGlobally);
 				});
 			});
 	});
@@ -520,7 +522,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				const actual = testObject.local[0];
 
-				assert.equal(actual.enablementState, EnablementState.EnabledGlobally);
+				assert.strictEqual(actual.enablementState, EnablementState.EnabledGlobally);
 			});
 	});
 
@@ -536,7 +538,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				const actual = testObject.local[0];
 
-				assert.equal(actual.enablementState, EnablementState.DisabledWorkspace);
+				assert.strictEqual(actual.enablementState, EnablementState.DisabledWorkspace);
 			});
 	});
 
@@ -551,7 +553,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				const actual = testObject.local[0];
 
-				assert.equal(actual.enablementState, EnablementState.DisabledGlobally);
+				assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
 			});
 	});
 
@@ -564,7 +566,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledWorkspace)
 					.then(() => {
 						const actual = testObject.local[0];
-						assert.equal(actual.enablementState, EnablementState.DisabledWorkspace);
+						assert.strictEqual(actual.enablementState, EnablementState.DisabledWorkspace);
 					});
 			});
 	});
@@ -578,7 +580,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
 					.then(() => {
 						const actual = testObject.local[0];
-						assert.equal(actual.enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(actual.enablementState, EnablementState.EnabledGlobally);
 					});
 			});
 	});
@@ -590,7 +592,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 			.then(() => {
 				const actual = testObject.local[0];
-				assert.equal(actual.enablementState, EnablementState.DisabledGlobally);
+				assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
 			});
 	});
 
@@ -601,7 +603,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 			.then(() => {
 				const actual = testObject.local[0];
-				assert.equal(actual.enablementState, EnablementState.DisabledGlobally);
+				assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
 			});
 	});
 
@@ -616,7 +618,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally)
 					.then(() => {
 						const actual = testObject.local[0];
-						assert.equal(actual.enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(actual.enablementState, EnablementState.DisabledGlobally);
 					});
 			});
 	});
@@ -635,8 +637,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
 					});
 			});
 	});
@@ -655,8 +657,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
 					});
 			});
 	});
@@ -675,8 +677,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
 					});
 			});
 	});
@@ -686,6 +688,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
+		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+			prompt(severity, message, choices, options) {
+				options!.onCancel!();
+			}
+		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
 			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
 			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
@@ -693,6 +700,28 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
 				testObject = await aWorkbenchService();
 				return testObject.setEnablement(testObject.local[1], EnablementState.DisabledGlobally).then(() => assert.fail('Should fail'), error => assert.ok(true));
+			});
+	});
+
+	test('test disable extension disables all dependents when chosen to disable all', async () => {
+		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aLocalExtension('b');
+		const extensionC = aLocalExtension('c');
+
+		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+			prompt(severity, message, choices, options) {
+				choices[0].run();
+			}
+		});
+		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
+			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
+			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
+			.then(async () => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				testObject = await aWorkbenchService();
+				await testObject.setEnablement(testObject.local[1], EnablementState.DisabledGlobally);
+				assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+				assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
 			});
 	});
 
@@ -709,7 +738,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				testObject = await aWorkbenchService();
 				return testObject.setEnablement(testObject.local[1], EnablementState.DisabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
 					});
 			});
 	});
@@ -730,8 +759,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.DisabledGlobally)
 					.then(() => {
 						assert.ok(!target.called);
-						assert.equal(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.DisabledGlobally);
 					});
 			});
 	});
@@ -752,8 +781,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.EnabledGlobally)
 					.then(() => {
 						assert.ok(!target.called);
-						assert.equal(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
 					});
 			});
 	});
@@ -772,7 +801,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
 					});
 			});
 	});
@@ -791,7 +820,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally);
 					});
 			});
 	});
@@ -801,6 +830,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.a'] });
 		const extensionC = aLocalExtension('c');
 
+		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+			prompt(severity, message, choices, options) {
+				options!.onCancel!();
+			}
+		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
 			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
 			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
@@ -827,7 +861,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				testObject = await aWorkbenchService();
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
-					.then(() => assert.equal(testObject.local[0].enablementState, EnablementState.DisabledGlobally));
+					.then(() => assert.strictEqual(testObject.local[0].enablementState, EnablementState.DisabledGlobally));
 			});
 	});
 
@@ -836,6 +870,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.c'] });
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.a'] });
 
+		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+			prompt(severity, message, choices, options) {
+				options!.onCancel!();
+			}
+		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
 			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionB], EnablementState.EnabledGlobally))
 			.then(() => instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionC], EnablementState.EnabledGlobally))
@@ -861,8 +900,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
 					});
 			});
 	});
@@ -883,7 +922,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
 					.then(() => {
 						assert.ok(!target.called);
-						assert.equal(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
 					});
 			});
 	});
@@ -904,8 +943,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.EnabledGlobally)
 					.then(() => {
 						assert.ok(!target.called);
-						assert.equal(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
 					});
 			});
 	});
@@ -925,9 +964,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.EnabledGlobally)
 					.then(() => {
-						assert.equal(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
-						assert.equal(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
-						assert.equal(testObject.local[2].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[0].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[1].enablementState, EnablementState.EnabledGlobally);
+						assert.strictEqual(testObject.local[2].enablementState, EnablementState.EnabledGlobally);
 					});
 			});
 	});
@@ -968,7 +1007,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const actual = await testObject.queryLocal();
-		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
+		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
 	});
 
 	test('test updating an extension does not re-eanbles it when workspace disabled', async () => {
@@ -978,7 +1017,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		didInstallEvent.fire({ local, identifier: local.identifier, operation: InstallOperation.Update });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const actual = await testObject.queryLocal();
-		assert.equal(actual[0].enablementState, EnablementState.DisabledWorkspace);
+		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledWorkspace);
 	});
 
 	test('test user extension is preferred when the same extension exists as system and user extension', async () => {
@@ -989,8 +1028,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, userExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, userExtension);
 	});
 
 	test('test user extension is disabled when the same extension exists as system and user extension and system extension is disabled', async () => {
@@ -1002,9 +1041,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, userExtension);
-		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, userExtension);
+		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
 	});
 
 	test('Test local ui extension is chosen if it exists only in local server', async () => {
@@ -1019,8 +1058,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local workspace extension is chosen if it exists only in local server', async () => {
@@ -1035,8 +1074,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local web extension is chosen if it exists only in local server', async () => {
@@ -1051,8 +1090,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local ui,workspace extension is chosen if it exists only in local server', async () => {
@@ -1067,8 +1106,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local workspace,ui extension is chosen if it exists only in local server', async () => {
@@ -1083,8 +1122,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local ui,workspace,web extension is chosen if it exists only in local server', async () => {
@@ -1099,8 +1138,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local ui,web,workspace extension is chosen if it exists only in local server', async () => {
@@ -1115,8 +1154,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local web,ui,workspace extension is chosen if it exists only in local server', async () => {
@@ -1131,8 +1170,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local web,workspace,ui extension is chosen if it exists only in local server', async () => {
@@ -1147,8 +1186,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local workspace,web,ui extension is chosen if it exists only in local server', async () => {
@@ -1163,8 +1202,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local workspace,ui,web extension is chosen if it exists only in local server', async () => {
@@ -1179,8 +1218,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local UI extension is chosen if it exists in both servers', async () => {
@@ -1196,8 +1235,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test local ui,workspace extension is chosen if it exists in both servers', async () => {
@@ -1213,8 +1252,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test remote workspace extension is chosen if it exists in remote server', async () => {
@@ -1229,8 +1268,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, remoteExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, remoteExtension);
 	});
 
 	test('Test remote workspace extension is chosen if it exists in both servers', async () => {
@@ -1246,8 +1285,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, remoteExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, remoteExtension);
 	});
 
 	test('Test remote workspace extension is chosen if it exists in both servers and local is disabled', async () => {
@@ -1264,9 +1303,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, remoteExtension);
-		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, remoteExtension);
+		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
 	});
 
 	test('Test remote workspace extension is chosen if it exists in both servers and remote is disabled in workspace', async () => {
@@ -1283,9 +1322,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, remoteExtension);
-		assert.equal(actual[0].enablementState, EnablementState.DisabledWorkspace);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, remoteExtension);
+		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledWorkspace);
 	});
 
 	test('Test local ui, workspace extension is chosen if it exists in both servers and local is disabled', async () => {
@@ -1302,9 +1341,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
-		assert.equal(actual[0].enablementState, EnablementState.DisabledGlobally);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
+		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
 	});
 
 	test('Test local ui, workspace extension is chosen if it exists in both servers and local is disabled in workspace', async () => {
@@ -1321,9 +1360,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
-		assert.equal(actual[0].enablementState, EnablementState.DisabledWorkspace);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
+		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledWorkspace);
 	});
 
 	test('Test local web extension is chosen if it exists in both servers', async () => {
@@ -1339,8 +1378,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, localExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, localExtension);
 	});
 
 	test('Test remote web extension is chosen if it exists only in remote', async () => {
@@ -1355,8 +1394,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const actual = await testObject.queryLocal();
 
-		assert.equal(actual.length, 1);
-		assert.equal(actual[0].local, remoteExtension);
+		assert.strictEqual(actual.length, 1);
+		assert.strictEqual(actual[0].local, remoteExtension);
 	});
 
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {

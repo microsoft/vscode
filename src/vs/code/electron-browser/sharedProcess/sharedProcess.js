@@ -4,30 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-'use strict';
+(function () {
+	'use strict';
 
-/**
- * @type {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options?: object) => unknown }}
- */
-const bootstrapWindow = (() => {
-	// @ts-ignore (defined in bootstrap-window.js)
-	return window.MonacoBootstrapWindow;
-})();
+	const bootstrap = bootstrapLib();
+	const bootstrapWindow = bootstrapWindowLib();
 
-/**
- * @type {{ avoidMonkeyPatchFromAppInsights: () => void; }}
- */
-const bootstrap = (() => {
-	// @ts-ignore (defined in bootstrap.js)
-	return window.MonacoBootstrap;
-})();
+	// Avoid Monkey Patches from Application Insights
+	bootstrap.avoidMonkeyPatchFromAppInsights();
 
-// Avoid Monkey Patches from Application Insights
-bootstrap.avoidMonkeyPatchFromAppInsights();
-
-bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
-	sharedProcess.startup({
-		machineId: configuration.machineId,
-		windowId: configuration.windowId
+	// Load shared process into window
+	bootstrapWindow.load(['vs/code/electron-browser/sharedProcess/sharedProcessMain'], function (sharedProcess, configuration) {
+		return sharedProcess.main(configuration);
 	});
-});
+
+	/**
+	 * @returns {{ avoidMonkeyPatchFromAppInsights: () => void; }}
+	 */
+	function bootstrapLib() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
+	}
+
+	/**
+	 * @returns {{
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperKeybindings?: (config: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	     canModifyDOM?: (config: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
+	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *       beforeRequire?: () => void
+	 *     }
+	 *   ) => Promise<unknown>
+	 * }}
+	 */
+	function bootstrapWindowLib() {
+		// @ts-ignore (defined in bootstrap-window.js)
+		return window.MonacoBootstrapWindow;
+	}
+}());

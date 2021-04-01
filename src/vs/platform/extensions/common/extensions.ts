@@ -113,6 +113,27 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
+export interface IWalkthroughTask {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly button:
+	| { title: string, link: string, command?: never }
+	| { title: string, command: string, link?: never },
+	readonly media: { path: string, altText: string },
+	readonly doneOn?: { command: string };
+	readonly when?: string;
+}
+
+export interface IWalkthrough {
+	readonly id: string,
+	readonly title: string;
+	readonly description: string;
+	readonly tasks: IWalkthroughTask[];
+	readonly primary?: boolean;
+	readonly when?: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -125,6 +146,7 @@ export interface IExtensionContributions {
 	snippets?: ISnippet[];
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
+	productIconThemes?: ITheme[];
 	viewsContainers?: { [location: string]: IViewContainer[] };
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
@@ -132,9 +154,12 @@ export interface IExtensionContributions {
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
+	walkthroughs?: IWalkthrough[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
+export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
+export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -153,6 +178,7 @@ export const EXTENSION_CATEGORIES = [
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
+	'Education',
 	'Formatters',
 	'Keymaps',
 	'Language Packs',
@@ -162,8 +188,8 @@ export const EXTENSION_CATEGORIES = [
 	'Programming Languages',
 	'SCM Providers',
 	'Snippets',
-	'Themes',
 	'Testing',
+	'Themes',
 	'Visualization',
 	'Other',
 ];
@@ -173,7 +199,7 @@ export interface IExtensionManifest {
 	readonly displayName?: string;
 	readonly publisher: string;
 	readonly version: string;
-	readonly engines: { vscode: string };
+	readonly engines: { readonly vscode: string };
 	readonly description?: string;
 	readonly main?: string;
 	readonly browser?: string;
@@ -190,6 +216,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
+	readonly workspaceTrust?: ExtensionWorkspaceTrust;
 }
 
 export const enum ExtensionType {
@@ -199,6 +226,7 @@ export const enum ExtensionType {
 
 export interface IExtension {
 	readonly type: ExtensionType;
+	readonly isBuiltin: boolean;
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
@@ -265,6 +293,7 @@ export interface IExtensionDescription extends IExtensionManifest {
 	readonly identifier: ExtensionIdentifier;
 	readonly uuid?: string;
 	readonly isBuiltin: boolean;
+	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
 	readonly extensionLocation: URI;
 	enableProposedApi?: boolean;
@@ -276,6 +305,18 @@ export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 
 export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
+}
+
+export function getExtensionWorkspaceTrustRequirement(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequirement {
+	if (manifest.workspaceTrust?.required !== undefined) {
+		return manifest.workspaceTrust.required;
+	}
+
+	if (!manifest.main) {
+		return false;
+	}
+
+	return 'onStart';
 }
 
 export interface IScannedExtension {

@@ -40,18 +40,24 @@
 	opacity: 0.25;
 }
 
-.timeline-tree-view  .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
+.timeline-tree-view .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
 .timeline-tree-view .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before,
 .timeline-tree-view .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate::before {
 	display: none;
 }
 
+.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container .timeline-timestamp {
+	display: inline-block;
+}
+
 .timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp {
 	visibility: hidden;
+	width: 10px;
 }
 
 .timeline-tree-view .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp,
 .timeline-tree-view .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp,
 .timeline-tree-view .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .timeline-timestamp-container.timeline-timestamp--duplicate .timeline-timestamp {
 	visibility: visible !important;
+	width: initial;
 }

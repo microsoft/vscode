@@ -54,7 +54,7 @@ export class OvertypingCapturer implements IDisposable {
 		}));
 
 		this._disposables.add(suggestModel.onDidCancel(e => {
-			if (!this._empty) {
+			if (!this._empty && !e.retrigger) {
 				this._empty = true;
 			}
 		}));

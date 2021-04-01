@@ -22,21 +22,21 @@ import { RunOnceScheduler, Queue } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class DebugSession implements IDebugSession {
 
@@ -51,6 +51,7 @@ export class DebugSession implements IDebugSession {
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
+	private stoppedDetails: IRawStoppedDetails | undefined;
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
@@ -63,7 +64,7 @@ export class DebugSession implements IDebugSession {
 
 	private readonly _onDidChangeREPLElements = new Emitter<void>();
 
-	private name: string | undefined;
+	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
 
 	constructor(
@@ -82,11 +83,13 @@ export class DebugSession implements IDebugSession {
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService
 	) {
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
-			this.repl = new ReplModel();
+			this.repl = new ReplModel(this.configurationService);
 		} else {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
@@ -144,13 +147,16 @@ export class DebugSession implements IDebugSession {
 
 	getLabel(): string {
 		const includeRoot = this.workspaceContextService.getWorkspace().folders.length > 1;
-		const name = this.name || this.configuration.name;
-		return includeRoot && this.root ? `${name} (${resources.basenameOrAuthority(this.root.uri)})` : name;
+		return includeRoot && this.root ? `${this.name} (${resources.basenameOrAuthority(this.root.uri)})` : this.name;
 	}
 
 	setName(name: string): void {
-		this.name = name;
+		this._name = name;
 		this._onDidChangeName.fire(name);
+	}
+
+	get name(): string {
+		return this._name || this.configuration.name;
 	}
 
 	get state(): State {
@@ -228,9 +234,8 @@ export class DebugSession implements IDebugSession {
 		}
 
 		try {
-			const customTelemetryService = await dbgr.getCustomTelemetryService();
 			const debugAdapter = await dbgr.createDebugAdapter(this);
-			this.raw = new RawDebugSession(debugAdapter, dbgr, this.telemetryService, customTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
+			this.raw = new RawDebugSession(debugAdapter, dbgr, this.id, this.telemetryService, this.customEndpointTelemetryService, this.extensionHostDebugService, this.openerService, this.notificationService);
 
 			await this.raw.start();
 			this.registerListeners();
@@ -245,12 +250,13 @@ export class DebugSession implements IDebugSession {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true, // #10574
 				locale: platform.locale,
-				supportsProgressReporting: true // #92253
+				supportsProgressReporting: true, // #92253
+				supportsInvalidatedEvent: true // #106745
 			});
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
-			this.model.setExceptionBreakpoints((this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
+			this.debugService.setExceptionBreakpoints((this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
@@ -391,7 +397,18 @@ export class DebugSession implements IDebugSession {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			await this.raw.setExceptionBreakpoints({ filters: exbpts.map(exb => exb.filter) });
+			const args: DebugProtocol.SetExceptionBreakpointsArguments = this.capabilities.supportsExceptionFilterOptions ? {
+				filters: [],
+				filterOptions: exbpts.map(exb => {
+					if (exb.condition) {
+						return { filterId: exb.filter, condition: exb.condition };
+					}
+
+					return { filterId: exb.filter };
+				})
+			} : { filters: exbpts.map(exb => exb.filter) };
+
+			await this.raw.setExceptionBreakpoints(args);
 		}
 	}
 
@@ -798,6 +815,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidStop(async event => {
+			this.stoppedDetails = event.body;
 			await this.fetchThreads(event.body);
 			const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
 			if (thread) {
@@ -822,7 +840,8 @@ export class DebugSession implements IDebugSession {
 				await promises.topCallStack;
 				focus();
 				await promises.wholeCallStack;
-				if (!this.debugService.getViewModel().focusedStackFrame) {
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize') {
 					// The top stack frame can be deemphesized so try to focus again #68616
 					focus();
 				}
@@ -889,14 +908,15 @@ export class DebugSession implements IDebugSession {
 				if (event.body.category === 'telemetry') {
 					// only log telemetry events from debug adapter if the debug extension provided the telemetry key
 					// and the user opted in telemetry
-					if (this.raw.customTelemetryService && this.telemetryService.isOptedIn) {
+					const telemetryEndpoint = this.raw.dbgr.getCustomTelemetryEndpoint();
+					if (telemetryEndpoint && this.telemetryService.isOptedIn) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 						let data = event.body.data;
-						if (!this.raw.customTelemetryService.sendErrorTelemetry && event.body.data) {
+						if (!telemetryEndpoint.sendErrorTelemetry && event.body.data) {
 							data = filterExceptionsFromTelemetry(event.body.data);
 						}
 
-						this.raw.customTelemetryService.publicLog(event.body.output, data);
+						this.customEndpointTelemetryService.publicLog(telemetryEndpoint, event.body.output, data);
 					}
 
 					return;
@@ -999,6 +1019,19 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidProgressEnd(event => {
 			this._onDidProgressEnd.fire(event);
 		}));
+		this.rawListeners.push(this.raw.onDidInvalidated(async event => {
+			if (!(event.body.areas && event.body.areas.length === 1 && (event.body.areas[0] === 'variables' || event.body.areas[0] === 'watch'))) {
+				// If invalidated event only requires to update variables or watch, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
+				this.cancelAllRequests();
+				this.model.clearThreads(this.getId(), true);
+				await this.fetchThreads(this.stoppedDetails);
+			}
+
+			const viewModel = this.debugService.getViewModel();
+			if (viewModel.focusedSession === this) {
+				viewModel.updateViews();
+			}
+		}));
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
 	}
@@ -1026,12 +1059,12 @@ export class DebugSession implements IDebugSession {
 	//---- sources
 
 	getSourceForUri(uri: URI): Source | undefined {
-		return this.sources.get(this.getUriKey(uri));
+		return this.sources.get(this.uriIdentityService.asCanonicalUri(uri).toString());
 	}
 
 	getSource(raw?: DebugProtocol.Source): Source {
-		let source = new Source(raw, this.getId());
-		const uriKey = this.getUriKey(source.uri);
+		let source = new Source(raw, this.getId(), this.uriIdentityService);
+		const uriKey = source.uri.toString();
 		const found = this.sources.get(uriKey);
 		if (found) {
 			source = found;
@@ -1072,11 +1105,6 @@ export class DebugSession implements IDebugSession {
 		this.cancellationMap.clear();
 	}
 
-	private getUriKey(uri: URI): string {
-		// TODO: the following code does not make sense if uri originates from a different platform
-		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
-	}
-
 	// REPL
 
 	getReplElements(): IReplElement[] {
@@ -1094,7 +1122,7 @@ export class DebugSession implements IDebugSession {
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		await this.repl.addReplExpression(this, stackFrame, name);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-		variableSetEmitter.fire();
+		this.debugService.getViewModel().updateViews();
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {

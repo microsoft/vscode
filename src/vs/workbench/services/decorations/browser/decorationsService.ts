@@ -17,8 +17,8 @@ import { localize } from 'vs/nls';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
 import { hash } from 'vs/base/common/hash';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 class DecorationRule {
 
@@ -107,9 +107,7 @@ class DecorationStyles {
 	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
 
-	constructor(
-		private _themeService: IThemeService,
-	) {
+	constructor(private readonly _themeService: IThemeService) {
 		this._themeService.onDidColorThemeChange(this._onThemeChange, this, this._dispoables);
 	}
 
@@ -150,7 +148,7 @@ class DecorationStyles {
 			badgeClassName,
 			tooltip,
 			dispose: () => {
-				if (rule && rule.release()) {
+				if (rule?.release()) {
 					this._decorationRules.delete(key);
 					rule.removeCSSRules(this._styleElement);
 					rule = undefined;
@@ -169,13 +167,13 @@ class DecorationStyles {
 
 class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
-	private readonly _data = TernarySearchTree.forUris<boolean>();
+	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
 	affectsResource(uri: URI): boolean {
-		return this._data.get(uri) || this._data.findSuperstr(uri) !== undefined;
+		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]) {
+	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]): FileDecorationChangeEvent {
 		if (!last) {
 			last = new FileDecorationChangeEvent();
 		}
@@ -202,15 +200,18 @@ class DecorationDataRequest {
 
 class DecorationProviderWrapper {
 
-	readonly data = TernarySearchTree.forUris<DecorationDataRequest | IDecorationData | null>();
+	readonly data: TernarySearchTree<URI, DecorationDataRequest | IDecorationData | null>;
 	private readonly _dispoable: IDisposable;
 
 	constructor(
 		readonly provider: IDecorationsProvider,
+		uriIdentityService: IUriIdentityService,
 		private readonly _uriEmitter: Emitter<URI | URI[]>,
-		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>,
-		@ILogService private readonly _logService: ILogService,
+		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
+
+		this.data = TernarySearchTree.forUris(uri => uriIdentityService.extUri.ignorePathCasing(uri));
+
 		this._dispoable = this.provider.onDidChange(uris => {
 			if (!uris) {
 				// flush event -> drop all data, can affect everything
@@ -235,21 +236,20 @@ class DecorationProviderWrapper {
 	}
 
 	knowsAbout(uri: URI): boolean {
-		return Boolean(this.data.get(uri)) || Boolean(this.data.findSuperstr(uri));
+		return this.data.has(uri) || Boolean(this.data.findSuperstr(uri));
 	}
 
 	getOrRetrieve(uri: URI, includeChildren: boolean, callback: (data: IDecorationData, isChild: boolean) => void): void {
+
 		let item = this.data.get(uri);
 
 		if (item === undefined) {
 			// unknown -> trigger request
-			this._logService.trace('[Decorations] getOrRetrieve -> FETCH', this.provider.label, uri);
 			item = this._fetchData(uri);
 		}
 
 		if (item && !(item instanceof DecorationDataRequest)) {
 			// found something (which isn't pending anymore)
-			this._logService.trace('[Decorations] getOrRetrieve -> RESULT', this.provider.label, uri);
 			callback(item, false);
 		}
 
@@ -257,10 +257,9 @@ class DecorationProviderWrapper {
 			// (resolved) children
 			const iter = this.data.findSuperstr(uri);
 			if (iter) {
-				for (let item = iter.next(); !item.done; item = iter.next()) {
-					if (item.value && !(item.value instanceof DecorationDataRequest)) {
-						this._logService.trace('[Decorations] getOrRetrieve -> RESULT (children)', this.provider.label, uri);
-						callback(item.value, true);
+				for (const [, value] of iter) {
+					if (value && !(value instanceof DecorationDataRequest)) {
+						callback(value, true);
 					}
 				}
 			}
@@ -272,7 +271,6 @@ class DecorationProviderWrapper {
 		// check for pending request and cancel it
 		const pendingRequest = this.data.get(uri);
 		if (pendingRequest instanceof DecorationDataRequest) {
-			this._logService.trace('[Decorations] fetchData -> CANCEL previous', this.provider.label, uri);
 			pendingRequest.source.cancel();
 			this.data.delete(uri);
 		}
@@ -301,7 +299,6 @@ class DecorationProviderWrapper {
 	}
 
 	private _keepItem(uri: URI, data: IDecorationData | undefined): IDecorationData | null {
-		this._logService.trace('[Decorations] keepItem -> CANCEL previous', this.provider.label, uri, data);
 		const deco = data ? data : null;
 		const old = this.data.set(uri, deco);
 		if (deco || old) {
@@ -332,7 +329,7 @@ export class DecorationsService implements IDecorationsService {
 
 	constructor(
 		@IThemeService themeService: IThemeService,
-		@ILogService private readonly _logService: ILogService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
 	}
@@ -347,9 +344,9 @@ export class DecorationsService implements IDecorationsService {
 
 		const wrapper = new DecorationProviderWrapper(
 			provider,
+			this._uriIdentityService,
 			this._onDidChangeDecorationsDelayed,
-			this._onDidChangeDecorations,
-			this._logService
+			this._onDidChangeDecorations
 		);
 		const remove = this._data.push(wrapper);
 
@@ -375,7 +372,6 @@ export class DecorationsService implements IDecorationsService {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
 					containsChildren = isChild || containsChildren;
-					this._logService.trace('DecorationsService#getDecoration#getOrRetrieve', wrapper.provider.label, deco, isChild, uri);
 				}
 			});
 		}

@@ -9,6 +9,7 @@ import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/edito
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
+import * as dom from 'vs/base/browser/dom';
 
 // To run this test, open imeTester.html
 
@@ -50,12 +51,13 @@ class TestView {
 	}
 
 	public paint(output: HTMLElement) {
-		let r = '';
+		dom.clearNode(output);
 		for (let i = 1; i <= this._model.getLineCount(); i++) {
-			let content = this._model.getModelLineContent(i);
-			r += content + '<br/>';
+			const textNode = document.createTextNode(this._model.getModelLineContent(i));
+			output.appendChild(textNode);
+			const br = document.createElement('br');
+			output.appendChild(br);
 		}
-		output.innerHTML = r;
 	}
 }
 
@@ -69,7 +71,12 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	let title = document.createElement('div');
 	title.className = 'title';
 
-	title.innerHTML = description + '. Type <strong>' + inputStr + '</strong>';
+	const inputStrStrong = document.createElement('strong');
+	inputStrStrong.innerText = inputStr;
+
+	title.innerText = description + '. Type ';
+	title.appendChild(inputStrStrong);
+
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');
@@ -140,13 +147,13 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 			check.innerText = '[BAD]';
 			check.className = 'check bad';
 		}
-		check.innerHTML += expected;
+		check.appendChild(document.createTextNode(expected));
 	};
 
 	handler.onType((e) => {
-		console.log('type text: ' + e.text + ', replaceCharCnt: ' + e.replaceCharCnt);
+		console.log('type text: ' + e.text + ', replaceCharCnt: ' + e.replacePrevCharCnt);
 		let text = model.getModelLineContent(1);
-		let preText = text.substring(0, cursorOffset - e.replaceCharCnt);
+		let preText = text.substring(0, cursorOffset - e.replacePrevCharCnt);
 		let postText = text.substring(cursorOffset + cursorLength);
 		let midText = e.text;
 

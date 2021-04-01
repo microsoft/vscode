@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { readdirSync } from 'vs/base/node/pfs';
 import { statSync, readFileSync } from 'fs';
 import { join } from 'vs/base/common/path';

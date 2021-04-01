@@ -8,8 +8,9 @@ import { StandaloneConfigurationModelParser, Configuration } from 'vs/workbench/
 import { ConfigurationModelParser, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ResourceMap } from 'vs/base/common/map';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('FolderSettingsModelParser', () => {
 
@@ -52,7 +53,11 @@ suite('FolderSettingsModelParser', () => {
 
 		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }));
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'window': 'window', 'resource': 'resource' } });
+		const expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['window'] = 'window';
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
 	test('parse resource folder settings', () => {
@@ -60,7 +65,10 @@ suite('FolderSettingsModelParser', () => {
 
 		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' }));
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
+		const expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
 	test('parse resource and resource language settings', () => {
@@ -68,7 +76,11 @@ suite('FolderSettingsModelParser', () => {
 
 		testObject.parseContent(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.resourceLanguage': 'resourceLanguage', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }));
 
-		assert.deepEqual(testObject.configurationModel.overrides, [{ 'contents': { 'FolderSettingsModelParser': { 'resource': 'resource', 'resourceLanguage': 'resourceLanguage' } }, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }]);
+		const expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		expected['FolderSettingsModelParser']['resourceLanguage'] = 'resourceLanguage';
+		assert.deepStrictEqual(testObject.configurationModel.overrides, [{ 'contents': expected, 'identifiers': ['json'], 'keys': ['FolderSettingsModelParser.resource', 'FolderSettingsModelParser.resourceLanguage'] }]);
 	});
 
 	test('reprocess folder settings excludes application and machine setting', () => {
@@ -76,7 +88,11 @@ suite('FolderSettingsModelParser', () => {
 
 		testObject.parseContent(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherApplicationSetting': 'executable' }));
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource', 'anotherApplicationSetting': 'executable' } });
+		let expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		expected['FolderSettingsModelParser']['anotherApplicationSetting'] = 'executable';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
@@ -97,7 +113,11 @@ suite('FolderSettingsModelParser', () => {
 		});
 
 		testObject.parse();
-		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
+
+		expected = Object.create(null);
+		expected['FolderSettingsModelParser'] = Object.create(null);
+		expected['FolderSettingsModelParser']['resource'] = 'resource';
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
 });
@@ -109,7 +129,11 @@ suite('StandaloneConfigurationModelParser', () => {
 
 		testObject.parseContent(JSON.stringify({ 'version': '1.1.1', 'tasks': [] }));
 
-		assert.deepEqual(testObject.configurationModel.contents, { 'tasks': { 'version': '1.1.1', 'tasks': [] } });
+		const expected = Object.create(null);
+		expected['tasks'] = Object.create(null);
+		expected['tasks']['version'] = '1.1.1';
+		expected['tasks']['tasks'] = [];
+		assert.deepStrictEqual(testObject.configurationModel.contents, expected);
 	});
 
 });
@@ -146,7 +170,7 @@ suite('Workspace Configuration', () => {
 
 		const actual = configuration2.compare(configuration1);
 
-		assert.deepEqual(actual, { keys: [], overrides: [] });
+		assert.deepStrictEqual(actual, { keys: [], overrides: [] });
 	});
 
 	test('Test compare different configurations', () => {
@@ -172,7 +196,7 @@ suite('Workspace Configuration', () => {
 
 		const actual = configuration2.compare(configuration1);
 
-		assert.deepEqual(actual, { keys: ['editor.wordWrap', 'editor.fontSize', '[markdown]', 'window.title', 'workbench.enableTabs', '[typescript]'], overrides: [['markdown', ['editor.lineNumbers', 'editor.wordWrap']], ['typescript', ['editor.insertSpaces']]] });
+		assert.deepStrictEqual(actual, { keys: ['editor.wordWrap', 'editor.fontSize', '[markdown]', 'window.title', 'workbench.enableTabs', '[typescript]'], overrides: [['markdown', ['editor.lineNumbers', 'editor.wordWrap']], ['typescript', ['editor.insertSpaces']]] });
 	});
 
 

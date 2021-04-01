@@ -18,7 +18,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
  */
 export class BaseTextEditorModel extends EditorModel implements ITextEditorModel, IModeSupport {
 
-	protected textEditorModelHandle: URI | null = null;
+	protected textEditorModelHandle: URI | undefined = undefined;
 
 	private createdEditorModel: boolean | undefined;
 
@@ -52,7 +52,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 	private registerModelDisposeListener(model: ITextModel): void {
 		this.modelDisposeListener.value = model.onWillDispose(() => {
-			this.textEditorModelHandle = null; // make sure we do not dispose code editor model again
+			this.textEditorModelHandle = undefined; // make sure we do not dispose code editor model again
 			this.dispose();
 		});
 	}
@@ -178,7 +178,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			this.modelService.destroyModel(this.textEditorModelHandle);
 		}
 
-		this.textEditorModelHandle = null;
+		this.textEditorModelHandle = undefined;
 		this.createdEditorModel = false;
 
 		super.dispose();

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// mocha disables running through electron by default. Note that this must
+// come before any mocha imports.
+process.env.MOCHA_COLORS = '1';
+
 const { app, BrowserWindow, ipcMain } = require('electron');
 const { tmpdir } = require('os');
 const { join } = require('path');
@@ -11,12 +15,12 @@ const mocha = require('mocha');
 const events = require('events');
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
+const createStatsCollector = require('mocha/lib/stats-collector');
+const FullJsonStreamReporter = require('../fullJsonStreamReporter');
 
 // Disable render process reuse, we still have
 // non-context aware native modules in the renderer.
 app.allowRendererProcessReuse = false;
-
-const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
@@ -25,7 +29,7 @@ const optimist = require('optimist')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('coverage', 'generate coverage report').boolean('coverage')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
+	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', 'spec')
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
 	.describe('tfs').string('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
@@ -47,10 +51,10 @@ function deserializeSuite(suite) {
 		suites: suite.suites,
 		tests: suite.tests,
 		title: suite.title,
+		titlePath: () => suite.titlePath,
 		fullTitle: () => suite.fullTitle,
 		timeout: () => suite.timeout,
 		retries: () => suite.retries,
-		enableTimeouts: () => suite.enableTimeouts,
 		slow: () => suite.slow,
 		bail: () => suite.bail
 	};
@@ -59,6 +63,7 @@ function deserializeSuite(suite) {
 function deserializeRunnable(runnable) {
 	return {
 		title: runnable.title,
+		titlePath: () => runnable.titlePath,
 		fullTitle: () => runnable.fullTitle,
 		async: runnable.async,
 		slow: () => runnable.slow,
@@ -66,6 +71,15 @@ function deserializeRunnable(runnable) {
 		duration: runnable.duration,
 		currentRetry: () => runnable.currentRetry
 	};
+}
+
+function importMochaReporter(name) {
+	if (name === 'full-json-stream') {
+		return FullJsonStreamReporter;
+	}
+
+	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', name);
+	return require(reporterPath);
 }
 
 function deserializeError(err) {
@@ -80,9 +94,13 @@ class IPCRunner extends events.EventEmitter {
 		super();
 
 		this.didFail = false;
+		this.didEnd = false;
 
 		ipcMain.on('start', () => this.emit('start'));
-		ipcMain.on('end', () => this.emit('end'));
+		ipcMain.on('end', () => {
+			this.didEnd = true;
+			this.emit('end');
+		});
 		ipcMain.on('suite', (e, suite) => this.emit('suite', deserializeSuite(suite)));
 		ipcMain.on('suite end', (e, suite) => this.emit('suite end', deserializeSuite(suite)));
 		ipcMain.on('test', (e, test) => this.emit('test', deserializeRunnable(test)));
@@ -112,15 +130,19 @@ app.on('ready', () => {
 		}
 	});
 
+	ipcMain.handle('vscode:test-vscode-window-config', async () => Object.create(null));
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
 		show: false,
 		webPreferences: {
 			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
 			enableWebSQL: false,
 			enableRemoteModule: false,
+			spellcheck: false,
 			nativeWindowOpen: true,
 			webviewTag: true
 		}
@@ -137,6 +159,15 @@ app.on('ready', () => {
 	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
 
 	const runner = new IPCRunner();
+	createStatsCollector(runner);
+
+	// Handle renderer crashes, #117068
+	win.webContents.on('render-process-gone', (evt, details) => {
+		if (!runner.didEnd) {
+			console.error(`Renderer process crashed with: ${JSON.stringify(details)}`);
+			app.exit(1);
+		}
+	});
 
 	if (argv.tfs) {
 		new mocha.reporters.Spec(runner);
@@ -147,11 +178,19 @@ app.on('ready', () => {
 			}
 		});
 	} else {
-		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
-		let Reporter;
+		// mocha patches symbols to use windows escape codes, but it seems like
+		// Electron mangles these in its output.
+		if (process.platform === 'win32') {
+			Object.assign(importMochaReporter('base').symbols, {
+				ok: '+',
+				err: 'X',
+				dot: '.',
+			});
+		}
 
+		let Reporter;
 		try {
-			Reporter = require(reporterPath);
+			Reporter = importMochaReporter(argv.reporter);
 		} catch (err) {
 			try {
 				Reporter = require(argv.reporter);

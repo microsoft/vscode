@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -13,9 +12,8 @@ import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { parseSearchPort } from 'vs/platform/environment/node/environmentService';
+import { parseSearchPort } from 'vs/platform/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileMatch, IFileMatch, IFileQuery, IProgressMessage, IRawSearchService, ISearchComplete, ISearchConfiguration, ISearchProgressItem, ISearchResultProvider, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, isSerializedSearchComplete, isSerializedSearchSuccess, ITextQuery, ISearchService, isFileMatch } from 'vs/workbench/services/search/common/search';
@@ -27,6 +25,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { FileAccess } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -36,10 +36,11 @@ export class LocalSearchService extends SearchService {
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
-		@IInstantiationService readonly instantiationService: IInstantiationService
+		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
+		super(modelService, editorService, telemetryService, logService, extensionService, fileService, uriIdentityService);
 
 		this.diskSearch = instantiationService.createInstance(DiskSearch, !environmentService.isBuilt || environmentService.verbose, parseSearchPort(environmentService.args, environmentService.isBuilt));
 	}
@@ -62,15 +63,12 @@ export class DiskSearch implements ISearchResultProvider {
 			serverName: 'Search',
 			timeout,
 			args: ['--type=searchService'],
-			// See https://github.com/Microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
-			// e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
-			// results in the forked process inheriting `--inspect-brk=xxx`.
 			freshExecArgv: true,
 			env: {
-				AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
-				PIPE_LOGGING: 'true',
-				VERBOSE_LOGGING: verboseLogging
+				VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/search/node/searchApp',
+				VSCODE_PIPE_LOGGING: 'true',
+				VSCODE_VERBOSE_LOGGING: verboseLogging
 			},
 			useQueue: true
 		};
@@ -83,10 +81,7 @@ export class DiskSearch implements ISearchResultProvider {
 			}
 		}
 
-		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap-fork'),
-			opts);
-
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
 		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
 	}

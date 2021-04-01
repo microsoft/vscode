@@ -10,7 +10,7 @@
 		"list.highlightForeground": "#e3b583",
 		"list.activeSelectionBackground": "#7c5021",
 		"list.hoverBackground": "#7c502166",
-		"list.focusBackground": "#7c5021AA",
+		"quickInputList.focusBackground": "#7c5021AA",
 		"list.inactiveSelectionBackground": "#645342",
 		"pickerGroup.foreground": "#e3b583",
 		"pickerGroup.border": "#e3b583",
@@ -23,6 +23,7 @@
 		"editorGroupHeader.tabsBackground": "#131510",
 		"editorLineNumber.activeForeground": "#adadad",
 		"tab.inactiveBackground": "#131510",
+		"tab.lastPinnedBorder": "#51412c",
 		"titleBar.activeBackground": "#423523",
 		"statusBar.background": "#423523",
 		"statusBar.debuggingBackground": "#423523",
@@ -389,7 +390,7 @@
 		},
 		{
 			"name": "Invalid",
-			"scope": "invalid.illegal",
+			"scope": "invalid",
 			"settings": {
 				"foreground": "#dc3958"
 			}

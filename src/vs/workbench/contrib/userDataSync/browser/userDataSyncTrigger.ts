@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SettingsEditor2Input, KeybindingsEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { SettingsEditor2Input, KeybindingsEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
 import { isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -21,7 +21,7 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IViewsService viewsService: IViewsService,
 		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@IHostService hostService: IHostService,
@@ -58,10 +58,10 @@ export class UserDataSyncTrigger extends Disposable implements IWorkbenchContrib
 			return 'keybindingsEditor';
 		}
 		const resource = editorInput.resource;
-		if (isEqual(resource, this.workbenchEnvironmentService.settingsResource)) {
+		if (isEqual(resource, this.environmentService.settingsResource)) {
 			return 'settingsEditor';
 		}
-		if (isEqual(resource, this.workbenchEnvironmentService.keybindingsResource)) {
+		if (isEqual(resource, this.environmentService.keybindingsResource)) {
 			return 'keybindingsEditor';
 		}
 		return undefined;
