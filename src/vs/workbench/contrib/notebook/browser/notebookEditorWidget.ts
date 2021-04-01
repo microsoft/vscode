@@ -1122,7 +1122,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._localStore.add(this._list.onWillScroll(e => {
 			if (this._webview?.isResolved()) {
-				this._webview.updateViewScrollTop(true, []);
 				this._webviewTransparentCover!.style.top = `${e.scrollTop}px`;
 			}
 		}));
@@ -1172,17 +1171,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 						updateItems.push({
 							output: key,
 							cellTop: cellTop,
-							outputOffset
+							outputOffset,
+							forceDisplay: false,
 						});
 					}
 				});
 
 				removedItems.forEach(output => this._webview?.removeInset(output));
-
-				if (updateItems.length) {
-					this._debug('_list.onDidChangeContentHeight/outputs', updateItems);
-					this._webview?.updateViewScrollTop(false, updateItems);
-				}
 
 				const markdownUpdateItems: { id: string, top: number }[] = [];
 				for (const cellId of this._webview.markdownPreviewMapping.keys()) {
@@ -1193,9 +1188,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					}
 				}
 
-				if (markdownUpdateItems.length) {
+				if (markdownUpdateItems.length || updateItems.length) {
 					this._debug('_list.onDidChangeContentHeight/markdown', markdownUpdateItems);
-					this._webview?.updateMarkdownScrollTop(markdownUpdateItems);
+					this._webview?.updateScrollTops(updateItems, markdownUpdateItems);
 				}
 			});
 		}));
@@ -1318,7 +1313,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			this._webview?.updateMarkdownScrollTop(offsetUpdateRequests);
+			this._webview?.updateScrollTops([], offsetUpdateRequests);
 		}
 	}
 
@@ -2212,15 +2207,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				await this._resolveWebview();
 			}
 
+			const cellTop = this._list.getAbsoluteTopOfElement(cell);
 			if (!this._webview!.insetMapping.has(output.source)) {
-				const cellTop = this._list.getAbsoluteTopOfElement(cell);
 				await this._webview!.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
-				const cellTop = this._list.getAbsoluteTopOfElement(cell);
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
 				const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
-				this._webview!.updateViewScrollTop(true, [{ output: output.source, cellTop, outputOffset }]);
+				this._webview!.updateScrollTops([{ output: output.source, cellTop, outputOffset, forceDisplay: true }], []);
 			}
 		});
 	}

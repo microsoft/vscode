@@ -188,17 +188,13 @@ export interface ICreationRequestMessage {
 export interface IContentWidgetTopRequest {
 	id: string;
 	top: number;
+	forceDisplay: boolean;
 }
 
 export interface IViewScrollTopRequestMessage {
 	type: 'view-scroll';
-	forceDisplay: boolean;
 	widgets: IContentWidgetTopRequest[];
-}
-
-export interface IViewScrollMarkdownRequestMessage {
-	type: 'view-scroll-markdown';
-	cells: { id: string; top: number }[];
+	markdownPreviews: { id: string; top: number }[];
 }
 
 export interface IScrollRequestMessage {
@@ -339,8 +335,7 @@ export type ToWebviewMessage =
 	| IHideMarkdownMessage
 	| IUnhideMarkdownMessage
 	| IUpdateSelectedMarkdownPreviews
-	| IInitializeMarkdownMessage
-	| IViewScrollMarkdownRequestMessage;
+	| IInitializeMarkdownMessage;
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
@@ -1111,23 +1106,12 @@ var requirejs = (function() {
 		return true;
 	}
 
-	updateMarkdownScrollTop(items: { id: string, top: number }[]) {
-		if (this._disposed || !items.length) {
+	updateScrollTops(outputs: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
+		if (this._disposed) {
 			return;
 		}
 
-		this._sendMessageToWebview({
-			type: 'view-scroll-markdown',
-			cells: items
-		});
-	}
-
-	updateViewScrollTop(forceDisplay: boolean, items: IDisplayOutputLayoutUpdateRequest[]) {
-		if (!items.length) {
-			return;
-		}
-
-		const widgets = coalesce(items.map((item): IContentWidgetTopRequest | undefined => {
+		const widgets = coalesce(outputs.map((item): IContentWidgetTopRequest | undefined => {
 			const outputCache = this.insetMapping.get(item.output);
 			if (!outputCache) {
 				return;
@@ -1140,17 +1124,18 @@ var requirejs = (function() {
 			return {
 				id: id,
 				top: outputOffset,
+				forceDisplay: item.forceDisplay,
 			};
 		}));
 
-		if (!widgets.length) {
+		if (!widgets.length && !markdownPreviews.length) {
 			return;
 		}
 
 		this._sendMessageToWebview({
 			type: 'view-scroll',
-			forceDisplay,
-			widgets: widgets
+			widgets: widgets,
+			markdownPreviews,
 		});
 	}
 

@@ -139,6 +139,7 @@ export interface IDisplayOutputLayoutUpdateRequest {
 	output: IDisplayOutputViewModel;
 	cellTop: number;
 	outputOffset: number;
+	forceDisplay: boolean;
 }
 
 export interface ICommonCellInfo {

@@ -691,18 +691,13 @@ function webviewPreloads() {
 						const widget = document.getElementById(request.id)!;
 						if (widget) {
 							widget.style.top = request.top + 'px';
-							if (event.data.forceDisplay) {
+							if (request.forceDisplay) {
 								widget.parentElement!.style.display = 'block';
 							}
 						}
 					}
-					break;
-				}
-			case 'view-scroll-markdown':
-				{
-					// const date = new Date();
-					// console.log(`${date.getSeconds()}:${date.getMilliseconds().toString().padStart(3, '0')}`, '[iframe]: view-scroll-markdown', event.data.cells);
-					for (const cell of event.data.cells) {
+
+					for (const cell of event.data.markdownPreviews) {
 						const widget = document.getElementById(`${cell.id}_preview`)!;
 						if (widget) {
 							widget.style.top = `${cell.top}px`;
