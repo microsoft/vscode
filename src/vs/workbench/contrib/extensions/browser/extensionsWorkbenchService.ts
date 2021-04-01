@@ -41,6 +41,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { isBoolean } from 'vs/base/common/types';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -392,6 +393,14 @@ class Extensions extends Disposable {
 		return false;
 	}
 
+	private async syncInstalledExtensionWithGallery(extension: Extension): Promise<void> {
+		const compatible = await this.galleryService.getCompatibleExtension(extension.identifier);
+		if (compatible) {
+			extension.gallery = compatible;
+			this._onChange.fire({ extension });
+		}
+	}
+
 	private getInstalledExtensionMatchingGallery(gallery: IGalleryExtension): Extension | null {
 		for (const installed of this.installed) {
 			if (installed.uuid) { // Installed from Gallery
@@ -441,6 +450,9 @@ class Extensions extends Disposable {
 			}
 		}
 		this._onChange.fire(error || !extension ? undefined : { extension, operation: event.operation });
+		if (extension && !extension.gallery) {
+			this.syncInstalledExtensionWithGallery(extension);
+		}
 	}
 
 	private onUninstallExtension(identifier: IExtensionIdentifier): void {
@@ -453,13 +465,13 @@ class Extensions extends Disposable {
 	}
 
 	private onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
+		const uninstalled = this.uninstalling.find(e => areSameExtensions(e.identifier, identifier)) || this.installed.find(e => areSameExtensions(e.identifier, identifier));
+		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
 		if (!error) {
 			this.installed = this.installed.filter(e => !areSameExtensions(e.identifier, identifier));
 		}
-		const uninstalling = this.uninstalling.filter(e => areSameExtensions(e.identifier, identifier))[0];
-		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
-		if (uninstalling) {
-			this._onChange.fire({ extension: uninstalling });
+		if (uninstalled) {
+			this._onChange.fire({ extension: uninstalled });
 		}
 	}
 
@@ -558,6 +570,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				if (this.isAutoCheckUpdatesEnabled()) {
 					this.checkForUpdates();
 				}
+			}
+		}, this));
+
+		this._register(extensionEnablementService.onEnablementChanged(platformExtensions => {
+			if (this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+				this.checkForUpdates();
 			}
 		}, this));
 
@@ -836,8 +854,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return Promise.resolve(this.syncDelayer.trigger(() => this.syncWithGallery(), 0));
 	}
 
+	private getAutoUpdateValue(): boolean | 'onlyEnabledExtensions' {
+		const autoUpdate = this.configurationService.getValue<boolean | 'onlyEnabledExtensions'>(AutoUpdateConfigurationKey);
+		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+	}
+
 	private isAutoUpdateEnabled(): boolean {
-		return this.configurationService.getValue(AutoUpdateConfigurationKey);
+		return this.getAutoUpdateValue() !== false;
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
@@ -886,7 +909,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.resolve();
 		}
 
-		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
+		const toUpdate = this.outdated.filter(e =>
+			!this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)) &&
+			(this.getAutoUpdateValue() === true || (e.local && this.extensionEnablementService.isEnabled(e.local)))
+		);
+
 		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}
 

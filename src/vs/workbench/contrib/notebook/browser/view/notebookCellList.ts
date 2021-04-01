@@ -196,6 +196,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			const top = this.getViewScrollTop();
 			const bottom = this.getViewScrollBottom();
+			if (top >= bottom) {
+				return;
+			}
+
 			const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
 			const topElement = this.view.element(topViewIndex);
 			const topModelIndex = this._viewModel!.getCellIndex(topElement);
@@ -615,11 +619,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	selectElement(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-		if (index >= 0) {
-			this.setSelection([index]);
-		}
+	selectElements(elements: ICellViewModel[]) {
+		const indices = elements.map(cell => this._getViewIndexUpperBound(cell)).filter(index => index >= 0);
+		this.setSelection(indices);
 	}
 
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
@@ -689,6 +691,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.setSelection(indexes, browserEvent);
 	}
 
+	/**
+	 * The range will be revealed with as little scrolling as possible.
+	 */
 	revealElementsInView(range: ICellRange) {
 		const startIndex = this._getViewIndexUpperBound2(range.start);
 
@@ -708,6 +713,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			const endElementTop = this.view.elementTop(endIndex);
 			const endElementHeight = this.view.elementHeight(endIndex);
+
+			if (endElementTop + endElementHeight <= wrapperBottom) {
+				// fully visible
+				return;
+			}
 
 			if (endElementTop >= wrapperBottom) {
 				return this._revealInternal(endIndex, false, CellRevealPosition.Bottom);
@@ -1082,8 +1092,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				this.view.setScrollTop(this.view.elementTop(viewIndex) - this.view.renderHeight / 2);
 				break;
 			case CellRevealPosition.Bottom:
-				this.view.setScrollTop(elementBottom - this.view.renderHeight);
-				this.view.setScrollTop(this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.view.renderHeight);
+				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
+				this.view.setScrollTop(this.scrollTop + (this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.getViewScrollBottom()));
 				break;
 			default:
 				break;
@@ -1234,6 +1244,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (newStyles !== this.styleElement.textContent) {
 			this.styleElement.textContent = newStyles;
 		}
+	}
+
+	getRenderHeight() {
+		return this.view.renderHeight;
 	}
 
 	layout(height?: number, width?: number): void {

@@ -29,10 +29,11 @@ import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } fro
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { EditorInput, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -42,6 +43,7 @@ const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, 
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
 	private readonly requestModel = this.workspaceTrustService.requestModel;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private shouldShowManagementEditor = true;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -53,6 +55,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -67,12 +70,19 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				badge: new IconBadge(workspaceTrustIcon, () => localize('requestTrustIconText', "Some features require workspace trust.")),
 				priority: 10
 			});
+
+			const managementEditorShownKey = 'workspace.trust.management.shown';
+			const seen = this.storageService.getBoolean(managementEditorShownKey, StorageScope.WORKSPACE, false);
+			if (!seen && this.shouldShowManagementEditor) {
+				this.storageService.store(managementEditorShownKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this.commandService.executeCommand('workbench.trust.manage');
+			}
 		}
 	}
 
 	private registerListeners(): void {
 		this._register(this.requestModel.onDidInitiateRequest(async () => {
-			if (this.requestModel.trustRequest) {
+			if (this.requestModel.trustRequestOptions) {
 				this.toggleRequestBadge(true);
 
 				type WorkspaceTrustRequestedEventClassification = {
@@ -88,18 +98,18 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				};
 
 				this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-					modal: this.requestModel.trustRequest.modal,
+					modal: this.requestModel.trustRequestOptions.modal,
 					workspaceId: this.workspaceContextService.getWorkspace().id,
 					extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
 				});
 
-				if (this.requestModel.trustRequest.modal) {
+				if (this.requestModel.trustRequestOptions.modal) {
 					// Message
 					const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
-					const message = this.requestModel.trustRequest.message ?? defaultMessage;
+					const message = this.requestModel.trustRequestOptions.message ?? defaultMessage;
 
 					// Buttons
-					const buttons = this.requestModel.trustRequest.buttons ?? [
+					const buttons = this.requestModel.trustRequestOptions.buttons ?? [
 						{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
 						{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
 					];
@@ -145,10 +155,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
-		this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => {
-			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
-				this.toggleRequestBadge(false);
-			}
+		this._register(this.workspaceTrustService.onDidChangeTrustState(async (trustState) => {
+			type WorkspaceTrustStateChangedEvent = {
+				workspaceId: string,
+				previousState: WorkspaceTrustState,
+				newState: WorkspaceTrustState
+			};
 
 			type WorkspaceTrustStateChangedEventClassification = {
 				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -156,17 +168,21 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				newState: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			};
 
-			type WorkspaceTrustStateChangedEvent = {
-				workspaceId: string,
-				previousState: WorkspaceTrustState,
-				newState: WorkspaceTrustState
-			};
-
 			this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
 				workspaceId: this.workspaceContextService.getWorkspace().id,
 				previousState: trustState.previousTrustState,
 				newState: trustState.currentTrustState
 			});
+
+			// Transition from Trusted -> Untrusted/Unknown
+			if (trustState.previousTrustState === WorkspaceTrustState.Trusted && trustState.currentTrustState !== WorkspaceTrustState.Trusted) {
+				this.hostService.reload();
+			}
+
+			// Hide soft request badge
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+				this.toggleRequestBadge(false);
+			}
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -183,6 +199,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				}
 			}
 		}));
+
+		// Don't auto-show the UX editor if the request is 5 seconds after startup
+		setTimeout(() => { this.shouldShowManagementEditor = false; }, 5000);
 	}
 }
 
@@ -255,7 +274,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 /**
  * Trusted Workspace GUI Editor
  */
-class WorkspaceTrustEditorInputFactory implements IEditorInputFactory {
+class WorkspaceTrustEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -271,7 +290,7 @@ class WorkspaceTrustEditorInputFactory implements IEditorInputFactory {
 }
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerEditorInputFactory(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputFactory);
+	.registerEditorInputSerializer(WorkspaceTrustEditorInput.ID, WorkspaceTrustEditorInputSerializer);
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(

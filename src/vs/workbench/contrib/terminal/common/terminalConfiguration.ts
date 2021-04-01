@@ -8,6 +8,32 @@ import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+
+const terminalProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalProfile.path', 'A single path to a shell executable or an array of paths that will be used as fallbacks when one fails.'),
+			type: ['string', 'array'],
+			items: {
+				type: 'string'
+			}
+		},
+		args: {
+			description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
+			type: 'array',
+			items: {
+				type: 'string'
+			}
+		},
+		overrideName: {
+			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+			type: 'boolean'
+		}
+	}
+};
 
 export const terminalConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -79,6 +105,122 @@ export const terminalConfiguration: IConfigurationNode = {
 				}
 			],
 			default: []
+		},
+		'terminal.integrated.profiles.windows': {
+			markdownDescription: localize(
+				{
+					key: 'terminal.integrated.profiles.windows',
+					comment: ['{0}, {1}, and {2} are the `source`, `path` and optional `args` settings keys']
+				},
+				"The Windows profiles to present when creating a new terminal via the terminal dropdown. Set to null to exclude them, use the {0} property to use the default detected configuration. Or, set the {1} and optional {2}", '`source`', '`path`', '`args`.'
+			),
+			type: 'object',
+			default: {
+				'PowerShell': {
+					source: 'PowerShell'
+				},
+				'Command Prompt': {
+					path: [
+						'${env:windir}\\Sysnative\\cmd.exe',
+						'${env:windir}\\System32\\cmd.exe'
+					],
+					args: []
+				},
+				'Git Bash': {
+					source: 'Git Bash'
+				}
+			},
+			additionalProperties: {
+				'anyOf': [
+					{
+						type: 'object',
+						required: ['source'],
+						properties: {
+							source: {
+								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
+								enum: ['PowerShell', 'Git Bash']
+							},
+							overrideName: {
+								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+								type: 'boolean'
+							}
+						}
+					},
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
+		},
+		'terminal.integrated.profiles.osx': {
+			markdownDescription: localize(
+				{
+					key: 'terminal.integrated.profile.osx',
+					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
+				},
+				"The macOS profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+			),
+			type: 'object',
+			default: {
+				'bash': {
+					path: 'bash'
+				},
+				'zsh': {
+					path: 'zsh'
+				},
+				'fish': {
+					path: 'fish'
+				},
+				'tmux': {
+					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
+				}
+			},
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
+		},
+		'terminal.integrated.profiles.linux': {
+			markdownDescription: localize(
+				{
+					key: 'terminal.integrated.profile.linux',
+					comment: ['{0} and {1} are the `path` and optional `args` settings keys']
+				},
+				"The Linux profiles to present when creating a new terminal via the terminal dropdown. When set, these will override the default detected profiles. They are comprised of a {0} and optional {1}", '`path`', '`args`.'
+			),
+			type: 'object',
+			default: {
+				'bash': {
+					path: 'bash'
+				},
+				'zsh': {
+					path: 'zsh'
+				},
+				'fish': {
+					path: 'fish'
+				},
+				'tmux': {
+					path: 'tmux'
+				},
+				'pwsh': {
+					path: 'pwsh'
+				}
+			},
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
+		},
+		'terminal.integrated.useWslProfiles': {
+			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
+			type: 'boolean',
+			default: true
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
@@ -214,17 +356,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'auto'
 		},
-		'terminal.integrated.rendererType': {
+		'terminal.integrated.gpuAcceleration': {
 			type: 'string',
-			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
+			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
-				localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
-				localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
-				localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
-				localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl).")
+				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
+				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
+				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal.")
 			],
 			default: 'auto',
-			description: localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
+			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
 		},
 		'terminal.integrated.rightClickBehavior': {
 			type: 'string',

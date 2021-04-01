@@ -60,6 +60,11 @@ export interface IQuickNavigateConfiguration {
 export interface IPickOptions<T extends IQuickPickItem> {
 
 	/**
+	 * an optional string to show as the title of the quick input
+	 */
+	title?: string;
+
+	/**
 	 * an optional string to show as placeholder in the input box to guide the user what she picks on
 	 */
 	placeHolder?: string;
@@ -115,6 +120,11 @@ export interface IPickOptions<T extends IQuickPickItem> {
 }
 
 export interface IInputOptions {
+
+	/**
+	 * an optional string to show as the title of the quick input
+	 */
+	title?: string;
 
 	/**
 	 * the value to prefill in the input box
@@ -353,7 +363,7 @@ export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends I
 export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 
-//region Fuzzy Scorer Support
+//#region Fuzzy Scorer Support
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 

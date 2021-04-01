@@ -25,6 +25,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as nls from 'vs/nls';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -52,6 +53,16 @@ export interface IMouseLeaveMessage extends BaseToWebviewMessage {
 	id: string;
 }
 
+export interface IOutputFocusMessage extends BaseToWebviewMessage {
+	type: 'outputFocus';
+	id: string;
+}
+
+export interface IOutputBlurMessage extends BaseToWebviewMessage {
+	type: 'outputBlur';
+	id: string;
+}
+
 export interface IWheelMessage extends BaseToWebviewMessage {
 	type: 'did-scroll-wheel';
 	payload: any;
@@ -75,9 +86,13 @@ export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	downloadName?: string;
 }
 
-export interface IFocusMarkdownPreviewMessage extends BaseToWebviewMessage {
-	type: 'focusMarkdownPreview';
-	cellId: string;
+export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'clickMarkdownPreview';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+	readonly shiftKey: boolean;
 }
 
 export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
@@ -97,26 +112,35 @@ export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
 
 export interface ICellDragStartMessage extends BaseToWebviewMessage {
 	type: 'cell-drag-start';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
 export interface ICellDragMessage extends BaseToWebviewMessage {
 	type: 'cell-drag';
-	cellId: string;
-	position: { clientX: number, clientY: number };
+	readonly cellId: string;
+	readonly position: {
+		readonly clientY: number;
+	};
+}
+
+export interface ICellDropMessage extends BaseToWebviewMessage {
+	readonly type: 'cell-drop';
+	readonly cellId: string;
+	readonly ctrlKey: boolean
+	readonly altKey: boolean;
+	readonly position: {
+		readonly clientY: number;
+	};
 }
 
 export interface ICellDragEndMessage extends BaseToWebviewMessage {
 	readonly type: 'cell-drag-end';
 	readonly cellId: string;
-	readonly ctrlKey: boolean
-	readonly altKey: boolean;
-	readonly position: {
-		readonly clientX: number;
-		readonly clientY: number;
-	};
 }
+
 export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkdownPreview';
 }
@@ -279,17 +303,20 @@ export type FromWebviewMessage =
 	| IDimensionMessage
 	| IMouseEnterMessage
 	| IMouseLeaveMessage
+	| IOutputFocusMessage
+	| IOutputBlurMessage
 	| IWheelMessage
 	| IScrollAckMessage
 	| IBlurOutputMessage
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
-	| IFocusMarkdownPreviewMessage
+	| IClickMarkdownPreviewMessage
 	| IMouseEnterMarkdownPreviewMessage
 	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
 	| ICellDragStartMessage
 	| ICellDragMessage
+	| ICellDropMessage
 	| ICellDragEndMessage
 	| IInitializedMarkdownPreviewMessage
 	;
@@ -392,6 +419,152 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			<head>
 				<meta charset="UTF-8">
 				<base href="${baseUrl}/"/>
+
+				<!--
+				Markdown previews are rendered using a shadow dom and are not effected by normal css.
+				Insert this style node into all preview shadow doms for styling.
+				-->
+				<template id="preview-styles">
+					<style>
+						img {
+							max-width: 100%;
+							max-height: 100%;
+						}
+
+						a {
+							text-decoration: none;
+						}
+
+						a:hover {
+							text-decoration: underline;
+						}
+
+						a:focus,
+						input:focus,
+						select:focus,
+						textarea:focus {
+							outline: 1px solid -webkit-focus-ring-color;
+							outline-offset: -1px;
+						}
+
+						hr {
+							border: 0;
+							height: 2px;
+							border-bottom: 2px solid;
+						}
+
+						h1 {
+							font-size: 26px;
+							padding-bottom: 8px;
+							line-height: 31px;
+							border-bottom-width: 1px;
+							border-bottom-style: solid;
+							border-color: var(--vscode-foreground);
+							margin: 0;
+							margin-bottom: 13px;
+						}
+
+						h2 {
+							font-size: 19px;
+							margin: 0;
+							margin-bottom: 10px;
+						}
+
+						h1,
+						h2,
+						h3 {
+							font-weight: normal;
+						}
+
+						div {
+							width: 100%;
+						}
+
+						/* Adjust margin of first item in markdown cell */
+						*:first-child {
+							margin-top: 0px;
+						}
+
+						/* h1 tags don't need top margin */
+						h1:first-child {
+							margin-top: 0;
+						}
+
+						/* Removes bottom margin when only one item exists in markdown cell */
+						*:only-child,
+						*:last-child {
+							margin-bottom: 0;
+							padding-bottom: 0;
+						}
+
+						/* makes all markdown cells consistent */
+						div {
+							min-height: ${this.options.previewNodePadding * 2}px;
+						}
+
+						table {
+							border-collapse: collapse;
+							border-spacing: 0;
+						}
+
+						table th,
+						table td {
+							border: 1px solid;
+						}
+
+						table > thead > tr > th {
+							text-align: left;
+							border-bottom: 1px solid;
+						}
+
+						table > thead > tr > th,
+						table > thead > tr > td,
+						table > tbody > tr > th,
+						table > tbody > tr > td {
+							padding: 5px 10px;
+						}
+
+						table > tbody > tr + tr > td {
+							border-top: 1px solid;
+						}
+
+						blockquote {
+							margin: 0 7px 0 5px;
+							padding: 0 16px 0 10px;
+							border-left-width: 5px;
+							border-left-style: solid;
+						}
+
+						code,
+						.code {
+							font-family: var(--monaco-monospace-font);
+							font-size: 1em;
+							line-height: 1.357em;
+						}
+
+						.code {
+							white-space: pre-wrap;
+						}
+
+						.latex-block {
+							display: block;
+						}
+
+						.latex {
+							vertical-align: middle;
+							display: inline-block;
+						}
+
+						.latex img,
+						.latex-block img {
+							filter: brightness(0) invert(0)
+						}
+
+						dragging {
+							background-color: var(--vscode-editor-background);
+						}
+					</style>
+				</template>
 				<style>
 					#container > div > div.output {
 						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
@@ -406,17 +579,23 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
-						user-select: text;
-						-webkit-user-select: text;
-						-ms-user-select: text;
+						user-select: none;
+						-webkit-user-select: none;
+						-ms-user-select: none;
 						white-space: initial;
 						cursor: grab;
+					}
+
+					#container > div > div.preview.emptyMarkdownCell::before {
+						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
+						font-style: italic;
+						opacity: 0.6;
 					}
 
 					/* markdown */
 					#container > div > div.preview {
 						color: var(--vscode-foreground);
-						width: calc(100% - ${this.options.cellMargin}px);
+						width: 100%;
 						padding-left: ${this.options.leftMargin}px;
 						padding-top: ${this.options.previewNodePadding}px;
 						padding-bottom: ${this.options.previewNodePadding}px;
@@ -424,140 +603,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 					#container > div > div.preview.selected {
 						background: var(--vscode-notebook-selectedCellBackground);
-					}
-
-					#container > div > div.preview img {
-						max-width: 100%;
-						max-height: 100%;
-					}
-
-					#container > div > div.preview a {
-						text-decoration: none;
-					}
-
-					#container > div > div.preview a:hover {
-						text-decoration: underline;
-					}
-
-					#container > div > div.preview a:focus,
-					#container > div > div.preview input:focus,
-					#container > div > div.preview select:focus,
-					#container > div > div.preview textarea:focus {
-						outline: 1px solid -webkit-focus-ring-color;
-						outline-offset: -1px;
-					}
-
-					#container > div > div.preview hr {
-						border: 0;
-						height: 2px;
-						border-bottom: 2px solid;
-					}
-
-					#container > div > div.preview h1 {
-						font-size: 26px;
-						padding-bottom: 8px;
-						line-height: 31px;
-						border-bottom-width: 1px;
-						border-bottom-style: solid;
-						border-color: var(--vscode-foreground);
-						margin: 0;
-						margin-bottom: 13px;
-					}
-
-					#container > div > div.preview h2 {
-						font-size: 19px;
-						margin: 0;
-						margin-bottom: 10px;
-					}
-
-					#container > div > div.preview h1,
-					#container > div > div.preview h2,
-					#container > div > div.preview h3 {
-						font-weight: normal;
-					}
-
-					#container > div > div.preview div {
-						width: 100%;
-					}
-
-					/* Adjust margin of first item in markdown cell */
-					#container > div > div.preview *:first-child {
-						margin-top: 0px;
-					}
-
-					/* h1 tags don't need top margin */
-					#container > div > div.preview h1:first-child {
-						margin-top: 0;
-					}
-
-					/* Removes bottom margin when only one item exists in markdown cell */
-					#container > div > div.preview *:only-child,
-					#container > div > div.preview *:last-child {
-						margin-bottom: 0;
-						padding-bottom: 0;
-					}
-
-					/* makes all markdown cells consistent */
-					#container > div > div.preview div {
-						min-height: ${this.options.previewNodePadding * 2}px;
-					}
-
-					#container > div > div.preview table {
-						border-collapse: collapse;
-						border-spacing: 0;
-					}
-
-					#container > div > div.preview table th,
-					#container > div > div.preview table td {
-						border: 1px solid;
-					}
-
-					#container > div > div.preview table > thead > tr > th {
-						text-align: left;
-						border-bottom: 1px solid;
-					}
-
-					#container > div > div.preview table > thead > tr > th,
-					#container > div > div.preview table > thead > tr > td,
-					#container > div > div.preview table > tbody > tr > th,
-					#container > div > div.preview table > tbody > tr > td {
-						padding: 5px 10px;
-					}
-
-					#container > div > div.preview table > tbody > tr + tr > td {
-						border-top: 1px solid;
-					}
-
-					#container > div > div.preview blockquote {
-						margin: 0 7px 0 5px;
-						padding: 0 16px 0 10px;
-						border-left-width: 5px;
-						border-left-style: solid;
-					}
-
-					#container > div > div.preview code,
-					#container > div > div.preview .code {
-						font-family: var(--monaco-monospace-font);
-						font-size: 1em;
-						line-height: 1.357em;
-					}
-
-					#container > div > div.preview .code {
-						white-space: pre-wrap;
-					}
-
-					#container > div > div.preview .latex-block {
-						display: block;
-					}
-
-					#container > div > div.preview .latex {
-						vertical-align: middle;
-						display: inline-block;
-					}
-
-					#container > div > div.preview .latex img,
-					#container > div > div.preview .latex-block img {
-						filter: brightness(0) invert(0)
 					}
 
 					#container > div > div.preview.dragging {
@@ -779,7 +824,8 @@ var requirejs = (function() {
 			}
 		}));
 
-		this._register(this.webview.onMessage((data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined }) => {
+		this._register(this.webview.onMessage((message) => {
+			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
 			if (this._disposed) {
 				return;
 			}
@@ -799,7 +845,7 @@ var requirejs = (function() {
 							const resolvedResult = this.resolveOutputId(data.id);
 							if (resolvedResult) {
 								const { cellInfo, output } = resolvedResult;
-								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init);
+								this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!data.init, 'webview#dimension');
 							}
 						} else {
 							const cellId = data.id.substr(0, data.id.length - '_preview'.length);
@@ -825,6 +871,28 @@ var requirejs = (function() {
 							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 							if (latestCell) {
 								latestCell.outputIsHovered = false;
+							}
+						}
+						break;
+					}
+				case 'outputFocus':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsFocused = true;
+							}
+						}
+						break;
+					}
+				case 'outputBlur':
+					{
+						const resolvedResult = this.resolveOutputId(data.id);
+						if (resolvedResult) {
+							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
+							if (latestCell) {
+								latestCell.outputIsFocused = false;
 							}
 						}
 						break;
@@ -872,11 +940,17 @@ var requirejs = (function() {
 						this._onMessage.fire({ message: data.message, forRenderer: data.rendererId });
 						break;
 					}
-				case 'focusMarkdownPreview':
+				case 'clickMarkdownPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
-							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+							if (data.shiftKey || data.metaKey) {
+								// Add to selection
+								this.notebookEditor.toggleNotebookCellSelection(cell);
+							} else {
+								// Normal click
+								this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+							}
 						}
 						break;
 					}
@@ -915,17 +989,21 @@ var requirejs = (function() {
 						this.notebookEditor.markdownCellDrag(data.cellId, data.position);
 						break;
 					}
-				case 'cell-drag-end':
+				case 'cell-drop':
 					{
-						this.notebookEditor.markdownCellDragEnd(data.cellId, {
+						this.notebookEditor.markdownCellDrop(data.cellId, {
 							clientY: data.position.clientY,
 							ctrlKey: data.ctrlKey,
 							altKey: data.altKey,
 						});
 						break;
 					}
+				case 'cell-drag-end':
+					{
+						this.notebookEditor.markdownCellDragEnd(data.cellId);
+						break;
+					}
 			}
-
 		}));
 	}
 
@@ -995,7 +1073,8 @@ var requirejs = (function() {
 			resolveFunc = resolve;
 		});
 
-		const dispose = webview.onMessage((data: FromWebviewMessage) => {
+		const dispose = webview.onMessage((message) => {
+			const data: FromWebviewMessage = message.message;
 			if (data.__vscode_notebook_message && data.type === 'initialized') {
 				resolveFunc();
 				dispose.dispose();
@@ -1205,7 +1284,7 @@ var requirejs = (function() {
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
 			this.webview?.onMessage(e => {
-				if (e.type === 'initializedMarkdownPreview') {
+				if (e.message.type === 'initializedMarkdownPreview') {
 					resolve();
 				}
 			});

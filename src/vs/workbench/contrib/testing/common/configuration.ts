@@ -20,8 +20,8 @@ export const enum AutoOpenPeekViewWhen {
 }
 
 export const enum AutoRunMode {
-	AllInWorkspace = 'allInWorkspace',
-	OnlyPreviouslyRun = 'onlyPreviouslyRun',
+	AllInWorkspace = 'all',
+	OnlyPreviouslyRun = 'rerun',
 }
 
 export const testingConfiguation: IConfigurationNode = {
@@ -38,8 +38,8 @@ export const testingConfiguation: IConfigurationNode = {
 			],
 			default: AutoRunMode.AllInWorkspace,
 			enumDescriptions: [
-				localize('testing.autoRun.mode.allInWorkspace', "Automatically run and then re-run all tests in the workspace."),
-				localize('testing.autoRun.mode.onlyPreviouslyRun', "Only re-run tests that have been run before, when they change.")
+				localize('testing.autoRun.mode.allInWorkspace', "Automatically runs all discovered test when auto-run is toggled. Reruns individual tests when they are changed."),
+				localize('testing.autoRun.mode.onlyPreviouslyRun', "Reruns individual tests when they are changed. Will not automatically run any tests that have not been already executed.")
 			],
 		},
 		[TestingConfigKeys.AutoRunDelay]: {

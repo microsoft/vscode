@@ -67,28 +67,26 @@ suite('Workbench editor model', () => {
 
 		const model = new MyEditorModel();
 
-		model.onDispose(() => {
+		model.onWillDispose(() => {
 			assert(true);
 			counter++;
 		});
 
-		const resolvedModel = await model.load();
-		assert(resolvedModel === model);
-		assert.strictEqual(resolvedModel.isDisposed(), false);
+		await model.resolve();
+		assert.strictEqual(model.isDisposed(), false);
 		assert.strictEqual(model.isResolved(), true);
 		model.dispose();
 		assert.strictEqual(counter, 1);
-		assert.strictEqual(resolvedModel.isDisposed(), true);
+		assert.strictEqual(model.isDisposed(), true);
 	});
 
 	test('BaseTextEditorModel', async () => {
 		let modelService = stubModelService(instantiationService);
 
 		const model = new MyTextEditorModel(modelService, modeService);
-		const resolvedModel = await model.load() as MyTextEditorModel;
+		await model.resolve();
 
-		assert(resolvedModel === model);
-		resolvedModel.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
+		model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
 		assert.strictEqual(model.isResolved(), true);
 		model.dispose();
 	});

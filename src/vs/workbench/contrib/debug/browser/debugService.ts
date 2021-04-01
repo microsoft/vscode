@@ -501,7 +501,7 @@ export class DebugService implements IDebugService {
 
 		const openDebug = this.configurationService.getValue<IDebugConfiguration>('debug').openDebug;
 		// Open debug viewlet based on the visibility of the side bar and openDebug setting. Do not open for 'run without debug'
-		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.viewModel.firstSessionStart))) {
+		if (!configuration.resolved.noDebug && (openDebug === 'openOnSessionStart' || (openDebug !== 'neverOpen' && this.viewModel.firstSessionStart))) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 		}
 
@@ -736,9 +736,9 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	async stopSession(session: IDebugSession | undefined): Promise<any> {
+	async stopSession(session: IDebugSession | undefined, disconnect = false): Promise<any> {
 		if (session) {
-			return session.terminate();
+			return disconnect ? session.disconnect() : session.terminate();
 		}
 
 		const sessions = this.model.getSessions();
@@ -750,7 +750,7 @@ export class DebugService implements IDebugService {
 			this.cancelTokens(undefined);
 		}
 
-		return Promise.all(sessions.map(s => s.terminate()));
+		return Promise.all(sessions.map(s => disconnect ? s.disconnect() : s.terminate()));
 	}
 
 	private async substituteVariables(launch: ILaunch | undefined, config: IConfig): Promise<IConfig | undefined> {
@@ -780,10 +780,8 @@ export class DebugService implements IDebugService {
 		const actions = [...errorActions, configureAction];
 		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length });
 		if (choice < actions.length) {
-			return actions[choice].run();
+			await actions[choice].run();
 		}
-
-		return undefined;
 	}
 
 	//---- focus management
@@ -924,8 +922,8 @@ export class DebugService implements IDebugService {
 		await this.sendFunctionBreakpoints();
 	}
 
-	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined): Promise<void> {
-		this.model.addDataBreakpoint(label, dataId, canPersist, accessTypes);
+	async addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void> {
+		this.model.addDataBreakpoint(label, dataId, canPersist, accessTypes, accessType);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);

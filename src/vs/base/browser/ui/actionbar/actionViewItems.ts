@@ -27,12 +27,12 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	element: HTMLElement | undefined;
 
-	_context: any;
+	_context: unknown;
 	_action: IAction;
 
 	private _actionRunner: IActionRunner | undefined;
 
-	constructor(context: any, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
+	constructor(context: unknown, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
 		super();
 
 		this._context = context || this;

@@ -9,14 +9,19 @@ import { Event } from 'vs/base/common/event';
 export interface IEditorModel {
 
 	/**
-	 * Emitted when the model is disposed.
+	 * Emitted when the model is about to be disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
-	 * Loads the model.
+	 * Resolves the model.
 	 */
-	load(): Promise<IEditorModel>;
+	resolve(): Promise<void>;
+
+	/**
+	 * Find out if the editor model was resolved or not.
+	 */
+	isResolved(): boolean;
 
 	/**
 	 * Find out if this model has been disposed.

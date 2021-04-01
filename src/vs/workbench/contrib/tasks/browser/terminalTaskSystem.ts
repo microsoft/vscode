@@ -44,7 +44,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -540,7 +539,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		const paths = envPath ? envPath.split(path.delimiter).map(p => this.configurationResolverService.resolve(workspaceFolder, p)) : undefined;
 		let foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
 		if (!foundExecutable) {
-			foundExecutable = await this.findExecutable(command, cwd, paths);
+			foundExecutable = path.join(cwd ?? '', command);
 		}
 		return foundExecutable;
 	}
@@ -1601,60 +1600,5 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (outputChannel) {
 			outputChannel.append(output);
 		}
-	}
-
-	private async fileExists(path: string): Promise<boolean> {
-		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
-		if (await this.fileService.exists(uri)) {
-			return !((await this.fileService.resolve(uri)).isDirectory);
-		}
-		return false;
-	}
-
-	private async findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string> {
-		// If we have an absolute path then we take it.
-		if (path.isAbsolute(command)) {
-			return command;
-		}
-		if (cwd === undefined) {
-			cwd = processCwd();
-		}
-		const dir = path.dirname(command);
-		if (dir !== '.') {
-			// We have a directory and the directory is relative (see above). Make the path absolute
-			// to the current working directory.
-			return path.join(cwd, command);
-		}
-		if (paths === undefined && Types.isString(processEnv.PATH)) {
-			paths = processEnv.PATH.split(path.delimiter);
-		}
-		// No PATH environment. Make path absolute to the cwd.
-		if (paths === undefined || paths.length === 0) {
-			return path.join(cwd, command);
-		}
-		// We have a simple file name. We get the path variable from the env
-		// and try to find the executable on the path.
-		for (let pathEntry of paths) {
-			// The path entry is absolute.
-			let fullPath: string;
-			if (path.isAbsolute(pathEntry)) {
-				fullPath = path.join(pathEntry, command);
-			} else {
-				fullPath = path.join(cwd, pathEntry, command);
-			}
-
-			if (await this.fileExists(fullPath)) {
-				return fullPath;
-			}
-			let withExtension = fullPath + '.com';
-			if (await this.fileExists(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (await this.fileExists(withExtension)) {
-				return withExtension;
-			}
-		}
-		return path.join(cwd, command);
 	}
 }

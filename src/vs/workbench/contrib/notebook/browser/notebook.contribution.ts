@@ -24,20 +24,20 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, EditorsAssociations, editorsAssociationsSettingId, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
@@ -50,7 +50,6 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorServiceImpl';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -68,6 +67,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
+import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 
 
 // Diff Editor Contribution
@@ -75,6 +75,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -100,7 +101,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-class NotebookDiffEditorFactory implements IEditorInputFactory {
+class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -139,7 +140,7 @@ class NotebookDiffEditorFactory implements IEditorInputFactory {
 	}
 
 }
-class NotebookEditorFactory implements IEditorInputFactory {
+class NotebookEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -167,9 +168,9 @@ class NotebookEditorFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
 	NotebookEditorInput.ID,
-	NotebookEditorFactory
+	NotebookEditorSerializer
 );
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerCustomEditorInputFactory(
@@ -191,7 +192,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 		canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
 			if (editorInput instanceof NotebookEditorInput) {
-				if (isEqual(editorInput.resource.with({ scheme: Schemas.vscodeNotebook }), backupResource)) {
+				if (isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editorInput.resource.toString() }), backupResource)) {
 					return true;
 				}
 			}
@@ -201,9 +202,9 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	}
 );
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
 	NotebookDiffEditorInput.ID,
-	NotebookDiffEditorFactory
+	NotebookDiffEditorSerializer
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
@@ -693,32 +694,35 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	private readonly _dirtyListener: IDisposable;
 
 	constructor(
-		@INotebookService private readonly _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
 	) {
-		this._dirtyListener = Event.debounce(_workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
-			const inputs = this._createMissingNotebookEditors();
-			this._editorService.openEditors(inputs);
-		});
+
+		type E = { resource: URI, isDirty: boolean };
+		this._dirtyListener = Event.debounce<E, E[]>(
+			this._notebookEditorModelService.onDidChangeDirty,
+			(last, current) => !last ? [current] : [...last, current],
+			100
+		)(this._openMissingDirtyNotebookEditors, this);
 	}
 
 	dispose(): void {
 		this._dirtyListener.dispose();
 	}
 
-	private _createMissingNotebookEditors(): IResourceEditorInput[] {
+	private _openMissingDirtyNotebookEditors(inputs: { resource: URI, isDirty: boolean }[]): void {
 		const result: IResourceEditorInput[] = [];
-
-		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			if (this._workingCopyService.isDirty(notebook.uri.with({ scheme: Schemas.vscodeNotebook })) && !this._editorService.isOpen({ resource: notebook.uri })) {
+		for (let input of inputs) {
+			if (input.isDirty && !this._editorService.isOpen({ resource: input.resource })) {
 				result.push({
-					resource: notebook.uri,
+					resource: input.resource,
 					options: { inactive: true, preserveFocus: true, pinned: true }
 				});
 			}
 		}
-		return result;
+		if (result.length > 0) {
+			this._editorService.openEditors(result);
+		}
 	}
 }
 
@@ -731,7 +735,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookFileTracker
 
 registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
-registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
+registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, true);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
 
@@ -765,6 +769,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
 			type: 'boolean',
 			default: true
-		}
+		},
+		[ExperimentalUseMarkdownRenderer]: {
+			description: nls.localize('notebook.experimental.useMarkdownRenderer.description', "Enable/disable using the new extensible markdown renderer."),
+			type: 'boolean',
+			default: true
+		},
 	}
 });

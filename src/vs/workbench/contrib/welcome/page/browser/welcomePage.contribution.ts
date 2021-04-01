@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { WelcomePageContribution, WelcomePageAction, WelcomeInputFactory, DEFAULT_STARTUP_EDITOR_CONFIG } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
+import { WelcomePageContribution, WelcomePageAction, WelcomeInputSerializer, DEFAULT_STARTUP_EDITOR_CONFIG } from 'vs/workbench/contrib/welcome/page/browser/welcomePage';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -22,7 +22,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
 	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomePageAction), 'Help: Welcome', CATEGORIES.Help.value);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory(WelcomeInputFactory.ID, WelcomeInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(WelcomeInputSerializer.ID, WelcomeInputSerializer);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '1_welcome',

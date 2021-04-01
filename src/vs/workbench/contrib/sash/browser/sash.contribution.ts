@@ -9,7 +9,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { SashSettingsController, minSize, maxSize } from 'vs/workbench/contrib/sash/browser/sash';
+import { SashSettingsController } from 'vs/workbench/contrib/sash/browser/sash';
 import { isIPad } from 'vs/base/browser/browser';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { sashHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -25,9 +25,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'workbench.sash.size': {
 				type: 'number',
-				default: isIPad ? maxSize : minSize,
-				minimum: minSize,
-				maximum: maxSize,
+				default: isIPad ? 20 : 4,
+				minimum: 1,
+				maximum: 20,
 				description: localize('sashSize', "Controls the feedback area size in pixels of the dragging area in between views/editors. Set it to a larger value if you feel it's hard to resize views using the mouse.")
 			},
 			'workbench.sash.hoverDelay': {
@@ -43,9 +43,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 registerThemingParticipant((theme, collector) => {
 	const sashHoverBorderColor = theme.getColor(sashHoverBorder);
 	collector.addRule(`
-		.monaco-sash.hover,
-		.monaco-sash.active {
-			background: ${sashHoverBorderColor}
+		.monaco-sash.hover:before,
+		.monaco-sash.active:before {
+			background: ${sashHoverBorderColor};
 		}
 	`);
 });

@@ -661,15 +661,15 @@ suite('Glob', () => {
 	});
 
 	test('split glob aware', function () {
-		assert.deepEqual(glob.splitGlobAware('foo,bar', ','), ['foo', 'bar']);
-		assert.deepEqual(glob.splitGlobAware('foo', ','), ['foo']);
-		assert.deepEqual(glob.splitGlobAware('{foo,bar}', ','), ['{foo,bar}']);
-		assert.deepEqual(glob.splitGlobAware('foo,bar,{foo,bar}', ','), ['foo', 'bar', '{foo,bar}']);
-		assert.deepEqual(glob.splitGlobAware('{foo,bar},foo,bar,{foo,bar}', ','), ['{foo,bar}', 'foo', 'bar', '{foo,bar}']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo,bar', ','), ['foo', 'bar']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo', ','), ['foo']);
+		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar}', ','), ['{foo,bar}']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,{foo,bar}', ','), ['foo', 'bar', '{foo,bar}']);
+		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar},foo,bar,{foo,bar}', ','), ['{foo,bar}', 'foo', 'bar', '{foo,bar}']);
 
-		assert.deepEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
-		assert.deepEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
-		assert.deepEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
+		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
+		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
 	});
 
 	test('expression with disabled glob', function () {

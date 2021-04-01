@@ -86,7 +86,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string;
+	readonly source?: string | { label: string; id: string; };
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -303,6 +303,16 @@ export enum NotificationsFilter {
 export interface INotificationService {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Emitted when a new notification is added.
+	 */
+	readonly onDidAddNotification: Event<INotification>;
+
+	/**
+	 * Emitted when a notification is removed.
+	 */
+	readonly onDidRemoveNotification: Event<INotification>;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`

@@ -44,9 +44,6 @@ export function activate(context: vscode.ExtensionContext): any {
 
 			return dto;
 		},
-		resolveNotebook: async (_document: vscode.NotebookDocument) => {
-			return;
-		},
 		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		},
@@ -62,32 +59,22 @@ export function activate(context: vscode.ExtensionContext): any {
 	}));
 
 	const kernel: vscode.NotebookKernel = {
+		id: 'notebookSmokeTest',
 		label: 'notebookSmokeTest',
 		isPreferred: true,
-		executeAllCells: async (_document: vscode.NotebookDocument) => {
-			const edit = new vscode.WorkspaceEdit();
-			for (let i = 0; i < _document.cells.length; i++) {
-				edit.replaceNotebookCellOutput(_document.uri, i, [new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
-				])]);
+		executeCellsRequest: async (document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) => {
+			const idx = ranges[0].start;
+			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'notebookSmokeTest');
+			if (!task) {
+				return;
 			}
 
-			await vscode.workspace.applyEdit(edit);
-		},
-		cancelAllCellsExecution: async () => { },
-		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined) => {
-			if (!_cell) {
-				_cell = _document.cells[0];
-			}
-
-			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCellOutput(_document.uri, _cell.index, [new vscode.NotebookCellOutput([
+			task.start();
+			task.replaceOutput([new vscode.NotebookCellOutput([
 				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
 			])]);
-			await vscode.workspace.applyEdit(edit);
-			return;
-		},
-		cancelCellExecution: async () => { }
+			task.end({ success: true });
+		}
 	};
 
 	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.smoke-nb' }, {

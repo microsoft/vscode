@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellLaunchConfigDto, IShellDefinitionDto, IShellAndArgsDto, ITerminalDimensionsDto, ITerminalLinkDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, IShellAndArgsDto, ITerminalDimensionsDto, ITerminalLinkDto, TerminalIdentifier } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -19,8 +19,9 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
+import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -116,7 +117,7 @@ export class ExtHostTerminal {
 		shellPath?: string,
 		shellArgs?: string[] | string,
 		cwd?: string | URI,
-		env?: { [key: string]: string | null },
+		env?: ITerminalEnvironment,
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
 		hideFromUser?: boolean,
@@ -224,6 +225,10 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		}
 	}
 
+	processBinary(data: string) {
+		throw new Error('not implemented');
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		// No-op, flow control is not supported in extension owned terminals. If this is ever
 		// implemented it will need new pause and resume VS Code APIs.
@@ -327,7 +332,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public abstract createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal;
 	public abstract getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	public abstract getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
-	public abstract $getAvailableShells(): Promise<IShellDefinitionDto[]>;
+	public abstract $getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]>;
 	public abstract $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
 	public abstract $acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 
@@ -770,15 +775,14 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
-		// Return the empty string to avoid throwing
-		return '';
+		throw new NotSupportedError();
 	}
 
 	public getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string {
 		throw new NotSupportedError();
 	}
 
-	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
+	public $getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
 		throw new NotSupportedError();
 	}
 
@@ -787,6 +791,6 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
-		// No-op for web worker ext host as workspace permissions aren't used
+		throw new NotSupportedError();
 	}
 }

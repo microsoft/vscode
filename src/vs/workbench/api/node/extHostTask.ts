@@ -44,6 +44,12 @@ export class ExtHostTask extends ExtHostTaskBase {
 				authority: initData.remote.authority,
 				platform: process.platform
 			});
+		} else {
+			this.registerTaskSystem(Schemas.file, {
+				scheme: Schemas.file,
+				authority: '',
+				platform: process.platform
+			});
 		}
 		this._proxy.$registerSupportedExecutions(true, true, true);
 	}

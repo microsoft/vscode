@@ -232,8 +232,8 @@ suite("Extension Tests", function () {
 
 	// Defines a Mocha unit test
 	test("Something 1", function() {
-		assert.equal(-1, [1, 2, 3].indexOf(5));
-		assert.equal(-1, [1, 2, 3].indexOf(0));
+		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
+		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
 	});
 });`);
 
@@ -279,6 +279,7 @@ class SimpleWebviewService implements IWebviewService {
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeWebview = undefined;
+	readonly onDidChangeActiveWebview = Event.None;
 
 	createWebviewElement(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewElement { throw new Error('Method not implemented.'); }
 	createWebviewOverlay(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewOverlay { throw new Error('Method not implemented.'); }

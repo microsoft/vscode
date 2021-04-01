@@ -12,6 +12,7 @@ import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IProcessDetails, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
+import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 
 type WorkspaceId = string;
 
@@ -26,6 +27,8 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private readonly _onProcessData = this._register(new Emitter<{ id: number, event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._onProcessData.event;
+	private readonly _onProcessBinary = this._register(new Emitter<{ id: number, event: string }>());
+	readonly onProcessBinary = this._onProcessBinary.event;
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number, event: IPtyHostProcessReplayEvent }>());
 	readonly onProcessReplay = this._onProcessReplay.event;
 	private readonly _onProcessExit = this._register(new Emitter<{ id: number, event: number | undefined }>());
@@ -156,6 +159,10 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).orphanQuestionReply();
 	}
 
+	processBinary(id: number, data: string): void {
+		return this._throwIfNoPty(id).writeBinary(data);
+	}
+
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
@@ -224,7 +231,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 export class PersistentTerminalProcess extends Disposable {
 
-	// private readonly _bufferer: TerminalDataBufferer;
+	private readonly _bufferer: TerminalDataBufferer;
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void; }>();
 
@@ -282,15 +289,6 @@ export class PersistentTerminalProcess extends Disposable {
 			this.shutdown(true);
 		}, LocalReconnectConstants.ReconnectionShortGraceTime));
 
-		// TODO: Bring back bufferer
-		// this._bufferer = new TerminalDataBufferer((id, data) => {
-		// 	const ev: IPtyHostProcessDataEvent = {
-		// 		type: 'data',
-		// 		data: data
-		// 	};
-		// 	this._events.fire(ev);
-		// });
-
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;
 			this._cwd = e.cwd;
@@ -298,12 +296,14 @@ export class PersistentTerminalProcess extends Disposable {
 		}));
 		this._register(this._terminalProcess.onProcessTitleChanged(e => this._onProcessTitleChanged.fire(e)));
 		this._register(this._terminalProcess.onProcessShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-		// Buffer data events to reduce the amount of messages going to the renderer
-		// this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
-		this._register(this._terminalProcess.onProcessData(e => this._recorder.recordData(e)));
-		this._register(this._terminalProcess.onProcessExit(exitCode => {
-			// this._bufferer.stopBuffering(this._persistentProcessId);
-		}));
+
+		// Data buffering to reduce the amount of messages going to the renderer
+		this._bufferer = new TerminalDataBufferer((_, data) => this._onProcessData.fire({ data: data, sync: true }));
+		this._register(this._bufferer.startBuffering(this._persistentProcessId, this._terminalProcess.onProcessData));
+		this._register(this._terminalProcess.onProcessExit(() => this._bufferer.stopBuffering(this._persistentProcessId)));
+
+		// Data recording for reconnect
+		this._register(this.onProcessData(e => this._recorder.recordData(e.data)));
 	}
 
 	attach(): void {
@@ -343,11 +343,17 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 		return this._terminalProcess.input(data);
 	}
+	writeBinary(data: string): void {
+		return this._terminalProcess.processBinary(data);
+	}
 	resize(cols: number, rows: number): void {
 		if (this._inReplay) {
 			return;
 		}
 		this._recorder.recordResize(cols, rows);
+
+		// Buffered events should flush when a resize occurs
+		this._bufferer.flushBuffer(this._persistentProcessId);
 		return this._terminalProcess.resize(cols, rows);
 	}
 	acknowledgeDataEvent(charCount: number): void {
