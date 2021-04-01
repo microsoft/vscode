@@ -1117,6 +1117,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._localStore.add(this.viewModel.onDidChangeSelection(() => {
 			this._onDidChangeSelection.fire();
+			this.updateSelectedMarkdownPreviews();
 		}));
 
 		this._localStore.add(this._list.onWillScroll(e => {
@@ -2186,13 +2187,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		await this._webview?.removeMarkdownPreview(cell.id);
 	}
 
-	async updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void> {
-		if (!this.useRenderer) {
-			// TODO: handle case where custom renderer is disabled?
-			return;
-		}
-
-		if (!this._webview) {
+	private async updateSelectedMarkdownPreviews(): Promise<void> {
+		if (!this.useRenderer || !this._webview) {
 			return;
 		}
 
@@ -2200,7 +2196,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			await this._resolveWebview();
 		}
 
-		await this._webview?.updateMarkdownPreviewSelectionState(cell.id, isSelected);
+		const selectedCells = this.getSelectionViewModels().map(cell => cell.id);
+
+		// Only show selection when there is more than 1 cell selected
+		await this._webview?.updateMarkdownPreviewSelections(selectedCells.length > 1 ? selectedCells : []);
 	}
 
 	async createOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {

@@ -26,6 +26,7 @@ import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workb
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import * as nls from 'vs/nls';
+import { coalesce } from 'vs/base/common/arrays';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -288,10 +289,9 @@ export interface IShowMarkdownMessage {
 	top: number;
 }
 
-export interface IUpdateMarkdownPreviewSelectionState {
-	readonly type: 'updateMarkdownPreviewSelectionState',
-	readonly id: string;
-	readonly isSelected: boolean;
+export interface IUpdateSelectedMarkdownPreviews {
+	readonly type: 'updateSelectedMarkdownPreviews',
+	readonly selectedCellIds: readonly string[]
 }
 
 export interface IInitializeMarkdownMessage {
@@ -338,7 +338,7 @@ export type ToWebviewMessage =
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
 	| IUnhideMarkdownMessage
-	| IUpdateMarkdownPreviewSelectionState
+	| IUpdateSelectedMarkdownPreviews
 	| IInitializeMarkdownMessage
 	| IViewScrollMarkdownRequestMessage;
 
@@ -1266,21 +1266,14 @@ var requirejs = (function() {
 		});
 	}
 
-	async updateMarkdownPreviewSelectionState(cellId: any, isSelected: boolean) {
+	async updateMarkdownPreviewSelections(selectedCellsIds: string[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		if (!this.markdownPreviewMapping.has(cellId)) {
-			// TODO: this currently seems expected on first load
-			// console.error(`Try to update selection state for preview that does not exist: ${cellId}`);
-			return;
-		}
-
 		this._sendMessageToWebview({
-			type: 'updateMarkdownPreviewSelectionState',
-			id: cellId,
-			isSelected
+			type: 'updateSelectedMarkdownPreviews',
+			selectedCellIds: selectedCellsIds.filter(id => this.markdownPreviewMapping.has(id)),
 		});
 	}
 

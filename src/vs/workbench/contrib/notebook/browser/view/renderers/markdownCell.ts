@@ -198,15 +198,6 @@ export class StatefulMarkdownCell extends Disposable {
 			if (this.viewCell.layoutInfo.totalHeight > 0) {
 				this.relayoutCell();
 			}
-
-			// Update for selection
-			this._register(this.notebookEditor.onDidChangeSelection(() => {
-				const selectedCells = this.notebookEditor.getSelectionViewModels();
-
-				// Only show selection if there are more than one cells selected
-				const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === viewCell);
-				this.notebookEditor.updateMarkdownPreviewSelectionState(viewCell, isSelected);
-			}));
 		}
 
 		// apply decorations

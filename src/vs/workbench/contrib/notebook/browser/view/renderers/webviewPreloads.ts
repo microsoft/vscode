@@ -550,12 +550,22 @@ function webviewPreloads() {
 					}
 				}
 				break;
-			case 'updateMarkdownPreviewSelectionState':
+			case 'updateSelectedMarkdownPreviews':
 				{
-					const data = event.data;
-					const previewNode = document.getElementById(`${data.id}_preview`);
-					if (previewNode) {
-						previewNode.classList.toggle('selected', data.isSelected);
+					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
+
+					for (const oldSelected of document.querySelectorAll('.preview.selected')) {
+						const id = oldSelected.id.replace('_preview', '');
+						if (!selectedCellIds.has(id)) {
+							oldSelected.classList.remove('selected');
+						}
+					}
+
+					for (const newSelected of selectedCellIds) {
+						const previewNode = document.getElementById(`${newSelected}_preview`);
+						if (previewNode) {
+							previewNode.classList.add('selected');
+						}
 					}
 				}
 				break;
