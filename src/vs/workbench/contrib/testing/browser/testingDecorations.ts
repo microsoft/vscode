@@ -22,7 +22,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { TestMessageSeverity, TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
@@ -258,7 +258,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		super();
 		this.line = range.startLineNumber;
 
-		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResult.Unset
+		const icon = stateItem?.computedState !== undefined && stateItem.computedState !== TestResultState.Unset
 			? testingStatesToIcons.get(stateItem.computedState)!
 			: test.children.size > 0 ? testingRunAllIcon : testingRunIcon;
 

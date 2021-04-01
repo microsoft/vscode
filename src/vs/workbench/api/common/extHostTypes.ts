@@ -3239,7 +3239,7 @@ export class LinkedEditingRanges {
 }
 
 //#region Testing
-export enum TestResult {
+export enum TestResultState {
 	Unset = 0,
 	Queued = 1,
 	Running = 2,
@@ -3382,13 +3382,6 @@ export class TestItem implements vscode.TestItem {
 	public discoverChildren(progress: vscode.Progress<{ busy: boolean }>, _token: vscode.CancellationToken) {
 		progress.report({ busy: false });
 	}
-}
-
-export class TestState implements vscode.TestState {
-	public messages: TestMessage[] = [];
-	public duration?: number;
-
-	constructor(public state: TestResult) { }
 }
 
 export class TestMessage implements vscode.TestMessage {

@@ -41,7 +41,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -638,7 +638,7 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 			case TestExplorerStateFilter.All:
 				return FilterResult.Include;
 			case TestExplorerStateFilter.OnlyExecuted:
-				return element.ownState !== TestResult.Unset ? FilterResult.Include : FilterResult.Inherit;
+				return element.ownState !== TestResultState.Unset ? FilterResult.Include : FilterResult.Inherit;
 			case TestExplorerStateFilter.OnlyFailed:
 				return isFailedState(element.ownState) ? FilterResult.Include : FilterResult.Inherit;
 		}
@@ -812,7 +812,7 @@ class TestsRenderer extends Disposable implements ITreeRenderer<ITestTreeElement
 		const testHidden = !!element.test && this.testService.excludeTests.value.has(element.test.item.extId);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
-		const icon = testingStatesToIcons.get(element.expandable === TestItemExpandState.BusyExpanding ? TestResult.Running : element.state);
+		const icon = testingStatesToIcons.get(element.expandable === TestItemExpandState.BusyExpanding ? TestResultState.Running : element.state);
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
 		if (element.retired) {
 			data.icon.className += ' retired';
@@ -871,7 +871,7 @@ const getTestItemActions = (
 	try {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const running = element.state === TestResult.Running;
+		const running = element.state === TestResultState.Running;
 		if (!Iterable.isEmpty(element.runnable)) {
 			const run = instantionService.createInstance(RunAction, element.runnable, running);
 			primary.push(run);

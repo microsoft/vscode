@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { TestItem, TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestItem, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
 export class StubTestItem extends TestItem {
 	parent: StubTestItem | undefined;
@@ -35,4 +35,4 @@ export const testStubs = {
 	]),
 };
 
-export const ReExportedTestRunState = TestResult;
+export const ReExportedTestRunState = TestResultState;

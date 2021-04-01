@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { InternalTestItem, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
@@ -105,14 +105,14 @@ export interface ITestTreeElement {
 	/**
 	 * Element state to display.
 	 */
-	state: TestResult;
+	state: TestResultState;
 
 	/**
 	 * Whether the node's test result is 'retired' -- from an outdated test run.
 	 */
 	readonly retired: boolean;
 
-	readonly ownState: TestResult;
+	readonly ownState: TestResultState;
 	readonly label: string;
 	readonly parentItem: ITestTreeElement | null;
 }

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 
 /**
  * Accessor for nodes in get and refresh computed state.
  */
 export interface IComputedStateAccessor<T> {
-	getOwnState(item: T): TestResult | undefined;
-	getCurrentComputedState(item: T): TestResult;
-	setComputedState(item: T, state: TestResult): void;
+	getOwnState(item: T): TestResultState | undefined;
+	getCurrentComputedState(item: T): TestResultState;
+	setComputedState(item: T, state: TestResultState): void;
 	getChildren(item: T): IterableIterator<T>;
 	getParents(item: T): IterableIterator<T>;
 }
@@ -26,7 +26,7 @@ export interface IComputedStateAccessor<T> {
 export const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T, force = false) => {
 	let computed = accessor.getCurrentComputedState(node);
 	if (computed === undefined || force) {
-		computed = accessor.getOwnState(node) ?? TestResult.Unset;
+		computed = accessor.getOwnState(node) ?? TestResultState.Unset;
 		for (const child of accessor.getChildren(node)) {
 			computed = maxPriority(computed, getComputedState(accessor, child));
 		}
@@ -45,7 +45,7 @@ export const refreshComputedState = <T>(
 	accessor: IComputedStateAccessor<T>,
 	node: T,
 	addUpdated: (node: T) => void,
-	explicitNewComputedState?: TestResult,
+	explicitNewComputedState?: TestResultState,
 ) => {
 	const oldState = accessor.getCurrentComputedState(node);
 	const oldPriority = statePriority[oldState];
