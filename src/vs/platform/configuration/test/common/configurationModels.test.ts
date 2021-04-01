@@ -37,7 +37,12 @@ suite('ConfigurationModel', () => {
 
 		testObject.setValue('b.c', 1);
 
-		assert.deepEqual(testObject.contents, { 'a': { 'b': 1 }, 'b': { 'c': 1 }, 'f': 1 });
+		const expected: any = {};
+		expected['a'] = { 'b': 1 };
+		expected['f'] = 1;
+		expected['b'] = Object.create(null);
+		expected['b']['c'] = 1;
+		assert.deepStrictEqual(testObject.contents, expected);
 		assert.deepStrictEqual(testObject.keys, ['a.b', 'f', 'b.c']);
 	});
 
@@ -315,17 +320,17 @@ suite('CustomConfigurationModel', () => {
 		const testObject = new ConfigurationModelParser('test');
 		testObject.parseContent('');
 
-		assert.deepEqual(testObject.configurationModel.contents, {});
+		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
 		testObject.parseContent(null!);
 
-		assert.deepEqual(testObject.configurationModel.contents, {});
+		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 
 		testObject.parseContent(undefined!);
 
-		assert.deepEqual(testObject.configurationModel.contents, {});
+		assert.deepStrictEqual(testObject.configurationModel.contents, Object.create(null));
 		assert.deepStrictEqual(testObject.configurationModel.keys, []);
 	});
 

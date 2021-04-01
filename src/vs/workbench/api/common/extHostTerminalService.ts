@@ -225,6 +225,10 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		}
 	}
 
+	processBinary(data: string) {
+		throw new Error('not implemented');
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		// No-op, flow control is not supported in extension owned terminals. If this is ever
 		// implemented it will need new pause and resume VS Code APIs.

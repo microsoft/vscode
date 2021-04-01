@@ -62,6 +62,12 @@ export const enum ExtensionRunningLocation {
 	Remote
 }
 
+export const enum ExtensionRunningPreference {
+	None,
+	Local,
+	Remote
+}
+
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
 	public _serviceBrand: undefined;
@@ -292,7 +298,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (const extension of toAdd) {
 			const extensionKind = this._getExtensionKind(extension);
 			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-			const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote);
+			const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
 			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), runningLocation);
 		}
 		groupAdd(ExtensionHostKind.LocalProcess, ExtensionRunningLocation.LocalProcess);
@@ -329,7 +335,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const extensionKind = this._getExtensionKind(extension);
 		const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-		const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote);
+		const runningLocation = this._runningLocationClassifier.pickRunningLocation(extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
 		if (runningLocation === ExtensionRunningLocation.None) {
 			return false;
 		}
@@ -850,7 +856,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 export class ExtensionRunningLocationClassifier {
 	constructor(
 		public readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
-		public readonly pickRunningLocation: (extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean) => ExtensionRunningLocation,
+		public readonly pickRunningLocation: (extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionRunningLocation,
 	) {
 	}
 
@@ -862,19 +868,44 @@ export class ExtensionRunningLocationClassifier {
 		const localExtensionsSet = new Set<string>();
 		localExtensions.forEach(ext => localExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
 
+		const localUnderDevelopmentExtensionsSet = new Set<string>();
+		localExtensions.forEach((ext) => {
+			if (ext.isUnderDevelopment) {
+				localUnderDevelopmentExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier));
+			}
+		});
+
 		const remoteExtensionsSet = new Set<string>();
 		remoteExtensions.forEach(ext => remoteExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier)));
 
-		const pickRunningLocation = (extension: IExtensionDescription): ExtensionRunningLocation => {
-			const isInstalledLocally = localExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
-			const isInstalledRemotely = remoteExtensionsSet.has(ExtensionIdentifier.toKey(extension.identifier));
-			const extensionKinds = allExtensionKinds.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
-			return this.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely);
+		const remoteUnderDevelopmentExtensionsSet = new Set<string>();
+		remoteExtensions.forEach((ext) => {
+			if (ext.isUnderDevelopment) {
+				remoteUnderDevelopmentExtensionsSet.add(ExtensionIdentifier.toKey(ext.identifier));
+			}
+		});
+
+		const pickRunningLocation = (extensionIdentifier: ExtensionIdentifier): ExtensionRunningLocation => {
+			const isInstalledLocally = localExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+			const isInstalledRemotely = remoteExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+
+			const isLocallyUnderDevelopment = localUnderDevelopmentExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+			const isRemotelyUnderDevelopment = remoteUnderDevelopmentExtensionsSet.has(ExtensionIdentifier.toKey(extensionIdentifier));
+
+			let preference = ExtensionRunningPreference.None;
+			if (isLocallyUnderDevelopment && !isRemotelyUnderDevelopment) {
+				preference = ExtensionRunningPreference.Local;
+			} else if (isRemotelyUnderDevelopment && !isLocallyUnderDevelopment) {
+				preference = ExtensionRunningPreference.Remote;
+			}
+
+			const extensionKinds = allExtensionKinds.get(ExtensionIdentifier.toKey(extensionIdentifier)) || [];
+			return this.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference);
 		};
 
 		const runningLocation = new Map<string, ExtensionRunningLocation>();
-		localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
-		remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext)));
+		localExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext.identifier)));
+		remoteExtensions.forEach(ext => runningLocation.set(ExtensionIdentifier.toKey(ext.identifier), pickRunningLocation(ext.identifier)));
 		return runningLocation;
 	}
 }

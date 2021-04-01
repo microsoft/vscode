@@ -216,7 +216,7 @@ class LoadMoreCommand {
 	}
 }
 
-export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true);
+export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
 
 export class TimelinePane extends ViewPane {
 	static readonly TITLE = localize('timeline', "Timeline");

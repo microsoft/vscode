@@ -249,10 +249,11 @@
 				return;
 			}
 
-			let baseElement = event.view.document.getElementsByTagName('base')[0];
-			/** @type {any} */
-			let node = event.target;
-			while (node) {
+			const baseElement = event.view.document.getElementsByTagName('base')[0];
+
+			for (const pathElement of event.composedPath()) {
+				/** @type {any} */
+				const node = pathElement;
 				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 					if (node.getAttribute('href') === '#') {
 						event.view.scrollTo(0, 0);
@@ -265,9 +266,8 @@
 						host.postMessage('did-click-link', node.href.baseVal || node.href);
 					}
 					event.preventDefault();
-					break;
+					return;
 				}
-				node = node.parentNode;
 			}
 		};
 
@@ -282,13 +282,13 @@
 				}
 
 				if (event.button === 1) {
-					let node = /** @type {any} */ (event.target);
-					while (node) {
+					for (const pathElement of event.composedPath()) {
+						/** @type {any} */
+						const node = pathElement;
 						if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 							event.preventDefault();
-							break;
+							return;
 						}
-						node = node.parentNode;
 					}
 				}
 			};

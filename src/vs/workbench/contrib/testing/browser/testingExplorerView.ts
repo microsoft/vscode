@@ -521,6 +521,7 @@ export class TestingExplorerViewModel extends Disposable {
 	private shouldShowEmptyPlaceholder() {
 		return !!this.listener
 			&& this.listener.subscription.busyProviders === 0
+			&& this.listener.subscription.pendingRootProviders === 0
 			&& this.listener.subscription.isEmpty;
 	}
 

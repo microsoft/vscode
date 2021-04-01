@@ -483,7 +483,7 @@ class ProcessExplorer {
 	}
 }
 
-export function startup(windowId: number, data: ProcessExplorerData): void {
+export function startup({ windowId, data }: { windowId: number, data: ProcessExplorerData }): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);

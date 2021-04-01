@@ -953,6 +953,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.container.classList.toggle('cell-output-hover', element.outputIsHovered);
 	}
 
+	private updateForFocus(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+		templateData.container.classList.toggle('cell-output-focus', element.outputIsFocused);
+	}
+
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
@@ -1028,6 +1032,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.cellRunState.clear();
 		this.updateForMetadata(element, templateData, cellEditorOptions);
 		this.updateForHover(element, templateData);
+		this.updateForFocus(element, templateData);
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged) {
 				this.updateForMetadata(element, templateData, cellEditorOptions);
@@ -1035,6 +1040,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 			if (e.outputIsHoveredChanged) {
 				this.updateForHover(element, templateData);
+			}
+
+			if (e.outputIsFocusedChanged) {
+				this.updateForFocus(element, templateData);
 			}
 		}));
 		elementDisposables.add(this.notebookEditor.viewModel.notebookDocument.onDidChangeContent(e => {

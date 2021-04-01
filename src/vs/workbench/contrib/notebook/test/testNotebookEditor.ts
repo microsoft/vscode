@@ -135,8 +135,8 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
-	const instantiationService = setupInstantiationService();
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+
 	const viewType = 'notebook';
 	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
 		return {
@@ -157,6 +157,9 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
 
 	const notebookEditor: IActiveNotebookEditor = new class extends mock<IActiveNotebookEditor>() {
+		dispose() {
+			viewModel.dispose();
+		}
 		onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
 		get viewModel() { return viewModel; }
 		hasModel(): this is IActiveNotebookEditor {
@@ -184,11 +187,22 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 		}
 	};
 
+	return notebookEditor;
+}
+
+export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+	return _createTestNotebookEditor(setupInstantiationService(), cells);
+}
+
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+	const instantiationService = setupInstantiationService();
+	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
+
 	const res = await callback(notebookEditor, instantiationService);
 	if (res instanceof Promise) {
-		res.finally(() => viewModel.dispose());
+		res.finally(() => notebookEditor.dispose());
 	} else {
-		viewModel.dispose();
+		notebookEditor.dispose();
 	}
 	return res;
 }

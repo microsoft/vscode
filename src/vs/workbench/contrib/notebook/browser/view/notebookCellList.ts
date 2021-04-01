@@ -619,11 +619,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	selectElement(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-		if (index >= 0) {
-			this.setSelection([index]);
-		}
+	selectElements(elements: ICellViewModel[]) {
+		const indices = elements.map(cell => this._getViewIndexUpperBound(cell)).filter(index => index >= 0);
+		this.setSelection(indices);
 	}
 
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
@@ -1246,6 +1244,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (newStyles !== this.styleElement.textContent) {
 			this.styleElement.textContent = newStyles;
 		}
+	}
+
+	getRenderHeight() {
+		return this.view.renderHeight;
 	}
 
 	layout(height?: number, width?: number): void {

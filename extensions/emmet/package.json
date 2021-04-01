@@ -213,10 +213,20 @@
               "default": 0.3,
               "description": "%emmetPreferencesCssFuzzySearchMinScore%"
             },
+            "output.inlineBreak": {
+              "type": "number",
+              "default": 0,
+              "description": "%emmetPreferencesOutputInlineBreak%"
+            },
             "output.reverseAttributes": {
               "type": "boolean",
               "default": false,
               "description": "%emmetPreferencesOutputReverseAttributes%"
+            },
+            "output.selfClosingStyle": {
+              "type": "string",
+              "default": "html",
+              "description": "%emmetPreferencesOutputSelfClosingStyle%"
             },
             "css.color.short": {
               "type": "boolean",

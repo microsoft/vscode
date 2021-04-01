@@ -1066,8 +1066,22 @@ declare module 'vscode' {
 		// todo@API should we really expose this?
 		readonly viewType: string;
 
+		// todo@API cellsAt(range)? getCell(index>)?
 		/** @deprecated Use `getCells(<...>) instead */
 		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * The number of cells in the notebook document.
+		 */
+		readonly cellCount: number;
+
+		/**
+		 * Return the cell at the specified index. The index will be adjusted to the notebook.
+		 *
+		 * @param index - The index of the cell to retrieve.
+		 * @return A [cell](#NotebookCell).
+		 */
+		cellAt(index: number): NotebookCell;
 
 		/**
 		 * Get the cells of this notebook. A subset can be retrieved by providing
@@ -1604,6 +1618,14 @@ declare module 'vscode' {
 		viewType?: string | string[];
 		filenamePattern?: NotebookFilenamePattern;
 	}
+
+	// export interface NotebookFilter {
+	// 	readonly viewType?: string;
+	// 	readonly scheme?: string;
+	// 	readonly pattern?: GlobPattern;
+	// }
+
+	// export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
 	// todo@API very unclear, provider MUST not return alive object but only data object
 	// todo@API unclear how the flow goes
@@ -2784,12 +2806,12 @@ declare module 'vscode' {
 		/**
 		 * Previous trust state of the workspace
 		 */
-		previousTrustState: WorkspaceTrustState;
+		readonly previousTrustState: WorkspaceTrustState;
 
 		/**
 		 * Current trust state of the workspace
 		 */
-		currentTrustState: WorkspaceTrustState;
+		readonly currentTrustState: WorkspaceTrustState;
 	}
 
 	/**
@@ -2800,7 +2822,7 @@ declare module 'vscode' {
 		 * When true, a modal dialog will be used to request workspace trust.
 		 * When false, a badge will be displayed on the Setting activity bar item
 		 */
-		modal: boolean;
+		readonly modal: boolean;
 	}
 
 	export namespace workspace {
@@ -2814,41 +2836,12 @@ declare module 'vscode' {
 		 * @param options Optional object describing the properties of the
 		 * workspace trust request
 		 */
-		export function requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState>;
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState | undefined>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes
 		 */
 		export const onDidChangeWorkspaceTrustState: Event<WorkspaceTrustStateChangeEvent>;
-	}
-
-	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/118084
-
-	/**
-	 * The reason why code actions were requested.
-	 */
-	export enum CodeActionTriggerKind {
-		/**
-		 * Code actions were explicitly requested by the user or by an extension.
-		 */
-		Invoke = 1,
-
-		/**
-		 * Code actions were requested automatically.
-		 *
-		 * This typically happens when current selection in a file changes, but can
-		 * also be triggered when file content changes.
-		 */
-		Automatic = 2,
-	}
-
-	export interface CodeActionContext {
-		/**
-		 * The reason why code actions were requested.
-		 */
-		readonly triggerKind: CodeActionTriggerKind;
 	}
 
 	//#endregion
@@ -2864,7 +2857,7 @@ declare module 'vscode' {
 		 *   Similarly any TypedArrays, such as a `Uint8Array`, will be very inefficiently
 		 *   serialized and will also not be recreated as a typed array inside the webview.
 		 *
-		 *   However if your extension targets vscode 1.55+ in the `engines` field of its
+		 *   However if your extension targets vscode 1.56+ in the `engines` field of its
 		 *   `package.json` any `ArrayBuffer` values that appear in `message` will be more
 		 *   efficiently transferred to the webview and will also be recreated inside of
 		 *   the webview.

@@ -32,6 +32,7 @@ import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/p
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
@@ -266,11 +267,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 				}
 			};
 
-			if (workspaceFolders.length === 1 && workspaceFolders[0].uri.scheme === Schemas.file) {
-				const { parentPath } = splitName(workspaceFolders[0].uri.fsPath);
+			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
+			if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
+				const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+				const { name } = splitName(parentPath);
 				if (parentPath) {
 					trustChoiceWithMenu.menu.push({
-						label: localize('trustParentButton', "Trust Parent"),
+						label: localize('trustParentButton', "Trust All in {0}", name),
 						run: () => {
 							setTrustState(WorkspaceTrustState.Trusted, [URI.file(parentPath)]);
 						}

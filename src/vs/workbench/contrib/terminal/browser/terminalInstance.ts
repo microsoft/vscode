@@ -184,6 +184,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onData = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
+	private readonly _onBinary = new Emitter<string>();
+	public get onBinary(): Event<string> { return this._onBinary.event; }
 	private readonly _onLineData = new Emitter<string>();
 	public get onLineData(): Event<string> { return this._onLineData.event; }
 	private readonly _onRequestExtHostProcess = new Emitter<ITerminalInstance>();
@@ -468,6 +470,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(e => this._onProcessData(e));
 		this._xterm.onData(data => this._processManager.write(data));
+		this._xterm.onBinary(data => this._processManager.processBinary(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
 				this._linkManager.processCwd = await this._processManager.getInitialCwd();

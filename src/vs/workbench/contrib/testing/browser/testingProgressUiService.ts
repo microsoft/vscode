@@ -106,7 +106,7 @@ const collectTestStateCounts = (isRunning: boolean, ...counts: ReadonlyArray<Tes
 	};
 };
 
-const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, failed, totalWillBeRun }: CountSummary) => {
+const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, failed }: CountSummary) => {
 	let percent = passed / runSoFar * 100;
 	if (failed > 0) {
 		// fix: prevent from rounding to 100 if there's any failed test
@@ -116,10 +116,12 @@ const getTestProgressText = (running: boolean, { passed, runSoFar, skipped, fail
 	}
 
 	if (running) {
-		if (skipped === 0) {
-			return localize('testProgress.running', 'Running {0} tests, {1}/{2} passed ({3}%)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3));
+		if (runSoFar === 0) {
+			return localize('testProgress.runningInitial', 'Running tests...', passed, runSoFar, percent.toPrecision(3));
+		} else if (skipped === 0) {
+			return localize('testProgress.running', 'Running tests, {0}/{1} passed ({2}%)', passed, runSoFar, percent.toPrecision(3));
 		} else {
-			return localize('testProgressWithSkip.running', 'Running {0} tests, {1}/{2} tests passed ({3}%, {4} skipped)', totalWillBeRun, passed, runSoFar, percent.toPrecision(3), skipped);
+			return localize('testProgressWithSkip.running', 'Running tests, {0}/{1} tests passed ({2}%, {3} skipped)', passed, runSoFar, percent.toPrecision(3), skipped);
 		}
 	} else {
 		if (skipped === 0) {

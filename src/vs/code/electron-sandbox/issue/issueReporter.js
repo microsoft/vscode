@@ -11,19 +11,34 @@
 
 	// Load issue reporter into window
 	bootstrapWindow.load(['vs/code/electron-sandbox/issue/issueReporterMain'], function (issueReporter, configuration) {
-		issueReporter.startup(configuration);
-	}, { forceEnableDeveloperKeybindings: true, disallowReloadKeybinding: true });
-
-
-	//#region Globals
+		return issueReporter.startup(configuration);
+	},
+		{
+			configureDeveloperKeybindings: function () {
+				return {
+					forceEnableDeveloperKeybindings: true,
+					disallowReloadKeybinding: true
+				};
+			}
+		}
+	);
 
 	/**
-	 * @returns {{ load: (modules: string[], resultCallback: (result, configuration: object) => any, options?: object) => unknown }}
+	 * @returns {{
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperKeybindings?: (config: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	     canModifyDOM?: (config: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
+	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *       beforeRequire?: () => void
+	 *     }
+	 *   ) => Promise<unknown>
+	 * }}
 	 */
 	function bootstrapWindowLib() {
 		// @ts-ignore (defined in bootstrap-window.js)
 		return window.MonacoBootstrapWindow;
 	}
-
-	//#endregion
 }());

@@ -15,7 +15,6 @@ import { IWorkspaceTrustModel, WorkspaceTrustRequestOptions, IWorkspaceTrustRequ
 import { EditorModel } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { dirname, resolve } from 'vs/base/common/path';
-import { canceled } from 'vs/base/common/errors';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
@@ -220,11 +219,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	readonly onDidChangeTrustState = this._onDidChangeTrustState.event;
 
 	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
-	private _trustRequestPromise?: Promise<WorkspaceTrustState>;
-	private _inFlightResolver?: (trustState: WorkspaceTrustState) => void;
-	private _modalTrustRequestPromise?: Promise<WorkspaceTrustState>;
-	private _modalTrustRequestResolver?: (trustState: WorkspaceTrustState) => void;
-	private _modalTrustRequestRejecter?: (error: Error) => void;
+	private _trustRequestPromise?: Promise<WorkspaceTrustState | undefined>;
+	private _inFlightResolver?: (trustState?: WorkspaceTrustState) => void;
+	private _modalTrustRequestPromise?: Promise<WorkspaceTrustState | undefined>;
+	private _modalTrustRequestResolver?: (trustState?: WorkspaceTrustState) => void;
 	private _workspace: IWorkspace;
 
 	private readonly _ctxWorkspaceTrustState: IContextKey<WorkspaceTrustState>;
@@ -393,7 +391,6 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 			this._modalTrustRequestResolver(trustState === undefined ? this.currentTrustState : trustState);
 
 			this._modalTrustRequestResolver = undefined;
-			this._modalTrustRequestRejecter = undefined;
 			this._modalTrustRequestPromise = undefined;
 		}
 		if (this._inFlightResolver) {
@@ -415,11 +412,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	private onTrustRequestCancelled(): void {
-		if (this._modalTrustRequestRejecter) {
-			this._modalTrustRequestRejecter(canceled());
+		if (this._modalTrustRequestResolver) {
+			this._modalTrustRequestResolver(undefined);
 
 			this._modalTrustRequestResolver = undefined;
-			this._modalTrustRequestRejecter = undefined;
 			this._modalTrustRequestPromise = undefined;
 		}
 	}
@@ -436,7 +432,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
 	}
 
-	async requireWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<WorkspaceTrustState> {
+	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<WorkspaceTrustState | undefined> {
 		// Trusted workspace
 		if (this.currentTrustState === WorkspaceTrustState.Trusted) {
 			return this.currentTrustState;
@@ -450,21 +446,22 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 			// Modal request
 			if (!this._modalTrustRequestPromise) {
 				// Create promise
-				this._modalTrustRequestPromise = new Promise((resolve, reject) => {
+				this._modalTrustRequestPromise = new Promise(resolve => {
 					this._modalTrustRequestResolver = resolve;
-					this._modalTrustRequestRejecter = reject;
 				});
 			} else {
-				// Return existing promises
+				// Return existing promise
 				return this._modalTrustRequestPromise;
 			}
 		} else {
 			// Soft request
 			if (!this._trustRequestPromise) {
+				// Create promise
 				this._trustRequestPromise = new Promise(resolve => {
 					this._inFlightResolver = resolve;
 				});
 			} else {
+				// Return existing promise
 				return this._trustRequestPromise;
 			}
 		}

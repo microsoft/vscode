@@ -112,8 +112,8 @@ export interface IPtyService {
 	readonly onPtyHostStart?: Event<void>;
 	readonly onPtyHostUnresponsive?: Event<void>;
 	readonly onPtyHostResponsive?: Event<void>;
-
 	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
+	readonly onProcessBinary: Event<{ id: number, event: string }>;
 	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
 	readonly onProcessReady: Event<{ id: number, event: { pid: number, cwd: string } }>;
 	readonly onProcessTitleChanged: Event<{ id: number, event: string }>;
@@ -154,6 +154,7 @@ export interface IPtyService {
 	getCwd(id: number): Promise<string>;
 	getLatency(id: number): Promise<number>;
 	acknowledgeDataEvent(id: number, charCount: number): Promise<void>;
+	processBinary(id: number, data: string): void;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 
@@ -346,6 +347,7 @@ export interface ITerminalChildProcess {
 	 */
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
+	processBinary(data: string): void;
 	resize(cols: number, rows: number): void;
 
 	/**

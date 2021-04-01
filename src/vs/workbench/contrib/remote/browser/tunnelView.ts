@@ -664,6 +664,10 @@ export class TunnelPanel extends ViewPane {
 		}));
 	}
 
+	get portCount(): number {
+		return this.remoteExplorerService.tunnelModel.forwarded.size + this.remoteExplorerService.tunnelModel.detected.size;
+	}
+
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
@@ -719,8 +723,12 @@ export class TunnelPanel extends ViewPane {
 		const rerender = () => this.table.splice(0, Number.POSITIVE_INFINITY, this.viewModel.all);
 
 		rerender();
-		this._register(this.viewModel.onForwardedPortsChanged(() => {
-			this._onDidChangeViewWelcomeState.fire();
+		let lastPortCount = this.portCount;
+		this._register(Event.debounce(this.viewModel.onForwardedPortsChanged, (_last, e) => e, 50)(() => {
+			const newPortCount = this.portCount;
+			if (((lastPortCount === 0) || (newPortCount === 0)) && (lastPortCount !== newPortCount)) {
+				this._onDidChangeViewWelcomeState.fire();
+			}
 			rerender();
 		}));
 

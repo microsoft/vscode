@@ -109,7 +109,7 @@ export class CellOutputElement extends Disposable {
 		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel);
 
 		if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
-			this.viewCell.updateOutputHeight(index, 0);
+			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#noMimeType');
 			return undefined;
 		}
 
@@ -137,7 +137,7 @@ export class CellOutputElement extends Disposable {
 		this.output.pickedMimeType = pick;
 
 		if (!this.renderResult) {
-			this.viewCell.updateOutputHeight(index, 0);
+			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');
 			return undefined;
 		}
 
@@ -173,7 +173,7 @@ export class CellOutputElement extends Disposable {
 			height: offsetHeight
 		};
 		this.bindResizeListener(dimension);
-		this.viewCell.updateOutputHeight(index, offsetHeight);
+		this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
 		const top = this.viewCell.getOutputOffsetInContainer(index);
 		this.domNode.style.top = `${top}px`;
 		return { initRenderIsSynchronous: true };
@@ -198,7 +198,7 @@ export class CellOutputElement extends Disposable {
 					height: height
 				};
 
-				this.viewCell.updateOutputHeight(currIndex, height);
+				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
 				this.relayoutCell();
 			}
 		});
@@ -347,7 +347,7 @@ export class CellOutputContainer extends Disposable {
 	render(editorHeight: number) {
 		if (this.viewCell.outputsViewModels.length > 0) {
 			if (this.viewCell.layoutInfo.totalHeight !== 0 && this.viewCell.layoutInfo.editorHeight > editorHeight) {
-				this.viewCell.outputMinHeight = this.viewCell.layoutInfo.outputTotalHeight;
+				this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 				this._relayoutCell();
 			}
 
@@ -394,7 +394,7 @@ export class CellOutputContainer extends Disposable {
 				if (renderedOutput.renderResult.type !== RenderOutputType.Mainframe) {
 					this.notebookEditor.createOutput(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
 				} else {
-					this.viewCell.updateOutputHeight(index, renderedOutput.domOffsetHeight);
+					this.viewCell.updateOutputHeight(index, renderedOutput.domOffsetHeight, 'CellOutputContainer#viewUpdateShowOutputs');
 				}
 			} else {
 				// Wasn't previously rendered, render it now
@@ -434,12 +434,12 @@ export class CellOutputContainer extends Disposable {
 		}
 
 		if (synchronous) {
-			this.viewCell.outputMinHeight = 0;
-			this.viewCell.layoutChange({ outputHeight: true });
+			this.viewCell.updateOutputMinHeight(0);
+			this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_sync');
 		} else {
 			this._outputHeightTimer = setTimeout(() => {
-				this.viewCell.outputMinHeight = 0;
-				this.viewCell.layoutChange({ outputHeight: true });
+				this.viewCell.updateOutputMinHeight(0);
+				this.viewCell.layoutChange({ outputHeight: true }, 'CellOutputContainer#_validateFinalOutputHeight_async_1000');
 			}, 1000);
 		}
 	}
@@ -452,7 +452,7 @@ export class CellOutputContainer extends Disposable {
 		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
 
 		// for cell output update, we make sure the cell does not shrink before the new outputs are rendered.
-		this.viewCell.outputMinHeight = previousOutputHeight;
+		this.viewCell.updateOutputMinHeight(previousOutputHeight);
 
 		if (this.viewCell.outputsViewModels.length) {
 			DOM.show(this.templateData.outputContainer);
@@ -570,7 +570,7 @@ export class CellOutputContainer extends Disposable {
 	}
 
 	dispose() {
-		this.viewCell.outputMinHeight = 0;
+		this.viewCell.updateOutputMinHeight(0);
 
 		if (this._outputHeightTimer) {
 			clearTimeout(this._outputHeightTimer);

@@ -25,7 +25,7 @@ import Severity from 'vs/base/common/severity';
 import { canceled } from 'vs/base/common/errors';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
-import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -362,9 +362,21 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 
 	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
 		if (getExtensionWorkspaceTrustRequirement(manifest) === 'onStart') {
-			const trustState = await this.workspaceTrustService.requireWorkspaceTrust();
-			return trustState === WorkspaceTrustState.Trusted ? Promise.resolve() : Promise.reject(canceled());
+			const trustState = await this.workspaceTrustService.requestWorkspaceTrust({
+				modal: true,
+				message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
+				buttons: [
+					{ label: localize('extensionInstallWorkspaceTrustButton', "Trust Workspace & Install"), type: 'ContinueWithTrust' },
+					{ label: localize('extensionInstallWorkspaceTrustContinueButton', "Install"), type: 'ContinueWithoutTrust' },
+					{ label: localize('extensionInstallWorkspaceTrustManageButton', "Learn More"), type: 'Manage' }
+				]
+			});
+
+			if (!trustState) {
+				Promise.reject(canceled());
+			}
 		}
+
 		return Promise.resolve();
 	}
 }

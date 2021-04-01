@@ -3,21 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { session } from 'electron';
+import { ipcMain, session } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { isLinux, isPreferringBrowserCodeLoad } from 'vs/base/common/platform';
-import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { extname } from 'vs/base/common/resources';
+import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
+import { generateUuid } from 'vs/base/common/uuid';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
-export class FileProtocolHandler extends Disposable {
+export class ProtocolMainService extends Disposable implements IProtocolMainService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forUris<boolean>(() => !isLinux);
 	private readonly validExtensions = new Set(['.png', '.jpg', '.jpeg', '.gif', '.bmp']); // https://github.com/microsoft/vscode/issues/119384
@@ -28,16 +30,21 @@ export class FileProtocolHandler extends Disposable {
 	) {
 		super();
 
-		const { defaultSession } = session;
-
 		// Define an initial set of roots we allow loading from
 		// - appRoot	: all files installed as part of the app
 		// - extensions : all files shipped from extensions
 		// - storage    : all files in global and workspace storage (https://github.com/microsoft/vscode/issues/116735)
-		this.validRoots.set(URI.file(environmentService.appRoot), true);
-		this.validRoots.set(URI.file(environmentService.extensionsPath), true);
-		this.validRoots.set(environmentService.globalStorageHome, true);
-		this.validRoots.set(environmentService.workspaceStorageHome, true);
+		this.addValidFileRoot(URI.file(environmentService.appRoot));
+		this.addValidFileRoot(URI.file(environmentService.extensionsPath));
+		this.addValidFileRoot(environmentService.globalStorageHome);
+		this.addValidFileRoot(environmentService.workspaceStorageHome);
+
+		// Handle protocols
+		this.handleProtocols();
+	}
+
+	private handleProtocols(): void {
+		const { defaultSession } = session;
 
 		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback as unknown as ProtocolCallback));
@@ -52,28 +59,7 @@ export class FileProtocolHandler extends Disposable {
 		}));
 	}
 
-	injectWindowsMainService(windowsMainService: IWindowsMainService): void {
-		this._register(windowsMainService.onDidSignalReadyWindow(window => {
-			if (window.config?.extensionDevelopmentPath || window.config?.extensionTestsPath) {
-				const disposables = new DisposableStore();
-				disposables.add(Event.any(window.onDidClose, window.onDidDestroy)(() => disposables.dispose()));
-
-				// Allow access to extension development path
-				if (window.config.extensionDevelopmentPath) {
-					for (const extensionDevelopmentPath of window.config.extensionDevelopmentPath) {
-						disposables.add(this.addValidRoot(URI.file(extensionDevelopmentPath)));
-					}
-				}
-
-				// Allow access to extension tests path
-				if (window.config.extensionTestsPath) {
-					disposables.add(this.addValidRoot(URI.file(window.config.extensionTestsPath)));
-				}
-			}
-		}));
-	}
-
-	private addValidRoot(root: URI): IDisposable {
+	addValidFileRoot(root: URI): IDisposable {
 		if (!this.validRoots.get(root)) {
 			this.validRoots.set(root, true);
 
@@ -83,7 +69,9 @@ export class FileProtocolHandler extends Disposable {
 		return Disposable.None;
 	}
 
-	private async handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
+	//#region file://
+
+	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const fileUri = URI.parse(request.url);
 
 		// isPreferringBrowserCodeLoad: false
@@ -118,7 +106,11 @@ export class FileProtocolHandler extends Disposable {
 		}
 	}
 
-	private async handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
+	//#endregion
+
+	//#region vscode-file://
+
+	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const uri = URI.parse(request.url);
 
 		// Restore the `vscode-file` URI to a `file` URI so that we can
@@ -145,4 +137,36 @@ export class FileProtocolHandler extends Disposable {
 
 		return callback({ error: -3 /* ABORTED */ });
 	}
+
+	//#endregion
+
+	//#region IPC Object URLs
+
+	createIPCObjectUrl<T>(obj: T): IIPCObjectUrl<T> {
+
+		// Create unique URI
+		const resource = URI.from({
+			scheme: 'vscode', // used for all our IPC communication (vscode:<channel>)
+			path: generateUuid()
+		});
+
+		// Install IPC handler
+		const channel = resource.toString();
+		const handler = async (): Promise<T> => obj;
+		ipcMain.handle(channel, handler);
+
+		this.logService.trace(`IPC Object URL: Registered new channel ${channel}.`);
+
+		return {
+			resource,
+			update: updatedObj => obj = updatedObj,
+			dispose: () => {
+				this.logService.trace(`IPC Object URL: Removed channel ${channel}.`);
+
+				ipcMain.removeHandler(channel);
+			}
+		};
+	}
+
+	//#endregion
 }
