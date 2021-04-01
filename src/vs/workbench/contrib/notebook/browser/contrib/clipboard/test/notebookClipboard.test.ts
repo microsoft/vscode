@@ -52,7 +52,7 @@ suite('Notebook Clipboard', () => {
 				assert.ok(clipboardContrib.runCutAction(accessor));
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
 				assert.strictEqual(viewModel.length, 1);
-				assert.strictEqual(viewModel.cellAt(0).getText(), 'paragraph 2');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), 'paragraph 2');
 			});
 	});
 
@@ -122,7 +122,7 @@ suite('Notebook Clipboard', () => {
 				clipboardContrib.runPasteAction(accessor);
 
 				assert.strictEqual(viewModel.length, 9);
-				assert.strictEqual(viewModel.cellAt(8).getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(8)?.getText(), 'var b = 1;');
 			});
 	});
 
@@ -158,7 +158,7 @@ suite('Notebook Clipboard', () => {
 					getToCopy() {
 						return {
 							items: [
-								editor.viewModel.cellAt(0).model
+								editor.viewModel.cellAt(0)!.model
 							],
 							isCopy: true
 						};
@@ -173,7 +173,7 @@ suite('Notebook Clipboard', () => {
 
 				assert.strictEqual(viewModel.length, 4);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 3, end: 4 });
-				assert.strictEqual(viewModel.cellAt(3).getText(), '# header 1');
+				assert.strictEqual(viewModel.cellAt(3)?.getText(), '# header 1');
 				await viewModel.undo();
 				assert.strictEqual(viewModel.length, 3);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 2, end: 3 });
@@ -202,11 +202,11 @@ suite('Notebook Clipboard', () => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 2 }] }, 'model');
 				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(0)));
-				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(0).model, editor.viewModel.cellAt(1).model]);
+				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(0)!.model, editor.viewModel.cellAt(1)!.model]);
 
 				assert.ok(runCopyCells(accessor, editor, viewModel.cellAt(2)));
 				assert.deepStrictEqual(_toCopy.length, 1);
-				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(2).model]);
+				assert.deepStrictEqual(_toCopy, [editor.viewModel.cellAt(2)!.model]);
 			});
 	});
 
@@ -238,9 +238,9 @@ suite('Notebook Clipboard', () => {
 				assert.ok(runCutCells(accessor, editor, viewModel.cellAt(2)));
 				assert.strictEqual(viewModel.length, 3);
 				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
-				assert.strictEqual(viewModel.cellAt(0).getText(), '# header 1');
-				assert.strictEqual(viewModel.cellAt(1).getText(), 'paragraph 1');
-				assert.strictEqual(viewModel.cellAt(2).getText(), 'paragraph 3');
+				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header 1');
+				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'paragraph 1');
+				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'paragraph 3');
 
 				await viewModel.undo();
 				assert.strictEqual(viewModel.length, 4);
