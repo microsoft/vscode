@@ -217,7 +217,6 @@ export class CodeCell extends Disposable {
 				updateFocusMode();
 			}
 		}));
-		updateFocusMode();
 
 		// Render Outputs
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData);
