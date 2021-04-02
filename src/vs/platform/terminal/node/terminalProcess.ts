@@ -358,10 +358,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
 		if (object.isBinary) {
-			this._logService.info('IPty#write (binary)', `${object.data.length} characters`);
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
-			this._logService.info('IPty#write', `${object.data.length} characters`);
 			this._ptyProcess!.write(object.data);
 		}
 	}
