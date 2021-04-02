@@ -134,8 +134,6 @@ function webviewPreloads() {
 		};
 	};
 
-	const outputObservers = new Map<string, ResizeObserver>();
-
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, DimensionUpdate>();
 
@@ -160,41 +158,55 @@ function webviewPreloads() {
 		}
 	};
 
-	const resizeObserve = (container: Element, id: string, output: boolean) => {
-		const resizeObserver = new ResizeObserver(entries => {
-			for (const entry of entries) {
-				if (!document.body.contains(entry.target)) {
-					return;
-				}
+	const resizeObserver = new class {
 
-				if (entry.target.id === id && entry.contentRect) {
-					if (output) {
-						let height = 0;
-						if (entry.contentRect.height !== 0) {
-							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-							height = entry.contentRect.height + __outputNodePadding__ * 2;
+		private readonly _observer: ResizeObserver;
+
+		private readonly _observedElements = new WeakMap<Element, { id: string, output: boolean }>();
+
+		constructor() {
+			this._observer = new ResizeObserver(entries => {
+				for (const entry of entries) {
+					if (!document.body.contains(entry.target)) {
+						continue;
+					}
+
+					const observedElementInfo = this._observedElements.get(entry.target);
+					if (!observedElementInfo) {
+						continue;
+					}
+
+					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
+						if (observedElementInfo.output) {
+							let height = 0;
+							if (entry.contentRect.height !== 0) {
+								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${observedElementInfo.output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+								height = entry.contentRect.height + __outputNodePadding__ * 2;
+							} else {
+								entry.target.style.padding = `0px`;
+							}
+							dimensionUpdater.update(observedElementInfo.id, height, {
+								isOutput: true
+							});
 						} else {
-							entry.target.style.padding = `0px`;
+							// entry.contentRect does not include padding
+							dimensionUpdater.update(observedElementInfo.id, entry.contentRect.height + __previewNodePadding__ * 2, {
+								isOutput: false
+							});
 						}
-						dimensionUpdater.update(id, height, {
-							isOutput: true
-						});
-					} else {
-						// entry.contentRect does not include padding
-						dimensionUpdater.update(id, entry.contentRect.height + __previewNodePadding__ * 2, {
-							isOutput: false
-						});
 					}
 				}
-			}
-		});
-
-		resizeObserver.observe(container);
-		if (outputObservers.has(id)) {
-			outputObservers.get(id)?.disconnect();
+			});
 		}
 
-		outputObservers.set(id, resizeObserver);
+		public observe(container: Element, id: string, output: boolean) {
+			if (this._observedElements.has(container)) {
+				return;
+			}
+
+			this._observedElements.set(container, { id, output });
+			this._observer.observe(container);
+		}
 	};
 
 	function scrollWillGoToParent(event: WheelEvent) {
@@ -647,7 +659,7 @@ function webviewPreloads() {
 						cellOutputContainer.appendChild(outputNode);
 					}
 
-					resizeObserve(outputNode, outputId, true);
+					resizeObserver.observe(outputNode, outputId, true);
 
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
@@ -700,10 +712,6 @@ function webviewPreloads() {
 				onWillDestroyOutput.fire([undefined, undefined]);
 				document.getElementById('container')!.innerText = '';
 
-				outputObservers.forEach(ob => {
-					ob.disconnect();
-				});
-				outputObservers.clear();
 				focusTrackers.forEach(ft => {
 					ft.dispose();
 				});
@@ -841,7 +849,7 @@ function webviewPreloads() {
 
 		updateMarkdownPreview(cellId, content);
 
-		resizeObserve(cellContainer, cellId, false);
+		resizeObserver.observe(cellContainer, cellId, false);
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
