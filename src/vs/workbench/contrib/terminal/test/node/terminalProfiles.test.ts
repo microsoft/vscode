@@ -87,6 +87,65 @@ suite.only('Workbench - TerminalProfiles', () => {
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined }];
 				deepStrictEqual(profiles, expected);
 			});
+			describe('pwsh source detection/fallback', async () => {
+				const pwshSourceConfig = ({
+					profiles: {
+						windows: {
+							'PowerShell': { source: ProfileSource.Pwsh }
+						},
+						linux: {},
+						osx: {},
+					},
+					useWslProfiles: false
+				} as ITestTerminalConfig) as ITerminalConfiguration;
+
+				test('should prefer pwsh 7 to Windows PowerShell', async () => {
+					const fsProvider = createFsProvider([
+						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+					]);
+					const profiles = await detectAvailableProfiles(true, fsProvider, undefined, pwshSourceConfig, undefined, undefined);
+					const expected = [
+						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }
+					];
+					deepStrictEqual(expected, profiles);
+				});
+				test('should prefer pwsh 7 to pwsh 6', async () => {
+					const fsProvider = createFsProvider([
+						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+						'C:\\Program Files\\PowerShell\\6\\pwsh.exe',
+						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+					]);
+					const profiles = await detectAvailableProfiles(true, fsProvider, undefined, pwshSourceConfig, undefined, undefined);
+					const expected = [
+						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }
+					];
+					deepStrictEqual(expected, profiles);
+				});
+				test('should prefer pwsh 6 to Windows PowerShell', async () => {
+					const fsProvider = createFsProvider([
+						'C:\\Program Files\\PowerShell\\6\\pwsh.exe',
+						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+					]);
+					const profiles = await detectAvailableProfiles(true, fsProvider, undefined, pwshSourceConfig, undefined, undefined);
+					const expected = [
+						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\6\\pwsh.exe' }
+					];
+					deepStrictEqual(expected, profiles);
+				});
+				test('should fallback to Windows PowerShell', async () => {
+					const fsProvider = createFsProvider([
+						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+					]);
+					const profiles = await detectAvailableProfiles(true, fsProvider, undefined, pwshSourceConfig, undefined, undefined);
+					strictEqual(profiles.length, 1);
+					strictEqual(profiles[0].profileName, 'PowerShell');
+				});
+			});
 		} else {
 			const absoluteConfig = ({
 				profiles: {
