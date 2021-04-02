@@ -146,6 +146,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// override for the color profile to use
 		'force-color-profile',
 
+		// Enable experimental font access for terminal ligatures
 		`enable-features='FontAccess'`
 	];
 
