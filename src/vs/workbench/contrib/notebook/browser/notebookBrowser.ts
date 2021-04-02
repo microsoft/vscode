@@ -478,9 +478,8 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
 	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	unhideMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	hideMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	removeMarkdownPreview(cell: ICellViewModel): Promise<void>;
+	unhideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	hideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
@@ -656,9 +655,9 @@ export interface INotebookCellList {
 	scrollLeft: number;
 	length: number;
 	rowsContainer: HTMLElement;
-	readonly onDidRemoveOutput: Event<ICellOutputViewModel>;
-	readonly onDidHideOutput: Event<ICellOutputViewModel>;
-	readonly onDidRemoveCellFromView: Event<ICellViewModel>;
+	readonly onDidRemoveOutputs: Event<readonly ICellOutputViewModel[]>;
+	readonly onDidHideOutputs: Event<readonly ICellOutputViewModel[]>;
+	readonly onDidRemoveCellsFromView: Event<readonly ICellViewModel[]>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;

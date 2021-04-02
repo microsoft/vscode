@@ -1181,7 +1181,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					}
 				});
 
-				removedItems.forEach(output => this._webview?.removeInset(output));
+				this._webview.removeInsets(removedItems);
 
 				const markdownUpdateItems: { id: string, top: number }[] = [];
 				for (const cellId of this._webview.markdownPreviewMapping.keys()) {
@@ -1199,23 +1199,31 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			});
 		}));
 
-		this._localStore.add(this._list.onDidRemoveOutput(output => {
-			this.removeInset(output);
+		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {
+			outputs.forEach(output => this.removeInset(output));
 		}));
-		this._localStore.add(this._list.onDidHideOutput(output => {
-			this.hideInset(output);
+		this._localStore.add(this._list.onDidHideOutputs(outputs => {
+			outputs.forEach(output => this.hideInset(output));
 		}));
-		this._localStore.add(this._list.onDidRemoveCellFromView(cell => {
-			if (cell.cellKind === CellKind.Markdown) {
-				const mdCell = cell as MarkdownCellViewModel;
-				if (this.viewModel?.viewCells.find(cell => cell.handle === mdCell.handle)) {
-					// Cell has been folded but is still in model
-					this.hideMarkdownPreview(mdCell);
-				} else {
-					// Cell was deleted
-					this.removeMarkdownPreview(mdCell);
+		this._localStore.add(this._list.onDidRemoveCellsFromView(cells => {
+			const hiddenCells: MarkdownCellViewModel[] = [];
+			const deletedCells: MarkdownCellViewModel[] = [];
+
+			for (const cell of cells) {
+				if (cell.cellKind === CellKind.Markdown) {
+					const mdCell = cell as MarkdownCellViewModel;
+					if (this.viewModel?.viewCells.find(cell => cell.handle === mdCell.handle)) {
+						// Cell has been folded but is still in model
+						hiddenCells.push(mdCell);
+					} else {
+						// Cell was deleted
+						deletedCells.push(mdCell);
+					}
 				}
 			}
+
+			this.hideMarkdownPreviews(hiddenCells);
+			this.deleteMarkdownPreviews(deletedCells);
 		}));
 
 		// init rendering
@@ -2164,7 +2172,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop, cell.version);
 	}
 
-	async unhideMarkdownPreview(cell: MarkdownCellViewModel) {
+	async unhideMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
@@ -2178,16 +2186,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			await this._resolveWebview();
 		}
 
-		await this._webview?.unhideMarkdownPreview(cell.id);
+		await this._webview?.unhideMarkdownPreviews(cells.map(cell => cell.id));
 	}
 
-	async hideMarkdownPreview(cell: MarkdownCellViewModel) {
+	async hideMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
 		}
 
-		if (!this._webview) {
+		if (!this._webview || !cells.length) {
 			return;
 		}
 
@@ -2195,10 +2203,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			await this._resolveWebview();
 		}
 
-		await this._webview?.hideMarkdownPreview(cell.id);
+		await this._webview?.hideMarkdownPreviews(cells.map(cell => cell.id));
 	}
 
-	async removeMarkdownPreview(cell: MarkdownCellViewModel) {
+	async deleteMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
@@ -2212,7 +2220,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			await this._resolveWebview();
 		}
 
-		await this._webview?.removeMarkdownPreview(cell.id);
+		await this._webview?.deleteMarkdownPreviews(cells.map(cell => cell.id));
 	}
 
 	private async updateSelectedMarkdownPreviews(): Promise<void> {
@@ -2255,7 +2263,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	removeInset(output: ICellOutputViewModel) {
 		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
 			if (this._webview?.isResolved()) {
-				this._webview.removeInset(output);
+				this._webview.removeInsets([output]);
 			}
 		});
 	}

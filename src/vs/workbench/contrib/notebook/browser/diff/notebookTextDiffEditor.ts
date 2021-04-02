@@ -278,7 +278,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 			});
 
-			removedItems.forEach(output => activeWebview.removeInset(output));
+			activeWebview.removeInsets(removedItems);
 
 			if (updateItems.length) {
 				activeWebview.updateScrollTops(updateItems, []);
@@ -471,13 +471,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			));
 		}
 
-		this._originalWebview?.insetMapping.forEach((value, key) => {
-			this._originalWebview?.removeInset(key);
-		});
-
-		this._modifiedWebview?.insetMapping.forEach((value, key) => {
-			this._modifiedWebview?.removeInset(key);
-		});
+		this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
+		this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
 
 		this._diffElementViewModels = diffElementViewModels;
 		this._list.splice(0, this._list.length, diffElementViewModels);
@@ -606,7 +601,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				return;
 			}
 
-			activeWebview.removeInset(displayOutput);
+			activeWebview.removeInsets([displayOutput]);
 		});
 	}
 

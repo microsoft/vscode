@@ -518,31 +518,32 @@ function webviewPreloads() {
 					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
-			case 'hideMarkdownPreview':
+			case 'hideMarkdownPreviews':
 				{
-					const data = event.data;
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'hidden';
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'hidden';
+						}
 					}
 				}
 				break;
-			case 'unhideMarkdownPreview':
+			case 'unhideMarkdownPreviews':
 				{
-					const data = event.data;
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'visible';
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'visible';
+						}
+						updateMarkdownPreview(id, undefined);
 					}
-					updateMarkdownPreview(event.data.id, undefined);
 				}
 				break;
-			case 'removeMarkdownPreview':
+			case 'deleteMarkdownPreview':
 				{
-					const data = event.data;
-					let cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.parentElement?.removeChild(cellContainer);
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						cellContainer?.remove();
 					}
 				}
 				break;
