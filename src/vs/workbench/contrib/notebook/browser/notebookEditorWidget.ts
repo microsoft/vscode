@@ -2248,14 +2248,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				await this._resolveWebview();
 			}
 
+			if (!this._webview) {
+				return;
+			}
+
 			const cellTop = this._list.getAbsoluteTopOfElement(cell);
-			if (!this._webview!.insetMapping.has(output.source)) {
-				await this._webview!.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
+			if (!this._webview.insetMapping.has(output.source)) {
+				await this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
 				const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
 
-				this._webview!.updateScrollTops([{ output: output.source, cellTop, outputOffset, forceDisplay: true }], []);
+				this._webview.updateScrollTops([{ output: output.source, cellTop, outputOffset, forceDisplay: true }], []);
 			}
 		});
 	}
