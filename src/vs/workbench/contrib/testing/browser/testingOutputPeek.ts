@@ -252,7 +252,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * else, then clear the peek.
 	 */
 	private closePeekOnTestChange(evt: TestResultItemChange) {
-		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous.state === evt.item.state.state) {
+		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous === evt.item.state.state) {
 			return;
 		}
 

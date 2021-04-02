@@ -16,7 +16,7 @@ export enum WorkspaceTrustScope {
 export enum WorkspaceTrustState {
 	Untrusted = 0,
 	Trusted = 1,
-	Unknown = 2
+	Unspecified = 2
 }
 
 export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
@@ -25,9 +25,9 @@ export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
 			return localize('trusted', "Trusted");
 		case WorkspaceTrustState.Untrusted:
 			return localize('untrusted', "Untrusted");
-		case WorkspaceTrustState.Unknown:
+		case WorkspaceTrustState.Unspecified:
 		default:
-			return localize('unknown', "Unknown");
+			return localize('unspecified', "Unspecified");
 	}
 }
 

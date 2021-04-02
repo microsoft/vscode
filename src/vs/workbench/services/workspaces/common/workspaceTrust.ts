@@ -22,7 +22,7 @@ export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
 export const WorkspaceTrustContext = {
 	PendingRequest: new RawContextKey<boolean>('workspaceTrustPendingRequest', false),
-	TrustState: new RawContextKey<WorkspaceTrustState>('workspaceTrustState', WorkspaceTrustState.Unknown)
+	TrustState: new RawContextKey<WorkspaceTrustState>('workspaceTrustState', WorkspaceTrustState.Unspecified)
 };
 
 export class WorkspaceTrustEditorModel extends EditorModel {
@@ -121,7 +121,7 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void {
 		let changed = false;
 
-		if (trustState === WorkspaceTrustState.Unknown) {
+		if (trustState === WorkspaceTrustState.Unspecified) {
 			const before = this.trustStateInfo.uriTrustInfo.length;
 			this.trustStateInfo.uriTrustInfo = this.trustStateInfo.uriTrustInfo.filter(info => this.uriIdentityService.extUri.isEqual(info.uri, folder));
 
@@ -152,7 +152,7 @@ export class WorkspaceTrustModel extends Disposable implements IWorkspaceTrustMo
 	}
 
 	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo {
-		let resultState = WorkspaceTrustState.Unknown;
+		let resultState = WorkspaceTrustState.Unspecified;
 		let maxLength = -1;
 
 		let resultUri = folder;
@@ -218,7 +218,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	private readonly _onDidChangeTrustState = this._register(new Emitter<WorkspaceTrustStateChangeEvent>());
 	readonly onDidChangeTrustState = this._onDidChangeTrustState.event;
 
-	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
+	private _currentTrustState: WorkspaceTrustState = WorkspaceTrustState.Unspecified;
 	private _trustRequestPromise?: Promise<WorkspaceTrustState | undefined>;
 	private _inFlightResolver?: (trustState?: WorkspaceTrustState) => void;
 	private _modalTrustRequestPromise?: Promise<WorkspaceTrustState | undefined>;
@@ -350,7 +350,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 			switch (trustState) {
 				case WorkspaceTrustState.Untrusted:
 					return WorkspaceTrustState.Untrusted;
-				case WorkspaceTrustState.Unknown:
+				case WorkspaceTrustState.Unspecified:
 					state = trustState;
 					break;
 				case WorkspaceTrustState.Trusted:
@@ -362,7 +362,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 			}
 		}
 
-		return state ?? WorkspaceTrustState.Unknown;
+		return state ?? WorkspaceTrustState.Unspecified;
 	}
 
 	private onTrustStateChanged(): void {

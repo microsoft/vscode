@@ -9,7 +9,8 @@ import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { getTestSubscriptionKey, ISerializedTestResults, ITestState, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { getTestSubscriptionKey, ISerializedTestResults, ITestMessage, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { HydratedTestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
@@ -75,17 +76,25 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $updateTestStateInRun(runId: string, testId: string, state: ITestState): void {
+	public $updateTestStateInRun(runId: string, testId: string, state: TestResultState, duration?: number): void {
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
-			for (const message of state.messages) {
-				if (message.location) {
-					message.location.uri = URI.revive(message.location.uri);
-					message.location.range = Range.lift(message.location.range);
-				}
+			r.updateState(testId, state, duration);
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $appendTestMessageInRun(runId: string, testId: string, message: ITestMessage): void {
+		const r = this.resultService.getResult(runId);
+		if (r && r instanceof LiveTestResult) {
+			if (message.location) {
+				message.location.uri = URI.revive(message.location.uri);
+				message.location.range = Range.lift(message.location.range);
 			}
 
-			r.updateState(testId, state);
+			r.appendMessage(testId, message);
 		}
 	}
 

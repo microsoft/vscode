@@ -241,6 +241,9 @@ export class RemoteTerminalChannelClient {
 	public reduceConnectionGraceTime(): Promise<void> {
 		return this._channel.call('$reduceConnectionGraceTime');
 	}
+	public processBinary(id: number, data: string): Promise<void> {
+		return this._channel.call('$processBinary', [id, data]);
+	}
 	public start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}

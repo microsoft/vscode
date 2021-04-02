@@ -3239,7 +3239,7 @@ export class LinkedEditingRanges {
 }
 
 //#region Testing
-export enum TestResult {
+export enum TestResultState {
 	Unset = 0,
 	Queued = 1,
 	Running = 2,
@@ -3384,13 +3384,6 @@ export class TestItem implements vscode.TestItem {
 	}
 }
 
-export class TestState implements vscode.TestState {
-	public messages: TestMessage[] = [];
-	public duration?: number;
-
-	constructor(public state: TestResult) { }
-}
-
 export class TestMessage implements vscode.TestMessage {
 	public severity = TestMessageSeverity.Error;
 	public expectedOutput?: string;
@@ -3418,7 +3411,7 @@ export enum ExternalUriOpenerPriority {
 export enum WorkspaceTrustState {
 	Untrusted = 0,
 	Trusted = 1,
-	Unknown = 2
+	Unspecified = 2
 }
 
 export enum PortAutoForwardAction {

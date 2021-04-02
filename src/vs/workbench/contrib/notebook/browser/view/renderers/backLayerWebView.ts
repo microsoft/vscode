@@ -39,7 +39,7 @@ export interface WebviewIntialized extends BaseToWebviewMessage {
 export interface DimensionUpdate {
 	id: string;
 	init?: boolean;
-	data: { height: number };
+	height: number;
 	isOutput?: boolean;
 }
 
@@ -178,16 +178,18 @@ export interface ICreationRequestMessage {
 	| { type: RenderOutputType.Extension; outputId: string; value: unknown; metadata: unknown; mimeType: string };
 	cellId: string;
 	outputId: string;
-	top: number;
+	cellTop: number;
+	outputOffset: number;
 	left: number;
 	requiredPreloads: ReadonlyArray<IPreloadResource>;
-	initiallyHidden?: boolean;
+	readonly initiallyHidden?: boolean;
 	apiNamespace?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
-	id: string;
-	top: number;
+	outputId: string;
+	cellTop: number;
+	outputOffset: number;
 	forceDisplay: boolean;
 }
 
@@ -223,7 +225,8 @@ export interface IShowOutputMessage {
 	type: 'showOutput';
 	cellId: string;
 	outputId: string;
-	top: number;
+	cellTop: number;
+	outputOffset: number;
 }
 
 export interface IFocusOutputMessage {
@@ -262,19 +265,19 @@ export interface ICreateMarkdownMessage {
 	content: string;
 	top: number;
 }
-export interface IRemoveMarkdownMessage {
-	type: 'removeMarkdownPreview',
-	id: string;
+export interface IDeleteMarkdownMessage {
+	type: 'deleteMarkdownPreview',
+	ids: readonly string[];
 }
 
 export interface IHideMarkdownMessage {
-	type: 'hideMarkdownPreview';
-	id: string;
+	type: 'hideMarkdownPreviews';
+	ids: readonly string[];
 }
 
 export interface IUnhideMarkdownMessage {
-	type: 'unhideMarkdownPreview';
-	id: string;
+	type: 'unhideMarkdownPreviews';
+	ids: readonly string[];
 }
 
 export interface IShowMarkdownMessage {
@@ -330,7 +333,7 @@ export type ToWebviewMessage =
 	| IUpdateDecorationsMessage
 	| ICustomRendererMessage
 	| ICreateMarkdownMessage
-	| IRemoveMarkdownMessage
+	| IDeleteMarkdownMessage
 	| IShowMarkdownMessage
 	| IHideMarkdownMessage
 	| IUnhideMarkdownMessage
@@ -561,6 +564,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					</style>
 				</template>
 				<style>
+					#container .output_container {
+						width: 100%;
+					}
+
 					#container > div > div.output {
 						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
 						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
@@ -569,8 +576,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
 					}
 
-					#container > div > div.preview {
+					/* markdown */
+					#container > div.preview {
 						width: 100%;
+						padding-right: ${this.options.previewNodePadding}px;
+						padding-left: ${this.options.leftMargin}px;
+						padding-top: ${this.options.previewNodePadding}px;
+						padding-bottom: ${this.options.previewNodePadding}px;
+
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
@@ -579,28 +592,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-ms-user-select: none;
 						white-space: initial;
 						cursor: grab;
+
+						color: var(--vscode-foreground);
 					}
 
-					#container > div > div.preview.emptyMarkdownCell::before {
+					#container > div.preview.emptyMarkdownCell::before {
 						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
 						font-style: italic;
 						opacity: 0.6;
 					}
 
-					/* markdown */
-					#container > div > div.preview {
-						color: var(--vscode-foreground);
-						width: 100%;
-						padding-left: ${this.options.leftMargin}px;
-						padding-top: ${this.options.previewNodePadding}px;
-						padding-bottom: ${this.options.previewNodePadding}px;
-					}
-
-					#container > div > div.preview.selected {
+					#container > div.preview.selected {
 						background: var(--vscode-notebook-selectedCellBackground);
 					}
 
-					#container > div > div.preview.dragging {
+					#container > div.preview.dragging {
 						background-color: var(--vscode-editor-background);
 					}
 
@@ -834,18 +840,15 @@ var requirejs = (function() {
 				case 'dimension':
 					{
 						for (const update of data.updates) {
+							const height = update.height;
 							if (update.isOutput) {
-								const height = update.data.height;
-								const outputHeight = height;
-
 								const resolvedResult = this.resolveOutputId(update.id);
 								if (resolvedResult) {
 									const { cellInfo, output } = resolvedResult;
-									this.notebookEditor.updateOutputHeight(cellInfo, output, outputHeight, !!update.init, 'webview#dimension');
+									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								}
 							} else {
-								const cellId = update.id.substr(0, update.id.length - '_preview'.length);
-								this.notebookEditor.updateMarkdownCellHeight(cellId, update.data.height, !!update.init);
+								this.notebookEditor.updateMarkdownCellHeight(update.id, height, !!update.init);
 							}
 						}
 						break;
@@ -1082,49 +1085,56 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number) {
+	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
 		if (this._disposed) {
-			return;
+			return false;
 		}
 
 		if (cell.metadata?.outputCollapsed) {
 			return false;
 		}
 
-		const outputCache = this.insetMapping.get(output)!;
-		const outputIndex = cell.outputsViewModels.indexOf(output);
-		const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
-
 		if (this.hiddenInsetMapping.has(output)) {
 			return true;
 		}
 
-		if (outputOffset === outputCache.cachedCreation.top) {
+		const outputCache = this.insetMapping.get(output);
+		if (!outputCache) {
+			return false;
+		}
+
+		if (outputOffset === outputCache.cachedCreation.outputOffset && cellTop === outputCache.cachedCreation.cellTop) {
 			return false;
 		}
 
 		return true;
 	}
 
-	updateScrollTops(outputs: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
+	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		const widgets = coalesce(outputs.map((item): IContentWidgetTopRequest | undefined => {
-			const outputCache = this.insetMapping.get(item.output);
+		const widgets = coalesce(outputRequests.map((request): IContentWidgetTopRequest | undefined => {
+			const outputCache = this.insetMapping.get(request.output);
 			if (!outputCache) {
 				return;
 			}
+
+			if (!request.forceDisplay && !this.shouldUpdateInset(request.cell, request.output, request.cellTop, request.outputOffset)) {
+				return;
+			}
+
 			const id = outputCache.outputId;
-			const outputOffset = item.outputOffset;
-			outputCache.cachedCreation.top = outputOffset;
-			this.hiddenInsetMapping.delete(item.output);
+			outputCache.cachedCreation.cellTop = request.cellTop;
+			outputCache.cachedCreation.outputOffset = request.outputOffset;
+			this.hiddenInsetMapping.delete(request.output);
 
 			return {
-				id: id,
-				top: outputOffset,
-				forceDisplay: item.forceDisplay,
+				outputId: id,
+				cellTop: request.cellTop,
+				outputOffset: request.outputOffset,
+				forceDisplay: request.forceDisplay,
 			};
 		}));
 
@@ -1192,63 +1202,72 @@ var requirejs = (function() {
 		entry.visible = true;
 	}
 
-	async hideMarkdownPreview(cellId: string,) {
+	async hideMarkdownPreviews(cellIds: readonly string[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		const entry = this.markdownPreviewMapping.get(cellId);
-		if (!entry) {
-			// TODO: this currently seems expected on first load
-			// console.error(`Try to hide a preview that does not exist: ${cellId}`);
-			return;
+		const cellsToHide: string[] = [];
+		for (const cellId of cellIds) {
+			const entry = this.markdownPreviewMapping.get(cellId);
+			if (entry) {
+				if (entry.visible) {
+					cellsToHide.push(cellId);
+					entry.visible = false;
+				}
+			}
 		}
 
-		if (entry.visible) {
+		if (cellsToHide.length) {
 			this._sendMessageToWebview({
-				type: 'hideMarkdownPreview',
-				id: cellId
+				type: 'hideMarkdownPreviews',
+				ids: cellsToHide
 			});
-			entry.visible = false;
 		}
 	}
 
-	async unhideMarkdownPreview(cellId: string,) {
+	async unhideMarkdownPreviews(cellIds: readonly string[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		const entry = this.markdownPreviewMapping.get(cellId);
-		if (!entry) {
-			console.error(`Try to unhide a preview that does not exist: ${cellId}`);
-			return;
+		const toUnhide: string[] = [];
+		for (const cellId of cellIds) {
+			const entry = this.markdownPreviewMapping.get(cellId);
+			if (entry) {
+				if (!entry.visible) {
+					entry.visible = true;
+					toUnhide.push(cellId);
+				}
+			} else {
+				console.error(`Trying to unhide a preview that does not exist: ${cellId}`);
+			}
 		}
-
-		if (!entry.visible) {
-			this._sendMessageToWebview({
-				type: 'unhideMarkdownPreview',
-				id: cellId
-			});
-			entry.visible = true;
-		}
-	}
-
-	async removeMarkdownPreview(cellId: string,) {
-		if (this._disposed) {
-			return;
-		}
-
-		if (!this.markdownPreviewMapping.has(cellId)) {
-			console.error(`Try to delete a preview that does not exist: ${cellId}`);
-			return;
-		}
-
-		this.markdownPreviewMapping.delete(cellId);
 
 		this._sendMessageToWebview({
-			type: 'removeMarkdownPreview',
-			id: cellId
+			type: 'unhideMarkdownPreviews',
+			ids: toUnhide,
 		});
+	}
+
+	async deleteMarkdownPreviews(cellIds: readonly string[]) {
+		if (this._disposed) {
+			return;
+		}
+
+		for (const id of cellIds) {
+			if (!this.markdownPreviewMapping.has(id)) {
+				console.error(`Trying to delete a preview that does not exist: ${id}`);
+			}
+			this.markdownPreviewMapping.delete(id);
+		}
+
+		if (cellIds.length) {
+			this._sendMessageToWebview({
+				type: 'deleteMarkdownPreview',
+				ids: cellIds
+			});
+		}
 	}
 
 	async updateMarkdownPreviewSelections(selectedCellsIds: string[]) {
@@ -1295,8 +1314,6 @@ var requirejs = (function() {
 			return;
 		}
 
-		const initialTop = cellTop + offset;
-
 		if (this.insetMapping.has(content.source)) {
 			const outputCache = this.insetMapping.get(content.source);
 
@@ -1306,7 +1323,8 @@ var requirejs = (function() {
 					type: 'showOutput',
 					cellId: outputCache.cellInfo.cellId,
 					outputId: outputCache.outputId,
-					top: initialTop
+					cellTop: cellTop,
+					outputOffset: offset
 				});
 				return;
 			}
@@ -1315,7 +1333,8 @@ var requirejs = (function() {
 		const messageBase = {
 			type: 'html',
 			cellId: cellInfo.cellId,
-			top: initialTop,
+			cellTop: cellTop,
+			outputOffset: offset,
 			left: 0,
 			requiredPreloads: [],
 		} as const;
@@ -1356,27 +1375,29 @@ var requirejs = (function() {
 		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
-	removeInset(output: ICellOutputViewModel) {
+	removeInsets(outputs: readonly ICellOutputViewModel[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		const outputCache = this.insetMapping.get(output);
-		if (!outputCache) {
-			return;
+		for (const output of outputs) {
+			const outputCache = this.insetMapping.get(output);
+			if (!outputCache) {
+				continue;
+			}
+
+			const id = outputCache.outputId;
+
+			this._sendMessageToWebview({
+				type: 'clearOutput',
+				apiNamespace: outputCache.cachedCreation.apiNamespace,
+				cellUri: outputCache.cellInfo.cellUri.toString(),
+				outputId: id,
+				cellId: outputCache.cellInfo.cellId
+			});
+			this.insetMapping.delete(output);
+			this.reversedInsetMapping.delete(id);
 		}
-
-		const id = outputCache.outputId;
-
-		this._sendMessageToWebview({
-			type: 'clearOutput',
-			apiNamespace: outputCache.cachedCreation.apiNamespace,
-			cellUri: outputCache.cellInfo.cellUri.toString(),
-			outputId: id,
-			cellId: outputCache.cellInfo.cellId
-		});
-		this.insetMapping.delete(output);
-		this.reversedInsetMapping.delete(id);
 	}
 
 	hideInset(output: ICellOutputViewModel) {

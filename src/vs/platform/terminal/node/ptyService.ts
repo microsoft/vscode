@@ -135,7 +135,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).start();
 	}
 	async shutdown(id: number, immediate: boolean): Promise<void> {
-		return this._throwIfNoPty(id).shutdown(immediate);
+		// Don't throw if the pty is already shutdown
+		return this._ptys.get(id)?.shutdown(immediate);
 	}
 	async input(id: number, data: string): Promise<void> {
 		return this._throwIfNoPty(id).input(data);
@@ -159,7 +160,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).orphanQuestionReply();
 	}
 
-	processBinary(id: number, data: string): void {
+	async processBinary(id: number, data: string): Promise<void> {
 		return this._throwIfNoPty(id).writeBinary(data);
 	}
 

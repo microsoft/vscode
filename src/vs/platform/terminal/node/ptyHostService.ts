@@ -192,8 +192,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}
-	processBinary(id: number, data: string): void {
-		this._proxy.processBinary(id, data);
+	processBinary(id: number, data: string): Promise<void> {
+		return this._proxy.processBinary(id, data);
 	}
 	async getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined> {
 		return await this._proxy.getTerminalLayoutInfo(args);

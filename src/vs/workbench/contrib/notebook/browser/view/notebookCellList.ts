@@ -8,7 +8,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { Range } from 'vs/editor/common/core/range';
@@ -46,12 +46,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
 
-	private readonly _onDidRemoveOutput = new Emitter<ICellOutputViewModel>();
-	readonly onDidRemoveOutput: Event<ICellOutputViewModel> = this._onDidRemoveOutput.event;
-	private readonly _onDidHideOutput = new Emitter<ICellOutputViewModel>();
-	readonly onDidHideOutput: Event<ICellOutputViewModel> = this._onDidHideOutput.event;
-	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
-	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
+	private readonly _onDidRemoveOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
+
+	private readonly _onDidHideOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	readonly onDidHideOutputs = this._onDidHideOutputs.event;
+
+	private readonly _onDidRemoveCellsFromView = new Emitter<readonly ICellViewModel[]>();
+	readonly onDidRemoveCellsFromView = this._onDidRemoveCellsFromView.event;
+
 	private _viewModel: NotebookViewModel | null = null;
 	get viewModel(): NotebookViewModel | null {
 		return this._viewModel;
@@ -86,8 +89,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _isInLayout: boolean = false;
 
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
-
-	private _cellStateListeners: IDisposable[] = [];
 
 	constructor(
 		private listUser: string,
@@ -262,29 +263,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	attachViewModel(model: NotebookViewModel) {
 		this._viewModel = model;
-
-		this._cellStateListeners = this._viewModel.viewCells.map(cell => cell.onDidChangeLayout(e => {
-			if (e.totalHeight !== undefined || e.outerWidth) {
-				this._layoutCell(cell, cell.layoutInfo.totalHeight);
-			}
-		}));
-
 		this._viewModelStore.add(model.onDidChangeViewCells((e) => {
 			if (this._isDisposed) {
 				return;
 			}
-
-			// update resize listener
-			e.splices.reverse().forEach(splice => {
-				const [start, deleted, newCells] = splice;
-				const deletedCells = this._cellStateListeners.splice(start, deleted, ...newCells.map(cell => cell.onDidChangeLayout(e => {
-					if (e.totalHeight !== undefined || e.outerWidth) {
-						this._layoutCell(cell, cell.layoutInfo.totalHeight);
-					}
-				})));
-
-				dispose(deletedCells);
-			});
 
 			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
 			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
@@ -334,9 +316,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewCells = model.viewCells.slice(0) as CellViewModel[];
 		newRanges.reverse().forEach(range => {
 			const removedCells = viewCells.splice(range.start, range.end - range.start + 1);
-			removedCells.forEach(cell => {
-				this._onDidRemoveCellFromView.fire(cell);
-			});
+			this._onDidRemoveCellsFromView.fire(removedCells);
 		});
 
 		this.splice2(0, 0, viewCells);
@@ -388,7 +368,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _updateElementsInWebview(viewDiffs: ISplice<CellViewModel>[]) {
 		viewDiffs.reverse().forEach((diff) => {
-			const hideOutputs: ICellOutputViewModel[] = [];
+			const hiddenOutputs: ICellOutputViewModel[] = [];
 			const deletedOutputs: ICellOutputViewModel[] = [];
 			const removedMarkdownCells: ICellViewModel[] = [];
 
@@ -396,7 +376,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				const cell = this.element(i);
 				if (cell.cellKind === CellKind.Code) {
 					if (this._viewModel!.hasCell(cell.handle)) {
-						hideOutputs.push(...cell?.outputsViewModels);
+						hiddenOutputs.push(...cell?.outputsViewModels);
 					} else {
 						deletedOutputs.push(...cell?.outputsViewModels);
 					}
@@ -407,9 +387,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			this.splice2(diff.start, diff.deleteCount, diff.toInsert);
 
-			hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
-			deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
-			removedMarkdownCells.forEach(cell => this._onDidRemoveCellFromView.fire(cell));
+			this._onDidHideOutputs.fire(hiddenOutputs);
+			this._onDidRemoveOutputs.fire(deletedOutputs);
+			this._onDidRemoveCellsFromView.fire(removedMarkdownCells);
 		});
 	}
 
@@ -1328,7 +1308,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	dispose() {
 		this._isDisposed = true;
-		dispose(this._cellStateListeners);
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
 		super.dispose();

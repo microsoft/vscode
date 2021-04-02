@@ -1547,9 +1547,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async getLatency(): Promise<number> { return 0; }
-	processBinary(data: string): void {
-		throw new Error('not implemented');
-	}
+	processBinary(data: string): void { }
 }
 
 export class TestQuickInputService implements IQuickInputService {

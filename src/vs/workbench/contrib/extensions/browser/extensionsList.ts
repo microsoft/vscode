@@ -20,7 +20,7 @@ import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteB
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { getExtensionWorkspaceTrustRequirement, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
@@ -207,10 +207,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			const trustRequirement = extension.local.manifest.workspaceTrust;
 			if (trustRequirement.description) {
 				data.workspaceTrustDescription.textContent = trustRequirement.description;
-			} else if (trustRequirement.required === 'onDemand') {
-				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
-			} else if (trustRequirement.required === 'onStart') {
+			} else if (getExtensionWorkspaceTrustRequirement(extension.local.manifest) === 'onStart') {
 				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
+			} else if (getExtensionWorkspaceTrustRequirement(extension.local.manifest) === 'onDemand') {
+				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
 			}
 		}
 

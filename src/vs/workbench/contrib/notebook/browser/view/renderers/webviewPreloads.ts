@@ -134,12 +134,10 @@ function webviewPreloads() {
 		};
 	};
 
-	const outputObservers = new Map<string, ResizeObserver>();
-
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, DimensionUpdate>();
 
-		update(id: string, update: DimensionUpdate) {
+		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
 					if (!this.pending.size) {
@@ -152,56 +150,68 @@ function webviewPreloads() {
 					this.pending.clear();
 				}, 0);
 			}
-			this.pending.set(id, update);
+			this.pending.set(id, {
+				id,
+				height,
+				...options,
+			});
 		}
 	};
 
-	const resizeObserve = (container: Element, id: string, output: boolean) => {
-		const resizeObserver = new ResizeObserver(entries => {
-			for (const entry of entries) {
-				if (!document.body.contains(entry.target)) {
-					return;
-				}
+	const resizeObserver = new class {
 
-				if (entry.target.id === id && entry.contentRect) {
-					if (output) {
-						let height = 0;
-						if (entry.contentRect.height !== 0) {
-							entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
-							height = entry.contentRect.height + __outputNodePadding__ * 2;
+		private readonly _observer: ResizeObserver;
+
+		private readonly _observedElements = new WeakMap<Element, { id: string, output: boolean }>();
+
+		constructor() {
+			this._observer = new ResizeObserver(entries => {
+				for (const entry of entries) {
+					if (!document.body.contains(entry.target)) {
+						continue;
+					}
+
+					const observedElementInfo = this._observedElements.get(entry.target);
+					if (!observedElementInfo) {
+						continue;
+					}
+
+					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
+						if (observedElementInfo.output) {
+							let height = 0;
+							if (entry.contentRect.height !== 0) {
+								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${observedElementInfo.output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+								height = entry.contentRect.height + __outputNodePadding__ * 2;
+							} else {
+								entry.target.style.padding = `0px`;
+							}
+							dimensionUpdater.update(observedElementInfo.id, height, {
+								isOutput: true
+							});
 						} else {
-							entry.target.style.padding = `0px`;
+							// entry.contentRect does not include padding
+							dimensionUpdater.update(observedElementInfo.id, entry.contentRect.height + __previewNodePadding__ * 2, {
+								isOutput: false
+							});
 						}
-						dimensionUpdater.update(id, {
-							id: id,
-							data: { height },
-							isOutput: true
-						});
-					} else {
-						dimensionUpdater.update(id, {
-							id: id,
-							data: {
-								// entry.contentRect does not include padding
-								height: entry.contentRect.height + __previewNodePadding__ * 2
-							},
-							isOutput: false
-						});
 					}
 				}
-			}
-		});
-
-		resizeObserver.observe(container);
-		if (outputObservers.has(id)) {
-			outputObservers.get(id)?.disconnect();
+			});
 		}
 
-		outputObservers.set(id, resizeObserver);
+		public observe(container: Element, id: string, output: boolean) {
+			if (this._observedElements.has(container)) {
+				return;
+			}
+
+			this._observedElements.set(container, { id, output });
+			this._observer.observe(container);
+		}
 	};
 
 	function scrollWillGoToParent(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (!(node instanceof Element) || node.id === 'container') {
+			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('output_container')) {
 				return false;
 			}
 
@@ -510,43 +520,42 @@ function webviewPreloads() {
 			case 'showMarkdownPreview':
 				{
 					const data = event.data;
-					const previewNode = document.getElementById(`${data.id}_container`);
-					if (previewNode) {
-						previewNode.style.top = `${data.top}px`;
-					}
+
 					const cellContainer = document.getElementById(data.id);
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
+						cellContainer.style.top = `${data.top}px`;
 					}
 
 					updateMarkdownPreview(data.id, data.content);
 				}
 				break;
-			case 'hideMarkdownPreview':
+			case 'hideMarkdownPreviews':
 				{
-					const data = event.data;
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'hidden';
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'hidden';
+						}
 					}
 				}
 				break;
-			case 'unhideMarkdownPreview':
+			case 'unhideMarkdownPreviews':
 				{
-					const data = event.data;
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'visible';
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						if (cellContainer) {
+							cellContainer.style.visibility = 'visible';
+						}
+						updateMarkdownPreview(id, undefined);
 					}
-					updateMarkdownPreview(event.data.id, undefined);
 				}
 				break;
-			case 'removeMarkdownPreview':
+			case 'deleteMarkdownPreview':
 				{
-					const data = event.data;
-					let cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.parentElement?.removeChild(cellContainer);
+					for (const id of event.data.ids) {
+						const cellContainer = document.getElementById(id);
+						cellContainer?.remove();
 					}
 				}
 				break;
@@ -555,16 +564,16 @@ function webviewPreloads() {
 					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
 
 					for (const oldSelected of document.querySelectorAll('.preview.selected')) {
-						const id = oldSelected.id.replace('_preview', '');
+						const id = oldSelected.id;
 						if (!selectedCellIds.has(id)) {
 							oldSelected.classList.remove('selected');
 						}
 					}
 
 					for (const newSelected of selectedCellIds) {
-						const previewNode = document.getElementById(`${newSelected}_preview`);
-						if (previewNode) {
-							previewNode.classList.add('selected');
+						const previewContainer = document.getElementById(newSelected);
+						if (previewContainer) {
+							previewContainer.classList.add('selected');
 						}
 					}
 				}
@@ -587,6 +596,8 @@ function webviewPreloads() {
 						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
+						newElement.classList.add('output_container');
+
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
 
@@ -594,10 +605,13 @@ function webviewPreloads() {
 						container.appendChild(lowerWrapperElement);
 					}
 
+					cellOutputContainer.style.position = 'absolute';
+					cellOutputContainer.style.top = data.cellTop + 'px';
+
 					const outputNode = document.createElement('div');
 					outputNode.classList.add('output');
 					outputNode.style.position = 'absolute';
-					outputNode.style.top = data.top + 'px';
+					outputNode.style.top = `${data.outputOffset}px`;
 					outputNode.style.left = data.left + 'px';
 					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					// outputNode.style.minHeight = '32px';
@@ -650,31 +664,23 @@ function webviewPreloads() {
 						cellOutputContainer.appendChild(outputNode);
 					}
 
-					resizeObserve(outputNode, outputId, true);
+					resizeObserver.observe(outputNode, outputId, true);
 
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.update(outputId, {
-							id: outputId,
+						dimensionUpdater.update(outputId, clientHeight + __outputNodePadding__ * 2, {
 							isOutput: true,
 							init: true,
-							data: {
-								height: clientHeight + __outputNodePadding__ * 2
-							}
 						});
 
 						outputNode.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 					} else {
-						dimensionUpdater.update(outputId, {
-							id: outputId,
+						dimensionUpdater.update(outputId, outputNode.clientHeight, {
 							isOutput: true,
 							init: true,
-							data: {
-								height: outputNode.clientHeight
-							}
 						});
 					}
 
@@ -688,9 +694,10 @@ function webviewPreloads() {
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
 					for (const request of event.data.widgets) {
-						const widget = document.getElementById(request.id)!;
+						const widget = document.getElementById(request.outputId);
 						if (widget) {
-							widget.style.top = request.top + 'px';
+							widget.parentElement!.style.top = `${request.cellTop}px`;
+							widget.style.top = `${request.outputOffset}px`;
 							if (request.forceDisplay) {
 								widget.parentElement!.style.visibility = 'visible';
 							}
@@ -698,9 +705,9 @@ function webviewPreloads() {
 					}
 
 					for (const cell of event.data.markdownPreviews) {
-						const widget = document.getElementById(`${cell.id}_preview`)!;
-						if (widget) {
-							widget.style.top = `${cell.top}px`;
+						const container = document.getElementById(cell.id);
+						if (container) {
+							container.style.top = `${cell.top}px`;
 						}
 					}
 
@@ -711,10 +718,6 @@ function webviewPreloads() {
 				onWillDestroyOutput.fire([undefined, undefined]);
 				document.getElementById('container')!.innerText = '';
 
-				outputObservers.forEach(ob => {
-					ob.disconnect();
-				});
-				outputObservers.clear();
 				focusTrackers.forEach(ft => {
 					ft.dispose();
 				});
@@ -737,18 +740,14 @@ function webviewPreloads() {
 				});
 				break;
 			case 'showOutput':
-				enqueueOutputAction(event.data, ({ outputId, top }) => {
+				enqueueOutputAction(event.data, ({ outputId, cellTop: top, }) => {
 					const output = document.getElementById(outputId);
 					if (output) {
 						output.parentElement!.style.visibility = 'visible';
-						output.style.top = top + 'px';
+						output.parentElement!.style.top = top + 'px';
 
-						dimensionUpdater.update(outputId, {
-							id: outputId,
+						dimensionUpdater.update(outputId, output.clientHeight, {
 							isOutput: true,
-							data: {
-								height: output.clientHeight
-							}
 						});
 					}
 				});
@@ -797,21 +796,18 @@ function webviewPreloads() {
 	function createMarkdownPreview(cellId: string, content: string, top: number) {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
+		cellContainer.id = cellId;
+		cellContainer.classList.add('preview');
 
-		cellContainer.id = `${cellId}`;
+		cellContainer.style.position = 'absolute';
+		cellContainer.style.top = top + 'px';
 		container.appendChild(cellContainer);
 
-		const previewContainerNode = document.createElement('div');
-		previewContainerNode.style.position = 'absolute';
-		previewContainerNode.style.top = top + 'px';
-		previewContainerNode.id = `${cellId}_preview`;
-		previewContainerNode.classList.add('preview');
-
-		previewContainerNode.addEventListener('dblclick', () => {
+		cellContainer.addEventListener('dblclick', () => {
 			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.addEventListener('click', e => {
+		cellContainer.addEventListener('click', e => {
 			postNotebookMessage<IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
 				cellId,
 				altKey: e.altKey,
@@ -821,31 +817,29 @@ function webviewPreloads() {
 			});
 		});
 
-		previewContainerNode.addEventListener('mouseenter', () => {
+		cellContainer.addEventListener('mouseenter', () => {
 			postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.addEventListener('mouseleave', () => {
+		cellContainer.addEventListener('mouseleave', () => {
 			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
 		});
 
-		previewContainerNode.setAttribute('draggable', 'true');
+		cellContainer.setAttribute('draggable', 'true');
 
-		previewContainerNode.addEventListener('dragstart', e => {
+		cellContainer.addEventListener('dragstart', e => {
 			markdownPreviewDragManager.startDrag(e, cellId);
 		});
 
-		previewContainerNode.addEventListener('drag', e => {
+		cellContainer.addEventListener('drag', e => {
 			markdownPreviewDragManager.updateDrag(e, cellId);
 		});
 
-		previewContainerNode.addEventListener('dragend', e => {
+		cellContainer.addEventListener('dragend', e => {
 			markdownPreviewDragManager.endDrag(e, cellId);
 		});
 
-		cellContainer.appendChild(previewContainerNode);
-
-		const previewRoot = previewContainerNode.attachShadow({ mode: 'open' });
+		const previewRoot = cellContainer.attachShadow({ mode: 'open' });
 
 		// Add default webview style
 		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
@@ -861,7 +855,7 @@ function webviewPreloads() {
 
 		updateMarkdownPreview(cellId, content);
 
-		resizeObserve(previewContainerNode, `${cellId}_preview`, false);
+		resizeObserver.observe(cellContainer, cellId, false);
 	}
 
 	function postNotebookMessage<T extends FromWebviewMessage>(
@@ -876,13 +870,12 @@ function webviewPreloads() {
 	}
 
 	function updateMarkdownPreview(cellId: string, content: string | undefined) {
-		const previewContainerNode = document.getElementById(`${cellId}_preview`);
+		const previewContainerNode = document.getElementById(cellId);
 		if (!previewContainerNode) {
 			return;
 		}
 
 		const previewRoot = previewContainerNode.shadowRoot;
-
 		const previewNode = previewRoot?.getElementById('preview') as HTMLElement;
 
 		// TODO: handle namespace
@@ -899,11 +892,7 @@ function webviewPreloads() {
 			}
 		}
 
-		dimensionUpdater.update(`${cellId}_preview`, {
-			id: `${cellId}_preview`,
-			data: {
-				height: previewContainerNode.clientHeight,
-			},
+		dimensionUpdater.update(cellId, previewContainerNode.clientHeight, {
 			isOutput: false
 		});
 	}

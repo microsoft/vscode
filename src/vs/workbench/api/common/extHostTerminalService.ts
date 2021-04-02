@@ -118,6 +118,7 @@ export class ExtHostTerminal {
 		shellArgs?: string[] | string,
 		cwd?: string | URI,
 		env?: ITerminalEnvironment,
+		initialText?: string,
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
 		hideFromUser?: boolean,
@@ -127,7 +128,7 @@ export class ExtHostTerminal {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
+		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
 	}
 
 	public async createExtensionTerminal(): Promise<number> {
@@ -226,7 +227,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	}
 
 	processBinary(data: string) {
-		throw new Error('not implemented');
+		// No-op, processBinary is not supported in extextion owned terminals.
 	}
 
 	acknowledgeDataEvent(charCount: number): void {

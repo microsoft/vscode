@@ -308,13 +308,13 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 
 		if (this.useRenderer) {
-			this.notebookEditor.hideMarkdownPreview(this.viewCell);
+			this.notebookEditor.hideMarkdownPreviews([this.viewCell]);
 		}
 
 		this.templateData.container.classList.toggle('collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', true);
 
-		if (this.editor) {
+		if (this.editor && this.editor.hasModel()) {
 			editorHeight = this.editor.getContentHeight();
 
 			// not first time, we don't need to create editor or bind listeners
@@ -328,6 +328,8 @@ export class StatefulMarkdownCell extends Disposable {
 				height: editorHeight
 			});
 		} else {
+			this.editor?.dispose();
+
 			const width = this.viewCell.layoutInfo.editorWidth;
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;

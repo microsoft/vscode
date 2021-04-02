@@ -41,7 +41,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	private textDocumentObservers: TextDocumentTestObserverFactory;
 
 	public onResultsChanged = this.resultsChangedEmitter.event;
-	public results: ReadonlyArray<vscode.TestResults> = [];
+	public results: ReadonlyArray<vscode.TestRunResult> = [];
 
 	constructor(@IExtHostRpcService rpc: IExtHostRpcService, @IExtHostDocumentsAndEditors private readonly documents: IExtHostDocumentsAndEditors, @IExtHostWorkspace private readonly workspace: IExtHostWorkspace) {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
@@ -88,7 +88,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.runTests
 	 */
-	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>, token = CancellationToken.None) {
+	public async runTests(req: vscode.TestRunRequest<vscode.TestItem>, token = CancellationToken.None) {
 		const testListToProviders = (tests: ReadonlyArray<vscode.TestItem>) =>
 			tests
 				.map(this.getInternalTestForReference, this)
@@ -105,7 +105,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.publishTestResults
 	 */
-	public publishExtensionProvidedResults(results: vscode.TestResults, persist: boolean): void {
+	public publishExtensionProvidedResults(results: vscode.TestRunResult, persist: boolean): void {
 		this.proxy.$publishExtensionProvidedResults(Convert.TestResults.from(generateUuid(), results), persist);
 	}
 
@@ -259,20 +259,35 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
+		const isExcluded = (test: vscode.TestItem) => {
+			// for test providers that don't support excluding natively,
+			// make sure not to report excluded result otherwise summaries will be off.
+			for (const [tree, exclude] of excludeTests) {
+				const e = tree.comparePositions(exclude, test.id);
+				if (e === TestPosition.IsChild || e === TestPosition.IsSame) {
+					return true;
+				}
+			}
+
+			return false;
+		};
+
 		try {
 			await provider.runTests({
-				setState: (test, state) => {
-					// for test providers that don't support excluding natively,
-					// make sure not to report excluded result otherwise summaries will be off.
-					for (const [tree, exclude] of excludeTests) {
-						const e = tree.comparePositions(exclude, test.id);
-						if (e === TestPosition.IsChild || e === TestPosition.IsSame) {
-							return;
-						}
+				appendOutput() {
+					// todo
+				},
+				appendMessage: (test, message) => {
+					if (!isExcluded(test)) {
+						this.flushCollectionDiffs();
+						this.proxy.$appendTestMessageInRun(req.runId, test.id, Convert.TestMessage.from(message));
 					}
-
-					this.flushCollectionDiffs();
-					this.proxy.$updateTestStateInRun(req.runId, test.id, Convert.TestState.from(state));
+				},
+				setState: (test, state, duration) => {
+					if (!isExcluded(test)) {
+						this.flushCollectionDiffs();
+						this.proxy.$updateTestStateInRun(req.runId, test.id, state, duration);
+					}
 				},
 				tests: includeTests.map(t => TestItemFilteredWrapper.unwrap(t.actual)),
 				exclude: excludeTests.map(([, t]) => TestItemFilteredWrapper.unwrap(t.actual)),
@@ -464,7 +479,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		return this.added.size === 0 && this.removed.size === 0 && this.updated.size === 0;
 	}
 
-	constructor(private readonly emitter: Emitter<vscode.TestChangeEvent>) {
+	constructor(private readonly emitter: Emitter<vscode.TestsChangeEvent>) {
 		super();
 	}
 
@@ -507,7 +522,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	/**
 	 * @override
 	 */
-	public getChangeEvent(): vscode.TestChangeEvent {
+	public getChangeEvent(): vscode.TestsChangeEvent {
 		const { added, updated, removed } = this;
 		return {
 			get added() { return [...added].map(n => n.revived); },
@@ -528,7 +543,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
  * @private
  */
 export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
-	private changeEmitter = new Emitter<vscode.TestChangeEvent>();
+	private changeEmitter = new Emitter<vscode.TestsChangeEvent>();
 
 	/**
 	 * Change emitter that fires with the same sematics as `TestObserver.onDidChangeTests`.

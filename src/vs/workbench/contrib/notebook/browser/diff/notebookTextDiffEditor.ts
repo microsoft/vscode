@@ -263,22 +263,20 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					removedItems.push(key);
 				} else {
 					const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
-					if (activeWebview.shouldUpdateInset(cell, key, cellTop)) {
-						const outputIndex = cell.outputsViewModels.indexOf(key);
-						const outputOffset = cellTop + value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
-
-						updateItems.push({
-							output: key,
-							cellTop: cellTop,
-							outputOffset: outputOffset,
-							forceDisplay: false
-						});
-					}
+					const outputIndex = cell.outputsViewModels.indexOf(key);
+					const outputOffset = value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
+					updateItems.push({
+						cell,
+						output: key,
+						cellTop: cellTop,
+						outputOffset: outputOffset,
+						forceDisplay: false
+					});
 				}
 
 			});
 
-			removedItems.forEach(output => activeWebview.removeInset(output));
+			activeWebview.removeInsets(removedItems);
 
 			if (updateItems.length) {
 				activeWebview.updateScrollTops(updateItems, []);
@@ -471,13 +469,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			));
 		}
 
-		this._originalWebview?.insetMapping.forEach((value, key) => {
-			this._originalWebview?.removeInset(key);
-		});
-
-		this._modifiedWebview?.insetMapping.forEach((value, key) => {
-			this._modifiedWebview?.removeInset(key);
-		});
+		this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
+		this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
 
 		this._diffElementViewModels = diffElementViewModels;
 		this._list.splice(0, this._list.length, diffElementViewModels);
@@ -577,8 +570,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 				const outputIndex = cellViewModel.outputsViewModels.indexOf(output.source);
-				const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-				activeWebview.updateScrollTops([{ output: output.source, cellTop, outputOffset, forceDisplay: true }], []);
+				const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
+				activeWebview.updateScrollTops([{
+					cell: cellViewModel,
+					output: output.source,
+					cellTop,
+					outputOffset,
+					forceDisplay: true
+				}], []);
 			}
 		});
 	}
@@ -606,7 +605,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				return;
 			}
 
-			activeWebview.removeInset(displayOutput);
+			activeWebview.removeInsets([displayOutput]);
 		});
 	}
 
@@ -623,8 +622,14 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 			const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 			const outputIndex = cellViewModel.outputsViewModels.indexOf(displayOutput);
-			const outputOffset = cellTop + cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
-			activeWebview.updateScrollTops([{ output: displayOutput, cellTop, outputOffset, forceDisplay: true }], []);
+			const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
+			activeWebview.updateScrollTops([{
+				cell: cellViewModel,
+				output: displayOutput,
+				cellTop,
+				outputOffset,
+				forceDisplay: true,
+			}], []);
 		});
 	}
 

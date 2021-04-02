@@ -52,7 +52,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('setAllToState', () => {
-			r.setAllToState({ state: TestRunState.Queued, duration: 0, messages: [] }, t => t.item.label !== 'root');
+			r.setAllToState(TestRunState.Queued, t => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Unset]: 1,
@@ -69,7 +69,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('updateState', () => {
-			r.updateState('id-a', { state: TestRunState.Running, duration: 0, messages: [] });
+			r.updateState('id-a', TestRunState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Running]: 1,
@@ -98,7 +98,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('addTestToRun', () => {
-			r.updateState('id-b', { state: TestRunState.Running, duration: 0, messages: [] });
+			r.updateState('id-b', TestRunState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Running]: 1,
@@ -110,8 +110,8 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('markComplete', () => {
-			r.setAllToState({ state: TestRunState.Queued, duration: 0, messages: [] }, t => true);
-			r.updateState('id-aa', { state: TestRunState.Passed, duration: 0, messages: [] });
+			r.setAllToState(TestRunState.Queued, () => true);
+			r.updateState('id-aa', TestRunState.Passed);
 			changed.clear();
 
 			r.markComplete();
@@ -146,7 +146,7 @@ suite('Workbench - Test Results Service', () => {
 
 		test('serializes and re-hydrates', () => {
 			results.push(r);
-			r.updateState('id-aa', { state: TestRunState.Passed, duration: 0, messages: [] });
+			r.updateState('id-aa', TestRunState.Passed);
 			r.markComplete();
 
 			results = new TestResultService(
