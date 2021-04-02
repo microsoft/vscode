@@ -10,7 +10,7 @@ import { detectAvailableProfiles, IFsProvider } from 'vs/workbench/contrib/termi
 
 /**
  * Assets that two profiles objects are equal, this will treat explicit undefined and unset
- * properties the same.
+ * properties the same. Order of the profiles is ignored.
  */
 function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITerminalProfile[]) {
 	strictEqual(actualProfiles.length, expectedProfiles.length);
@@ -47,7 +47,7 @@ suite.only('Workbench - TerminalProfiles', () => {
 				const expected = [
 					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login'] }
 				];
-				deepStrictEqual(profiles, expected);
+				profilesEqual(profiles, expected);
 			});
 			test('should allow source to have args', async () => {
 				const fsProvider = createFsProvider([
@@ -67,7 +67,7 @@ suite.only('Workbench - TerminalProfiles', () => {
 				const expected = [
 					{ profileName: 'PowerShell NoProfile', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'] }
 				];
-				deepStrictEqual(expected, profiles);
+				profilesEqual(profiles, expected);
 			});
 			test('configured args should override default source ones', async () => {
 				const fsProvider = createFsProvider([
@@ -85,7 +85,7 @@ suite.only('Workbench - TerminalProfiles', () => {
 				};
 				const profiles = await detectAvailableProfiles(true, fsProvider, undefined, config as ITerminalConfiguration, undefined, undefined);
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined }];
-				deepStrictEqual(profiles, expected);
+				profilesEqual(profiles, expected);
 			});
 			describe('pwsh source detection/fallback', async () => {
 				const pwshSourceConfig = ({
@@ -109,7 +109,7 @@ suite.only('Workbench - TerminalProfiles', () => {
 					const expected = [
 						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }
 					];
-					deepStrictEqual(expected, profiles);
+					profilesEqual(profiles, expected);
 				});
 				test('should prefer pwsh 7 to pwsh 6', async () => {
 					const fsProvider = createFsProvider([
@@ -122,7 +122,7 @@ suite.only('Workbench - TerminalProfiles', () => {
 					const expected = [
 						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }
 					];
-					deepStrictEqual(expected, profiles);
+					profilesEqual(profiles, expected);
 				});
 				test('should prefer pwsh 6 to Windows PowerShell', async () => {
 					const fsProvider = createFsProvider([
@@ -134,7 +134,7 @@ suite.only('Workbench - TerminalProfiles', () => {
 					const expected = [
 						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\6\\pwsh.exe' }
 					];
-					deepStrictEqual(expected, profiles);
+					profilesEqual(profiles, expected);
 				});
 				test('should fallback to Windows PowerShell', async () => {
 					const fsProvider = createFsProvider([
