@@ -1167,18 +1167,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					}
 
 					const cellTop = this._list.getAbsoluteTopOfElement(cell);
-					if (this._webview!.shouldUpdateInset(cell, key, cellTop)) {
-						const outputIndex = cell.outputsViewModels.indexOf(key);
-
-						const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
-
-						updateItems.push({
-							output: key,
-							cellTop: cellTop,
-							outputOffset,
-							forceDisplay: false,
-						});
-					}
+					const outputIndex = cell.outputsViewModels.indexOf(key);
+					const outputOffset = cell.getOutputOffset(outputIndex);
+					updateItems.push({
+						cell,
+						output: key,
+						cellTop,
+						outputOffset,
+						forceDisplay: false,
+					});
 				});
 
 				this._webview.removeInsets(removedItems);
@@ -2257,9 +2254,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				await this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
-				const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
-
-				this._webview.updateScrollTops([{ output: output.source, cellTop, outputOffset, forceDisplay: true }], []);
+				const outputOffset = cell.getOutputOffset(outputIndex);
+				this._webview.updateScrollTops([{
+					cell,
+					output: output.source,
+					cellTop,
+					outputOffset,
+					forceDisplay: true,
+				}], []);
 			}
 		});
 	}

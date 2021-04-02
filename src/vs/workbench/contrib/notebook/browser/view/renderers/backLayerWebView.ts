@@ -178,16 +178,18 @@ export interface ICreationRequestMessage {
 	| { type: RenderOutputType.Extension; outputId: string; value: unknown; metadata: unknown; mimeType: string };
 	cellId: string;
 	outputId: string;
-	top: number;
+	cellTop: number;
+	outputOffset: number;
 	left: number;
 	requiredPreloads: ReadonlyArray<IPreloadResource>;
-	initiallyHidden?: boolean;
+	readonly initiallyHidden?: boolean;
 	apiNamespace?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
-	id: string;
-	top: number;
+	outputId: string;
+	cellTop: number;
+	outputOffset: number;
 	forceDisplay: boolean;
 }
 
@@ -223,7 +225,8 @@ export interface IShowOutputMessage {
 	type: 'showOutput';
 	cellId: string;
 	outputId: string;
-	top: number;
+	cellTop: number;
+	outputOffset: number;
 }
 
 export interface IFocusOutputMessage {
@@ -561,6 +564,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					</style>
 				</template>
 				<style>
+					#container .output_container {
+						width: 100%;
+					}
+
 					#container > div > div.output {
 						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
 						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
@@ -1078,49 +1085,56 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number) {
+	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
 		if (this._disposed) {
-			return;
+			return false;
 		}
 
 		if (cell.metadata?.outputCollapsed) {
 			return false;
 		}
 
-		const outputCache = this.insetMapping.get(output)!;
-		const outputIndex = cell.outputsViewModels.indexOf(output);
-		const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
-
 		if (this.hiddenInsetMapping.has(output)) {
 			return true;
 		}
 
-		if (outputOffset === outputCache.cachedCreation.top) {
+		const outputCache = this.insetMapping.get(output);
+		if (!outputCache) {
+			return false;
+		}
+
+		if (outputOffset === outputCache.cachedCreation.outputOffset && cellTop === outputCache.cachedCreation.cellTop) {
 			return false;
 		}
 
 		return true;
 	}
 
-	updateScrollTops(outputs: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
+	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		const widgets = coalesce(outputs.map((item): IContentWidgetTopRequest | undefined => {
-			const outputCache = this.insetMapping.get(item.output);
+		const widgets = coalesce(outputRequests.map((request): IContentWidgetTopRequest | undefined => {
+			const outputCache = this.insetMapping.get(request.output);
 			if (!outputCache) {
 				return;
 			}
+
+			if (!request.forceDisplay && !this.shouldUpdateInset(request.cell, request.output, request.cellTop, request.outputOffset)) {
+				return;
+			}
+
 			const id = outputCache.outputId;
-			const outputOffset = item.outputOffset;
-			outputCache.cachedCreation.top = outputOffset;
-			this.hiddenInsetMapping.delete(item.output);
+			outputCache.cachedCreation.cellTop = request.cellTop;
+			outputCache.cachedCreation.outputOffset = request.outputOffset;
+			this.hiddenInsetMapping.delete(request.output);
 
 			return {
-				id: id,
-				top: outputOffset,
-				forceDisplay: item.forceDisplay,
+				outputId: id,
+				cellTop: request.cellTop,
+				outputOffset: request.outputOffset,
+				forceDisplay: request.forceDisplay,
 			};
 		}));
 
@@ -1300,8 +1314,6 @@ var requirejs = (function() {
 			return;
 		}
 
-		const initialTop = cellTop + offset;
-
 		if (this.insetMapping.has(content.source)) {
 			const outputCache = this.insetMapping.get(content.source);
 
@@ -1311,7 +1323,8 @@ var requirejs = (function() {
 					type: 'showOutput',
 					cellId: outputCache.cellInfo.cellId,
 					outputId: outputCache.outputId,
-					top: initialTop
+					cellTop: cellTop,
+					outputOffset: offset
 				});
 				return;
 			}
@@ -1320,7 +1333,8 @@ var requirejs = (function() {
 		const messageBase = {
 			type: 'html',
 			cellId: cellInfo.cellId,
-			top: initialTop,
+			cellTop: cellTop,
+			outputOffset: offset,
 			left: 0,
 			requiredPreloads: [],
 		} as const;

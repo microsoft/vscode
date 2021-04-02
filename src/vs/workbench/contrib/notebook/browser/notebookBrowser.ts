@@ -137,6 +137,7 @@ export interface IGenericCellViewModel {
 }
 
 export interface IDisplayOutputLayoutUpdateRequest {
+	readonly cell: IGenericCellViewModel;
 	output: IDisplayOutputViewModel;
 	cellTop: number;
 	outputOffset: number;

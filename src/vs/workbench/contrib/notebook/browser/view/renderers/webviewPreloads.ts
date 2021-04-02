@@ -211,7 +211,7 @@ function webviewPreloads() {
 
 	function scrollWillGoToParent(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (!(node instanceof Element) || node.id === 'container') {
+			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('output_container')) {
 				return false;
 			}
 
@@ -596,6 +596,8 @@ function webviewPreloads() {
 						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
+						newElement.classList.add('output_container');
+
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
 
@@ -603,10 +605,13 @@ function webviewPreloads() {
 						container.appendChild(lowerWrapperElement);
 					}
 
+					cellOutputContainer.style.position = 'absolute';
+					cellOutputContainer.style.top = data.cellTop + 'px';
+
 					const outputNode = document.createElement('div');
 					outputNode.classList.add('output');
 					outputNode.style.position = 'absolute';
-					outputNode.style.top = data.top + 'px';
+					outputNode.style.top = `${data.outputOffset}px`;
 					outputNode.style.left = data.left + 'px';
 					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					// outputNode.style.minHeight = '32px';
@@ -689,9 +694,10 @@ function webviewPreloads() {
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
 					for (const request of event.data.widgets) {
-						const widget = document.getElementById(request.id)!;
+						const widget = document.getElementById(request.outputId);
 						if (widget) {
-							widget.style.top = request.top + 'px';
+							widget.parentElement!.style.top = `${request.cellTop}px`;
+							widget.style.top = `${request.outputOffset}px`;
 							if (request.forceDisplay) {
 								widget.parentElement!.style.visibility = 'visible';
 							}
@@ -734,11 +740,11 @@ function webviewPreloads() {
 				});
 				break;
 			case 'showOutput':
-				enqueueOutputAction(event.data, ({ outputId, top }) => {
+				enqueueOutputAction(event.data, ({ outputId, cellTop: top, }) => {
 					const output = document.getElementById(outputId);
 					if (output) {
 						output.parentElement!.style.visibility = 'visible';
-						output.style.top = top + 'px';
+						output.parentElement!.style.top = top + 'px';
 
 						dimensionUpdater.update(outputId, output.clientHeight, {
 							isOutput: true,
