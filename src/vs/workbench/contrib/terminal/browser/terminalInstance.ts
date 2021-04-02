@@ -1313,6 +1313,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._webglAddon = new Addon();
 		try {
 			this._xterm.loadAddon(this._webglAddon);
+			this._webglAddon.onContextLoss((e => {
+				(e as any).preventDefault();
+				this._storageService.store(SUGGESTED_RENDERER_TYPE, 'dom', StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this._safeSetOption('rendererType', 'dom');
+				this._disposeOfWebglRenderer();
+			}));
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
