@@ -86,7 +86,8 @@
         "emmet.extensionsPath": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "description": "%emmetExtensionsPathItem%"
           },
           "default": [],
           "description": "%emmetExtensionsPath%"
