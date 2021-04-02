@@ -48,7 +48,7 @@ export interface IGettingStartedTask {
 	order: number
 	button:
 	| { title: string, command?: never, link: string }
-	| { title: string, command: string, link?: never },
+	| { title: string, command: string, link?: never, sideBySide?: boolean }
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
 	media: { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
 }

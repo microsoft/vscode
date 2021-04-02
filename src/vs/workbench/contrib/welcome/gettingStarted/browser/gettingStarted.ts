@@ -264,7 +264,14 @@ export class GettingStartedPage extends EditorPane {
 							}
 							const taskToRun = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
 							if (taskToRun.button.command) {
-								this.commandService.executeCommand(taskToRun.button.command);
+								if (taskToRun.button.sideBySide) {
+									// todo: Only split when current layout is 1-column
+									this.commandService.executeCommand('workbench.action.editorLayoutTwoColumns')
+										.then(() => this.commandService.executeCommand('workbench.action.focusNextGroup'))
+										.then(() => this.commandService.executeCommand(taskToRun.button.command));
+								} else {
+									this.commandService.executeCommand(taskToRun.button.command);
+								}
 							} else if (taskToRun.button.link) {
 								this.openerService.open(taskToRun.button.link);
 								this.gettingStartedService.progressByEvent('linkOpened:' + taskToRun.button.link);
