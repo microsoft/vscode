@@ -5,15 +5,18 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CellEditState, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellKind, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { BUILTIN_RENDERER_ID, CellKind, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 class NotebookClipboardContribution extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.viewportCustomMarkdown';
 	private readonly _warmupViewport: RunOnceScheduler;
 
-	constructor(private readonly _notebookEditor: INotebookEditor) {
+	constructor(private readonly _notebookEditor: INotebookEditor,
+		@INotebookService private readonly _notebookService: INotebookService) {
 		super();
 
 		this._warmupViewport = new RunOnceScheduler(() => this._warmupViewportNow(), 200);
@@ -30,6 +33,33 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 
 			if (cell?.cellKind === CellKind.Markdown && cell?.editState === CellEditState.Preview) {
 				this._notebookEditor.createMarkdownPreview(cell);
+			} else if (cell?.cellKind === CellKind.Code) {
+				const viewCell = (cell as CodeCellViewModel);
+				const outputs = viewCell.outputsViewModels;
+				for (let output of outputs) {
+					const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!);
+					if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
+						continue;
+					}
+
+					const pickedMimeTypeRenderer = mimeTypes[pick];
+
+					if (!pickedMimeTypeRenderer) {
+						return;
+					}
+
+					if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
+						return;
+					}
+					const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
+
+					if (!renderer) {
+						return;
+					}
+
+					const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
+					this._notebookEditor.createOutput(viewCell, result, 0);
+				}
 			}
 		});
 	}
