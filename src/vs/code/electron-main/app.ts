@@ -231,8 +231,6 @@ export class CodeApplication extends Disposable {
 				if (details.requestingUrl === webviewFrameUrl) {
 					return callback(permission === 'clipboard-read');
 				}
-				console.log('permission: ' + permission);
-				this.logService.info('permission: ' + permission);
 				return callback(permission as any === 'font-access');
 			});
 
