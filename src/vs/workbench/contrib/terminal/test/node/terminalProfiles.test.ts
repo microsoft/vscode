@@ -30,7 +30,9 @@ suite.only('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			test('should detect Git Bash and provide login args', async () => {
-				const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
+				const fsProvider = createFsProvider([
+					'C:\\Program Files\\Git\\bin\\bash.exe'
+				]);
 				const config: ITestTerminalConfig = {
 					profiles: {
 						windows: {
@@ -41,11 +43,16 @@ suite.only('Workbench - TerminalProfiles', () => {
 					},
 					useWslProfiles: false
 				};
-				const profiles = await detectAvailableProfiles(true, createFsProvider(_paths), undefined, config as ITerminalConfiguration, undefined, undefined);
-				const expected = [{ profileName: 'Git Bash', path: _paths[0], args: ['--login'], isAutoDetected: undefined, overrideName: undefined }];
+				const profiles = await detectAvailableProfiles(true, fsProvider, undefined, config as ITerminalConfiguration, undefined, undefined);
+				const expected = [
+					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login'] }
+				];
 				deepStrictEqual(profiles, expected);
 			});
 			test('should allow source to have args', async () => {
+				const fsProvider = createFsProvider([
+					'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+				]);
 				const config: ITestTerminalConfig = {
 					profiles: {
 						windows: {
@@ -56,12 +63,16 @@ suite.only('Workbench - TerminalProfiles', () => {
 					},
 					useWslProfiles: false
 				};
-				const profiles = await detectAvailableProfiles(true, undefined, undefined, config as ITerminalConfiguration, undefined, undefined);
-				const expected = [{ profileName: 'PowerShell NoProfile', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, isAutoDetected: undefined, args: ['-NoProfile'] }];
+				const profiles = await detectAvailableProfiles(true, fsProvider, undefined, config as ITerminalConfiguration, undefined, undefined);
+				const expected = [
+					{ profileName: 'PowerShell NoProfile', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'] }
+				];
 				deepStrictEqual(expected, profiles);
 			});
 			test('configured args should override default source ones', async () => {
-				const _paths = [`C:\\Program Files\\Git\\bin\\bash.exe`];
+				const fsProvider = createFsProvider([
+					'C:\\Program Files\\Git\\bin\\bash.exe'
+				]);
 				const config: ITestTerminalConfig = {
 					profiles: {
 						windows: {
@@ -72,8 +83,8 @@ suite.only('Workbench - TerminalProfiles', () => {
 					},
 					useWslProfiles: false
 				};
-				const profiles = await detectAvailableProfiles(true, createFsProvider(_paths), undefined, config as ITerminalConfiguration, undefined, undefined);
-				const expected = [{ profileName: 'Git Bash', path: _paths[0], args: [], isAutoDetected: undefined, overrideName: undefined }];
+				const profiles = await detectAvailableProfiles(true, fsProvider, undefined, config as ITerminalConfiguration, undefined, undefined);
+				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined }];
 				deepStrictEqual(profiles, expected);
 			});
 		} else {
