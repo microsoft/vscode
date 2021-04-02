@@ -8,7 +8,7 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { Range } from 'vs/editor/common/core/range';
@@ -320,50 +320,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		});
 
 		this.splice2(0, 0, viewCells);
-	}
-
-	private _pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
-	private async _layoutCell(cell: ICellViewModel, height: number): Promise<void> {
-		const viewIndex = this.getViewIndex(cell);
-		if (viewIndex === undefined) {
-			// the cell is hidden
-			return;
-		}
-
-		const relayout = (cell: ICellViewModel, height: number) => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			this.updateElementHeight2(cell, height);
-		};
-
-		if (this._pendingLayouts.has(cell)) {
-			this._pendingLayouts.get(cell)!.dispose();
-		}
-
-		let r: () => void;
-		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
-			if (this._isDisposed) {
-				return;
-			}
-
-			if (this.elementHeight(cell) === height) {
-				return;
-			}
-
-			this._pendingLayouts.delete(cell);
-
-			relayout(cell, height);
-			r();
-		});
-
-		this._pendingLayouts.set(cell, toDisposable(() => {
-			layoutDisposable.dispose();
-			r();
-		}));
-
-		return new Promise(resolve => { r = resolve; });
 	}
 
 	private _updateElementsInWebview(viewDiffs: ISplice<CellViewModel>[]) {
