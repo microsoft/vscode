@@ -54,7 +54,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		if (this._inReplay) {
 			return;
 		}
-		this._localPtyService.processBinary(this.id, data);
+		return this._localPtyService.processBinary(this.id, data);
 	}
 	input(data: string): void {
 		if (this._inReplay) {

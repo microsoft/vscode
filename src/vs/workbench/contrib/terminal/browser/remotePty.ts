@@ -120,8 +120,8 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	handleData(e: string | IProcessDataEvent) {
 		this._onProcessData.fire(e);
 	}
-	async processBinary(e: string): Promise<void> {
-		this._remoteTerminalChannel.processBinary(this._id, e);
+	processBinary(e: string): Promise<void> {
+		return this._remoteTerminalChannel.processBinary(this._id, e);
 	}
 	handleExit(e: number | undefined) {
 		this._onProcessExit.fire(e);
