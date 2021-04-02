@@ -160,7 +160,7 @@ export interface IPtyService {
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): void;
+	reduceConnectionGraceTime(): Promise<void>;
 }
 
 export enum HeartbeatConstants {
@@ -347,7 +347,7 @@ export interface ITerminalChildProcess {
 	 */
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
-	processBinary(data: string): void;
+	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
 
 	/**
