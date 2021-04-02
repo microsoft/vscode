@@ -753,6 +753,7 @@ export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): 
 }
 
 export interface IOutputTransformContribution {
+	getType(): RenderOutputType;
 	getMimetypes(): string[];
 	/**
 	 * Dispose this contribution.
