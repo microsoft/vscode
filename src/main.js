@@ -144,7 +144,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-color-correct-rendering',
 
 		// override for the color profile to use
-		'force-color-profile'
+		'force-color-profile',
+
+		`enable-features='FontAccess'`
 	];
 
 	if (process.platform === 'linux') {

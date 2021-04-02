@@ -555,6 +555,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
 
+
+		const LigaturesAddon = await this._terminalInstanceService.getXtermLigaturesConstructor();
+		console.log('load ligatures addon');
+		xterm.loadAddon(new LigaturesAddon());
+
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 		if (this._configHelper.config.gpuAcceleration === 'auto' && (suggestedRendererType === 'auto' || suggestedRendererType === undefined)
 			|| this._configHelper.config.gpuAcceleration === 'on') {

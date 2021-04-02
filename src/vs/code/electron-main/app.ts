@@ -231,7 +231,9 @@ export class CodeApplication extends Disposable {
 				if (details.requestingUrl === webviewFrameUrl) {
 					return callback(permission === 'clipboard-read');
 				}
-				return callback(false);
+				console.log('permission: ' + permission);
+				this.logService.info('permission: ' + permission);
+				return callback(permission as any === 'font-access');
 			});
 
 			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
