@@ -569,8 +569,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
 					}
 
+					/* markdown */
 					#container > div.preview {
 						width: 100%;
+						padding-right: ${this.options.previewNodePadding}px;
+						padding-left: ${this.options.leftMargin}px;
+						padding-top: ${this.options.previewNodePadding}px;
+						padding-bottom: ${this.options.previewNodePadding}px;
+
 						box-sizing: border-box;
 						white-space: nowrap;
 						overflow: hidden;
@@ -579,21 +585,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-ms-user-select: none;
 						white-space: initial;
 						cursor: grab;
+
+						color: var(--vscode-foreground);
 					}
 
 					#container > div.preview.emptyMarkdownCell::before {
 						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
 						font-style: italic;
 						opacity: 0.6;
-					}
-
-					/* markdown */
-					#container > div.preview {
-						color: var(--vscode-foreground);
-						width: 100%;
-						padding-left: ${this.options.leftMargin}px;
-						padding-top: ${this.options.previewNodePadding}px;
-						padding-bottom: ${this.options.previewNodePadding}px;
 					}
 
 					#container > div.preview.selected {
