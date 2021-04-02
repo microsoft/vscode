@@ -17,11 +17,18 @@ import * as pfs from 'vs/base/node/pfs';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
-export function detectAvailableProfiles(configuredProfilesOnly: boolean, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, statProvider?: IStatProvider, testPaths?: string[]): Promise<ITerminalProfile[]> {
-	return platform.isWindows ? detectAvailableWindowsProfiles(configuredProfilesOnly, statProvider, logService, config?.useWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder) : detectAvailableUnixProfiles(statProvider, logService, configuredProfilesOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
+export function detectAvailableProfiles(configuredProfilesOnly: boolean, fsProvider?: IFsProvider, logService?: ILogService, config?: ITerminalConfiguration, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder, testPaths?: string[]): Promise<ITerminalProfile[]> {
+	fsProvider = fsProvider || {
+		existsFile: pfs.SymlinkSupport.existsFile,
+		readFile: fs.promises.readFile
+	};
+	if (platform.isWindows) {
+		return detectAvailableWindowsProfiles(configuredProfilesOnly, fsProvider, logService, config?.useWslProfiles, config?.profiles.windows, variableResolver, workspaceFolder);
+	}
+	return detectAvailableUnixProfiles(fsProvider, logService, configuredProfilesOnly, platform.isMacintosh ? config?.profiles.osx : config?.profiles.linux, testPaths, variableResolver, workspaceFolder);
 }
 
-async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, statProvider?: IStatProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, fsProvider: IFsProvider, logService?: ILogService, useWslProfiles?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
 	// when the 32-bit version of VS Code is running on a 64-bit machine.
 	// The reason for this is because PowerShell's important PSReadline
@@ -61,7 +68,7 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, s
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), logService, statProvider, variableResolver, workspaceFolder);
+	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), fsProvider, logService, variableResolver, workspaceFolder);
 
 	if (!configuredProfilesOnly || (configuredProfilesOnly && useWslProfiles)) {
 		try {
@@ -77,7 +84,7 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, s
 	return resultProfiles;
 }
 
-async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, logService?: ILogService, statProvider?: IStatProvider, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function transformToTerminalProfiles(entries: IterableIterator<[string, ITerminalProfileObject]>, fsProvider: IFsProvider, logService?: ILogService, variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const resultProfiles: ITerminalProfile[] = [];
 	for (const [profileName, profile] of entries) {
 		if (profile === null) { continue; }
@@ -102,7 +109,8 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		for (let i = 0; i < paths.length; i++) {
 			paths[i] = variableResolver?.resolve(workspaceFolder, paths[i]) || paths[i];
 		}
-		const validatedProfile = await validateProfilePaths(profileName, paths, statProvider, args, profile.overrideName, profile.isAutoDetected, logService);
+		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.overrideName, profile.isAutoDetected, logService);
+		console.log('validated', validatedProfile?.profileName + ' ' + validatedProfile?.path);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			resultProfiles.push(validatedProfile);
@@ -201,12 +209,13 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 	return [];
 }
 
-async function detectAvailableUnixProfiles(statProvider?: IStatProvider, logService?: ILogService, configuredProfilesOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
+async function detectAvailableUnixProfiles(fsProvider: IFsProvider, logService?: ILogService, configuredProfilesOnly?: boolean, configProfiles?: { [key: string]: ITerminalProfileObject }, testPaths?: string[], variableResolver?: ExtHostVariableResolverService, workspaceFolder?: IWorkspaceFolder): Promise<ITerminalProfile[]> {
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
 	// Add non-quick launch profiles
 	if (!configuredProfilesOnly) {
-		const contents = await fs.promises.readFile('/etc/shells', 'utf8');
+		const contents = await fsProvider.readFile('/etc/shells', 'utf8');
+		console.log('contents:' + contents);
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {
@@ -223,7 +232,7 @@ async function detectAvailableUnixProfiles(statProvider?: IStatProvider, logServ
 
 	applyConfigProfilesToMap(configProfiles, detectedProfiles);
 
-	return await transformToTerminalProfiles(detectedProfiles.entries(), logService, statProvider, variableResolver, workspaceFolder);
+	return await transformToTerminalProfiles(detectedProfiles.entries(), fsProvider, logService, variableResolver, workspaceFolder);
 }
 
 function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProfileObject } | undefined, profilesMap: Map<string, ITerminalProfileObject>) {
@@ -239,13 +248,13 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 	}
 }
 
-async function validateProfilePaths(profileName: string, potentialPaths: string[], statProvider?: IStatProvider, args?: string[] | string, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, potentialPaths: string[], fsProvider: IFsProvider, args?: string[] | string, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
 	const path = potentialPaths.shift()!;
 	if (path === '') {
-		return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName, isAutoDetected);
+		return validateProfilePaths(profileName, potentialPaths, fsProvider, args, overrideName, isAutoDetected);
 	}
 
 	const profile = { profileName, path, args, overrideName, isAutoDetected };
@@ -254,23 +263,24 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 	if (basename(path) === path) {
 		// The executable isn't an absolute path, try find it on the PATH
 		const envPaths: string[] | undefined = process.env.PATH ? process.env.PATH.split(delimiter) : undefined;
-		const executable = await findExecutable(path, undefined, envPaths);
+		const executable = await findExecutable(path, undefined, envPaths, undefined, fsProvider.existsFile);
 		if (!executable) {
-			return validateProfilePaths(profileName, potentialPaths, statProvider, args);
+			return validateProfilePaths(profileName, potentialPaths, fsProvider, args);
 		}
 		return profile;
 	}
 
-	const result = statProvider ? await statProvider.existsFile(path) : await pfs.SymlinkSupport.existsFile(normalize(path));
+	const result = await fsProvider.existsFile(normalize(path));
 	if (result) {
 		return profile;
 	}
 
-	return validateProfilePaths(profileName, potentialPaths, statProvider, args, overrideName, isAutoDetected);
+	return validateProfilePaths(profileName, potentialPaths, fsProvider, args, overrideName, isAutoDetected);
 }
 
-export interface IStatProvider {
+export interface IFsProvider {
 	existsFile(path: string): Promise<boolean>,
+	readFile(path: string, options: { encoding: BufferEncoding, flag?: string | number } | BufferEncoding): Promise<string>;
 }
 
 interface IPotentialTerminalProfile {
