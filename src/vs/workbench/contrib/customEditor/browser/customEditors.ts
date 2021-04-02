@@ -23,6 +23,7 @@ import { EditorsAssociations, editorsAssociationsSettingId, Extensions as Editor
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -327,11 +328,12 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IExtensionContributedEditorService private readonly extensionContributedEditorService: IExtensionContributedEditorService,
 	) {
 		super();
 
-		this._register(this.editorService.overrideOpenEditor({
+		this._register(this.extensionContributedEditorService.contributedEditorOverride({
 			open: (editor, options, group) => {
 				return this.onEditorOpening(editor, options, group);
 			},

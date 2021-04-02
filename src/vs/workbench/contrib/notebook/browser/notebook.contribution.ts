@@ -76,6 +76,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
+import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -219,6 +220,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IExtensionContributedEditorService private readonly extensionContributedEditorService: IExtensionContributedEditorService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super();
@@ -232,7 +234,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			}
 		}));
 
-		this._register(this.editorService.overrideOpenEditor({
+		this._register(this.extensionContributedEditorService.contributedEditorOverride({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
 
 				const currentEditorsForResource = group && this.editorService.findEditors(resource, group);
