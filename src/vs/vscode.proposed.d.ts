@@ -2799,22 +2799,19 @@ declare module 'vscode' {
 		 *
 		 * If trust will be required, users will be prompted to make a choice.
 		 */
-		Unknown = 2
+		Unspecified = 2
 	}
 
 	/**
-	 * The event data that is fired when the trust state of the workspace changes
+	 * The event data that is fired when the trust state of the workspace changes.
+	 * When trust is revoked, the workspace will be reloaded. Therefore, extensions are
+	 * not expected to handle transitions out of a trusted state.
 	 */
 	export interface WorkspaceTrustStateChangeEvent {
 		/**
-		 * Previous trust state of the workspace
+		 * New trust state of the workspace
 		 */
-		readonly previousTrustState: WorkspaceTrustState;
-
-		/**
-		 * Current trust state of the workspace
-		 */
-		readonly currentTrustState: WorkspaceTrustState;
+		readonly newTrustState: WorkspaceTrustState;
 	}
 
 	/**
