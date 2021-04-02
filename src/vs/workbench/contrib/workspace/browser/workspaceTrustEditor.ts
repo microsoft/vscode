@@ -47,7 +47,7 @@ import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/comm
 
 const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.workspaceUntrusted);
 const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceTrusted);
-const unknownIcon = registerCodicon('workspace-unknown-icon', Codicon.workspaceUnknown);
+const unspecified = registerCodicon('workspace-unspecified-icon', Codicon.workspaceUnspecified);
 
 class WorkspaceTrustExtensionDelegate extends Delegate {
 	getHeight() { return super.getHeight() + 36; }
@@ -146,7 +146,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				return 'workspace-trust-header workspace-trust-trusted';
 			case WorkspaceTrustState.Untrusted:
 				return 'workspace-trust-header workspace-trust-untrusted';
-			case WorkspaceTrustState.Unknown:
+			case WorkspaceTrustState.Unspecified:
 				return 'workspace-trust-header workspace-trust-unknown';
 		}
 	}
@@ -157,8 +157,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 				return localize('trustedHeader', "This workspace is trusted");
 			case WorkspaceTrustState.Untrusted:
 				return localize('untrustedHeader', "This workspace is not trusted");
-			case WorkspaceTrustState.Unknown:
-				return localize('unknownHeader', "Do you want to trust this workspace?");
+			case WorkspaceTrustState.Unspecified:
+				return localize('unspecifiedHeader', "Do you want to trust this workspace?");
 		}
 	}
 
@@ -166,8 +166,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		switch (trustState) {
 			case WorkspaceTrustState.Trusted:
 			case WorkspaceTrustState.Untrusted:
-			case WorkspaceTrustState.Unknown:
-				return localize('unknownHeaderDescription', "Trust is required for certain extensions to function in this workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
+			case WorkspaceTrustState.Unspecified:
+				return localize('unknownSpecifiedDescription', "Trust is required for certain extensions to function in this workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
 		}
 	}
 
@@ -177,8 +177,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 				return trustedIcon.classNamesArray;
 			case WorkspaceTrustState.Untrusted:
 				return untrustedIcon.classNamesArray;
-			case WorkspaceTrustState.Unknown:
-				return unknownIcon.classNamesArray;
+			case WorkspaceTrustState.Unspecified:
+				return unspecified.classNamesArray;
 		}
 	}
 

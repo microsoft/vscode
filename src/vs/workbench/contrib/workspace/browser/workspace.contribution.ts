@@ -150,7 +150,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		this._register(this.requestModel.onDidCompleteRequest(trustState => {
-			if (trustState !== undefined && trustState !== WorkspaceTrustState.Unknown) {
+			if (trustState !== undefined && trustState !== WorkspaceTrustState.Unspecified) {
 				this.toggleRequestBadge(false);
 			}
 		}));
@@ -180,7 +180,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 
 			// Hide soft request badge
-			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unspecified) {
 				this.toggleRequestBadge(false);
 			}
 		}));
