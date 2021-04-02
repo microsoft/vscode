@@ -1313,9 +1313,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		try {
 			this._xterm.loadAddon(this._webglAddon);
 			this._webglAddon.onContextLoss(() => {
-				this._storageService.store(SUGGESTED_RENDERER_TYPE, 'dom', StorageScope.GLOBAL, StorageTarget.MACHINE);
-				this.updateConfig();
+				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
+				this._safeSetOption('rendererType', 'dom');
 			});
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
