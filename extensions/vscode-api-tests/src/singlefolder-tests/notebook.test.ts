@@ -1174,7 +1174,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.uri.toString(), resource.toString());
 	});
 
-	test.skip('Cannot open notebook from cell-uri with vscode.open-command', async function () {
+	test('Cannot open notebook from cell-uri with vscode.open-command', async function () {
 		const resource = await createRandomFile('', undefined, '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
