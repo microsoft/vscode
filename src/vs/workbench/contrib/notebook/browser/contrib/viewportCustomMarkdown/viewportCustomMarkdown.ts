@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -49,6 +50,11 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 					}
 
 					if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
+						const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
+						if (renderer?.getType() === RenderOutputType.Html) {
+							const renderResult = renderer!.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), undefined) as IInsetRenderOutput;
+							this._notebookEditor.createOutput(viewCell, renderResult, 0);
+						}
 						return;
 					}
 					const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
