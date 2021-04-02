@@ -226,7 +226,7 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 		}
 	}
 
-	processBinary(data: string) {
+	async processBinary(data: string): Promise<void> {
 		// No-op, processBinary is not supported in extextion owned terminals.
 	}
 

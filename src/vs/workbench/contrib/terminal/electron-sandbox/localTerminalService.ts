@@ -120,7 +120,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.listProcesses();
 	}
 
-	public reduceConnectionGraceTime(): void {
+	public async reduceConnectionGraceTime(): Promise<void> {
 		this._localPtyService.reduceConnectionGraceTime();
 	}
 
