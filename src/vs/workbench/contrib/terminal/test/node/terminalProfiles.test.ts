@@ -26,7 +26,7 @@ function profilesEqual(actualProfiles: ITerminalProfile[], expectedProfiles: ITe
 	}
 }
 
-suite.only('Workbench - TerminalProfiles', () => {
+suite('Workbench - TerminalProfiles', () => {
 	suite('detectAvailableProfiles', () => {
 		if (isWindows) {
 			test('should detect Git Bash and provide login args', async () => {
@@ -87,7 +87,7 @@ suite.only('Workbench - TerminalProfiles', () => {
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined }];
 				profilesEqual(profiles, expected);
 			});
-			describe('pwsh source detection/fallback', async () => {
+			suite('pwsh source detection/fallback', async () => {
 				const pwshSourceConfig = ({
 					profiles: {
 						windows: {
