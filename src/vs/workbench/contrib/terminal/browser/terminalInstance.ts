@@ -33,6 +33,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType } from 'xterm';
+import type { LigaturesAddon } from 'xterm-addon-ligatures';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -123,6 +124,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
+	private _ligaturesAddon: LigaturesAddon | undefined;
 	private _webglAddon: WebglAddon | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
@@ -554,11 +556,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
-
-
-		const LigaturesAddon = await this._terminalInstanceService.getXtermLigaturesConstructor();
-		console.log('load ligatures addon');
-		xterm.loadAddon(new LigaturesAddon());
 
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 		if (this._configHelper.config.gpuAcceleration === 'auto' && (suggestedRendererType === 'auto' || suggestedRendererType === undefined)
@@ -1306,6 +1303,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._disposeOfWebglRenderer();
 			this._safeSetOption('rendererType', (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom') ? 'dom' : (config.gpuAcceleration === 'off' ? 'dom' : 'canvas'));
 		}
+		if (config.fontLigatures) {
+			this._enableLigatures();
+		} else {
+			this._disableLigatures();
+		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
 
@@ -1343,6 +1345,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// ignore
 		}
 		this._webglAddon = undefined;
+	}
+
+	private async _enableLigatures(): Promise<void> {
+		if (!this._xterm || !this._wrapperElement || this._ligaturesAddon) {
+			return;
+		}
+		const LigaturesAddon = await this._terminalInstanceService.getXtermLigaturesConstructor();
+		this._ligaturesAddon = new LigaturesAddon();
+		this._xterm.loadAddon(this._ligaturesAddon);
+	}
+
+	private _disableLigatures() {
+		this._ligaturesAddon?.dispose();
+		this._ligaturesAddon = undefined;
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
