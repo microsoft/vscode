@@ -124,22 +124,10 @@ suite('Workbench - TerminalProfiles', () => {
 					];
 					profilesEqual(profiles, expected);
 				});
-				test('should prefer pwsh 6 to Windows PowerShell', async () => {
-					const fsProvider = createFsProvider([
-						'C:\\Program Files\\PowerShell\\6\\pwsh.exe',
-						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
-						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-					]);
-					const profiles = await detectAvailableProfiles(true, fsProvider, undefined, pwshSourceConfig, undefined, undefined);
-					const expected = [
-						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\6\\pwsh.exe' }
-					];
-					profilesEqual(profiles, expected);
-				});
 				test('should fallback to Windows PowerShell', async () => {
 					const fsProvider = createFsProvider([
-						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
-						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+						'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
+						'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 					]);
 					const profiles = await detectAvailableProfiles(true, fsProvider, undefined, pwshSourceConfig, undefined, undefined);
 					strictEqual(profiles.length, 1);
