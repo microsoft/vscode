@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
 export const enum Testing {
 	// marked as "extension" so that any existing test extensions are assigned to it.
@@ -31,12 +31,12 @@ export const enum TestExplorerStateFilter {
 	All = 'all',
 }
 
-export const testStateNames: { [K in TestRunState]: string } = {
-	[TestRunState.Errored]: localize('testState.errored', 'Errored'),
-	[TestRunState.Failed]: localize('testState.failed', 'Failed'),
-	[TestRunState.Passed]: localize('testState.passed', 'Passed'),
-	[TestRunState.Queued]: localize('testState.queued', 'Queued'),
-	[TestRunState.Running]: localize('testState.running', 'Running'),
-	[TestRunState.Skipped]: localize('testState.skipped', 'Skipped'),
-	[TestRunState.Unset]: localize('testState.unset', 'Unset'),
+export const testStateNames: { [K in TestResultState]: string } = {
+	[TestResultState.Errored]: localize('testState.errored', 'Errored'),
+	[TestResultState.Failed]: localize('testState.failed', 'Failed'),
+	[TestResultState.Passed]: localize('testState.passed', 'Passed'),
+	[TestResultState.Queued]: localize('testState.queued', 'Queued'),
+	[TestResultState.Running]: localize('testState.running', 'Running'),
+	[TestResultState.Skipped]: localize('testState.skipped', 'Skipped'),
+	[TestResultState.Unset]: localize('testState.unset', 'Unset'),
 };

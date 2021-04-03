@@ -271,7 +271,7 @@ suite('ExtHostWorkspace', function () {
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0)] });
 		ws.$acceptWorkspaceData({ id: 'foo', name: 'Test', folders: [aWorkspaceFolderData(URI.parse('foo:bar3'), 0), aWorkspaceFolderData(URI.parse('foo:bar'), 1)] });
 
-		assert.notEqual(firstFolder, ws.workspace!.folders[0]);
+		assert.notStrictEqual(firstFolder, ws.workspace!.folders[0]);
 	});
 
 	test('updateWorkspaceFolders - invalid arguments', function () {

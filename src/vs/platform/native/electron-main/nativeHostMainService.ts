@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme, screen, Display } from 'electron';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -24,7 +24,7 @@ import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 
 import { virtualMachineHint } from 'vs/base/node/id';
 import { ILogService } from 'vs/platform/log/common/log';
 import { dirname, join } from 'vs/base/common/path';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
@@ -49,7 +49,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -74,6 +75,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Events
 
 	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
@@ -95,7 +97,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
+	readonly onDidChangeDisplay = Event.debounce(Event.any(
+		Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
+			// Electron will emit 'display-metrics-changed' events even when actually
+			// going fullscreen, because the dock hides. However, we do not want to
+			// react on this event as there is no change in display bounds.
+			return !(Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea');
+		}),
+		Event.fromNodeEventEmitter(screen, 'display-added'),
+		Event.fromNodeEventEmitter(screen, 'display-removed')
+	), () => { }, 100);
+
 	//#endregion
+
 
 	//#region Window
 
@@ -148,7 +162,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
-				waitMarkerFileURI: options.waitMarkerFileURI
+				waitMarkerFileURI: options.waitMarkerFileURI,
+				remoteAuthority: options.remoteAuthority || undefined
 			});
 		}
 	}
@@ -234,6 +249,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Dialog
 
 	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
@@ -295,7 +311,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
 			urisToOpen: openable,
-			forceNewWindow: options.forceNewWindow
+			forceNewWindow: options.forceNewWindow,
+			/* remoteAuthority will be determined based on openable */
 		});
 	}
 
@@ -312,6 +329,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region OS
 
@@ -373,23 +391,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return isAdmin;
 	}
 
-	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void> {
+	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { unlock?: boolean }): Promise<void> {
 		const sudoPrompt = await import('sudo-prompt');
 
 		return new Promise<void>((resolve, reject) => {
 			const sudoCommand: string[] = [`"${this.cliPath}"`];
-			if (options?.overwriteReadonly) {
+			if (options?.unlock) {
 				sudoCommand.push('--file-chmod');
 			}
 
 			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
 
 			const promptOptions = {
-				name: product.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${product.nameShort}.icns`) : undefined
+				name: this.productService.nameLong.replace('-', ''),
+				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
 			};
 
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
+			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
 				if (stdout) {
 					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
 				}
@@ -413,7 +431,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Windows
 		if (isWindows) {
 			if (this.environmentMainService.isBuilt) {
-				return join(dirname(process.execPath), 'bin', `${product.applicationName}.cmd`);
+				return join(dirname(process.execPath), 'bin', `${this.productService.applicationName}.cmd`);
 			}
 
 			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.bat');
@@ -422,7 +440,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Linux
 		if (isLinux) {
 			if (this.environmentMainService.isBuilt) {
-				return join(dirname(process.execPath), 'bin', `${product.applicationName}`);
+				return join(dirname(process.execPath), 'bin', `${this.productService.applicationName}`);
 			}
 
 			return join(this.environmentMainService.appRoot, 'scripts', 'code-cli.sh');
@@ -502,10 +520,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true });
+		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true, remoteAuthority: this.environmentMainService.args.remote || undefined });
 	}
 
 	async showPreviousWindowTab(): Promise<void> {
@@ -536,6 +555,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region Lifecycle
 
@@ -591,6 +611,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
@@ -604,6 +625,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region Development
 
@@ -635,6 +657,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
+
 	//#region Registry (windows)
 
 	async windowsGetStringRegKey(windowId: number | undefined, hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> {
@@ -651,6 +674,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	//#endregion
+
 
 	//#region Credentials
 

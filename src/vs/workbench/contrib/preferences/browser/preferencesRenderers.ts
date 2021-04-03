@@ -1010,7 +1010,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 				severity: MarkerSeverity.Hint,
 				tags: [MarkerTag.Unnecessary],
 				...setting.range,
-				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied in this window. It will be applied when you open local window.")
+				message: nls.localize('unsupportedRemoteMachineSetting', "This setting cannot be applied in this window. It will be applied when you open a local window.")
 			});
 		}
 	}
@@ -1107,7 +1107,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 									endColumn: setting.valueRange.endColumn
 								});
 							}
-						} else if (setting.key !== 'settings') {
+						} else if (setting.key !== 'settings' && setting.key !== 'remoteAuthority') {
 							markerData.push({
 								severity: MarkerSeverity.Hint,
 								tags: [MarkerTag.Unnecessary],

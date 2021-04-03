@@ -18,10 +18,8 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IRevertOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export enum CellKind {
@@ -60,43 +58,40 @@ export enum NotebookRunState {
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
-	runnable: true,
 	cellEditable: true,
-	cellRunnable: true,
 	cellHasExecutionOrder: true,
-	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {},
-	runState: NotebookRunState.Idle,
 	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
 	editable: boolean;
-	runnable: boolean;
 	cellEditable: boolean;
-	cellRunnable: boolean;
 	cellHasExecutionOrder: boolean;
-	displayOrder?: (string | glob.IRelativePattern)[];
 	custom?: { [key: string]: unknown };
-	runState?: NotebookRunState;
 	trusted: boolean;
 }
 
-export enum NotebookCellRunState {
-	Running = 1,
-	Idle = 2,
-	Success = 3,
-	Error = 4
+export enum NotebookCellExecutionState {
+	Idle = 1,
+	Pending = 2,
+	Executing = 3,
+}
+
+export interface INotebookCellPreviousExecutionResult {
+	executionOrder?: number;
+	success?: boolean;
+	duration?: number;
 }
 
 export interface NotebookCellMetadata {
 	editable?: boolean;
-	runnable?: boolean;
 	breakpointMargin?: boolean;
 	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
-	runState?: NotebookCellRunState;
+	lastRunSuccess?: boolean;
+	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
 	lastRunDuration?: number;
 	inputCollapsed?: boolean;
@@ -167,6 +162,10 @@ export interface ICellOutput {
 	appendData(items: IOutputItemDto[]): void;
 }
 
+export interface CellMetadataChangedEvent {
+	readonly runStateChanged?: boolean;
+}
+
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
@@ -176,7 +175,7 @@ export interface ICell {
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
-	onDidChangeMetadata: Event<void>;
+	onDidChangeMetadata: Event<CellMetadataChangedEvent>;
 }
 
 export interface INotebookTextModel {
@@ -186,13 +185,13 @@ export interface INotebookTextModel {
 	readonly versionId: number;
 
 	readonly cells: readonly ICell[];
-	onWillDispose(listener: () => void): IDisposable;
+	onWillDispose: Event<void>;
 }
 
 export type NotebookCellTextModelSplice<T> = [
-	number /* start */,
-	number,
-	T[]
+	start: number,
+	deleteCount: number,
+	newItems: T[]
 ];
 
 export type NotebookCellOutputsSplice = [
@@ -213,9 +212,9 @@ export interface IMainCellDto {
 }
 
 export type NotebookCellsSplice2 = [
-	number /* start */,
-	number /* delete count */,
-	IMainCellDto[]
+	start: number,
+	deleteCount: number,
+	newItems: IMainCellDto[]
 ];
 
 export enum NotebookCellsChangeType {
@@ -278,12 +277,12 @@ export interface NotebookCellsChangeLanguageEvent {
 export interface NotebookCellsChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellMetadata;
 	readonly index: number;
-	readonly metadata: NotebookCellMetadata | undefined;
+	readonly metadata: NotebookCellMetadata;
 }
 
 export interface NotebookDocumentChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeDocumentMetadata;
-	readonly metadata: NotebookDocumentMetadata | undefined;
+	readonly metadata: NotebookDocumentMetadata;
 }
 
 export interface NotebookDocumentUnknownChangeEvent {
@@ -312,10 +311,7 @@ export interface ISelectionHandleState {
 
 export interface ISelectionIndexState {
 	kind: SelectionStateType.Index;
-
-	/**
-	 * [primarySelection, ...secondarySelections]
-	 */
+	focus: ICellRange;
 	selections: ICellRange[];
 }
 
@@ -338,7 +334,8 @@ export const enum CellEditType {
 	Move = 7,
 	Unknown = 8,
 	CellContent = 9,
-	OutputItems = 10
+	OutputItems = 10,
+	PartialMetadata = 11
 }
 
 export interface ICellDto2 {
@@ -363,9 +360,15 @@ export interface ICellOutputEdit {
 	append?: boolean
 }
 
+export interface ICellOutputEditByHandle {
+	editType: CellEditType.Output;
+	handle: number;
+	outputs: IOutputDto[];
+	append?: boolean
+}
+
 export interface ICellOutputItemEdit {
 	editType: CellEditType.OutputItems;
-	index: number;
 	outputId: string;
 	items: IOutputItemDto[];
 	append?: boolean;
@@ -377,6 +380,21 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
+export type NullablePartialNotebookCellMetadata = {
+	[Key in keyof Partial<NotebookCellMetadata>]: NotebookCellMetadata[Key] | null
+};
+
+export interface ICellPartialMetadataEdit {
+	editType: CellEditType.PartialMetadata;
+	index: number;
+	metadata: Partial<NullablePartialNotebookCellMetadata>;
+}
+
+export interface ICellPartialMetadataEditByHandle {
+	editType: CellEditType.PartialMetadata;
+	handle: number;
+	metadata: Partial<NullablePartialNotebookCellMetadata>;
+}
 
 export interface ICellLanguageEdit {
 	editType: CellEditType.CellLanguage;
@@ -396,7 +414,8 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit;
+export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit;
+export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
 
 export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
@@ -473,6 +492,7 @@ export namespace CellUri {
 type MimeTypeInfo = {
 	alwaysSecure?: boolean;
 	supportedByCore?: boolean;
+	mergeable?: boolean;
 };
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
@@ -486,6 +506,9 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/jpeg', { supportedByCore: true }],
 	['text/x-javascript', { supportedByCore: true }],
 	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -494,6 +517,10 @@ export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
 
 export function mimeTypeSupportedByCore(mimeType: string) {
 	return _mimeTypeInfo.get(mimeType)?.supportedByCore ?? false;
+}
+
+export function mimeTypeIsMergeable(mimeType: string): boolean {
+	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
 }
 
 // if (isWindows) {
@@ -510,20 +537,12 @@ function matchGlobUniversal(pattern: string, path: string) {
 }
 
 
-function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], documentDisplayOrder: string[], defaultOrder: string[]) {
+function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], defaultOrder: string[]) {
 	let order = 0;
 	for (let i = 0; i < userDisplayOrder.length; i++) {
 		if (matchGlobUniversal(userDisplayOrder[i], mimeType)) {
 			return order;
 		}
-		order++;
-	}
-
-	for (let i = 0; i < documentDisplayOrder.length; i++) {
-		if (matchGlobUniversal(documentDisplayOrder[i], mimeType)) {
-			return order;
-		}
-
 		order++;
 	}
 
@@ -538,12 +557,8 @@ function getMimeTypeOrder(mimeType: string, userDisplayOrder: string[], document
 	return order;
 }
 
-export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], documentDisplayOrder: string[], defaultOrder: string[]) {
-	const sorted = mimeTypes.sort((a, b) => {
-		return getMimeTypeOrder(a, userDisplayOrder, documentDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, documentDisplayOrder, defaultOrder);
-	});
-
-	return sorted;
+export function sortMimeTypes(mimeTypes: string[], userDisplayOrder: string[], defaultOrder: string[]) {
+	return mimeTypes.sort((a, b) => getMimeTypeOrder(a, userDisplayOrder, defaultOrder) - getMimeTypeOrder(b, userDisplayOrder, defaultOrder));
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -618,7 +633,7 @@ export interface INotebookLoadOptions {
 	/**
 	 * Go to disk bypassing any cache of the model if any.
 	 */
-	forceReadFromDisk?: boolean;
+	forceReadFromFile?: boolean;
 }
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
@@ -627,17 +642,16 @@ export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 
 export interface INotebookEditorModel extends IEditorModel {
 	readonly onDidChangeDirty: Event<void>;
+	readonly onDidSave: Event<void>;
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel | undefined;
-	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
-	isUntitled(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
-	save(): Promise<boolean>;
-	saveAs(target: URI): Promise<boolean>;
-	revert(options?: IRevertOptions | undefined): Promise<void>;
+	save(options?: ISaveOptions): Promise<boolean>;
+	saveAs(target: URI): Promise<IEditorInput | undefined>;
+	revert(options?: IRevertOptions): Promise<void>;
 }
 
 export interface INotebookDiffEditorModel extends IEditorModel {
@@ -655,7 +669,6 @@ export interface INotebookTextModelBackup {
 
 export interface NotebookDocumentBackupData {
 	readonly viewType: string;
-	readonly name: string;
 	readonly backupId?: string;
 	readonly mtime?: number;
 }
@@ -673,21 +686,6 @@ export interface ICellRange {
 	 * zero based index
 	 */
 	end: number;
-}
-
-export interface IEditor extends editorCommon.ICompositeCodeEditor {
-	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
-	readonly onDidFocusEditorWidget: Event<void>;
-	readonly onDidChangeVisibleRanges: Event<void>;
-	readonly onDidChangeSelection: Event<void>;
-	getSelection(): ICellRange | undefined;
-	getSelections(): ICellRange[];
-	isNotebookEditor: boolean;
-	visibleRanges: ICellRange[];
-	uri?: URI;
-	textModel?: NotebookTextModel;
-	getId(): string;
-	hasFocus(): boolean;
 }
 
 export enum NotebookEditorPriority {
@@ -763,10 +761,11 @@ export interface INotebookKernel {
 	isPreferred?: boolean;
 	preloads?: URI[];
 	supportedLanguages?: string[]
+	implementsInterrupt?: boolean;
 
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
-	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
-	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
+	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
 }
 
 export interface INotebookKernelProvider {
@@ -813,6 +812,7 @@ export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
+export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 
 export const enum CellStatusbarAlignment {
 	LEFT,
@@ -827,6 +827,7 @@ export interface INotebookDecorationRenderOptions {
 
 
 export function cellIndexesToRanges(indexes: number[]) {
+	indexes.sort((a, b) => a - b);
 	const first = indexes.shift();
 
 	if (first === undefined) {
@@ -853,4 +854,37 @@ export function cellRangesToIndexes(ranges: ICellRange[]) {
 	}, [] as number[]);
 
 	return indexes;
+}
+
+/**
+ * todo@rebornix notebookBrowser.reduceCellRanges
+ * @returns
+ */
+export function reduceRanges(ranges: ICellRange[]) {
+	const sorted = ranges.sort((a, b) => a.start - b.start);
+	const first = sorted[0];
+
+	if (!first) {
+		return [];
+	}
+
+	return sorted.reduce((prev: ICellRange[], curr) => {
+		const last = prev[prev.length - 1];
+		if (last.end >= curr.start) {
+			last.end = Math.max(last.end, curr.end);
+		} else {
+			prev.push(curr);
+		}
+		return prev;
+	}, [first] as ICellRange[]);
+}
+
+/**
+ * todo@rebornix test and sort
+ * @param range
+ * @param other
+ * @returns
+ */
+export function cellRangeContains(range: ICellRange, other: ICellRange): boolean {
+	return other.start >= range.start && other.end <= range.end;
 }

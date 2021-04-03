@@ -653,12 +653,8 @@ suite('ExtHostTypes', function () {
 		const obj = new types.NotebookDocumentMetadata();
 		assert.strictEqual(obj.cellEditable, notebookDocumentMetadataDefaults.cellEditable);
 		assert.strictEqual(obj.cellHasExecutionOrder, notebookDocumentMetadataDefaults.cellHasExecutionOrder);
-		assert.strictEqual(obj.cellRunnable, notebookDocumentMetadataDefaults.cellRunnable);
 		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
-		assert.deepStrictEqual(obj.displayOrder, notebookDocumentMetadataDefaults.displayOrder);
 		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
-		assert.strictEqual(obj.runState, notebookDocumentMetadataDefaults.runState);
-		assert.strictEqual(obj.runnable, notebookDocumentMetadataDefaults.runnable);
 		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
 	});
 
@@ -685,23 +681,5 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(newObj.editable, true);
 		assert.strictEqual(newObj.custom, undefined);
 
-	});
-
-	test('Unable to reset executionOrder of cells #116956', function () {
-
-		let obj = new types.NotebookCellMetadata();
-		assert.strictEqual(obj.executionOrder, undefined);
-
-		obj = obj.with({ executionOrder: 23 });
-		assert.strictEqual(obj.executionOrder, 23);
-
-		obj = obj.with({ executionOrder: undefined });
-		assert.strictEqual(obj.executionOrder, 23);
-
-		obj = obj.with({});
-		assert.strictEqual(obj.executionOrder, 23);
-
-		obj = obj.with({ executionOrder: null });
-		assert.strictEqual(obj.executionOrder, undefined);
 	});
 });

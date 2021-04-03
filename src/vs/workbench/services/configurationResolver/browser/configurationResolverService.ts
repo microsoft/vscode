@@ -17,9 +17,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
-import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
@@ -32,6 +31,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			getExecPath: () => string | undefined
 		},
 		envVariables: IProcessEnvironment,
+		envVariablesPromise: Promise<IProcessEnvironment>,
 		editorService: IEditorService,
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
@@ -102,7 +102,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, labelService, envVariables);
+		}, labelService, envVariables, envVariablesPromise);
 	}
 
 	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
@@ -368,10 +368,10 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
 	) {
-		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
+		super({ getAppRoot: () => undefined, getExecPath: () => undefined }, Object.create(null),
+			Promise.resolve(Object.create(null)), editorService, configurationService,
+			commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
-
-registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);

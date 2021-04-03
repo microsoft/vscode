@@ -1541,12 +1541,10 @@ export class SettingTreeRenderers {
 		@IUserDataAutoSyncEnablementService private readonly _userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 	) {
 		this.settingActions = [
-			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, (context: SettingsTreeSettingElement) => {
-				if (context) {
+			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
+				if (context instanceof SettingsTreeSettingElement) {
 					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
 				}
-
-				return Promise.resolve(null);
 			}),
 			new Separator(),
 			this._instantiationService.createInstance(CopySettingIdAction),

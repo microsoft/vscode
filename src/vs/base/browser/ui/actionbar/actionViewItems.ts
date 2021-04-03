@@ -27,12 +27,12 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	element: HTMLElement | undefined;
 
-	_context: any;
+	_context: unknown;
 	_action: IAction;
 
 	private _actionRunner: IActionRunner | undefined;
 
-	constructor(context: any, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
+	constructor(context: unknown, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
 		super();
 
 		this._context = context || this;
@@ -383,6 +383,7 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		super(ctx, action);
 
 		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
+		this.selectBox.setFocusable(false);
 
 		this._register(this.selectBox);
 		this.registerListeners();
@@ -404,6 +405,10 @@ export class SelectActionViewItem extends BaseActionViewItem {
 
 	protected getActionContext(option: string, index: number) {
 		return option;
+	}
+
+	setFocusable(focusable: boolean): void {
+		this.selectBox.setFocusable(focusable);
 	}
 
 	focus(): void {

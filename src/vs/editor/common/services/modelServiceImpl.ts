@@ -78,10 +78,6 @@ class ModelData implements IDisposable {
 			this._languageSelectionListener.dispose();
 			this._languageSelectionListener = null;
 		}
-		if (this._languageSelection) {
-			this._languageSelection.dispose();
-			this._languageSelection = null;
-		}
 	}
 
 	public dispose(): void {
@@ -740,6 +736,19 @@ export class ModelSemanticColoring extends Disposable {
 			if (!this._fetchDocumentSemanticTokens.isScheduled()) {
 				this._fetchDocumentSemanticTokens.schedule();
 			}
+		}));
+		this._register(this._model.onDidChangeLanguage(() => {
+			// clear any outstanding state
+			if (this._currentDocumentResponse) {
+				this._currentDocumentResponse.dispose();
+				this._currentDocumentResponse = null;
+			}
+			if (this._currentDocumentRequestCancellationTokenSource) {
+				this._currentDocumentRequestCancellationTokenSource.cancel();
+				this._currentDocumentRequestCancellationTokenSource = null;
+			}
+			this._setDocumentSemanticTokens(null, null, null, []);
+			this._fetchDocumentSemanticTokens.schedule(0);
 		}));
 		const bindDocumentChangeListeners = () => {
 			dispose(this._documentProvidersChangeListeners);

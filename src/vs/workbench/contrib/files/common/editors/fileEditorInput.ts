@@ -9,7 +9,7 @@ import { EncodingMode, IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService, TextFileEditorModelState, TextFileLoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -44,7 +44,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private model: ITextFileEditorModel | undefined = undefined;
 	private cachedTextFileModelReference: IReference<ITextFileEditorModel> | undefined = undefined;
 
-	private readonly modelListeners: DisposableStore = this._register(new DisposableStore());
+	private readonly modelListeners = this._register(new DisposableStore());
 
 	constructor(
 		resource: URI,
@@ -121,7 +121,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.modelListeners.add(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
 
 		// remove model association once it gets disposed
-		this.modelListeners.add(Event.once(model.onDispose)(() => {
+		this.modelListeners.add(Event.once(model.onWillDispose)(() => {
 			this.modelListeners.clear();
 			this.model = undefined;
 		}));
@@ -188,20 +188,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private decorateLabel(label: string): string {
 		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
 		const readonly = this.isReadonly();
-
-		if (orphaned && readonly) {
-			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
-		}
-
-		if (orphaned) {
-			return localize('orphanedFile', "{0} (deleted)", label);
-		}
-
-		if (readonly) {
-			return localize('readonlyFile', "{0} (read-only)", label);
-		}
-
-		return label;
+		return decorateFileEditorLabel(label, { orphaned: !!orphaned, readonly });
 	}
 
 	getEncoding(): string | undefined {
@@ -304,7 +291,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				encoding: this.preferredEncoding,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
-				reason: TextFileLoadReason.EDITOR
+				reason: TextFileResolveReason.EDITOR
 			});
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
@@ -341,7 +328,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
-		return this.instantiationService.createInstance(BinaryEditorModel, this.preferredResource, this.getName()).load();
+		const model = this.instantiationService.createInstance(BinaryEditorModel, this.preferredResource, this.getName());
+		await model.resolve();
+
+		return model;
 	}
 
 	isResolved(): boolean {
@@ -399,4 +389,20 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		dispose(this.cachedTextFileModelReference);
 		this.cachedTextFileModelReference = undefined;
 	}
+}
+
+export function decorateFileEditorLabel(label: string, state: { orphaned: boolean, readonly: boolean }): string {
+	if (state.orphaned && state.readonly) {
+		return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
+	}
+
+	if (state.orphaned) {
+		return localize('orphanedFile', "{0} (deleted)", label);
+	}
+
+	if (state.readonly) {
+		return localize('readonlyFile', "{0} (read-only)", label);
+	}
+
+	return label;
 }

@@ -19,11 +19,12 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
 import { BrowserBackupTracker } from 'vs/workbench/contrib/backup/browser/backupTracker';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('BackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
@@ -46,15 +47,15 @@ suite('BackupTracker (browser)', function () {
 	}
 
 	async function createTracker(): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: BackupTracker, backupFileService: InMemoryTestBackupFileService, instantiationService: IInstantiationService, cleanup: () => void }> {
+		const disposables = new DisposableStore();
+
 		const backupFileService = new InMemoryTestBackupFileService();
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
 
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+		const part = await createEditorPart(instantiationService, disposables);
 
-		const editorRegistration = registerTestResourceEditor();
+		disposables.add(registerTestResourceEditor());
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -63,17 +64,9 @@ suite('BackupTracker (browser)', function () {
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		await part.whenRestored;
+		const tracker = disposables.add(instantiationService.createInstance(TestBackupTracker));
 
-		const tracker = instantiationService.createInstance(TestBackupTracker);
-
-		const cleanup = () => {
-			part.dispose();
-			tracker.dispose();
-			editorRegistration.dispose();
-		};
-
-		return { accessor, part, tracker, backupFileService, instantiationService, cleanup };
+		return { accessor, part, tracker, backupFileService, instantiationService, cleanup: () => disposables.dispose() };
 	}
 
 	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
@@ -84,7 +77,7 @@ suite('BackupTracker (browser)', function () {
 		const untitledModel = await untitledEditor.resolve();
 
 		if (!untitled?.contents) {
-			untitledModel.textEditorModel.setValue('Super Good');
+			untitledModel.textEditorModel?.setValue('Super Good');
 		}
 
 		await backupFileService.joinBackupResource();

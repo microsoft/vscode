@@ -33,12 +33,16 @@ export function mergeEnvironments(parent: platform.IProcessEnvironment, other: I
 				}
 			}
 			const value = other[configKey];
-			_mergeEnvironmentValue(parent, actualKey, value);
+			if (value !== undefined) {
+				_mergeEnvironmentValue(parent, actualKey, value);
+			}
 		}
 	} else {
 		Object.keys(other).forEach((key) => {
 			const value = other[key];
-			_mergeEnvironmentValue(parent, key, value);
+			if (value !== undefined) {
+				_mergeEnvironmentValue(parent, key, value);
+			}
 		});
 	}
 }
@@ -236,9 +240,6 @@ export function escapeNonWindowsPath(path: string): string {
 	let newPath = path;
 	if (newPath.indexOf('\\') !== 0) {
 		newPath = newPath.replace(/\\/g, '\\\\');
-	}
-	if (newPath.indexOf(' ') !== -1) {
-		newPath = newPath.replace(/ /g, '\\ ');
 	}
 	const bannedChars = /[\`\$\|\&\>\~\#\!\^\*\;\<\"\']/g;
 	newPath = newPath.replace(bannedChars, '');

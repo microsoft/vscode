@@ -28,7 +28,7 @@ export type EditorAutoSurroundStrategy = 'languageDefined' | 'quotes' | 'bracket
 /**
  * Configuration options for typing over closing quotes or brackets
  */
-export type EditorAutoClosingOvertypeStrategy = 'always' | 'auto' | 'never';
+export type EditorAutoClosingEditStrategy = 'always' | 'auto' | 'never';
 
 /**
  * Configuration options for auto indentation in the editor
@@ -139,10 +139,15 @@ export interface IEditorOptions {
 	 */
 	extraEditorClassName?: string;
 	/**
-	 * Should the editor be read only.
+	 * Should the editor be read only. See also `domReadOnly`.
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * Should the textarea used for input use the DOM `readonly` attribute.
+	 * Defaults to false.
+	 */
+	domReadOnly?: boolean;
 	/**
 	 * Enable linked editing.
 	 * Defaults to false.
@@ -414,9 +419,13 @@ export interface IEditorOptions {
 	 */
 	autoClosingQuotes?: EditorAutoClosingStrategy;
 	/**
+	 * Options for pressing backspace near quotes or bracket pairs.
+	 */
+	autoClosingDelete?: EditorAutoClosingEditStrategy;
+	/**
 	 * Options for typing over closing quotes or brackets.
 	 */
-	autoClosingOvertype?: EditorAutoClosingOvertypeStrategy;
+	autoClosingOvertype?: EditorAutoClosingEditStrategy;
 	/**
 	 * Options for auto surrounding.
 	 * Defaults to always allowing auto surrounding.
@@ -1393,8 +1402,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default)'),
-						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default).'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically.'),
 						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
 					],
 					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
@@ -3140,7 +3149,7 @@ export interface ISuggestOptions {
 	 */
 	snippetsPreventQuickSuggestions?: boolean;
 	/**
-	 * Favours words that appear close to the cursor.
+	 * Favors words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
 	/**
@@ -3332,7 +3341,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 				'editor.suggest.localityBonus': {
 					type: 'boolean',
 					default: defaults.localityBonus,
-					description: nls.localize('suggest.localityBonus', "Controls whether sorting favours words that appear close to the cursor.")
+					description: nls.localize('suggest.localityBonus', "Controls whether sorting favors words that appear close to the cursor.")
 				},
 				'editor.suggest.shareSuggestSelections': {
 					type: 'boolean',
@@ -3725,6 +3734,7 @@ export const enum EditorOption {
 	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
+	autoClosingDelete,
 	autoClosingOvertype,
 	autoClosingQuotes,
 	autoIndent,
@@ -3746,6 +3756,7 @@ export const enum EditorOption {
 	cursorWidth,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
+	domReadOnly,
 	dragAndDrop,
 	emptySelectionClipboard,
 	extraEditorClassName,
@@ -3883,7 +3894,10 @@ export const EditorOptions = {
 	)),
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
 	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader. Warning: this has a performance implication for numbers larger than the default.") })),
+		{
+			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 2000. Warning: this has a performance implication for numbers larger than the default."),
+			deprecationMessage: nls.localize('accessibilityPageSize.deprecated', "This setting is deprecated, editor will automatically choose the accessibility page size when we detect a screen reader. 2000 lines will be the new default.")
+		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
@@ -3899,6 +3913,19 @@ export const EditorOptions = {
 				'',
 			],
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
+		}
+	)),
+	autoClosingDelete: register(new EditorStringEnumOption(
+		EditorOption.autoClosingDelete, 'autoClosingDelete',
+		'auto' as 'always' | 'auto' | 'never',
+		['always', 'auto', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingDelete.auto', "Remove adjacent closing quotes or brackets only if they were automatically inserted."),
+				'',
+			],
+			description: nls.localize('autoClosingDelete', "Controls whether the editor should remove adjacent closing quotes or brackets when deleting.")
 		}
 	)),
 	autoClosingOvertype: register(new EditorStringEnumOption(
@@ -3963,7 +3990,7 @@ export const EditorOptions = {
 	)),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
-		{ description: nls.localize('stickyTabStops', "Emulate selection behaviour of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
+		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,
@@ -4041,6 +4068,9 @@ export const EditorOptions = {
 	)),
 	disableMonospaceOptimizations: register(new EditorBooleanOption(
 		EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false
+	)),
+	domReadOnly: register(new EditorBooleanOption(
+		EditorOption.domReadOnly, 'domReadOnly', false,
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,
@@ -4264,7 +4294,7 @@ export const EditorOptions = {
 	)),
 	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
 		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
-		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused") }
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused.") }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
@@ -4280,7 +4310,7 @@ export const EditorOptions = {
 				'',
 				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
-				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters"),
+				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters."),
 				''
 			],
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")

@@ -84,12 +84,14 @@ export class ReleaseNotesManager {
 				{
 					tryRestoreScrollPosition: true,
 					enableFindWidget: true,
+				},
+				{
 					localResourceRoots: []
 				},
 				undefined);
 
 			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-			this._currentReleaseNotes.onDispose(() => { this._currentReleaseNotes = undefined; });
+			this._currentReleaseNotes.onWillDispose(() => { this._currentReleaseNotes = undefined; });
 
 			this._currentReleaseNotes.webview.html = html;
 		}

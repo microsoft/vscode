@@ -15,10 +15,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { IncrementalTestCollectionItem, ISerializedTestResults, ITestState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, ISerializedTestResults, ITestMessage, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
@@ -26,7 +26,7 @@ import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/t
 /**
  * Count of the number of tests in each run state.
  */
-export type TestStateCount = { [K in TestRunState]: number };
+export type TestStateCount = { [K in TestResultState]: number };
 
 export const enum TestResultItemChangeReason {
 	Retired,
@@ -37,7 +37,7 @@ export const enum TestResultItemChangeReason {
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.Retired | TestResultItemChangeReason.ParentRetired | TestResultItemChangeReason.ComputedStateChange }
-	| { reason: TestResultItemChangeReason.OwnStateChange; previous: ITestState }
+	| { reason: TestResultItemChangeReason.OwnStateChange; previous: TestResultState }
 );
 
 export interface ITestResult {
@@ -99,18 +99,6 @@ export const sumCounts = (counts: Iterable<TestStateCount>) => {
 	return total;
 };
 
-const queuedState: ITestState = {
-	duration: undefined,
-	messages: [],
-	state: TestRunState.Queued
-};
-
-const unsetState: ITestState = {
-	duration: undefined,
-	messages: [],
-	state: TestRunState.Unset
-};
-
 const itemToNode = (
 	item: IncrementalTestCollectionItem,
 	byExtId: Map<string, TestResultItem>,
@@ -119,8 +107,13 @@ const itemToNode = (
 		...item,
 		// shallow-clone the test to take a 'snapshot' of it at the point in time where tests run
 		item: { ...item.item },
-		state: unsetState,
-		computedState: TestRunState.Unset,
+		children: new Set(item.children),
+		state: {
+			duration: undefined,
+			messages: [],
+			state: TestResultState.Unset
+		},
+		computedState: TestResultState.Unset,
 		retired: false,
 	};
 
@@ -229,7 +222,7 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts: { [K in TestRunState]: number } = makeEmptyCounts();
+	public readonly counts: { [K in TestResultState]: number } = makeEmptyCounts();
 
 	/**
 	 * @inheritdoc
@@ -275,7 +268,7 @@ export class LiveTestResult implements ITestResult {
 		private readonly excluded: ReadonlySet<string>,
 		public readonly isAutoRun: boolean,
 	) {
-		this.counts[TestRunState.Unset] = testById.size;
+		this.counts[TestResultState.Unset] = testById.size;
 	}
 
 	/**
@@ -288,7 +281,7 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * Updates all tests in the collection to the given state.
 	 */
-	public setAllToState(state: ITestState, when: (_t: TestResultItem) => boolean) {
+	public setAllToState(state: TestResultState, when: (_t: TestResultItem) => boolean) {
 		for (const test of this.testById.values()) {
 			if (when(test)) {
 				this.fireUpdateAndRefresh(test, state);
@@ -299,35 +292,57 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * Updates the state of the test by its internal ID.
 	 */
-	public updateState(testId: string, state: ITestState) {
-		let entry = this.testById.get(testId);
-		if (!entry) {
-			entry = this.addTestToRun(testId);
-		}
+	public updateState(testId: string, state: TestResultState, duration?: number) {
+		const entry = this.testById.get(testId) ?? this.addTestToRun(testId);
 		if (!entry) {
 			return;
+		}
+
+		if (duration !== undefined) {
+			entry.state.duration = duration;
 		}
 
 		this.fireUpdateAndRefresh(entry, state);
 	}
 
-	private fireUpdateAndRefresh(entry: TestResultItem, newState: ITestState) {
-		const previous = entry.state;
-		entry.state = newState;
-
-		if (newState.state !== previous.state) {
-			this.counts[previous.state]--;
-			this.counts[newState.state]++;
-			refreshComputedState(this.computedStateAccessor, entry, t => (
-				t !== entry && this.changeEmitter.fire({ item: t, result: this, reason: TestResultItemChangeReason.ComputedStateChange })
-			));
+	/**
+	 * Appends a message for the test in the run.
+	 */
+	public appendMessage(testId: string, message: ITestMessage) {
+		const entry = this.testById.get(testId) ?? this.addTestToRun(testId);
+		if (!entry) {
+			return;
 		}
 
-		this.changeEmitter.fire({ item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous });
+		entry.state.messages.push(message);
+		this.changeEmitter.fire({
+			item: entry,
+			result: this,
+			reason: TestResultItemChangeReason.OwnStateChange,
+			previous: entry.state.state,
+		});
+	}
+
+	private fireUpdateAndRefresh(entry: TestResultItem, newState: TestResultState) {
+		const previous = entry.state.state;
+		if (newState === previous) {
+			return;
+		}
+
+		entry.state.state = newState;
+		this.counts[previous]--;
+		this.counts[newState]++;
+		refreshComputedState(this.computedStateAccessor, entry, t =>
+			this.changeEmitter.fire(
+				t === entry
+					? { item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous }
+					: { item: t, result: this, reason: TestResultItemChangeReason.ComputedStateChange }
+			),
+		);
 	}
 
 	/**
-	 * Marks a test as retired. This can trigger it to be re-run in live mode.
+	 * Marks a test as retired. This can trigger it to be rerun in live mode.
 	 */
 	public retire(testId: string) {
 		const root = this.testById.get(testId);
@@ -365,8 +380,8 @@ export class LiveTestResult implements ITestResult {
 			if (test) {
 				const originalSize = this.testById.size;
 				makeParents(collection, test, this.testById);
-				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById);
-				this.counts[TestRunState.Unset] += this.testById.size - originalSize;
+				const node = makeNodeAndChildren(collection, test, this.excluded, this.testById, false);
+				this.counts[TestResultState.Unset] += this.testById.size - originalSize;
 				return node;
 			}
 		}
@@ -383,7 +398,11 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		// un-queue any tests that weren't explicitly updated
-		this.setAllToState(unsetState, t => t.state.state === TestRunState.Queued);
+		this.setAllToState(
+			TestResultState.Unset,
+			t => t.state.state === TestResultState.Queued || t.state.state === TestResultState.Running,
+		);
+
 		this._completedAt = Date.now();
 		this.completeEmitter.fire();
 	}
@@ -440,10 +459,7 @@ export class HydratedTestResult implements ITestResult {
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true, children: new Set(item.children) };
-			if (cast.item.location) {
-				cast.item.location.uri = URI.revive(cast.item.location.uri);
-				cast.item.location.range = Range.lift(cast.item.location.range);
-			}
+			cast.item.uri = URI.revive(cast.item.uri);
 
 			for (const message of cast.state.messages) {
 				if (message.location) {
@@ -551,7 +567,10 @@ export class TestResultService implements ITestResultService {
 	private readonly isRunning: IContextKey<boolean>;
 	private readonly serializedResults: StoredValue<ISerializedTestResults[]>;
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService, @IStorageService storage: IStorageService) {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService storage: IStorageService,
+	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 		this.serializedResults = new StoredValue({
 			key: 'testResults',
@@ -577,7 +596,7 @@ export class TestResultService implements ITestResultService {
 	public getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
 		for (const result of this.results) {
 			const lookup = result.getStateById(extId);
-			if (lookup && lookup.computedState !== TestRunState.Unset) {
+			if (lookup && lookup.computedState !== TestResultState.Unset) {
 				return [result, lookup];
 			}
 		}
@@ -611,7 +630,7 @@ export class TestResultService implements ITestResultService {
 			result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
 			this.isRunning.set(true);
 			this.changeResultEmitter.fire({ started: result });
-			result.setAllToState(queuedState, () => true);
+			result.setAllToState(TestResultState.Queued, () => true);
 		} else {
 			this.changeResultEmitter.fire({ inserted: result });
 			// If this is not a new result, go through each of its tests. For each

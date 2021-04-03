@@ -9,15 +9,24 @@ import * as utils from '../utils';
 
 suite('Notebook Document', function () {
 
-	const contentProvider = new class implements vscode.NotebookContentProvider {
-		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
-			return {
-				cells: [{ cellKind: vscode.NotebookCellKind.Code, source: uri.toString(), language: 'javascript', metadata: new vscode.NotebookCellMetadata(), outputs: [] }],
-				metadata: new vscode.NotebookDocumentMetadata()
-			};
+	const simpleContentProvider = new class implements vscode.NotebookSerializer {
+		dataToNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
+			return new vscode.NotebookData(
+				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '// SIMPLE', 'javascript')],
+				new vscode.NotebookDocumentMetadata()
+			);
 		}
-		async resolveNotebook(_document: vscode.NotebookDocument, _webview: vscode.NotebookCommunication) {
-			//
+		notebookToData(_data: vscode.NotebookData): Uint8Array | Thenable<Uint8Array> {
+			return new Uint8Array();
+		}
+	};
+
+	const complexContentProvider = new class implements vscode.NotebookContentProvider {
+		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
+			return new vscode.NotebookData(
+				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
+				new vscode.NotebookDocumentMetadata()
+			);
 		}
 		async saveNotebook(_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {
 			//
@@ -45,13 +54,17 @@ suite('Notebook Document', function () {
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', contentProvider));
+		disposables.push(vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider));
+		disposables.push(vscode.notebook.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider));
 	});
 
 	test('cannot register sample provider multiple times', function () {
 		assert.throws(() => {
-			vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', contentProvider);
+			vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider);
 		});
+		// assert.throws(() => {
+		// 	vscode.notebook.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider);
+		// });
 	});
 
 	test('cannot open unknown types', async function () {
@@ -100,11 +113,11 @@ suite('Notebook Document', function () {
 
 		const p = utils.asPromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
 			for (let cell of notebook.cells) {
-				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.uri.toString());
+				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.document.uri.toString());
 				assert.ok(doc);
 				assert.strictEqual(doc.notebook === notebook, true);
 				assert.strictEqual(doc === cell.document, true);
-				assert.strictEqual(doc?.languageId, cell.language);
+				assert.strictEqual(doc?.languageId, cell.document.languageId);
 				assert.strictEqual(doc?.isDirty, false);
 				assert.strictEqual(doc?.isClosed, false);
 			}
@@ -125,13 +138,13 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 0, [{
-				cellKind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new_markdown'
 			}, {
-				cellKind: vscode.NotebookCellKind.Code,
+				kind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -162,13 +175,13 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, 0, 1, [{
-				cellKind: vscode.NotebookCellKind.Markdown,
+				kind: vscode.NotebookCellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
 				outputs: [],
 				source: 'new2_markdown'
 			}, {
-				cellKind: vscode.NotebookCellKind.Code,
+				kind: vscode.NotebookCellKind.Code,
 				language: 'fooLang',
 				metadata: undefined,
 				outputs: [],
@@ -198,13 +211,13 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(document.uri, 0, 0, [{
-			cellKind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
 			source: 'new_markdown'
 		}, {
-			cellKind: vscode.NotebookCellKind.Code,
+			kind: vscode.NotebookCellKind.Code,
 			language: 'fooLang',
 			metadata: undefined,
 			outputs: [],
@@ -306,13 +319,13 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(notebook.uri, 0, 0, [{
-			cellKind: vscode.NotebookCellKind.Markdown,
+			kind: vscode.NotebookCellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
 			outputs: [],
 			source: 'new_markdown'
 		}, {
-			cellKind: vscode.NotebookCellKind.Code,
+			kind: vscode.NotebookCellKind.Code,
 			language: 'fooLang',
 			metadata: undefined,
 			outputs: [],
@@ -344,8 +357,8 @@ suite('Notebook Document', function () {
 		const closed = await pclose;
 		const opened = await popen;
 
-		assert.strictEqual(closed.uri.toString(), first.uri.toString());
-		assert.strictEqual(opened.uri.toString(), first.uri.toString());
+		assert.strictEqual(closed.uri.toString(), first.document.uri.toString());
+		assert.strictEqual(opened.uri.toString(), first.document.uri.toString());
 		assert.strictEqual(opened === closed, true);
 	});
 
@@ -387,5 +400,35 @@ suite('Notebook Document', function () {
 		assert.deepStrictEqual(document.cells[0].outputs[0].outputs[0].metadata, { outputType: 'stream', streamName: 'stdout' });
 		assert.deepStrictEqual(document.cells[0].outputs[1].metadata, { outputType: 'stream', streamName: 'stderr' });
 		assert.deepStrictEqual(document.cells[0].outputs[1].outputs[0].metadata, { outputType: 'stream', streamName: 'stderr' });
+	});
+
+	test('dirty state - complex', async function () {
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+		assert.strictEqual(document.isDirty, false);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCells(document.uri, 0, document.getCells().length, []);
+		assert.ok(await vscode.workspace.applyEdit(edit));
+
+		assert.strictEqual(document.isDirty, true);
+
+		await document.save();
+		assert.strictEqual(document.isDirty, false);
+	});
+
+	test('dirty state - serializer', async function () {
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdserializer');
+		const document = await vscode.notebook.openNotebookDocument(resource);
+		assert.strictEqual(document.isDirty, false);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCells(document.uri, 0, document.getCells().length, []);
+		assert.ok(await vscode.workspace.applyEdit(edit));
+
+		assert.strictEqual(document.isDirty, true);
+
+		await document.save();
+		assert.strictEqual(document.isDirty, false);
 	});
 });

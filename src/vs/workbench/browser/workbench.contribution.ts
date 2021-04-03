@@ -23,7 +23,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 				enum: ['default', 'large'],
 				enumDescriptions: [
 					localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
-					localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse")
+					localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse.")
 				],
 				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
@@ -40,7 +40,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behavior for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
 				'default': false
 			},
 			'workbench.editor.highlightModifiedTabs': {
@@ -51,12 +51,12 @@ import { isStandalone } from 'vs/base/browser/browser';
 			'workbench.editor.decorations.badges': {
 				'type': 'boolean',
 				'markdownDescription': localize('decorations.badges', "Controls whether editor file decorations should use badges."),
-				'default': false
+				'default': true
 			},
 			'workbench.editor.decorations.colors': {
 				'type': 'boolean',
 				'markdownDescription': localize('decorations.colors', "Controls whether editor file decorations should use colors."),
-				'default': false
+				'default': true
 			},
 			'workbench.editor.labelFormat': {
 				'type': 'string',
@@ -88,8 +88,8 @@ import { isStandalone } from 'vs/base/browser/browser';
 			},
 			'workbench.editor.untitled.hint': {
 				'type': 'string',
-				'enum': ['text', 'button', 'hidden'],
-				'default': 'hidden',
+				'enum': ['text', 'button', 'hidden', 'default'],
+				'default': 'default',
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled hint should be inline text in the editor or a floating button or hidden.")
 			},
 			'workbench.editor.tabCloseButton': {
@@ -174,7 +174,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'type': 'string',
 				'enum': ['right', 'down'],
 				'default': 'right',
-				'markdownDescription': localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
+				'markdownDescription': localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (for example, from the Explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
 			},
 			'workbench.editor.closeEmptyGroups': {
 				'type': 'boolean',
@@ -325,6 +325,13 @@ import { isStandalone } from 'vs/base/browser/browser';
 				'description': localize('settings.editor.desc', "Determines which settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
+			},
+			'workbench.hover.delay': {
+				'type': 'number',
+				'description': localize('workbench.hover.delay', "Controls the delay in milliseconds after which the hover is shown for workbench items (ex. some extension provided tree view items). Already visible items may require a refresh before reflecting this setting change."),
+				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
+				// On Mac, the delay is 1500.
+				'default': isMacintosh ? 1500 : 500
 			}
 		}
 	});

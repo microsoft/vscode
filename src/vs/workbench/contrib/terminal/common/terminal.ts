@@ -7,10 +7,9 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
@@ -56,6 +55,8 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
 
+export const SUGGESTED_RENDERER_TYPE = 'terminal.integrated.suggestedRendererType';
+
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
 	LINE: 'line',
@@ -78,6 +79,12 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 
 export type FontWeight = 'normal' | 'bold' | number;
 
+export interface ITerminalProfiles {
+	linux: { [key: string]: ITerminalProfileObject };
+	osx: { [key: string]: ITerminalProfileObject };
+	windows: { [key: string]: ITerminalProfileObject };
+}
+
 export interface ITerminalConfiguration {
 	shell: {
 		linux: string | null;
@@ -94,10 +101,12 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
+	profiles: ITerminalProfiles;
+	useWslProfiles: boolean;
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
+	gpuAcceleration: 'auto' | 'on' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -129,6 +138,7 @@ export interface ITerminalConfiguration {
 		windows: { [key: string]: string };
 	};
 	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
+	environmentChangesRelaunch: boolean;
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
@@ -140,9 +150,7 @@ export interface ITerminalConfiguration {
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoStyle: 'bold' | 'dim' | 'italic' | 'underlined' | 'inverted' | string;
-	serverSpawn: boolean;
 	enablePersistentSessions: boolean;
-	flowControl: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -156,7 +164,13 @@ export interface ITerminalConfigHelper {
 	getFont(): ITerminalFont;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	checkWorkspaceShellPermissions(osOverride?: OperatingSystem): boolean;
+	/**
+	 * Checks and returns whether it's safe to launch the process. If the user has not yet been
+	 * asked, ask for future calls and return false.
+	 * @param osOverride Use a custom OS (eg. remote).
+	 * @param profile The profile if this is launching with a profile.
+	 */
+	checkIsProcessLaunchSafe(osOverride?: OperatingSystem, profile?: ITerminalProfile): boolean;
 	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
@@ -217,25 +231,43 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-export interface IShellDefinition {
-	label: string;
+export interface ITerminalProfile {
+	profileName: string;
 	path: string;
+	isAutoDetected?: boolean;
+	isWorkspaceProfile?: boolean;
+	args?: string | string[] | undefined;
+	overrideName?: boolean;
 }
 
-export interface IAvailableShellsRequest {
-	callback: (shells: IShellDefinition[]) => void;
+export const enum ProfileSource {
+	GitBash = 'Git Bash',
+	Pwsh = 'PowerShell'
 }
 
+export interface ITerminalExecutable {
+	path: string | string[];
+	args?: string | string[] | undefined;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
+}
 
+export interface ITerminalProfileSource {
+	source: ProfileSource;
+	isAutoDetected?: boolean;
+	overrideName?: boolean;
+	args?: string | string[] | undefined;
+}
+
+export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
+
+export interface IAvailableProfilesRequest {
+	callback: (shells: ITerminalProfile[]) => void;
+	configuredProfilesOnly: boolean;
+}
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
 	callback: (shell: string, args: string[] | string | undefined) => void;
-}
-
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChange: Event<string>;
-
-	getShellName(): Promise<string>;
 }
 
 export interface ITerminalProcessManager extends IDisposable {
@@ -246,16 +278,20 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
 	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-	readonly persistentTerminalId: number | undefined;
+	readonly persistentProcessId: number | undefined;
 	readonly shouldPersist: boolean;
+	readonly isDisconnected: boolean;
 	/** Whether the process has had data written to it yet. */
 	readonly hasWrittenData: boolean;
 
 	readonly onPtyDisconnect: Event<void>;
+	readonly onPtyReconnect: Event<void>;
+
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessTitle: Event<string>;
+	readonly onProcessShellTypeChanged: Event<TerminalShellType>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensionsOverride | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
@@ -264,9 +300,13 @@ export interface ITerminalProcessManager extends IDisposable {
 	dispose(immediate?: boolean): void;
 	detachFromProcess(): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
+	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
-	setDimensions(cols: number, rows: number): void;
+	setDimensions(cols: number, rows: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: true): void;
 	acknowledgeDataEvent(charCount: number): void;
+	processBinary(data: string): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -293,7 +333,7 @@ export const enum ProcessState {
 }
 
 export interface ITerminalProcessExtHostProxy extends IDisposable {
-	readonly terminalId: number;
+	readonly instanceId: number;
 
 	emitData(data: string): void;
 	emitTitle(title: string): void;
@@ -306,6 +346,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitLatency(latency: number): void;
 
 	onInput: Event<string>;
+	onBinary: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
@@ -314,25 +355,11 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	onRequestLatency: Event<void>;
 }
 
-export interface ISpawnExtHostProcessRequest {
-	proxy: ITerminalProcessExtHostProxy;
-	shellLaunchConfig: IShellLaunchConfig;
-	activeWorkspaceRootUri: URI | undefined;
-	cols: number;
-	rows: number;
-	isWorkspaceShellAllowed: boolean;
-	callback: (error: ITerminalLaunchError | undefined) => void;
-}
-
 export interface IStartExtensionTerminalRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	cols: number;
 	rows: number;
 	callback: (error: ITerminalLaunchError | undefined) => void;
-}
-
-export interface IAvailableShellsRequest {
-	callback: (shells: IShellDefinition[]) => void;
 }
 
 export interface IDefaultShellAndArgsRequest {
@@ -355,11 +382,7 @@ export enum TitleEventSource {
 	Sequence
 }
 
-export interface IWindowsShellHelper extends IDisposable {
-	readonly onShellNameChange: Event<string>;
-
-	getShellName(): Promise<string>;
-}
+export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TERMINAL_COMMAND_ID {
 	FIND_NEXT = 'workbench.action.terminal.findNext',
@@ -379,6 +402,7 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW_WITH_CWD = 'workbench.action.terminal.newWithCwd',
 	NEW_LOCAL = 'workbench.action.terminal.newLocal',
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
+	NEW_WITH_PROFILE = 'workbench.action.terminal.newWithProfile',
 	SPLIT = 'workbench.action.terminal.split',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
@@ -392,7 +416,8 @@ export const enum TERMINAL_COMMAND_ID {
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
 	FOCUS_PREVIOUS = 'workbench.action.terminal.focusPrevious',
 	PASTE = 'workbench.action.terminal.paste',
-	SELECT_DEFAULT_SHELL = 'workbench.action.terminal.selectDefaultShell',
+	PASTE_SELECTION = 'workbench.action.terminal.pasteSelection',
+	SELECT_DEFAULT_PROFILE = 'workbench.action.terminal.selectDefaultShell',
 	RUN_SELECTED_TEXT = 'workbench.action.terminal.runSelectedText',
 	RUN_ACTIVE_FILE = 'workbench.action.terminal.runActiveFile',
 	SWITCH_TERMINAL = 'workbench.action.terminal.switchTerminal',
@@ -454,6 +479,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
 	TERMINAL_COMMAND_ID.NEW,
 	TERMINAL_COMMAND_ID.PASTE,
+	TERMINAL_COMMAND_ID.PASTE_SELECTION,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,

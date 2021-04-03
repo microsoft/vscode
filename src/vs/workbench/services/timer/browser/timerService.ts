@@ -48,7 +48,6 @@ export interface IMemoryInfo {
 		"timers.ellapsedRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedSharedProcesConnected" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"timers.ellapsedWorkspaceStorageInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkspaceServiceInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedRequiredUserDataInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedOtherUserDataInit" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -57,6 +56,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWaitForWindowConfig" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWaitForShellEnv" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -200,6 +200,15 @@ export interface IStartupMetrics {
 		readonly ellapsedWindowLoadToRequire: number;
 
 		/**
+		 * The time it took to wait for resolving the window configuration. This time the workbench
+		 * will not continue to load and be blocked entirely.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willWaitForWindowConfig` and `didWaitForWindowConfig` performance marks.
+		 */
+		readonly ellapsedWaitForWindowConfig: number;
+
+		/**
 		 * The time it took to wait for resolving the shell environment. This time the workbench
 		 * will not continue to load and be blocked entirely.
 		 *
@@ -207,15 +216,6 @@ export interface IStartupMetrics {
 		 * * Measured with the `willWaitForShellEnv` and `didWaitForShellEnv` performance marks.
 		 */
 		readonly ellapsedWaitForShellEnv: number;
-
-		/**
-		 * The time it took to require the workspace storage DB, connect to it
-		 * and load the initial set of values.
-		 *
-		 * * Happens in the renderer-process
-		 * * Measured with the `code/willInitWorkspaceStorage` and `code/didInitWorkspaceStorage` performance marks.
-		 */
-		readonly ellapsedWorkspaceStorageInit: number;
 
 		/**
 		 * The time it took to init the storage database connection from the workbench.
@@ -531,10 +531,10 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedWindowLoad: initialStartup ? this._marks.getDuration('code/mainAppReady', 'code/willOpenNewWindow') : undefined,
 				ellapsedWindowLoadToRequire: this._marks.getDuration('code/willOpenNewWindow', 'code/willLoadWorkbenchMain'),
 				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),
+				ellapsedWaitForWindowConfig: this._marks.getDuration('code/willWaitForWindowConfig', 'code/didWaitForWindowConfig'),
 				ellapsedWaitForShellEnv: this._marks.getDuration('code/willWaitForShellEnv', 'code/didWaitForShellEnv'),
 				ellapsedStorageInit: this._marks.getDuration('code/willInitStorage', 'code/didInitStorage'),
 				ellapsedSharedProcesConnected: this._marks.getDuration('code/willConnectSharedProcess', 'code/didConnectSharedProcess'),
-				ellapsedWorkspaceStorageInit: this._marks.getDuration('code/willInitWorkspaceStorage', 'code/didInitWorkspaceStorage'),
 				ellapsedWorkspaceServiceInit: this._marks.getDuration('code/willInitWorkspaceService', 'code/didInitWorkspaceService'),
 				ellapsedRequiredUserDataInit: this._marks.getDuration('code/willInitRequiredUserData', 'code/didInitRequiredUserData'),
 				ellapsedOtherUserDataInit: this._marks.getDuration('code/willInitOtherUserData', 'code/didInitOtherUserData'),

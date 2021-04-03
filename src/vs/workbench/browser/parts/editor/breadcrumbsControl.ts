@@ -147,6 +147,7 @@ export interface IBreadcrumbsControlOptions {
 	showSymbolIcons: boolean;
 	showDecorationColors: boolean;
 	breadcrumbsBackground: ColorIdentifier | ColorFunction;
+	showPlaceholder: boolean;
 }
 
 export class BreadcrumbsControl {
@@ -162,9 +163,9 @@ export class BreadcrumbsControl {
 	static readonly Payload_RevealAside = {};
 	static readonly Payload_Pick = {};
 
-	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false);
-	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
-	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false);
+	static readonly CK_BreadcrumbsPossible = new RawContextKey('breadcrumbsPossible', false, localize('breadcrumbsPossible', "Whether the editor can show breadcrumbs"));
+	static readonly CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false, localize('breadcrumbsVisible', "Whether breadcrumbs are currently visible"));
+	static readonly CK_BreadcrumbsActive = new RawContextKey('breadcrumbsActive', false, localize('breadcrumbsActive', "Whether breadcrumbs have focus"));
 
 	private readonly _ckBreadcrumbsPossible: IContextKey<boolean>;
 	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
@@ -288,8 +289,21 @@ export class BreadcrumbsControl {
 				showSymbolIcons: this._options.showSymbolIcons && showIcons
 			};
 			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._instantiationService) : new OutlineItem(model, element, options));
-			this._widget.setItems(items);
-			this._widget.reveal(items[items.length - 1]);
+			if (items.length === 0) {
+				this._widget.setEnabled(false);
+				this._widget.setItems([new class extends BreadcrumbsItem {
+					render(container: HTMLElement): void {
+						container.innerText = localize('empty', "no elements");
+					}
+					equals(other: BreadcrumbsItem): boolean {
+						return other === this;
+					}
+				}]);
+			} else {
+				this._widget.setEnabled(true);
+				this._widget.setItems(items);
+				this._widget.reveal(items[items.length - 1]);
+			}
 		};
 		const listener = model.onDidUpdate(updateBreadcrumbs);
 		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);

@@ -616,7 +616,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.isCollapsible(this.getDataNode(element));
 	}
 
-	isCollapsed(element: T): boolean {
+	isCollapsed(element: TInput | T): boolean {
 		return this.tree.isCollapsed(this.getDataNode(element));
 	}
 
@@ -626,6 +626,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	refilter(): void {
 		this.tree.refilter();
+	}
+
+	setAnchor(element: T | undefined): void {
+		this.tree.setAnchor(typeof element === 'undefined' ? undefined : this.getDataNode(element));
+	}
+
+	getAnchor(): T | undefined {
+		const node = this.tree.getAnchor();
+		return node?.element as T;
 	}
 
 	setSelection(elements: T[], browserEvent?: UIEvent): void {
@@ -651,12 +660,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.focusPrevious(n, loop, browserEvent);
 	}
 
-	focusNextPage(browserEvent?: UIEvent): void {
-		this.tree.focusNextPage(browserEvent);
+	focusNextPage(browserEvent?: UIEvent): Promise<void> {
+		return this.tree.focusNextPage(browserEvent);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent): void {
-		this.tree.focusPreviousPage(browserEvent);
+	focusPreviousPage(browserEvent?: UIEvent): Promise<void> {
+		return this.tree.focusPreviousPage(browserEvent);
 	}
 
 	focusLast(browserEvent?: UIEvent): void {

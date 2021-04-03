@@ -48,8 +48,6 @@ export function registerColors() {
 	const debugConsoleSourceForeground = registerColor('debugConsole.sourceForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for source filenames in debug REPL console.');
 	const debugConsoleInputIconForeground = registerColor('debugConsoleInputIcon.foreground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for debug console input marker icon.');
 
-
-
 	const debugIconPauseForeground = registerColor('debugIcon.pauseForeground', {
 		dark: '#75BEFF',
 		light: '#007ACC',

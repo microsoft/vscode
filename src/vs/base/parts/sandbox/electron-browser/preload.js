@@ -17,11 +17,16 @@
 	// ###                                                                 ###
 	// #######################################################################
 
+	/**
+	 * @type {import('../electron-sandbox/globals')}
+	 */
 	const globals = {
 
 		/**
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
+		 *
+		 * @type {import('../electron-sandbox/electronTypes').IpcRenderer}
 		 */
 		ipcRenderer: {
 
@@ -49,34 +54,46 @@
 			/**
 			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
 			 */
 			on(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.on(channel, listener);
+
+					return this;
 				}
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
 			 */
 			once(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.once(channel, listener);
+
+					return this;
 				}
 			},
 
 			/**
 			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
 			 */
 			removeListener(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.removeListener(channel, listener);
+
+					return this;
 				}
 			}
 		},
 
+		/**
+		 * @type {import('../electron-sandbox/globals').IpcMessagePort}
+		 */
 		ipcMessagePort: {
 
 			/**
@@ -106,6 +123,8 @@
 
 		/**
 		 * Support for subset of methods of Electron's `webFrame` type.
+		 *
+		 * @type {import('../electron-sandbox/electronTypes').WebFrame}
 		 */
 		webFrame: {
 
@@ -121,6 +140,8 @@
 
 		/**
 		 * Support for subset of methods of Electron's `crashReporter` type.
+		 *
+		 * @type {import('../electron-sandbox/electronTypes').CrashReporter}
 		 */
 		crashReporter: {
 
@@ -138,6 +159,8 @@
 		 *
 		 * Note: when `sandbox` is enabled, the only properties available
 		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
+		 *
+		 * @type {import('../electron-sandbox/globals').ISandboxNodeProcess}
 		 */
 		process: {
 			get platform() { return process.platform; },
@@ -146,13 +169,27 @@
 			get versions() { return process.versions; },
 			get type() { return 'renderer'; },
 			get execPath() { return process.execPath; },
+			get sandboxed() { return process.sandboxed; },
 
 			/**
-			 * @param {{[key: string]: string}} userEnv
+			 * @returns {string}
+			 */
+			cwd() {
+				return process.env['VSCODE_CWD'] || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
+			},
+
+			/**
+			 * @returns {Promise<typeof process.env>}
+			 */
+			getShellEnv() {
+				return shellEnv;
+			},
+
+			/**
 			 * @returns {Promise<void>}
 			 */
-			resolveEnv(userEnv) {
-				return resolveEnv(userEnv);
+			resolveEnv() {
+				return resolveEnv();
 			},
 
 			/**
@@ -164,20 +201,60 @@
 
 			/**
 			 * @param {string} type
-			 * @param {() => void} callback
+			 * @param {Function} callback
+			 * @returns {import('../electron-sandbox/globals').ISandboxNodeProcess}
 			 */
 			on(type, callback) {
 				if (validateProcessEventType(type)) {
+					// @ts-ignore
 					process.on(type, callback);
+
+					return this;
 				}
 			}
 		},
 
 		/**
 		 * Some information about the context we are running in.
+		 *
+		 * @type {import('../electron-sandbox/globals').ISandboxContext}
 		 */
 		context: {
-			get sandbox() { return process.sandboxed; }
+
+			/**
+			 * A configuration object made accessible from the main side
+			 * to configure the sandbox browser window.
+			 *
+			 * The property is intentionally not using a getter to resolve
+			 * it as soon as possible to prevent waterfalls.
+			 *
+			 * @type {Promise<import('../common/sandboxTypes').ISandboxConfiguration>}
+			 */
+			configuration: (async () => {
+				const windowConfigIpcChannel = parseArgv('vscode-window-config');
+				if (!windowConfigIpcChannel) {
+					throw new Error('Preload: did not find expected vscode-window-config in renderer process arguments list.');
+				}
+
+				try {
+					if (validateIPC(windowConfigIpcChannel)) {
+						/** @type {import('../common/sandboxTypes').ISandboxConfiguration} */
+						const configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+
+						// Apply zoom level early before even building the
+						// window DOM elements to avoid UI flicker. We always
+						// have to set the zoom level from within the window
+						// because Chrome has it's own way of remembering zoom
+						// settings per origin (if vscode-file:// is used) and
+						// we want to ensure that the user configuration wins.
+						webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+
+						return configuration;
+					}
+				} catch (error) {
+					throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
+				}
+			})()
 		}
 	};
 
@@ -226,8 +303,26 @@
 		return true;
 	}
 
-	/** @type {Promise<void> | undefined} */
-	let resolvedEnv = undefined;
+	/**
+	 * @param {string} key the name of the process argument to parse
+	 * @returns {string | undefined}
+	 */
+	function parseArgv(key) {
+		for (const arg of process.argv) {
+			if (arg.indexOf(`--${key}=`) === 0) {
+				return arg.split('=')[1];
+			}
+		}
+
+		return undefined;
+	}
+
+	//#endregion
+
+	//#region Resolve Shell Environment
+
+	/** @type {Promise<typeof process.env> | undefined} */
+	let shellEnv = undefined;
 
 	/**
 	 * If VSCode is not run from a terminal, we should resolve additional
@@ -235,31 +330,33 @@
 	 * all development related environment variables. We do this from the
 	 * main process because it may involve spawning a shell.
 	 *
-	 * @param {{[key: string]: string}} userEnv
 	 * @returns {Promise<void>}
 	 */
-	function resolveEnv(userEnv) {
-		if (!resolvedEnv) {
+	async function resolveEnv() {
+		if (!shellEnv) {
+			const configuration = await globals.context.configuration;
+			const userEnv = configuration.userEnv;
 
 			// Apply `userEnv` directly
 			Object.assign(process.env, userEnv);
 
 			// Resolve `shellEnv` from the main side
-			resolvedEnv = new Promise(function (resolve) {
-				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
+			shellEnv = new Promise(function (resolve) {
+				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnvResult) {
+					if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+						// Assign all keys of the shell environment to our process environment
+						// But make sure that the user environment wins in the end over shell environment
+						Object.assign(process.env, shellEnvResult, userEnv);
+					}
 
-					// Assign all keys of the shell environment to our process environment
-					// But make sure that the user environment wins in the end
-					Object.assign(process.env, shellEnv, userEnv);
-
-					resolve();
+					resolve({ ...process.env, ...shellEnvResult, ...userEnv });
 				});
 
 				ipcRenderer.send('vscode:fetchShellEnv');
 			});
 		}
 
-		return resolvedEnv;
+		await shellEnv;
 	}
 
 	//#endregion

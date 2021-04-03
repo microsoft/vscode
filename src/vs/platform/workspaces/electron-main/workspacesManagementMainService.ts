@@ -20,7 +20,7 @@ import { originalFSPath, joinPath, basename, extUriBiasedIgnorePathCase } from '
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { localize } from 'vs/nls';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { MessageBoxOptions, BrowserWindow } from 'electron';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -77,7 +77,8 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -151,15 +152,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		const configPathDir = dirname(configPath);
-		if (!existsSync(configPathDir)) {
-			const configPathDirDir = dirname(configPathDir);
-			if (!existsSync(configPathDirDir)) {
-				mkdirSync(configPathDirDir);
-			}
-			mkdirSync(configPathDir);
-		}
-
+		mkdirSync(dirname(configPath), { recursive: true });
 		writeFileSync(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;
@@ -278,7 +271,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
 			const options: MessageBoxOptions = {
-				title: product.nameLong,
+				title: this.productService.nameLong,
 				type: 'info',
 				buttons: [localize('ok', "OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),

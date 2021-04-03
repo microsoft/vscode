@@ -36,12 +36,20 @@ export class OutputRenderer {
 		}
 	}
 
+	getContribution(preferredMimeType: string | undefined): IOutputTransformContribution | undefined {
+		if (preferredMimeType) {
+			return this._richMimeTypeRenderers.get(preferredMimeType);
+		}
+
+		return undefined;
+	}
+
 	renderNoop(viewModel: ICellOutputViewModel, container: HTMLElement): IRenderOutput {
 		const contentNode = document.createElement('p');
 
 		contentNode.innerText = `No renderer could be found for output.`;
 		container.appendChild(contentNode);
-		return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
+		return { type: RenderOutputType.Mainframe };
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
@@ -62,7 +70,7 @@ export class OutputRenderer {
 			}
 
 			container.appendChild(contentNode);
-			return { type: RenderOutputType.Mainframe, hasDynamicHeight: false };
+			return { type: RenderOutputType.Mainframe };
 		}
 
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);

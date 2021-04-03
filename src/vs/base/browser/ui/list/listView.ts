@@ -339,7 +339,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		container.appendChild(this.domNode);
 
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
-		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
+		domEvent(this.rowsContainer, TouchEventType.Change)(e => this.onTouchChange(e as GestureEvent), this, this.disposables);
 
 		// Prevent the monaco-scrollable-element from scrolling
 		// https://github.com/microsoft/vscode/issues/44181
@@ -362,6 +362,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	updateOptions(options: IListViewOptionsUpdate) {
 		if (options.additionalScrollHeight !== undefined) {
 			this.additionalScrollHeight = options.additionalScrollHeight;
+			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
 
 		if (options.smoothScrolling !== undefined) {
@@ -679,12 +680,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			if (this.supportDynamicHeights) {
 				this._rerender(this.scrollTop, this.renderHeight);
 			}
+		}
 
-			if (this.horizontalScrolling) {
-				this.scrollableElement.setScrollDimensions({
-					width: typeof width === 'number' ? width : getContentWidth(this.domNode)
-				});
-			}
+		if (this.horizontalScrolling) {
+			this.scrollableElement.setScrollDimensions({
+				width: typeof width === 'number' ? width : getContentWidth(this.domNode)
+			});
 		}
 	}
 
@@ -898,7 +899,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	@memoize get onMouseOut(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'mouseout'), e => this.toMouseEvent(e)); }
 	@memoize get onContextMenu(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'contextmenu'), e => this.toMouseEvent(e)); }
 	@memoize get onTouchStart(): Event<IListTouchEvent<T>> { return Event.map(domEvent(this.domNode, 'touchstart'), e => this.toTouchEvent(e)); }
-	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(domEvent(this.rowsContainer, TouchEventType.Tap), e => this.toGestureEvent(e)); }
+	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(domEvent(this.rowsContainer, TouchEventType.Tap), e => this.toGestureEvent(e as GestureEvent)); }
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);

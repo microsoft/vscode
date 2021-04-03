@@ -185,7 +185,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
 
-	private _workspaceTrustState: WorkspaceTrustState = WorkspaceTrustState.Unknown;
+	private _workspaceTrustState: WorkspaceTrustState = WorkspaceTrustState.Unspecified;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -563,13 +563,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._workspaceTrustState;
 	}
 
-	requireWorkspaceTrust(modal?: boolean): Promise<WorkspaceTrustState> {
-		return this._proxy.$requireWorkspaceTrust(modal);
+	requestWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
+		return this._proxy.$requestWorkspaceTrust(options);
 	}
 
 	$onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void {
 		this._workspaceTrustState = state.currentTrustState;
-		this._onDidChangeWorkspaceTrustState.fire(Object.freeze(state));
+		this._onDidChangeWorkspaceTrustState.fire(Object.freeze({ newTrustState: state.currentTrustState }));
 	}
 }
 

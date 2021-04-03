@@ -16,6 +16,7 @@ import { Promises, Barrier, timeout } from 'vs/base/common/async';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { assertIsDefined } from 'vs/base/common/types';
+import { cwd } from 'vs/base/common/process';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -289,9 +290,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		this._onWillShutdown.fire({
 			join(promise) {
-				if (promise) {
-					joiners.push(promise);
-				}
+				joiners.push(promise);
 			}
 		});
 
@@ -555,13 +554,13 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 				// Windows: we are about to restart and as such we need to restore the original
 				// current working directory we had on startup to get the exact same startup
-				// behaviour. As such, we briefly change back to the VSCODE_CWD and then when
+				// behaviour. As such, we briefly change back to that directory and then when
 				// Code starts it will set it back to the installation directory again.
 				try {
 					if (isWindows) {
-						const vscodeCwd = process.env['VSCODE_CWD'];
-						if (vscodeCwd) {
-							process.chdir(vscodeCwd);
+						const currentWorkingDir = cwd();
+						if (currentWorkingDir !== process.cwd()) {
+							process.chdir(currentWorkingDir);
 						}
 					}
 				} catch (err) {

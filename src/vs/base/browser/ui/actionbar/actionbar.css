@@ -20,10 +20,6 @@
 	display: inline-block;
 }
 
-.monaco-action-bar.reverse .actions-container {
-	flex-direction: row-reverse;
-}
-
 .monaco-action-bar .action-item {
 	cursor: pointer;
 	display: inline-block;

@@ -5,10 +5,10 @@
 
 import { mapFind } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepFreeze } from 'vs/base/common/objects';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -17,11 +17,11 @@ import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTes
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { TestItem, TestResults, TestState } from 'vs/workbench/api/common/extHostTypeConverters';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
+import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { Disposable, TestItem as TestItemImpl, TestItemHookProperty } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { OwnedTestCollection, SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithProvider, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, RunTestForProviderRequest, TestDiffOpType, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
@@ -41,7 +41,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	private textDocumentObservers: TextDocumentTestObserverFactory;
 
 	public onResultsChanged = this.resultsChangedEmitter.event;
-	public results: ReadonlyArray<vscode.TestResults> = [];
+	public results: ReadonlyArray<vscode.TestRunResult> = [];
 
 	constructor(@IExtHostRpcService rpc: IExtHostRpcService, @IExtHostDocumentsAndEditors private readonly documents: IExtHostDocumentsAndEditors, @IExtHostWorkspace private readonly workspace: IExtHostWorkspace) {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
@@ -88,12 +88,12 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.runTests
 	 */
-	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>, token = CancellationToken.None) {
+	public async runTests(req: vscode.TestRunRequest<vscode.TestItem>, token = CancellationToken.None) {
 		const testListToProviders = (tests: ReadonlyArray<vscode.TestItem>) =>
 			tests
 				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
-				.map(t => ({ providerId: t.providerId, testId: t.item.extId }));
+				.map(t => ({ src: t.src, testId: t.item.extId }));
 
 		await this.proxy.$runTests({
 			exclude: req.exclude ? testListToProviders(req.exclude).map(t => t.testId) : undefined,
@@ -105,8 +105,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.publishTestResults
 	 */
-	public publishExtensionProvidedResults(results: vscode.TestResults, persist: boolean): void {
-		this.proxy.$publishExtensionProvidedResults(TestResults.from(generateUuid(), results), persist);
+	public publishExtensionProvidedResults(results: vscode.TestRunResult, persist: boolean): void {
+		this.proxy.$publishExtensionProvidedResults(Convert.TestResults.from(generateUuid(), results), persist);
 	}
 
 	/**
@@ -116,7 +116,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public $publishTestResults(results: ISerializedTestResults[]): void {
 		this.results = Object.freeze(
 			results
-				.map(r => deepFreeze(TestResults.to(r)))
+				.map(r => deepFreeze(Convert.TestResults.to(r)))
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
@@ -136,7 +136,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		let method: undefined | ((p: vscode.TestProvider) => vscode.TestHierarchy<vscode.TestItem> | undefined);
+		const cancellation = new CancellationTokenSource();
+		let method: undefined | ((p: vscode.TestProvider) => vscode.ProviderResult<vscode.TestItem>);
 		if (resource === ExtHostTestingResource.TextDocument) {
 			let document = this.documents.getDocument(uri);
 
@@ -155,14 +156,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 			if (document) {
 				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
-				method = p => p.createDocumentTestHierarchy
-					? p.createDocumentTestHierarchy(document!.document)
-					: this.createDefaultDocumentTestHierarchy(p, document!.document, folder);
+				method = p => p.provideDocumentTestRoot
+					? p.provideDocumentTestRoot(document!.document, cancellation.token)
+					: createDefaultDocumentTestRoot(p, document!.document, folder, cancellation.token);
 			}
 		} else {
 			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
 			if (folder) {
-				method = p => p.createWorkspaceTestHierarchy?.(folder);
+				method = p => p.provideWorkspaceTestRoot(folder, cancellation.token);
 			}
 		}
 
@@ -170,33 +171,21 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
+		const subscribeFn = async (id: string, provider: vscode.TestProvider) => {
 			try {
-				const hierarchy = method!(provider);
-				if (!hierarchy) {
-					return;
+				const root = await method!(provider);
+				if (root) {
+					collection.addRoot(root, id);
 				}
-
-				collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, 1]);
-				disposable.add(hierarchy);
-				collection.addRoot(hierarchy.root, id);
-				Promise.resolve(hierarchy.discoveredInitialTests).then(() => collection.pushDiff([TestDiffOpType.DeltaDiscoverComplete, -1]));
-				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
-				hierarchy.onDidInvalidateTest?.(e => {
-					const internal = collection.getTestByReference(e);
-					if (!internal) {
-						console.warn(`Received a TestProvider.onDidInvalidateTest for a test that does not currently exist.`);
-					} else {
-						this.proxy.$retireTest(internal.item.extId);
-					}
-				});
 			} catch (e) {
 				console.error(e);
 			}
 		};
 
 		const disposable = new DisposableStore();
-		const collection = disposable.add(this.ownedTests.createForHierarchy(diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
+		const collection = disposable.add(this.ownedTests.createForHierarchy(
+			diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
+		disposable.add(toDisposable(() => cancellation.dispose(true)));
 		for (const [id, provider] of this.providers) {
 			subscribeFn(id, provider);
 		}
@@ -206,6 +195,17 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		// diff to signal that roots have been discovered.
 		collection.pushDiff([TestDiffOpType.DeltaRootsComplete, -1]);
 		this.testSubscriptions.set(subscriptionKey, { store: disposable, collection, subscribeFn });
+	}
+
+	/**
+	 * Expands the nodes in the test tree. If levels is less than zero, it will
+	 * be treated as infinite.
+	 * @override
+	 */
+	public async $expandTest(test: TestIdWithSrc, levels: number) {
+		const sub = mapFind(this.testSubscriptions.values(), s => s.collection.treeId === test.src.tree ? s : undefined);
+		await sub?.collection.expand(test.testId, levels < 0 ? Infinity : levels);
+		this.flushCollectionDiffs();
 	}
 
 	/**
@@ -238,12 +238,16 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * @override
 	 */
 	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<void> {
-		const provider = this.providers.get(req.providerId);
-		if (!provider || !provider.runTests) {
+		const provider = this.providers.get(req.tests[0].src.provider);
+		if (!provider) {
 			return;
 		}
 
-		const includeTests = req.ids.map(id => this.ownedTests.getTestById(id)?.[1]).filter(isDefined);
+		const includeTests = req.tests
+			.map(({ testId, src }) => this.ownedTests.getTestById(testId, src.tree))
+			.filter(isDefined)
+			.map(([_tree, test]) => test);
+
 		const excludeTests = req.excludeExtIds
 			.map(id => this.ownedTests.getTestById(id))
 			.filter(isDefined)
@@ -255,20 +259,35 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
+		const isExcluded = (test: vscode.TestItem) => {
+			// for test providers that don't support excluding natively,
+			// make sure not to report excluded result otherwise summaries will be off.
+			for (const [tree, exclude] of excludeTests) {
+				const e = tree.comparePositions(exclude, test.id);
+				if (e === TestPosition.IsChild || e === TestPosition.IsSame) {
+					return true;
+				}
+			}
+
+			return false;
+		};
+
 		try {
 			await provider.runTests({
-				setState: (test, state) => {
-					// for test providers that don't support excluding natively,
-					// make sure not to report excluded result otherwise summaries will be off.
-					for (const [tree, exclude] of excludeTests) {
-						const e = tree.comparePositions(exclude, test.id);
-						if (e === TestPosition.IsChild || e === TestPosition.IsSame) {
-							return;
-						}
+				appendOutput() {
+					// todo
+				},
+				appendMessage: (test, message) => {
+					if (!isExcluded(test)) {
+						this.flushCollectionDiffs();
+						this.proxy.$appendTestMessageInRun(req.runId, test.id, Convert.TestMessage.from(message));
 					}
-
-					this.flushCollectionDiffs();
-					this.proxy.$updateTestStateInRun(req.runId, test.id, TestState.from(state));
+				},
+				setState: (test, state, duration) => {
+					if (!isExcluded(test)) {
+						this.flushCollectionDiffs();
+						this.proxy.$updateTestStateInRun(req.runId, test.id, state, duration);
+					}
 				},
 				tests: includeTests.map(t => TestItemFilteredWrapper.unwrap(t.actual)),
 				exclude: excludeTests.map(([, t]) => TestItemFilteredWrapper.unwrap(t.actual)),
@@ -286,13 +305,13 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		}
 	}
 
-	public $lookupTest(req: TestIdWithProvider): Promise<InternalTestItem | undefined> {
+	public $lookupTest(req: TestIdWithSrc): Promise<InternalTestItem | undefined> {
 		const owned = this.ownedTests.getTestById(req.testId);
 		if (!owned) {
 			return Promise.resolve(undefined);
 		}
 
-		const { actual, previousChildren, previousEquals, ...item } = owned[1];
+		const { actual, discoverCts, expandLevels, ...item } = owned[1];
 		return Promise.resolve(item);
 	}
 
@@ -317,95 +336,54 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			?? mapFind(this.testSubscriptions.values(), c => c.collection.getTestByReference(test))
 			?? this.textDocumentObservers.getMirroredTestDataByReference(test);
 	}
-
-	private createDefaultDocumentTestHierarchy(provider: vscode.TestProvider, document: vscode.TextDocument, folder: vscode.WorkspaceFolder | undefined): vscode.TestHierarchy<vscode.TestItem> | undefined {
-		if (!folder) {
-			return;
-		}
-
-		const workspaceHierarchy = provider.createWorkspaceTestHierarchy?.(folder);
-		if (!workspaceHierarchy) {
-			return;
-		}
-
-		const onDidInvalidateTest = new Emitter<vscode.TestItem>();
-		workspaceHierarchy.onDidInvalidateTest?.(node => {
-			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
-			if (wrapper.hasNodeMatchingFilter) {
-				onDidInvalidateTest.fire(wrapper);
-			}
-		});
-
-		const onDidChangeTest = new Emitter<vscode.TestItem>();
-		workspaceHierarchy.onDidChangeTest(node => {
-			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(node, document);
-			const previouslySeen = wrapper.hasNodeMatchingFilter;
-
-			if (previouslySeen) {
-				// reset cache and get whether you can currently see the TestItem.
-				wrapper.reset();
-				const currentlySeen = wrapper.hasNodeMatchingFilter;
-
-				if (currentlySeen) {
-					onDidChangeTest.fire(wrapper);
-					return;
-				}
-
-				// Fire the event to say that the current visible parent has changed.
-				onDidChangeTest.fire(wrapper.visibleParent);
-				return;
-			}
-
-			const previousParent = wrapper.visibleParent;
-			wrapper.reset();
-			const currentlySeen = wrapper.hasNodeMatchingFilter;
-
-			// It wasn't previously seen and isn't currently seen so
-			// nothing has actually changed.
-			if (!currentlySeen) {
-				return;
-			}
-
-			// The test is now visible so we need to refresh the cache
-			// of the previous visible parent and fire that it has changed.
-			previousParent.reset();
-			onDidChangeTest.fire(previousParent);
-		});
-
-		return {
-			root: TestItemFilteredWrapper.getWrapperForTestItem(workspaceHierarchy.root, document),
-			dispose: () => {
-				onDidChangeTest.dispose();
-				TestItemFilteredWrapper.removeFilter(document);
-			},
-			discoveredInitialTests: workspaceHierarchy.discoveredInitialTests,
-			onDidInvalidateTest: onDidInvalidateTest.event,
-			onDidChangeTest: onDidChangeTest.event
-		};
-	}
 }
+
+export const createDefaultDocumentTestRoot = async <T extends vscode.TestItem>(
+	provider: vscode.TestProvider<T>,
+	document: vscode.TextDocument,
+	folder: vscode.WorkspaceFolder | undefined,
+	token: CancellationToken,
+) => {
+	if (!folder) {
+		return;
+	}
+
+	const root = await provider.provideWorkspaceTestRoot(folder, token);
+	if (!root) {
+		return;
+	}
+
+	token.onCancellationRequested(() => {
+		TestItemFilteredWrapper.removeFilter(document);
+	});
+
+	return TestItemFilteredWrapper.getWrapperForTestItem(root, document);
+};
 
 /*
  * A class which wraps a vscode.TestItem that provides the ability to filter a TestItem's children
  * to only the children that are located in a certain vscode.Uri.
  */
-export class TestItemFilteredWrapper implements vscode.TestItem {
+export class TestItemFilteredWrapper<T extends vscode.TestItem = vscode.TestItem> extends TestItemImpl {
 	private static wrapperMap = new WeakMap<vscode.TextDocument, WeakMap<vscode.TestItem, TestItemFilteredWrapper>>();
 	public static removeFilter(document: vscode.TextDocument): void {
 		this.wrapperMap.delete(document);
 	}
 
 	// Wraps the TestItem specified in a TestItemFilteredWrapper and pulls from a cache if it already exists.
-	public static getWrapperForTestItem(item: vscode.TestItem, filterDocument: vscode.TextDocument, parent?: TestItemFilteredWrapper): TestItemFilteredWrapper {
+	public static getWrapperForTestItem<T extends vscode.TestItem>(
+		item: T,
+		filterDocument: vscode.TextDocument,
+		parent?: TestItemFilteredWrapper<T>,
+	): TestItemFilteredWrapper<T> {
 		let innerMap = this.wrapperMap.get(filterDocument);
 		if (innerMap?.has(item)) {
-			return innerMap.get(item)!;
+			return innerMap.get(item) as TestItemFilteredWrapper<T>;
 		}
 
 		if (!innerMap) {
 			innerMap = new WeakMap<vscode.TestItem, TestItemFilteredWrapper>();
 			this.wrapperMap.set(filterDocument, innerMap);
-
 		}
 
 		const w = new TestItemFilteredWrapper(item, filterDocument, parent);
@@ -413,75 +391,72 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 		return w;
 	}
 
+	/**
+	 * If the TestItem is wrapped, returns the unwrapped item provided
+	 * by the extension.
+	 */
 	public static unwrap(item: vscode.TestItem) {
 		return item instanceof TestItemFilteredWrapper ? item.actual : item;
 	}
 
-	public get id() {
-		return this.actual.id;
-	}
+	private _cachedMatchesFilter: boolean | undefined;
 
-	public get label() {
-		return this.actual.label;
-	}
-
-	public get debuggable() {
-		return this.actual.debuggable;
-	}
-
-	public get description() {
-		return this.actual.description;
-	}
-
-	public get location() {
-		return this.actual.location;
-	}
-
-	public get runnable() {
-		return this.actual.runnable;
-	}
-
-	public get children() {
-		// We only want children that match the filter.
-		return this.getWrappedChildren().filter(child => child.hasNodeMatchingFilter);
-	}
-
-	public get visibleParent(): TestItemFilteredWrapper {
-		return this.hasNodeMatchingFilter ? this : this.parent!.visibleParent;
-	}
-
-	private matchesFilter: boolean | undefined;
-
-	// Determines if the TestItem matches the filter. This would be true if:
-	// 1. We don't have a parent (because the root is the workspace root node)
-	// 2. The URI of the current node matches the filter URI
-	// 3. Some child of the current node matches the filter URI
+	/**
+	 * Gets whether this node, or any of its children, match the document filter.
+	 */
 	public get hasNodeMatchingFilter(): boolean {
-		if (this.matchesFilter === undefined) {
-			this.matchesFilter = !this.parent
-				|| this.actual.location?.uri.toString() === this.filterDocument.uri.toString()
-				|| this.getWrappedChildren().some(child => child.hasNodeMatchingFilter);
+		if (this._cachedMatchesFilter === undefined) {
+			return this.refreshMatch();
+		} else {
+			return this._cachedMatchesFilter;
+		}
+	}
+
+	private constructor(
+		public readonly actual: T,
+		private filterDocument: vscode.TextDocument,
+		public readonly parent?: TestItemFilteredWrapper<T>,
+	) {
+		super(actual.id, actual.label, actual.uri, actual.expandable);
+		if (!(actual instanceof TestItemImpl)) {
+			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
 		}
 
-		return this.matchesFilter;
+		(actual as TestItemImpl)[TestItemHookProperty] = {
+			setProp: (key, value) => (this as Record<string, unknown>)[key] = value,
+			created: child => TestItemFilteredWrapper.getWrapperForTestItem(child, this.filterDocument, this).refreshMatch(),
+			invalidate: () => this.invalidate(),
+			delete: child => this.children.delete(child),
+		};
 	}
 
-	// Reset the cache of whether or not you can see a node from a particular node
-	// up to it's visible parent.
-	public reset(): void {
-		if (this !== this.visibleParent) {
-			this.parent?.reset();
+	/**
+	 * Refreshes the `hasNodeMatchingFilter` state for this item. It matches
+	 * if the test itself has a location that matches, or if any of its
+	 * children do.
+	 */
+	private refreshMatch() {
+		const didMatch = this._cachedMatchesFilter;
+
+		// The `children` of the wrapper only include the children who match the
+		// filter. Synchronize them.
+		for (const rawChild of this.actual.children) {
+			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(rawChild, this.filterDocument, this);
+			if (wrapper.hasNodeMatchingFilter) {
+				this.children.add(wrapper);
+			} else {
+				this.children.delete(wrapper);
+			}
 		}
-		this.matchesFilter = undefined;
-	}
 
+		const nowMatches = this.children.size > 0 || this.actual.uri.toString() === this.filterDocument.uri.toString();
+		this._cachedMatchesFilter = nowMatches;
 
-	private constructor(public readonly actual: vscode.TestItem, private filterDocument: vscode.TextDocument, private readonly parent?: TestItemFilteredWrapper) {
-		this.getWrappedChildren();
-	}
+		if (nowMatches !== didMatch) {
+			this.parent?.refreshMatch();
+		}
 
-	private getWrappedChildren() {
-		return this.actual.children?.map(t => TestItemFilteredWrapper.getWrapperForTestItem(t, this.filterDocument, this)) || [];
+		return this._cachedMatchesFilter;
 	}
 }
 
@@ -491,7 +466,6 @@ export class TestItemFilteredWrapper implements vscode.TestItem {
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
 	revived: vscode.TestItem;
 	depth: number;
-	wrapped?: vscode.RequiredTestItem;
 }
 
 class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
@@ -505,7 +479,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		return this.added.size === 0 && this.removed.size === 0 && this.updated.size === 0;
 	}
 
-	constructor(private readonly collection: MirroredTestCollection, private readonly emitter: Emitter<vscode.TestChangeEvent>) {
+	constructor(private readonly emitter: Emitter<vscode.TestsChangeEvent>) {
 		super();
 	}
 
@@ -520,7 +494,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	 * @override
 	 */
 	public update(node: MirroredCollectionTestItem): void {
-		Object.assign(node.revived, TestItem.toShallow(node.item));
+		Object.assign(node.revived, Convert.TestItem.toPlain(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
 		}
@@ -548,80 +522,12 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	/**
 	 * @override
 	 */
-	public getChangeEvent(): vscode.TestChangeEvent {
-		const { collection, added, updated, removed } = this;
+	public getChangeEvent(): vscode.TestsChangeEvent {
+		const { added, updated, removed } = this;
 		return {
-			get added() { return [...added].map(collection.getPublicTestItem, collection); },
-			get updated() { return [...updated].map(collection.getPublicTestItem, collection); },
-			get removed() { return [...removed].map(collection.getPublicTestItem, collection); },
-			get commonChangeAncestor() {
-				let ancestorPath: MirroredCollectionTestItem[] | undefined;
-				const buildAncestorPath = (node: MirroredCollectionTestItem | undefined) => {
-					if (!node) {
-						return undefined;
-					}
-
-					// add the node and all its parents to the list of ancestors. If
-					// the node is detached, do not return a path (its parent will
-					// also have been passed to remove() and be present)
-					const path: MirroredCollectionTestItem[] = new Array(node.depth + 1);
-					for (let i = node.depth; i >= 0; i--) {
-						if (!node) {
-							return undefined; // detached child
-						}
-
-						path[node.depth] = node;
-						node = node.parent ? collection.getMirroredTestDataById(node.parent) : undefined;
-					}
-
-					return path;
-				};
-
-				const addAncestorPath = (node: MirroredCollectionTestItem) => {
-					// fast path: if the common ancestor is already the root, no more work to do
-					if (ancestorPath && ancestorPath.length === 0) {
-						return;
-					}
-
-					const thisPath = buildAncestorPath(node);
-					if (!thisPath) {
-						return;
-					}
-
-					if (!ancestorPath) {
-						ancestorPath = thisPath;
-						return;
-					}
-
-					// removes node from the path to the ancestor that don't match
-					// the corresponding node in *this* path.
-					for (let i = ancestorPath.length - 1; i >= 0; i--) {
-						if (ancestorPath[i] !== thisPath[i]) {
-							ancestorPath.pop();
-						}
-					}
-				};
-
-				const addParentAncestor = (node: MirroredCollectionTestItem) => {
-					if (ancestorPath && ancestorPath.length === 0) {
-						// no-op
-					} else if (node.parent === null) {
-						ancestorPath = [];
-					} else {
-						const parent = collection.getMirroredTestDataById(node.parent);
-						if (parent) {
-							addAncestorPath(parent);
-						}
-					}
-				};
-
-				for (const node of added) { addParentAncestor(node); }
-				for (const node of updated) { addAncestorPath(node); }
-				for (const node of removed) { addParentAncestor(node); }
-
-				const ancestor = ancestorPath && ancestorPath[ancestorPath.length - 1];
-				return ancestor ? collection.getPublicTestItem(ancestor) : null;
-			},
+			get added() { return [...added].map(n => n.revived); },
+			get updated() { return [...updated].map(n => n.revived); },
+			get removed() { return [...removed].map(n => n.revived); },
 		};
 	}
 
@@ -637,7 +543,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
  * @private
  */
 export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
-	private changeEmitter = new Emitter<vscode.TestChangeEvent>();
+	private changeEmitter = new Emitter<vscode.TestsChangeEvent>();
 
 	/**
 	 * Change emitter that fires with the same sematics as `TestObserver.onDidChangeTests`.
@@ -654,12 +560,12 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
-	public getAllAsTestItem(itemIds: Iterable<string>): vscode.RequiredTestItem[] {
-		let output: vscode.RequiredTestItem[] = [];
+	public getAllAsTestItem(itemIds: Iterable<string>) {
+		let output: vscode.TestItem[] = [];
 		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
 			if (item) {
-				output.push(this.getPublicTestItem(item));
+				output.push(item.revived);
 			}
 		}
 
@@ -685,64 +591,23 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	 * @override
 	 */
 	protected createItem(item: InternalTestItem, parent?: MirroredCollectionTestItem): MirroredCollectionTestItem {
-		return { ...item, revived: TestItem.toShallow(item.item), depth: parent ? parent.depth + 1 : 0, children: new Set() };
+		return {
+			...item,
+			// todo@connor4312: make this work well again with children
+			revived: Convert.TestItem.toPlain(item.item) as vscode.TestItem,
+			depth: parent ? parent.depth + 1 : 0,
+			children: new Set(),
+		};
 	}
 
 	/**
 	 * @override
 	 */
 	protected createChangeCollector() {
-		return new MirroredChangeCollector(this, this.changeEmitter);
-	}
-
-	/**
-	 * Gets the public test item instance for the given mirrored record.
-	 */
-	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.RequiredTestItem {
-		if (!item.wrapped) {
-			item.wrapped = new TestItemFromMirror(item, this);
-		}
-
-		return item.wrapped;
+		return new MirroredChangeCollector(this.changeEmitter);
 	}
 }
 
-class TestItemFromMirror implements vscode.RequiredTestItem {
-	readonly #internal: MirroredCollectionTestItem;
-	readonly #collection: MirroredTestCollection;
-
-	public get id() { return this.#internal.revived.id!; }
-	public get label() { return this.#internal.revived.label; }
-	public get description() { return this.#internal.revived.description; }
-	public get location() { return this.#internal.revived.location; }
-	public get runnable() { return this.#internal.revived.runnable ?? true; }
-	public get debuggable() { return this.#internal.revived.debuggable ?? false; }
-	public get children() {
-		return this.#collection.getAllAsTestItem(this.#internal.children);
-	}
-
-	constructor(internal: MirroredCollectionTestItem, collection: MirroredTestCollection) {
-		this.#internal = internal;
-		this.#collection = collection;
-	}
-
-	public toJSON() {
-		const serialized: vscode.RequiredTestItem & TestIdWithProvider = {
-			id: this.id,
-			label: this.label,
-			description: this.description,
-			location: this.location,
-			runnable: this.runnable,
-			debuggable: this.debuggable,
-			children: this.children.map(c => (c as TestItemFromMirror).toJSON()),
-
-			providerId: this.#internal.providerId,
-			testId: this.id,
-		};
-
-		return serialized;
-	}
-}
 
 interface IObserverData {
 	observers: number;

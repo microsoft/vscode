@@ -29,7 +29,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
-import { mergeSort } from 'vs/base/common/arrays';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
@@ -39,6 +38,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	static readonly configName = 'editor.defaultFormatter';
 
 	static extensionIds: (string | null)[] = [];
+	static extensionItemLabels: string[] = [];
 	static extensionDescriptions: string[] = [];
 
 	constructor(
@@ -60,7 +60,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	private async _updateConfigValues(): Promise<void> {
 		let extensions = await this._extensionService.getExtensions();
 
-		extensions = mergeSort(extensions, (a, b) => {
+		extensions = extensions.sort((a, b) => {
 			let boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 			let boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 
@@ -74,15 +74,18 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		});
 
 		DefaultFormatter.extensionIds.length = 0;
+		DefaultFormatter.extensionItemLabels.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
 
 		DefaultFormatter.extensionIds.push(null);
+		DefaultFormatter.extensionItemLabels.push(nls.localize('null', 'None'));
 		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
 
 		for (const extension of extensions) {
 			if (extension.main || extension.browser) {
 				DefaultFormatter.extensionIds.push(extension.identifier.value);
-				DefaultFormatter.extensionDescriptions.push(extension.description || '');
+				DefaultFormatter.extensionItemLabels.push(extension.displayName ?? '');
+				DefaultFormatter.extensionDescriptions.push(extension.description ?? '');
 			}
 		}
 	}
@@ -183,6 +186,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: ['string', 'null'],
 			default: null,
 			enum: DefaultFormatter.extensionIds,
+			enumItemLabels: DefaultFormatter.extensionItemLabels,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		}
 	}

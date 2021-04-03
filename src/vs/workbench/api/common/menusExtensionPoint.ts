@@ -54,6 +54,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.editorContext', "The editor context menu")
 	},
 	{
+		key: 'editor/context/copy',
+		id: MenuId.EditorContextCopy,
+		description: localize('menus.editorContextCopyAs', "'Copy as' submenu in the editor context menu")
+	},
+	{
 		key: 'explorer/context',
 		id: MenuId.ExplorerContext,
 		description: localize('menus.explorerContext', "The file explorer context menu")
@@ -92,6 +97,11 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false
 	},
 	{
+		key: 'menuBar/edit/copy',
+		id: MenuId.MenubarCopy,
+		description: localize('menus.opy', "'Copy as' submenu in the top level Edit menu")
+	},
+	{
 		key: 'scm/title',
 		id: MenuId.SCMTitle,
 		description: localize('menus.scmTitle', "The Source Control title menu")
@@ -104,17 +114,17 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
-		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
+		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
 	},
 	{
 		key: 'scm/resourceFolder/context',
 		id: MenuId.SCMResourceFolderContext,
-		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
+		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
 	},
 	{
 		key: 'scm/resourceGroup/context',
 		id: MenuId.SCMResourceGroupContext,
-		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
+		description: localize('menus.resourceGroupContext', "The Source Control resource group context menu")
 	},
 	{
 		key: 'scm/change/title',
@@ -159,6 +169,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentActions,
 		description: localize('comment.actions', "The contributed comment context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'notebook/toolbar',
+		id: MenuId.NotebookToolbar,
+		description: localize('notebook.toolbar', "The contributed notebook toolbar menu"),
+		proposed: true
 	},
 	{
 		key: 'notebook/cell/title',
@@ -539,7 +555,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
-				absoluteIcon = ThemeIcon.fromString(icon) || { dark: resources.joinPath(extension.description.extensionLocation, icon) };
+				absoluteIcon = ThemeIcon.fromString(icon) ?? { dark: resources.joinPath(extension.description.extensionLocation, icon), light: resources.joinPath(extension.description.extensionLocation, icon) };
 
 			} else {
 				absoluteIcon = {

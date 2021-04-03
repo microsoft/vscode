@@ -17,7 +17,6 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { originalFSPath, basename, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { exists } from 'vs/base/node/pfs';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -44,8 +43,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
 
-	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; // prefer more workspaces...
-	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; // ...compared to files
+	private static readonly MAX_MACOS_DOCK_RECENT_WORKSPACES = 7; 		// prefer higher number of workspaces...
+	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES_TOTAL = 10; 	// ...over number of files
 
 	// Exclude some very common files from the dock/taskbar
 	private static readonly COMMON_FILES_FILTER = [
@@ -66,7 +65,6 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IStateService private readonly stateService: IStateService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super();
@@ -393,16 +391,19 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 	}
 
 	private getWindowsJumpListLabel(workspace: IWorkspaceIdentifier | URI, recentLabel: string | undefined): { title: string; description: string } {
+
+		// Prefer recent label
 		if (recentLabel) {
 			return { title: splitName(recentLabel).name, description: recentLabel };
 		}
+
 		// Single Folder
 		if (URI.isUri(workspace)) {
 			return { title: basename(workspace), description: renderJumpListPathDescription(workspace) };
 		}
 
 		// Workspace: Untitled
-		if (extUriBiasedIgnorePathCase.isEqualOrParent(workspace.configPath, this.environmentMainService.userHome)) {
+		if (this.workspacesManagementMainService.isUntitledWorkspace(workspace)) {
 			return { title: localize('untitledWorkspace', "Untitled (Workspace)"), description: '' };
 		}
 

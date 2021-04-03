@@ -57,11 +57,10 @@ import 'vs/workbench/electron-browser/desktop.main';
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/search/electron-browser/searchService';
-import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
-import 'vs/workbench/services/backup/electron-browser/backupFileService';
+import 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
+
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 //
@@ -74,12 +73,6 @@ import 'vs/workbench/services/backup/electron-browser/backupFileService';
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/workbench/services/remote/electron-browser/tunnelServiceImpl';
-
-registerSingleton(ITunnelService, TunnelService);
 
 //#endregion
 
@@ -98,15 +91,8 @@ registerSingleton(ITunnelService, TunnelService);
 
 //#region --- workbench contributions
 
-// Tags
-import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
-import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
-
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
-
-// Debug
-import 'vs/workbench/contrib/debug/node/debugHelperService';
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';
@@ -133,9 +119,6 @@ import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 
-// CodeEditor Contributions
-import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
-
 // External Terminal
 import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution';
 
@@ -151,9 +134,6 @@ import 'vs/workbench/contrib/externalTerminal/node/externalTerminal.contribution
 //
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-// Performance
-import 'vs/workbench/contrib/performance/electron-browser/performance.contribution';
 
 // CLI
 import 'vs/workbench/contrib/cli/node/cli.contribution';

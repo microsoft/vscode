@@ -12,7 +12,7 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -237,6 +237,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			DebugEditorContribution.MEMOIZER.clear();
 			this.updateInlineValuesScheduler.schedule();
 		}));
+		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
@@ -249,7 +250,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			DebugEditorContribution.MEMOIZER.clear();
 			await this.updateInlineValueDecorations(stackFrame);
 		}));
-		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
+		this.toDispose.push(this.editor.onDidScrollChange(() => {
+			this.hideHoverWidget();
+
+			// Inline value provider should get called on view port change
+			const model = this.editor.getModel();
+			if (model && InlineValuesProviderRegistry.has(model)) {
+				this.updateInlineValuesScheduler.schedule();
+			}
+		}));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
 			if (state !== State.Stopped) {
 				this.toggleExceptionWidget();
@@ -357,12 +366,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
-		const hoverOption = this.editor.getOption(EditorOption.hover);
 		const scheduler = new RunOnceScheduler(() => {
 			if (!this.hoverWidget.isHovered()) {
 				this.hoverWidget.hide();
 			}
-		}, hoverOption.delay);
+		}, 0);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -576,8 +584,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const separator = ', ';
 
 		const model = this.editor.getModel();
-		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
-			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
+		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
+		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && InlineValuesProviderRegistry.has(model));
+		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
 			}
@@ -603,15 +612,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				return undefined;
 			};
 
-			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
-
-			const ctx = { stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1) };
+			const ctx: InlineValueContext = {
+				frameId: stackFrame.frameId,
+				stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1)
+			};
 			const token = new CancellationTokenSource().token;
 
+			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 			const providers = InlineValuesProviderRegistry.ordered(model).reverse();
 
 			allDecorations = [];
-
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
 			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
@@ -641,9 +651,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 									expr = lineContent.substring(iv.range.startColumn - 1, iv.range.endColumn - 1);
 								}
 								if (expr) {
-									const viewModel = this.debugService.getViewModel();
 									const expression = new Expression(expr);
-									await expression.evaluate(viewModel.focusedSession, viewModel.focusedStackFrame, 'watch');
+									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch');
 									if (expression.available) {
 										text = strings.format(var_value_format, expr, expression.value);
 									}

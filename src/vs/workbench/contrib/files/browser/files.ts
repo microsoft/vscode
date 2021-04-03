@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { OpenEditor, SortOrder } from 'vs/workbench/contrib/files/common/files';
-import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier, EditorInput, IEditorInputFactory } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier, EditorInput, IEditorInputSerializer } from 'vs/workbench/common/editor';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
@@ -29,7 +29,7 @@ interface ISerializedFileEditorInput {
 	modeId?: string;
 }
 
-export class FileEditorInputFactory implements IEditorInputFactory {
+export class FileEditorInputSerializer implements IEditorInputSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
 		return true;
@@ -84,6 +84,7 @@ export interface IExplorerService {
 	// If undefined is passed checks if any element is currently being edited.
 	isEditable(stat: ExplorerItem | undefined): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
+	findClosestRoot(resource: URI): ExplorerItem | null;
 	refresh(): Promise<void>;
 	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;

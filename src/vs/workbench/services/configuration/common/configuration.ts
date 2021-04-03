@@ -6,7 +6,7 @@
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -45,7 +45,7 @@ export interface IConfigurationCache {
 
 }
 
-export const IWorkbenchConfigurationService = createDecorator<IWorkbenchConfigurationService>('configurationService');
+export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
 	 * A promise that resolves when the remote configuration is loaded in a remote window.

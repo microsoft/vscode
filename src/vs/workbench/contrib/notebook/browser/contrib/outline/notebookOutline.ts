@@ -237,7 +237,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 		@IThemeService private readonly _themeService: IThemeService
 	) { }
 
-	getQuickPickElements(): Iterable<IQuickPickOutlineElement<OutlineEntry>> {
+	getQuickPickElements(): IQuickPickOutlineElement<OutlineEntry>[] {
 		const bucket: OutlineEntry[] = [];
 		for (let entry of this._getEntries()) {
 			entry.asFlatList(bucket);
@@ -273,7 +273,7 @@ class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 	}
 }
 
-class NotebookCellOutline implements IOutline<OutlineEntry> {
+export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 	private readonly _dispoables = new DisposableStore();
 
@@ -390,47 +390,52 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const selectedCellIndex = viewModel.getSelection().start;
-		const selected = viewModel.getCellByIndex(selectedCellIndex)?.handle;
+		const focusedCellIndex = viewModel.getFocus().start;
+		const focused = viewModel.cellAt(focusedCellIndex)?.handle;
 		const entries: OutlineEntry[] = [];
 
-		for (let i = 0; i < viewModel.viewCells.length; i++) {
+		for (let i = 0; i < viewModel.length; i++) {
 			const cell = viewModel.viewCells[i];
 			const isMarkdown = cell.cellKind === CellKind.Markdown;
 			if (!isMarkdown && !includeCodeCells) {
 				continue;
 			}
 
-			// anaslse cell text but cap it 10000 characters
+			// The cap the amount of characters that we look at and use the following logic
+			// - for MD prefer headings (each header is an entry)
+			// - otherwise use the first none-empty line of the cell (MD or code)
 			let content = cell.getText().substr(0, 10_000);
-			let level = 7;
+			let hasHeader = false;
 
 			if (isMarkdown) {
-				// MD cell: "render" as plain text, find highest header
 				for (const token of marked.lexer(content, { gfm: true })) {
 					if (token.type === 'heading') {
-						level = Math.min(level, token.depth);
+						hasHeader = true;
+						entries.push(new OutlineEntry(entries.length, token.depth, cell, renderMarkdownAsPlaintext({ value: token.text }).trim(), Codicon.markdown));
 					}
 				}
-				content = renderMarkdownAsPlaintext({ value: content });
-			}
-
-			// find first none empty line or use default text
-			const lineMatch = content.match(/^.*\w+.*\w*$/m);
-			let preview: string;
-			if (!lineMatch) {
-				preview = localize('empty', "empty cell");
-			} else {
-				preview = lineMatch[0].trim();
-				if (preview.length >= 64) {
-					preview = preview.slice(0, 64) + '…';
+				if (!hasHeader) {
+					content = renderMarkdownAsPlaintext({ value: content });
 				}
 			}
 
-			const entry = new OutlineEntry(i, level, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code);
-			entries.push(entry);
-			if (cell.handle === selected) {
-				this._activeEntry = entry;
+			if (!hasHeader) {
+				const lineMatch = content.match(/^.*\w+.*\w*$/m);
+				let preview: string;
+				if (!lineMatch) {
+					preview = localize('empty', "empty cell");
+				} else {
+					preview = lineMatch[0].trim();
+					if (preview.length >= 64) {
+						preview = preview.slice(0, 64) + '…';
+					}
+				}
+
+				entries.push(new OutlineEntry(entries.length, 7, cell, preview, isMarkdown ? Codicon.markdown : Codicon.code));
+			}
+
+			if (cell.handle === focused) {
+				this._activeEntry = entries[entries.length - 1];
 			}
 
 			// send an event whenever any of the cells change
@@ -513,7 +518,7 @@ class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const { viewModel } = this._editor;
 
 		if (viewModel) {
-			const cell = viewModel.getCellByIndex(viewModel.getSelection()?.start);
+			const cell = viewModel.cellAt(viewModel.getFocus().start);
 			if (cell) {
 				for (let entry of this._entries) {
 					newActive = entry.find(cell, []);

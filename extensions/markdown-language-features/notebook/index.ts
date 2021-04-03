@@ -24,5 +24,10 @@ type extendMarkdownItFnType = (
 	notebook.onDidCreateMarkdown(({ element, content }: any) => {
 		const rendered = markdownIt.render(content);
 		element.innerHTML = rendered;
+
+		// Insert styles into markdown preview shadow dom so that they are applied
+		for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
+			element.appendChild(markdownStyleNode.cloneNode(true));
+		}
 	});
 }());

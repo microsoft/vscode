@@ -13,8 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
-import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
+import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -121,8 +120,11 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this._onDidClickLink.fire(uri);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: any) => {
-			this._onMessage.fire(data);
+		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any, transfer?: ArrayBuffer[] }) => {
+			this._onMessage.fire({
+				message: data.message,
+				transfer: data.transfer,
+			});
 		}));
 
 		this._register(this.on(WebviewMessageChannels.didScroll, (scrollYPercentage: number) => {
@@ -189,7 +191,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidReload = this._register(new Emitter<void>());
 	public readonly onDidReload = this._onDidReload.event;
 
-	private readonly _onMessage = this._register(new Emitter<any>());
+	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
 	public readonly onMessage = this._onMessage.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
@@ -210,8 +212,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
 
-	public postMessage(data: any): void {
-		this._send('message', data);
+	public postMessage(message: any, transfer?: ArrayBuffer[]): void {
+		this._send('message', { message, transfer });
 	}
 
 	protected _send(channel: string, data?: any): void {
@@ -275,7 +277,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	public set contentOptions(options: WebviewContentOptions) {
 		this._logService.debug(`Webview(${this.id}): will update content options`);
 
-		if (areWebviewInputOptionsEqual(options, this.content.options)) {
+		if (areWebviewContentOptionsEqual(options, this.content.options)) {
 			this._logService.debug(`Webview(${this.id}): skipping content options update`);
 			return;
 		}
@@ -326,11 +328,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	protected handleFocusChange(isFocused: boolean): void {
-		if (isFocused && this.element === document.activeElement) {
-			this._focused = true;
+		this._focused = isFocused;
+		if (isFocused) {
 			this._onDidFocus.fire();
 		} else {
-			this._focused = false;
 			this._onDidBlur.fire();
 		}
 	}

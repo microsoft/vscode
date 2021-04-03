@@ -214,20 +214,21 @@ export interface IEditorInputFactoryRegistry {
 	getCustomEditorInputFactory(scheme: string): ICustomEditorInputFactory | undefined;
 
 	/**
-	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
-	 * is capable of serializing and deserializing editor inputs from string data.
+	 * Registers a editor input serializer for the given editor input to the registry.
+	 * An editor input serializer is capable of serializing and deserializing editor
+	 * inputs from string data.
 	 *
 	 * @param editorInputId the identifier of the editor input
-	 * @param factory the editor input factory for serialization/deserialization
+	 * @param serializer the editor input serializer for serialization/deserialization
 	 */
-	registerEditorInputFactory<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputFactory }): IDisposable;
+	registerEditorInputSerializer<Services extends BrandedService[]>(editorInputId: string, ctor: { new(...Services: Services): IEditorInputSerializer }): IDisposable;
 
 	/**
-	 * Returns the editor input factory for the given editor input.
+	 * Returns the editor input serializer for the given editor input.
 	 *
 	 * @param editorInputId the identifier of the editor input
 	 */
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined;
+	getEditorInputSerializer(editorInputId: string): IEditorInputSerializer | undefined;
 
 	/**
 	 * Starts the registry by providing the required services.
@@ -235,10 +236,10 @@ export interface IEditorInputFactoryRegistry {
 	start(accessor: ServicesAccessor): void;
 }
 
-export interface IEditorInputFactory {
+export interface IEditorInputSerializer {
 
 	/**
-	 * Determines whether the given editor input can be serialized by the factory.
+	 * Determines whether the given editor input can be serialized by the serializer.
 	 */
 	canSerialize(editorInput: IEditorInput): boolean;
 
@@ -373,9 +374,9 @@ export interface IMoveResult {
 export interface IEditorInput extends IDisposable {
 
 	/**
-	 * Triggered when this input is disposed.
+	 * Triggered when this input is about to be disposed.
 	 */
-	readonly onDispose: Event<void>;
+	readonly onWillDispose: Event<void>;
 
 	/**
 	 * Triggered when this input changes its dirty state.
@@ -520,8 +521,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed: boolean = false;
 
@@ -616,7 +617,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
-			this._onDispose.fire();
+			this._onWillDispose.fire();
 		}
 
 		super.dispose();
@@ -764,14 +765,14 @@ export class SideBySideEditorInput extends EditorInput {
 	private registerListeners(): void {
 
 		// When the primary or secondary input gets disposed, dispose this diff editor input
-		const onceSecondaryDisposed = Event.once(this.secondary.onDispose);
+		const onceSecondaryDisposed = Event.once(this.secondary.onWillDispose);
 		this._register(onceSecondaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
 			}
 		}));
 
-		const oncePrimaryDisposed = Event.once(this.primary.onDispose);
+		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
 		this._register(oncePrimaryDisposed(() => {
 			if (!this.isDisposed()) {
 				this.dispose();
@@ -868,28 +869,29 @@ export interface ITextEditorModel extends IEditorModel {
 
 /**
  * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
- * connects to the disk to retrieve content and may allow for saving it back or reverting it. Editor models
- * are typically cached for some while because they are expensive to construct.
+ * resolves from a file system retrieve content and may allow for saving it back or reverting it.
+ * Editor models are typically cached for some while because they are expensive to construct.
  */
 export class EditorModel extends Disposable implements IEditorModel {
 
-	private readonly _onDispose = this._register(new Emitter<void>());
-	readonly onDispose = this._onDispose.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private disposed = false;
+	private resolved = false;
 
 	/**
-	 * Causes this model to load returning a promise when loading is completed.
+	 * Causes this model to resolve returning a promise when loading is completed.
 	 */
-	async load(): Promise<IEditorModel> {
-		return this;
+	async resolve(): Promise<void> {
+		this.resolved = true;
 	}
 
 	/**
 	 * Returns whether this model was loaded or not.
 	 */
 	isResolved(): boolean {
-		return true;
+		return this.resolved;
 	}
 
 	/**
@@ -904,7 +906,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	 */
 	dispose(): void {
 		this.disposed = true;
-		this._onDispose.fire();
+		this._onWillDispose.fire();
 
 		super.dispose();
 	}
@@ -1254,6 +1256,10 @@ export interface IEditorCloseEvent extends IEditorIdentifier {
 	sticky: boolean;
 }
 
+export interface IEditorMoveEvent extends IEditorIdentifier {
+	target: GroupIdentifier;
+}
+
 export type GroupIdentifier = number;
 
 export interface IWorkbenchEditorConfiguration {
@@ -1463,26 +1469,26 @@ export interface IEditorMemento<T> {
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	private instantiationService: IInstantiationService | undefined;
+
 	private fileEditorInputFactory: IFileEditorInputFactory | undefined;
-
-	private readonly editorInputFactoryConstructors: Map<string, IConstructorSignature0<IEditorInputFactory>> = new Map();
-	private readonly editorInputFactoryInstances: Map<string, IEditorInputFactory> = new Map();
-
 	private readonly customEditorInputFactoryInstances: Map<string, ICustomEditorInputFactory> = new Map();
+
+	private readonly editorInputSerializerConstructors: Map<string, IConstructorSignature0<IEditorInputSerializer>> = new Map();
+	private readonly editorInputSerializerInstances: Map<string, IEditorInputSerializer> = new Map();
 
 	start(accessor: ServicesAccessor): void {
 		const instantiationService = this.instantiationService = accessor.get(IInstantiationService);
 
-		this.editorInputFactoryConstructors.forEach((ctor, key) => {
-			this.createEditorInputFactory(key, ctor, instantiationService);
+		this.editorInputSerializerConstructors.forEach((ctor, key) => {
+			this.createEditorInputSerializer(key, ctor, instantiationService);
 		});
 
-		this.editorInputFactoryConstructors.clear();
+		this.editorInputSerializerConstructors.clear();
 	}
 
-	private createEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>, instantiationService: IInstantiationService): void {
+	private createEditorInputSerializer(editorInputId: string, ctor: IConstructorSignature0<IEditorInputSerializer>, instantiationService: IInstantiationService): void {
 		const instance = instantiationService.createInstance(ctor);
-		this.editorInputFactoryInstances.set(editorInputId, instance);
+		this.editorInputSerializerInstances.set(editorInputId, instance);
 	}
 
 	registerFileEditorInputFactory(factory: IFileEditorInputFactory): void {
@@ -1501,21 +1507,21 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 		return this.customEditorInputFactoryInstances.get(scheme);
 	}
 
-	registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): IDisposable {
+	registerEditorInputSerializer(editorInputId: string, ctor: IConstructorSignature0<IEditorInputSerializer>): IDisposable {
 		if (!this.instantiationService) {
-			this.editorInputFactoryConstructors.set(editorInputId, ctor);
+			this.editorInputSerializerConstructors.set(editorInputId, ctor);
 		} else {
-			this.createEditorInputFactory(editorInputId, ctor, this.instantiationService);
+			this.createEditorInputSerializer(editorInputId, ctor, this.instantiationService);
 		}
 
 		return toDisposable(() => {
-			this.editorInputFactoryConstructors.delete(editorInputId);
-			this.editorInputFactoryInstances.delete(editorInputId);
+			this.editorInputSerializerConstructors.delete(editorInputId);
+			this.editorInputSerializerInstances.delete(editorInputId);
 		});
 	}
 
-	getEditorInputFactory(editorInputId: string): IEditorInputFactory | undefined {
-		return this.editorInputFactoryInstances.get(editorInputId);
+	getEditorInputSerializer(editorInputId: string): IEditorInputSerializer | undefined {
+		return this.editorInputSerializerInstances.get(editorInputId);
 	}
 }
 

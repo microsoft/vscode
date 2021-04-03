@@ -232,7 +232,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore(),
 			setNotificationsFilter: false,
-			editorWidgetSet: new Set<IEditor>()
 		}
 	};
 
@@ -958,10 +957,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return new Dimension(availableWidth, availableHeight);
 	}
 
-	getWorkbenchContainer(): HTMLElement {
-		return this.parent;
-	}
-
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
 		this.state.zenMode.active = !this.state.zenMode.active;
 		this.state.zenMode.transitionDisposables.clear();
@@ -980,22 +975,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				editor.updateOptions({ lineNumbers });
 			};
 
-			const editorControlSet = this.state.zenMode.editorWidgetSet;
 			if (!lineNumbers) {
 				// Reset line numbers on all editors visible and non-visible
-				for (const editor of editorControlSet) {
-					setEditorLineNumbers(editor);
+				for (const editorControl of this.editorService.visibleTextEditorControls) {
+					setEditorLineNumbers(editorControl);
 				}
-				editorControlSet.clear();
 			} else {
 				for (const editorControl of this.editorService.visibleTextEditorControls) {
-					if (!editorControlSet.has(editorControl)) {
-						editorControlSet.add(editorControl);
-						this.state.zenMode.transitionDisposables.add(editorControl.onDidDispose(() => {
-							editorControlSet.delete(editorControl);
-						}));
-					}
-
 					setEditorLineNumbers(editorControl);
 				}
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent, ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
 const MAX_RECORDER_DATA_SIZE = 1024 * 1024; // 1MB
 
@@ -13,8 +13,6 @@ interface RecorderEntry {
 	data: string[];
 }
 
-export interface ReplayEntry { cols: number; rows: number; data: string; }
-
 export interface IRemoteTerminalProcessReplayEvent {
 	events: ReplayEntry[];
 }
@@ -22,11 +20,10 @@ export interface IRemoteTerminalProcessReplayEvent {
 export class TerminalRecorder {
 
 	private _entries: RecorderEntry[];
-	private _totalDataLength: number;
+	private _totalDataLength: number = 0;
 
 	constructor(cols: number, rows: number) {
 		this._entries = [{ cols, rows, data: [] }];
-		this._totalDataLength = 0;
 	}
 
 	public recordResize(cols: number, rows: number): void {

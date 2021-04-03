@@ -146,7 +146,10 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		}
 
 		this._viewProviders.set(viewType, { provider, extension });
-		this._proxy.$registerWebviewViewProvider(toExtensionData(extension), viewType, webviewOptions);
+		this._proxy.$registerWebviewViewProvider(toExtensionData(extension), viewType, {
+			retainContextWhenHidden: webviewOptions?.retainContextWhenHidden,
+			serializeBuffersForPostMessage: false,
+		});
 
 		return new extHostTypes.Disposable(() => {
 			this._viewProviders.delete(viewType);

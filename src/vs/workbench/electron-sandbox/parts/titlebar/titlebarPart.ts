@@ -147,6 +147,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.title.style.position = 'absolute';
 		this.title.style.left = '50%';
 		this.title.style.transform = 'translate(-50%, 0)';
+		this.title.style.maxWidth = `calc(100vw - ${2 * ((this.windowControls?.clientWidth || 70) + 10)}px)`;
 	}
 
 	protected installMenubar(): void {

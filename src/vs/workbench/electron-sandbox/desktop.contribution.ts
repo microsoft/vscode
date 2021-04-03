@@ -273,12 +273,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			},
-			'window.enableExperimentalMainProcessWorkspaceStorage': {
-				'type': 'boolean',
-				'default': false,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.localize', "Enables workspace storage access from the main process. Requires a restart to take effect."),
 			}
 		}
 	});
@@ -318,7 +312,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 					'type': 'string'
 				},
 				'default': [],
-				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
+				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`).'),
 				'included': isMacintosh
 			}
 		}
@@ -367,6 +361,10 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				items: {
 					type: 'string'
 				}
+			},
+			'log-level': {
+				type: 'string',
+				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}
 	};
