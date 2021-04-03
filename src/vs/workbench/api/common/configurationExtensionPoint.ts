@@ -213,7 +213,7 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 			const propertyConfiguration = properties[key];
 			if (!isObject(propertyConfiguration)) {
 				delete properties[key];
-				extension.collector.error(nls.localize('invalid.property', "'configuration.property' must be an object"));
+				extension.collector.error(nls.localize('invalid.property', "configuration.properties property '{0}' must be an object", key));
 				continue;
 			}
 			if (propertyConfiguration.scope) {
