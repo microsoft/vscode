@@ -187,7 +187,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKSPACE_TRUST_ENABLED)) {
-				const isEnabled = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED);
+				const isEnabled = this.configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue;
 				if (!isEnabled || typeof isEnabled === 'boolean') {
 					this.dialogService.confirm({
 						message: localize('trustConfigurationChangeMessage', "In order for this change to take effect, the window needs to be reloaded. Do you want to reload the window now?")

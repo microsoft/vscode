@@ -281,6 +281,12 @@ export interface IShellLaunchConfig {
 	 * Whether this terminal was created by an extension.
 	 */
 	isExtensionOwnedTerminal?: boolean;
+
+	/**
+	 * The codicon ID to use for this terminal. If not specified it will use the default fallback
+	 * icon.
+	 */
+	icon?: string;
 }
 
 export interface IShellLaunchConfigDto {
