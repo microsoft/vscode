@@ -10,6 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { debounce } from 'vs/base/common/decorators';
 import { Iterable } from 'vs/base/common/iterator';
 import { splitName } from 'vs/base/common/labels';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
@@ -182,8 +183,15 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
+	private rendering = false;
 	private rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	@debounce(100)
 	private async render(model: WorkspaceTrustEditorModel) {
+		if (this.rendering) {
+			return;
+		}
+
+		this.rendering = true;
 		this.rerenderDisposables.clear();
 
 		// Header Section
@@ -306,6 +314,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 
 		this.bodyScrollBar.scanDomNode();
+		this.rendering = false;
 	}
 
 	private async getExtensionsByTrustRequirement(extensions: IExtensionStatus[], trustRequirement: ExtensionWorkspaceTrustRequirement): Promise<IExtension[]> {
