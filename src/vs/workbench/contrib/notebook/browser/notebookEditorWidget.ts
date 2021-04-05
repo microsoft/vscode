@@ -2477,7 +2477,7 @@ export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
 export const inactiveSelectedCellBorder = registerColor('notebook.inactiveSelectedCellBorder', {
 	dark: null,
 	light: null,
-	hc: null
+	hc: focusBorder
 }, nls.localize('notebook.inactiveSelectedCellBorder', "The color of the cell's borders when multiple cells are selected."));
 
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
