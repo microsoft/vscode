@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 
 /**
@@ -47,21 +48,21 @@ export interface ITerminalStatusList {
 	toggle(status: ITerminalStatus, value: boolean): void;
 }
 
-export class TerminalStatusList implements ITerminalStatusList {
+export class TerminalStatusList extends Disposable implements ITerminalStatusList {
 	private readonly _statuses: Map<string, ITerminalStatus> = new Map();
 	private readonly _statusTimeouts: Map<string, number> = new Map();
 
-	private readonly _onDidAddStatus = new Emitter<ITerminalStatus>();
+	private readonly _onDidAddStatus = this._register(new Emitter<ITerminalStatus>());
 	get onDidAddStatus(): Event<ITerminalStatus> { return this._onDidAddStatus.event; }
-	private readonly _onDidRemoveStatus = new Emitter<ITerminalStatus>();
+	private readonly _onDidRemoveStatus = this._register(new Emitter<ITerminalStatus>());
 	get onDidRemoveStatus(): Event<ITerminalStatus> { return this._onDidRemoveStatus.event; }
-	private readonly _onDidChangePrimaryStatus = new Emitter<ITerminalStatus | undefined>();
+	private readonly _onDidChangePrimaryStatus = this._register(new Emitter<ITerminalStatus | undefined>());
 	get onDidChangePrimaryStatus(): Event<ITerminalStatus | undefined> { return this._onDidChangePrimaryStatus.event; }
 
 	get primary(): ITerminalStatus | undefined {
 		let result: ITerminalStatus | undefined;
 		for (const s of this._statuses.values()) {
-			if (!result || s.severity > result.severity) {
+			if (!result || s.severity >= result.severity) {
 				result = s;
 			}
 		}
