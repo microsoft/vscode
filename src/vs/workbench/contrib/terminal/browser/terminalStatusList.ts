@@ -6,6 +6,16 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 
+/**
+ * The set of _internal_ terminal statuses, other components building on the terminal should put
+ * their statuses within their component.
+ */
+export const enum TerminalStatus {
+	Bell = 'bell',
+	Disconnected = 'disconnected',
+	RelaunchNeeded = 'relaunch-needed',
+}
+
 export interface ITerminalStatus {
 	/** An internal string ID used to identify the status. */
 	id: string;
@@ -27,8 +37,8 @@ export interface ITerminalStatusList {
 
 	/**
 	 * Adds a status to the list.
-	 * @param duration An optional duration of the status, when specified the status will remove
-	 * itself when the duration elapses unless the status gets re-added.
+	 * @param duration An optional duration in milliseconds of the status, when specified the status
+	 * will remove itself when the duration elapses unless the status gets re-added.
 	 */
 	add(status: ITerminalStatus, duration?: number): void;
 	remove(status: ITerminalStatus): void;
