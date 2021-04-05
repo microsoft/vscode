@@ -905,7 +905,7 @@ export class TerminalService implements ITerminalService {
 				});
 			}
 		}
-		if (configProfiles.length > 0) {
+		if (autoDetectedProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
 			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)));
 		}
