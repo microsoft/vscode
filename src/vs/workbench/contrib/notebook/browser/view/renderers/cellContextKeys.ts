@@ -96,6 +96,10 @@ export class CellContextKeyManager extends Disposable {
 				this.updateForFocusState();
 			}
 
+			if (e.cellLineNumberChanged) {
+				this.cellLineNumbers.set(this.element.lineNumbers);
+			}
+
 			// if (e.collapseStateChanged) {
 			// 	this.updateForCollapseState();
 			// }
