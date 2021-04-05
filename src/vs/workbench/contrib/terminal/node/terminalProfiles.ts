@@ -90,6 +90,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		if (profile === null) { continue; }
 		let originalPaths: string[];
 		let args: string[] | string | undefined;
+		let icon: string | undefined;
 		if ('source' in profile) {
 			const source = profileSources?.get(profile.source);
 			if (!source) {
@@ -99,9 +100,11 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 
 			// if there are configured args, override the default ones
 			args = profile.args || source.args;
+			icon = profile.icon || source.icon;
 		} else {
 			originalPaths = Array.isArray(profile.path) ? profile.path : [profile.path];
 			args = platform.isWindows ? profile.args : Array.isArray(profile.args) ? profile.args : undefined;
+			icon = profile.icon;
 		}
 
 		const paths = originalPaths.slice();
@@ -110,9 +113,9 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 			paths[i] = variableResolver?.resolve(workspaceFolder, paths[i]) || paths[i];
 		}
 		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.overrideName, profile.isAutoDetected, logService);
-		console.log('validated', validatedProfile?.profileName + ' ' + validatedProfile?.path);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
+			validatedProfile.icon = icon;
 			resultProfiles.push(validatedProfile);
 		} else {
 			logService?.trace('profile not validated', profileName, originalPaths);
@@ -151,7 +154,8 @@ async function initializeWindowsProfiles(): Promise<void> {
 
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
-		paths: await getPowershellPaths()
+		paths: await getPowershellPaths(),
+		icon: 'plug'
 	});
 }
 
@@ -196,12 +200,22 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 					continue;
 				}
 
-				// Add the profile
-				profiles.push({
+				// Create the profile, adding the icon depending on the distro
+				const profile: ITerminalProfile = {
 					profileName: `${distroName} (WSL)`,
 					path: wslPath,
 					args: [`-d`, `${distroName}`]
-				});
+				};
+				// TODO: Use proper icons
+				if (distroName.includes('Ubuntu')) {
+					profile.icon = 'ruby';
+				}
+				if (distroName.includes('Debian')) {
+					profile.icon = 'star-full';
+				}
+
+				// Add the profile
+				profiles.push(profile);
 			}
 			return profiles;
 		}
@@ -284,7 +298,8 @@ export interface IFsProvider {
 }
 
 interface IPotentialTerminalProfile {
-	profileName: string,
-	paths: string[],
-	args?: string[]
+	profileName: string;
+	paths: string[];
+	args?: string[];
+	icon?: string;
 }

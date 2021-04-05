@@ -251,6 +251,7 @@ export interface ITerminalExecutable {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
+	icon?: string;
 }
 
 export interface ITerminalProfileSource {
@@ -258,6 +259,7 @@ export interface ITerminalProfileSource {
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	args?: string | string[] | undefined;
+	icon?: string;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
