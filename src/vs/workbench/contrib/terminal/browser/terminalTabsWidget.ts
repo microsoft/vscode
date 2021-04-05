@@ -16,6 +16,7 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { ITerminalInstance, ITerminalService, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const $ = DOM.$;
 
@@ -28,7 +29,8 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService,
+		@IInstantiationService _instantiationService: IInstantiationService
 	) {
 		super('TerminalTabsTree', container,
 			new TerminalTabsDelegate(),
@@ -42,6 +44,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
+				expandOnlyOnTwistieClick: true
 			},
 			contextKeyService,
 			listService,
@@ -53,11 +56,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 		this.setChildren(null, undefined);
 		const children = createTerminalTabsIterator(terminalService.terminalTabs);
 		this.setChildren(null, children);
-
 		this.onDidChangeSelection(e => {
 			if (e.elements && e.elements[0]) {
 				if ('_instance' in e.elements[0]) {
-					terminalService.setActiveInstance(e.elements[0].instance);
+					e.elements[0].instance.focus(true);
 				} else {
 					terminalService.setActiveTabByIndex(terminalService.terminalTabs.indexOf(e.elements[0].tab));
 				}
@@ -65,7 +67,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 		});
 	}
 }
-
 
 class TerminalTabsDelegate implements IListVirtualDelegate<TerminalTab> {
 	getHeight(element: any): number {
