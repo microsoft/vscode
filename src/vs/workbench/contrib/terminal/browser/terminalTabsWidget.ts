@@ -17,7 +17,6 @@ import { ITerminalInstance, ITerminalService, ITerminalTab } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 
-
 const $ = DOM.$;
 
 class TerminalTabsDelegate implements IListVirtualDelegate<TerminalTab> {
@@ -86,6 +85,16 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 		);
 		this.setChildren(null, undefined);
 		this.setChildren(null, createTerminalTabsIterator(terminalService.terminalTabs));
+
+		this.onDidChangeSelection(e => {
+			if (e.elements && e.elements[0]) {
+				if ('_instance' in e.elements[0]) {
+					terminalService.setActiveInstance(e.elements[0].instance);
+				} else {
+					terminalService.setActiveTabByIndex(terminalService.terminalTabs.indexOf(e.elements[0].tab));
+				}
+			}
+		});
 	}
 }
 
@@ -97,16 +106,23 @@ function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement
 			element: elt,
 			collapsed: true,
 			collapsible: hasChildren,
-			children: elt.children.map(child => {
-				return {
-					element: child,
-					collapsed: true,
-					collapsible: false
-				};
-			})
+			children: getChildren(elt)
 		};
 	});
 	return result;
+}
+
+function getChildren(elt: TabTreeElement): Iterable<ITreeElement<TabTreeChild>> | undefined {
+	if (elt.children.length > 1) {
+		return elt.children.map(child => {
+			return {
+				element: child,
+				collapsed: true,
+				collapsible: false
+			};
+		});
+	}
+	return undefined;
 }
 
 class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITerminalTabEntryTemplate> {

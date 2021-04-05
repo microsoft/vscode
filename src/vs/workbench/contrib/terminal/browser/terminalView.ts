@@ -122,6 +122,9 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		if (this._terminalService.configHelper.config.showTabs) {
+			// this._tabsWidgetContainer = this._instantiationService.createInstance(SplitPaneContainer, this._terminalContainer, Orientation.HORIZONTAL).splitView.el;
+			// this._tabsWidgetContainer.classList.add('tabs-widget-container');
+			// this.instantiationService.createInstance(TerminalTabsWidget, this._tabsWidgetContainer);
 			this._tabsWidgetContainer = dom.append(this._terminalContainer, dom.$('.tabs-widget-container'));
 			dom.append(this._tabsWidgetContainer, dom.$('.tabs-widget-wrapper', {
 				'role': 'navigation',

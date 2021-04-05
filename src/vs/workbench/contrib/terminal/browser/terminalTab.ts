@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
-class SplitPaneContainer extends Disposable {
+export class SplitPaneContainer extends Disposable {
 	private _height: number;
 	private _width: number;
 	private _splitView!: SplitView;
@@ -36,6 +36,10 @@ class SplitPaneContainer extends Disposable {
 		this._height = this._container.offsetHeight;
 		this._createSplitView();
 		this._splitView.layout(this.orientation === Orientation.HORIZONTAL ? this._width : this._height);
+	}
+
+	public get splitView(): SplitView {
+		return this._splitView;
 	}
 
 	private _createSplitView(): void {
