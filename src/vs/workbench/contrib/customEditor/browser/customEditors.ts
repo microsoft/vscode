@@ -10,7 +10,6 @@ import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation, EditorOverride, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
@@ -19,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorsAssociations, editorsAssociationsSettingId, Extensions as EditorExtensions, IEditorAssociationsRegistry, IEditorType, IEditorTypesHandler } from 'vs/workbench/browser/editor';
+import { Extensions as EditorExtensions, IEditorAssociationsRegistry, IEditorType, IEditorTypesHandler } from 'vs/workbench/browser/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -52,11 +51,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IFileService fileService: IFileService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IExtensionContributedEditorService private readonly extensionContributedEditorService: IExtensionContributedEditorService,
 	) {
 		super();
 
@@ -115,10 +114,9 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	public getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection {
-		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
+		const resourceAssocations = this.extensionContributedEditorService.getAssociationsForResource(resource);
 		return new CustomEditorInfoCollection(
-			coalesce(rawAssociations
-				.filter(association => CustomEditorInfo.selectorMatches(association, resource))
+			coalesce(resourceAssocations
 				.map(association => this._contributedEditors.get(association.viewType))));
 	}
 
@@ -337,8 +335,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			open: (editor, options, group) => {
 				return this.onEditorOpening(editor, options, group);
 			},
-			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
-				const currentEditor = group && firstOrDefault(this.editorService.findEditors(resource, group));
+			getEditorOverrides: (resource: URI, currentEditor: IEditorInput | undefined): IOpenEditorOverrideEntry[] => {
 
 				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
 					return {
@@ -349,11 +346,11 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 					};
 				};
 
-				if (typeof options?.override === 'string') {
-					// A specific override was requested. Only return it.
-					const matchingEditor = this.customEditorService.getCustomEditor(options.override);
-					return matchingEditor ? [toOverride(matchingEditor)] : [];
-				}
+				// if (typeof options?.override === 'string') {
+				// 	// A specific override was requested. Only return it.
+				// 	const matchingEditor = this.customEditorService.getCustomEditor(options.override);
+				// 	return matchingEditor ? [toOverride(matchingEditor)] : [];
+				// }
 
 				// Otherwise, return all potential overrides.
 				const customEditors = this.customEditorService.getAllCustomEditors(resource);
@@ -397,7 +394,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			return undefined;
 		}
 
-		if (id) {
+		if (id && this.customEditorService.getAllCustomEditors(resource).allEditors.find(e => e.id === id)) {
 			return {
 				override: this.customEditorService.openWith(resource, id, { ...options, override: EditorOverride.DISABLED }, group)
 			};

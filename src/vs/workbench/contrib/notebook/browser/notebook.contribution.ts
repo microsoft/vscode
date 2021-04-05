@@ -22,7 +22,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor, EditorsAssociations, editorsAssociationsSettingId, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -34,7 +34,6 @@ import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseM
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -235,10 +234,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}));
 
 		this._register(this.extensionContributedEditorService.contributedEditorOverride({
-			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
-
-				const currentEditorsForResource = group && this.editorService.findEditors(resource, group);
-				const currentEditorForResource = currentEditorsForResource && currentEditorsForResource.length ? currentEditorsForResource[0] : undefined;
+			getEditorOverrides: (resource: URI, currentEditor: IEditorInput | undefined) => {
 
 				const associatedEditors = distinct([
 					...this.getUserAssociatedNotebookEditors(resource),
@@ -264,7 +260,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					return {
 						label: info.displayName,
 						id: info.id,
-						active: currentEditorForResource instanceof NotebookEditorInput && currentEditorForResource.viewType === info.id,
+						active: currentEditor instanceof NotebookEditorInput && currentEditor.viewType === info.id,
 						detail: info.providerDisplayName
 					};
 				});
@@ -287,18 +283,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		this._notebookDiffEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_DIFF_EDITOR_ID);
 	}
 
-	getUserAssociatedEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
-
-		return coalesce(rawAssociations
-			.filter(association => CustomEditorInfo.selectorMatches(association, resource)));
-	}
-
 	getUserAssociatedNotebookEditors(resource: URI) {
-		const rawAssociations = this.configurationService.getValue<EditorsAssociations>(editorsAssociationsSettingId) || [];
+		const associationsForResource = this.extensionContributedEditorService.getAssociationsForResource(resource);
 
-		return coalesce(rawAssociations
-			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
+		return coalesce(associationsForResource
 			.map(association => this.notebookService.getContributedNotebookProvider(association.viewType)));
 	}
 
@@ -415,7 +403,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				return undefined;
 			}
 
-			const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
+			const userAssociatedEditors = this.extensionContributedEditorService.getAssociationsForResource(notebookUri);
 			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
 
 			if (userAssociatedEditors.length && !notebookEditor.length) {
@@ -478,7 +466,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
+		const userAssociatedEditors = this.extensionContributedEditorService.getAssociationsForResource(notebookUri);
 		const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
 
 		if (userAssociatedEditors.length && !notebookEditor.length) {
