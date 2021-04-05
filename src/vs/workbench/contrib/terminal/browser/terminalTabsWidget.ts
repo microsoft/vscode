@@ -19,39 +19,6 @@ import * as DOM from 'vs/base/browser/dom';
 
 const $ = DOM.$;
 
-class TerminalTabsDelegate implements IListVirtualDelegate<TerminalTab> {
-	getHeight(element: any): number {
-		return 24;
-	}
-	getTemplateId(element: any): string {
-		return 'terminal.tabs';
-	}
-}
-class TerminalTabsIdentityProvider implements IIdentityProvider<TabTreeNode> {
-	constructor() {
-	}
-	getId(element: TabTreeNode): { toString(): string; } {
-		if ('children' in element) {
-			return element.tab ? element.tab.terminalInstances.length > 1 ? `Terminals (${element.tab.terminalInstances.length})` : element.tab.terminalInstances[0].title : '';
-		} else {
-			return element.instance.title;
-		}
-	}
-
-}
-class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<TabTreeNode> {
-	getAriaLabel(element: TabTreeNode) {
-		if ('children' in element) {
-			return element.tab ? element.tab.terminalInstances.length > 1 ? `Terminals (${element.tab.terminalInstances.length})` : element.tab.terminalInstances[0].title : '';
-		} else {
-			return element.instance.title;
-		}
-	}
-
-	getWidgetAriaLabel() {
-		return localize('terminal.tabs', "TerminalTabs");
-	}
-}
 export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 	constructor(
 		container: HTMLElement,
@@ -84,7 +51,8 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 			accessibilityService,
 		);
 		this.setChildren(null, undefined);
-		this.setChildren(null, createTerminalTabsIterator(terminalService.terminalTabs));
+		const children = createTerminalTabsIterator(terminalService.terminalTabs);
+		this.setChildren(null, children);
 
 		this.onDidChangeSelection(e => {
 			if (e.elements && e.elements[0]) {
@@ -98,31 +66,39 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 	}
 }
 
-function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement<TabTreeNode>> {
-	const result = tabs.map(tab => {
-		const hasChildren = tab.terminalInstances.length > 1;
-		const elt = new TabTreeElement(tab);
-		return {
-			element: elt,
-			collapsed: true,
-			collapsible: hasChildren,
-			children: getChildren(elt)
-		};
-	});
-	return result;
-}
 
-function getChildren(elt: TabTreeElement): Iterable<ITreeElement<TabTreeChild>> | undefined {
-	if (elt.children.length > 1) {
-		return elt.children.map(child => {
-			return {
-				element: child,
-				collapsed: true,
-				collapsible: false
-			};
-		});
+class TerminalTabsDelegate implements IListVirtualDelegate<TerminalTab> {
+	getHeight(element: any): number {
+		return 24;
 	}
-	return undefined;
+	getTemplateId(element: any): string {
+		return 'terminal.tabs';
+	}
+}
+class TerminalTabsIdentityProvider implements IIdentityProvider<TabTreeNode> {
+	constructor() {
+	}
+	getId(element: TabTreeNode): { toString(): string; } {
+		if ('tab' in element) {
+			return element.tab.title;
+		} else {
+			return element.instance.instanceId;
+		}
+	}
+
+}
+class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<TabTreeNode> {
+	getAriaLabel(element: TabTreeNode) {
+		if ('tab' in element) {
+			return element.tab ? element.tab.terminalInstances.length > 1 ? `Terminals (${element.tab.terminalInstances.length})` : element.tab.terminalInstances[0].title : '';
+		} else {
+			return element.instance.title;
+		}
+	}
+
+	getWidgetAriaLabel() {
+		return localize('terminal.tabs', "TerminalTabs");
+	}
 }
 
 class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITerminalTabEntryTemplate> {
@@ -167,11 +143,9 @@ class TabTreeElement {
 	get tab(): ITerminalTab {
 		return this._tab;
 	}
-
 	get children(): TabTreeChild[] {
 		return this._children;
 	}
-
 	set children(newChildren: TabTreeChild[]) {
 		this._children = newChildren;
 	}
@@ -190,4 +164,32 @@ class TabTreeChild {
 	get parent(): ITerminalTab {
 		return this._tab;
 	}
+}
+
+
+function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement<TabTreeNode>> {
+	const result = tabs.map(tab => {
+		const hasChildren = tab.terminalInstances.length > 1;
+		const elt = new TabTreeElement(tab);
+		return {
+			element: elt,
+			collapsed: true,
+			collapsible: hasChildren,
+			children: getChildren(elt)
+		};
+	});
+	return result;
+}
+
+function getChildren(elt: TabTreeElement): Iterable<ITreeElement<TabTreeChild>> | undefined {
+	if (elt.children.length > 1) {
+		return elt.children.map(child => {
+			return {
+				element: child,
+				collapsed: true,
+				collapsible: false
+			};
+		});
+	}
+	return undefined;
 }
