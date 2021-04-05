@@ -36,6 +36,7 @@ import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -47,6 +48,7 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
+	private _tabsWidget: TerminalTabsWidget | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -102,10 +104,13 @@ export class TerminalViewPane extends ViewPane {
 
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
-
+		this._tabsWidget = this.instantiationService.createInstance(TerminalTabsWidget, this._parentDomElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
 		this._parentDomElement.appendChild(this._findWidget.getDomNode());
+
+
+
 
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 

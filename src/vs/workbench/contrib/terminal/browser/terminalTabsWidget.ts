@@ -5,7 +5,7 @@
 
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { ITreeElement, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,6 +16,9 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { ITerminalService, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
+
+
+const $ = DOM.$;
 
 class TerminalTabsDelegate implements IListVirtualDelegate<TerminalTab> {
 	getHeight(element: any): number {
@@ -46,7 +49,6 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<Te
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalTab>  {
 	constructor(
 		container: HTMLElement,
-		renderers: ITreeRenderer<any, void, any>[],
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -57,7 +59,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalTab>  {
 	) {
 		super('TerminalTabsTree', container,
 			new TerminalTabsDelegate(),
-			renderers,
+			[new TerminalTabsRenderer()],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
@@ -91,3 +93,30 @@ function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement
 		};
 	});
 }
+
+class TerminalTabsRenderer implements ITreeRenderer<ITerminalTab, never, ITerminalTabEntryTemplate> {
+
+	templateId = 'terminal.tab';
+
+	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
+		return {
+			labelElement: DOM.append(container, $('.terminal-tabs-entry')),
+		};
+	}
+
+	renderElement(node: ITreeNode<ITerminalTab>, index: number, template: ITerminalTabEntryTemplate): void {
+		const element = node.element;
+		const label = element ? element?.terminalInstances.length > 1 ? `Terminals (${element?.terminalInstances.length})` : element?.terminalInstances[0].title : '';
+
+		template.labelElement.textContent = label;
+		template.labelElement.title = label;
+	}
+
+	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
+	}
+}
+
+interface ITerminalTabEntryTemplate {
+	labelElement: HTMLElement;
+}
+
