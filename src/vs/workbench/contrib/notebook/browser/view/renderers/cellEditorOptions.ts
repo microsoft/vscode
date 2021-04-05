@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class CellEditorOptions {
 
@@ -178,7 +178,11 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 				id: MenuId.NotebookCellTitle,
 				group: 'LineNumber',
 				order: 1
-			}]
+			}],
+			toggled: ContextKeyExpr.or(
+				ContextKeyExpr.equals('notebook.cellLineNumbers', 'on'),
+				ContextKeyExpr.and(ContextKeyExpr.equals('notebook.cellLineNumbers', 'inherit'), ContextKeyExpr.equals('config.notebook.lineNumbers', 'on'))
+			)
 		});
 	}
 
