@@ -11,11 +11,12 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_BOTTOM_PADDING, EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR } from 'vs/workbench/contrib/notebook/browser/constants';
-import { EditorTopPaddingChangeEvent, getEditorTopPadding, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EditorTopPaddingChangeEvent, getEditorTopPadding, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class CellEditorOptions {
 
@@ -136,6 +137,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 		super({
 			id: 'notebook.toggleLineNumbers',
 			title: 'Toggle Notebook Line Numbers',
+			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'LineNumber',
@@ -162,8 +164,9 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 	constructor() {
 		super({
-			id: 'notebook.toggleActiveCellLineNumbers',
+			id: 'notebook.cell.toggleLineNumbers',
 			title: 'Toggle Cell Line Numbers',
+			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'LineNumber',
@@ -173,10 +176,20 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: { cell: ICellViewModel; }): Promise<void> {
-		if (context && context.cell) {
+		let cell = context?.cell;
+		if (!cell) {
+			const editor = getNotebookEditorFromEditorPane(accessor.get(IEditorService).activeEditorPane);
+			if (!editor || !editor.hasModel()) {
+				return;
+			}
+
+			cell = editor.getActiveCell();
+		}
+
+		if (cell) {
 			const configurationService = accessor.get(IConfigurationService);
 			const renderLineNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-			const cellLineNumbers = context.cell.lineNumbers;
+			const cellLineNumbers = cell.lineNumbers;
 			// 'on', 'inherit' 	-> 'on'
 			// 'on', 'off'		-> 'off'
 			// 'on', 'on'		-> 'on'
@@ -186,9 +199,9 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 			const currentLineNumberIsOn = cellLineNumbers === 'on' || (cellLineNumbers === 'inherit' && renderLineNumbers);
 
 			if (currentLineNumberIsOn) {
-				context.cell.lineNumbers = 'off';
+				cell.lineNumbers = 'off';
 			} else {
-				context.cell.lineNumbers = 'on';
+				cell.lineNumbers = 'on';
 			}
 		}
 	}
