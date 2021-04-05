@@ -1180,9 +1180,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 				return [undefined, undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
 		}
-		if (this.currentTask.shellLaunchConfig) {
-			this.currentTask.shellLaunchConfig.icon = 'window';
-		}
 
 		let prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		let allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
