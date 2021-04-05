@@ -1517,7 +1517,13 @@ export function registerTerminalActions() {
 				if (launchConfig) {
 					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
 					if (workspaceShellAllowed) {
-						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args, name: launchConfig.overrideName ? launchConfig.profileName : undefined });
+						// TODO: Share profile launch with that in terminalService
+						const instance = terminalService.createTerminal({
+							executable: launchConfig.path,
+							args: launchConfig.args,
+							iconId: launchConfig.icon,
+							name: launchConfig.overrideName ? launchConfig.profileName : undefined
+						});
 						terminalService.setActiveInstance(instance);
 					}
 				} else {

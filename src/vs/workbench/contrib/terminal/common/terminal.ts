@@ -238,6 +238,7 @@ export interface ITerminalProfile {
 	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
 	overrideName?: boolean;
+	icon?: string;
 }
 
 export const enum ProfileSource {

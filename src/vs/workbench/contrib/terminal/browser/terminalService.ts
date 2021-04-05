@@ -896,7 +896,13 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		if (type === 'createInstance') {
-			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
+			const launchConfig: IShellLaunchConfig = {
+				executable: value.profile.path,
+				args: value.profile.args,
+				iconId: value.profile.icon,
+				name: value.profile.overrideName ? value.profile.profileName : undefined
+			};
+
 			let instance;
 			const activeInstance = this.getActiveInstance();
 			if (keyMods?.alt && activeInstance) {
