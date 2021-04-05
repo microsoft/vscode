@@ -109,6 +109,12 @@ export interface ITerminalService {
 	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
+	 * Creates a terminal.
+	 * @param profile The profile to launch the terminal with.
+	 */
+	createTerminal(profile: ITerminalProfile): ITerminalInstance;
+
+	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
@@ -120,6 +126,7 @@ export interface ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
+	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does

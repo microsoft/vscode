@@ -229,7 +229,6 @@ async function detectAvailableUnixProfiles(fsProvider: IFsProvider, logService?:
 	// Add non-quick launch profiles
 	if (!configuredProfilesOnly) {
 		const contents = await fsProvider.readFile('/etc/shells', 'utf8');
-		console.log('contents:' + contents);
 		const profiles = testPaths || contents.split('\n').filter(e => e.trim().indexOf('#') !== 0 && e.trim().length > 0);
 		const counts: Map<string, number> = new Map();
 		for (const profile of profiles) {

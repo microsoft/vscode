@@ -1513,17 +1513,11 @@ export function registerTerminalActions() {
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
 			if (quickSelectProfiles) {
-				const launchConfig = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
-				if (launchConfig) {
-					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
+				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
+				if (profile) {
+					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, profile);
 					if (workspaceShellAllowed) {
-						// TODO: Share profile launch with that in terminalService
-						const instance = terminalService.createTerminal({
-							executable: launchConfig.path,
-							args: launchConfig.args,
-							icon: launchConfig.icon,
-							name: launchConfig.overrideName ? launchConfig.profileName : undefined
-						});
+						const instance = terminalService.createTerminal(profile);
 						terminalService.setActiveInstance(instance);
 					}
 				} else {

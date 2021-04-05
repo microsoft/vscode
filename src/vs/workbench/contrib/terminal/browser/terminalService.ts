@@ -650,13 +650,15 @@ export class TerminalService implements ITerminalService {
 		this.setActiveTabByIndex(newIndex);
 	}
 
-	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance | null {
+	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
+	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null
+	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}): ITerminalInstance | null {
 		const tab = this._getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return null;
 		}
 
-		const instance = tab.split(shellLaunchConfig);
+		const instance = tab.split(this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile));
 
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
@@ -919,22 +921,16 @@ export class TerminalService implements ITerminalService {
 			if ('command' in value.profile) {
 				return this._commandService.executeCommand(value.profile.command);
 			}
-			const launchConfig: IShellLaunchConfig = {
-				executable: value.profile.path,
-				args: value.profile.args,
-				icon: value.profile.icon,
-				name: value.profile.overrideName ? value.profile.profileName : undefined
-			};
 
 			let instance;
 			const activeInstance = this.getActiveInstance();
 			if (keyMods?.alt && activeInstance) {
 				// create split, only valid if there's an active instance
 				if (activeInstance) {
-					instance = this.splitInstance(activeInstance, launchConfig);
+					instance = this.splitInstance(activeInstance, value.profile);
 				}
 			} else {
-				instance = this.createTerminal(launchConfig);
+				instance = this.createTerminal(value.profile);
 			}
 			if (instance) {
 				this.showPanel(true);
@@ -985,18 +981,35 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		if (!shell.isExtensionCustomPtyTerminal && !this.isProcessSupportRegistered) {
+	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
+		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
+			const profile = shellLaunchConfigOrProfile;
+			return {
+				executable: profile.path,
+				args: profile.args,
+				icon: profile.icon,
+				name: profile.overrideName ? profile.profileName : undefined
+			};
+		}
+		return shellLaunchConfigOrProfile || {};
+	}
+
+	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	public createTerminal(profile: ITerminalProfile): ITerminalInstance;
+	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile): ITerminalInstance {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+
+		if (!shellLaunchConfig.isExtensionCustomPtyTerminal && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
-		if (shell.hideFromUser) {
-			const instance = this.createInstance(undefined, shell);
+		if (shellLaunchConfig.hideFromUser) {
+			const instance = this.createInstance(undefined, shellLaunchConfig);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
 		}
 
-		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
+		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shellLaunchConfig);
 		this._terminalTabs.push(terminalTab);
 
 		const instance = terminalTab.terminalInstances[0];
