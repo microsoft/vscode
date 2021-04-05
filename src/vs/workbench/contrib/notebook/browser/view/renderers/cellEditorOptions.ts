@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class CellEditorOptions {
 
@@ -163,26 +163,22 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
-		id: "notebook.toggleLineNumbers",
+		id: 'notebook.toggleLineNumbers',
 		title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' }
 	}
-})
+});
 
 registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.cell.toggleLineNumbers',
-			title: 'Show Cell Line Numbers',
+			title: 'Toggle Cell Line Numbers',
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'LineNumber',
 				order: 1
-			}],
-			toggled: ContextKeyExpr.or(
-				ContextKeyExpr.equals('notebook.cellLineNumbers', 'on'),
-				ContextKeyExpr.and(ContextKeyExpr.equals('notebook.cellLineNumbers', 'inherit'), ContextKeyExpr.equals('config.notebook.lineNumbers', 'on'))
-			)
+			}]
 		});
 	}
 
