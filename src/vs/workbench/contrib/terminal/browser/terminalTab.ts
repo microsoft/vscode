@@ -414,7 +414,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	private _titleWithConnectionStatus(instance: ITerminalInstance): string {
-		return instance.isDisconnected ? localize('ptyDisconnected', "{0} (disconnected)", instance.title) : `${instance.title} [${instance.icon.id}]`;
+		return instance.isDisconnected ? localize('ptyDisconnected', "{0} (disconnected)", instance.title) : instance.title;
 	}
 
 	public setVisible(visible: boolean): void {
