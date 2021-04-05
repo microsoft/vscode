@@ -586,6 +586,7 @@ export interface ITerminalContributions {
 export interface ITerminalTypeContribution {
 	title: string;
 	command: string;
+	icon?: string;
 }
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
@@ -608,6 +609,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						},
 						title: {
 							description: nls.localize('vscode.extension.contributes.terminal.types.title', "Title for this type of terminal."),
+							type: 'string',
+						},
+						icon: {
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
 							type: 'string',
 						},
 					},

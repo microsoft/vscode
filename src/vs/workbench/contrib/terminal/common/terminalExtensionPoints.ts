@@ -30,7 +30,18 @@ export class TerminalContributionService implements ITerminalContributionService
 
 	constructor() {
 		terminalsExtPoint.setHandler(contributions => {
-			this._terminalTypes = flatten(contributions.filter(c => c.description.enableProposedApi).map(c => c.value?.types ?? []));
+			this._terminalTypes = flatten(contributions.filter(c => c.description.enableProposedApi).map(c => {
+				if (!c.value) {
+					return [];
+				}
+				return c.value.types?.map(e => {
+					// TODO: Remove this when adopted by js-debug
+					if (!e.icon) {
+						e.icon = 'debug';
+					}
+					return e;
+				}) || [];
+			}));
 		});
 	}
 }
