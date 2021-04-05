@@ -7,7 +7,12 @@ import { Emitter, Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 
 export interface ITerminalStatus {
+	/** An internal string ID used to identify the status. */
 	id: string;
+	/**
+	 * The severity of the status, this defines both the color and how likely the status is to be
+	 * the "primary status".
+	 */
 	severity: Severity;
 }
 
@@ -20,6 +25,11 @@ export interface ITerminalStatusList {
 	readonly onDidAddStatus: Event<ITerminalStatus>;
 	readonly onDidRemoveStatus: Event<ITerminalStatus>;
 
+	/**
+	 * Adds a status to the list.
+	 * @param duration An optional duration of the status, when specified the status will remove
+	 * itself when the duration elapses unless the status gets re-added.
+	 */
 	add(status: ITerminalStatus, duration?: number): void;
 	remove(status: ITerminalStatus): void;
 	remove(statusId: string): void;
@@ -48,7 +58,11 @@ export class TerminalStatusList implements ITerminalStatusList {
 	get statuses(): ITerminalStatus[] { return Array.from(this._statuses.values()); }
 
 	add(status: ITerminalStatus, duration?: number) {
-		this._statusTimeouts.delete(status.id);
+		const outTimeout = this._statusTimeouts.get(status.id);
+		if (outTimeout) {
+			window.clearTimeout(outTimeout);
+			this._statusTimeouts.delete(status.id);
+		}
 		if (duration && duration > 0) {
 			const timeout = window.setTimeout(() => this.remove(status), duration);
 			this._statusTimeouts.set(status.id, timeout);
