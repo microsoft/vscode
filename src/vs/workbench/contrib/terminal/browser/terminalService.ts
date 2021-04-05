@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalExecutable, ITerminalProfileSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalExecutable, ITerminalProfileSource, ITerminalTypeContribution } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -34,6 +34,9 @@ import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workben
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { equals } from 'vs/base/common/objects';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IExtHostReadyEntry {
 	promise: Promise<void>;
@@ -126,6 +129,8 @@ export class TerminalService implements ITerminalService {
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -644,13 +649,15 @@ export class TerminalService implements ITerminalService {
 		this.setActiveTabByIndex(newIndex);
 	}
 
-	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance | null {
+	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
+	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null
+	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}): ITerminalInstance | null {
 		const tab = this._getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return null;
 		}
 
-		const instance = tab.split(shellLaunchConfig);
+		const instance = tab.split(this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile));
 
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
@@ -851,6 +858,9 @@ export class TerminalService implements ITerminalService {
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
 			onDidTriggerItemButton: async (context) => {
+				if ('command' in context.item.profile) {
+					return;
+				}
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(configKey);
 				const existingProfiles = configProfiles.userValue ? Object.keys(configProfiles.userValue) : [];
@@ -885,7 +895,18 @@ export class TerminalService implements ITerminalService {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
 			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e)));
 		}
-		if (configProfiles.length > 0) {
+		// Add contributed profiles, these cannot be defaults
+		if (type === 'createInstance') {
+			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.contributed', "contributed") });
+			for (const contributed of this._terminalContributionService.terminalTypes) {
+				const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
+				quickPickItems.push({
+					label: `$(${icon.id}) ${contributed.title}`,
+					profile: contributed
+				});
+			}
+		}
+		if (autoDetectedProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
 			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)));
 		}
@@ -895,23 +916,29 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		if (type === 'createInstance') {
-			const launchConfig = { executable: value.profile.path, args: value.profile.args, name: value.profile.overrideName ? value.profile.profileName : undefined };
+			// TODO: How to support alt here?
+			if ('command' in value.profile) {
+				return this._commandService.executeCommand(value.profile.command);
+			}
+
 			let instance;
 			const activeInstance = this.getActiveInstance();
 			if (keyMods?.alt && activeInstance) {
 				// create split, only valid if there's an active instance
 				if (activeInstance) {
-					instance = this.splitInstance(activeInstance, launchConfig);
+					instance = this.splitInstance(activeInstance, value.profile);
 				}
 			} else {
-				instance = this.createTerminal(launchConfig);
+				instance = this.createTerminal(value.profile);
 			}
 			if (instance) {
 				this.showPanel(true);
 				this.setActiveInstance(instance);
 			}
-		} else {
-			// setDefault
+		} else { // setDefault
+			if ('command' in value.profile) {
+				return; // Should never happen
+			}
 			await this._configurationService.updateValue(`terminal.integrated.shell.${platformKey}`, value.profile.path, ConfigurationTarget.USER);
 			await this._configurationService.updateValue(`terminal.integrated.shellArgs.${platformKey}`, value.profile.args, ConfigurationTarget.USER);
 		}
@@ -922,9 +949,11 @@ export class TerminalService implements ITerminalService {
 			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
 			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
 		}];
+		const icon = profile.icon ? (iconRegistry.get(profile.icon) || Codicon.terminal) : Codicon.terminal;
+		const label = `$(${icon.id}) ${profile.profileName}`;
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
-				return { label: profile.profileName, description: `${profile.path} ${profile.args}`, profile, buttons };
+				return { label, description: `${profile.path} ${profile.args}`, profile, buttons };
 			}
 			const argsString = profile.args.map(e => {
 				if (e.includes(' ')) {
@@ -932,9 +961,9 @@ export class TerminalService implements ITerminalService {
 				}
 				return e;
 			}).join(' ');
-			return { label: profile.profileName, description: `${profile.path} ${argsString}`, profile, buttons };
+			return { label, description: `${profile.path} ${argsString}`, profile, buttons };
 		}
-		return { label: profile.profileName, description: profile.path, profile, buttons };
+		return { label, description: profile.path, profile, buttons };
 	}
 
 	public createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
@@ -950,18 +979,35 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
-		if (!shell.isExtensionCustomPtyTerminal && !this.isProcessSupportRegistered) {
+	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
+		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
+			const profile = shellLaunchConfigOrProfile;
+			return {
+				executable: profile.path,
+				args: profile.args,
+				icon: profile.icon,
+				name: profile.overrideName ? profile.profileName : undefined
+			};
+		}
+		return shellLaunchConfigOrProfile || {};
+	}
+
+	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	public createTerminal(profile: ITerminalProfile): ITerminalInstance;
+	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile): ITerminalInstance {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+
+		if (!shellLaunchConfig.isExtensionCustomPtyTerminal && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
-		if (shell.hideFromUser) {
-			const instance = this.createInstance(undefined, shell);
+		if (shellLaunchConfig.hideFromUser) {
+			const instance = this.createInstance(undefined, shellLaunchConfig);
 			this._backgroundedTerminalInstances.push(instance);
 			this._initInstanceListeners(instance);
 			return instance;
 		}
 
-		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shell);
+		const terminalTab = this._instantiationService.createInstance(TerminalTab, this._terminalContainer, shellLaunchConfig);
 		this._terminalTabs.push(terminalTab);
 
 		const instance = terminalTab.terminalInstances[0];
@@ -1042,5 +1088,5 @@ export class TerminalService implements ITerminalService {
 }
 
 interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile;
+	profile: ITerminalProfile | ITerminalTypeContribution;
 }

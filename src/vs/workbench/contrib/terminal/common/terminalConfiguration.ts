@@ -31,6 +31,10 @@ const terminalProfileSchema: IJSONSchema = {
 		overrideName: {
 			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
 			type: 'boolean'
+		},
+		icon: {
+			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
+			type: 'string'
 		}
 	}
 };
@@ -143,6 +147,10 @@ export const terminalConfiguration: IConfigurationNode = {
 							overrideName: {
 								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
 								type: 'boolean'
+							},
+							icon: {
+								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
+								type: 'string'
 							}
 						}
 					},
