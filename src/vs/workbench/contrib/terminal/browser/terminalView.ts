@@ -36,7 +36,7 @@ import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
+import { TabsView } from 'vs/workbench/contrib/terminal/browser/tabsView';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -48,7 +48,7 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
-	private _tabsWidgetContainer: HTMLElement | undefined;
+	private _tabsView: TabsView | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -115,19 +115,8 @@ export class TerminalViewPane extends ViewPane {
 			this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 			this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 		}
-
-		if ((!this._terminalService.configHelper.config.showTabs && this._tabsWidgetContainer) || this._tabsWidgetContainer) {
-			this._terminalContainer.removeChild(this._tabsWidgetContainer);
-			this._tabsWidgetContainer = undefined;
-		}
-
-		if (this._terminalService.configHelper.config.showTabs) {
-			this._tabsWidgetContainer = dom.append(this._terminalContainer, dom.$('.tabs-widget-container'));
-			dom.append(this._tabsWidgetContainer, dom.$('.tabs-widget-wrapper', {
-				'role': 'navigation',
-				'aria-label': nls.localize('terminal-tabs-widget', "Terminal Tabs"),
-			}));
-			this.instantiationService.createInstance(TerminalTabsWidget, this._tabsWidgetContainer);
+		if (!this._tabsView && this._terminalService.configHelper.config.showTabs) {
+			this._tabsView = this.instantiationService.createInstance(TabsView, 'terminal', this._terminalContainer);
 		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
@@ -192,7 +181,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
-		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
+		this._tabsView?.layout(width, height);
 	}
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
