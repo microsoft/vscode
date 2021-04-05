@@ -11,7 +11,7 @@ function statusesEqual(list: TerminalStatusList, expected: [string, Severity][])
 	deepStrictEqual(list.statuses.map(e => [e.id, e.severity]), expected);
 }
 
-suite.only('Workbench - TerminalStatusList', () => {
+suite('Workbench - TerminalStatusList', () => {
 	let list: TerminalStatusList;
 
 	setup(() => {
