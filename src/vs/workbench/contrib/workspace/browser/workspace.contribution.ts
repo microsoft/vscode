@@ -203,7 +203,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(async e => {
 			const trustState = this.workspaceTrustService.getWorkspaceTrustState();
 
-			if (trustState === WorkspaceTrustState.Trusted) {
+			if (trustState === WorkspaceTrustState.Trusted && e.added.length > 0) {
 				const addedFoldersTrustStateInfo = e.added.map(folder => this.workspaceTrustService.getFolderTrustStateInfo(folder.uri));
 				if (!addedFoldersTrustStateInfo.map(i => i.trustState).every(trustState => trustState === WorkspaceTrustState.Trusted)) {
 					// Adding untrusted/unspecified content to a trusted workspace
