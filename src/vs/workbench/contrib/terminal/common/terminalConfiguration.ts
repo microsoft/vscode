@@ -222,6 +222,11 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		'terminal.integrated.showTabs': {
+			description: localize('terminal.integrated.showTabs', 'Controls whether or not the terminal tabs widget is shown'),
+			type: 'boolean',
+			default: false
+		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',

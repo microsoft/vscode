@@ -115,16 +115,20 @@ export class TerminalViewPane extends ViewPane {
 			this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 			this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 		}
-		if (this._tabsWidgetContainer) {
-			this._terminalContainer.removeChild(this._tabsWidgetContainer);
-		}
-		this._tabsWidgetContainer = dom.append(this._terminalContainer, dom.$('.tabs-widget-container'));
-		dom.append(this._tabsWidgetContainer, dom.$('.tabs-widget-wrapper', {
-			'role': 'navigation',
-			'aria-label': nls.localize('terminal-tabs-widget', "Terminal Tabs"),
-		}));
 
-		this.instantiationService.createInstance(TerminalTabsWidget, this._tabsWidgetContainer);
+		if ((!this._terminalService.configHelper.config.showTabs && this._tabsWidgetContainer) || this._tabsWidgetContainer) {
+			this._terminalContainer.removeChild(this._tabsWidgetContainer);
+			this._tabsWidgetContainer = undefined;
+		}
+
+		if (this._terminalService.configHelper.config.showTabs) {
+			this._tabsWidgetContainer = dom.append(this._terminalContainer, dom.$('.tabs-widget-container'));
+			dom.append(this._tabsWidgetContainer, dom.$('.tabs-widget-wrapper', {
+				'role': 'navigation',
+				'aria-label': nls.localize('terminal-tabs-widget', "Terminal Tabs"),
+			}));
+			this.instantiationService.createInstance(TerminalTabsWidget, this._tabsWidgetContainer);
+		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);

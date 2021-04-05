@@ -156,13 +156,16 @@ export class TerminalService implements ITerminalService {
 				e.affectsConfiguration('terminal.integrated.profiles.linux') ||
 				e.affectsConfiguration('terminal.integrated.useWslProfiles')) {
 				this._updateAvailableProfilesNow();
+			} else if (e.affectsConfiguration('terminal.integrated.showTabs')) {
+				const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+				pane?.renderBody();
 			}
 		});
 
 		this.onInstancesChanged(() => {
-			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-			if (pane) {
-				pane.renderBody();
+			if (this._configHelper.config.showTabs) {
+				const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+				pane?.renderBody();
 			}
 		});
 
