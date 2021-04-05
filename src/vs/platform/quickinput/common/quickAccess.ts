@@ -9,6 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
+import 'vs/platform/keybinding/common/keybindingLabel';
 
 export interface IQuickAccessOptions {
 
