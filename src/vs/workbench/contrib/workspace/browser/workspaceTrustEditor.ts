@@ -391,14 +391,31 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private onDidChangeSetting(change: IWorkspaceTrustSettingChangeEvent) {
+		const applyChangesWithPrompt = async (showPrompt: boolean, applyChanges: () => void) => {
+			if (showPrompt) {
+				const message = localize('workspaceTrustSettingModificationMessage', "Update Workspace Trust Settings");
+				const detail = localize('workspaceTrustTransitionDetail', "In order to safely complete this action, all affected windows will have to be reloaded. Are you sure you want to proceed with this action?");
+				const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
+				const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
+
+				const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
+				if (!result.confirmed) {
+					return;
+				}
+			}
+
+			applyChanges();
+		};
+
+
 		if (this.workspaceTrustEditorModel) {
 			if (isArray(change.value)) {
 				if (change.key === 'trustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value);
+					applyChangesWithPrompt(change.type === 'changed' || change.type === 'removed', () => this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value!));
 				}
 
 				if (change.key === 'untrustedFolders') {
-					this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value);
+					applyChangesWithPrompt(change.type === 'changed' || change.type === 'added', () => this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value!));
 				}
 			}
 		}
