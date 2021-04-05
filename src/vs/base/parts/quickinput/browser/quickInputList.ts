@@ -25,8 +25,9 @@ import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { IKeybindingLabelStyles, KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { localize } from 'vs/nls';
+import { IThemable } from 'vs/base/common/styler';
 
 const $ = dom.$;
 
@@ -95,9 +96,10 @@ interface IListElementTemplateData {
 	toDisposeTemplate: IDisposable[];
 }
 
-class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData> {
-
+class ListElementRenderer implements IListRenderer<ListElement, IListElementTemplateData>, IThemable {
 	static readonly ID = 'listelement';
+
+	private keybindingStyles: IKeybindingLabelStyles | undefined;
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -133,7 +135,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Keybinding
 		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
-		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS);
+		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS, this.keybindingStyles);
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
@@ -215,6 +217,11 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.toDisposeTemplate = dispose(data.toDisposeTemplate);
 	}
+
+	style(styles: IKeybindingLabelStyles): void {
+		this.keybindingStyles = styles;
+		// How do we update the existing Keys?
+	}
 }
 
 class ListElementDelegate implements IListVirtualDelegate<ListElement> {
@@ -268,6 +275,7 @@ export class QuickInputList {
 	private _fireCheckedEvents = true;
 	private elementDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
+	private _listElementRenderer = new ListElementRenderer();
 
 	constructor(
 		private parent: HTMLElement,
@@ -278,7 +286,7 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
+		this.list = options.createList('QuickInput', this.container, delegate, [this._listElementRenderer], {
 			identityProvider: { getId: element => element.saneLabel },
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
@@ -687,7 +695,8 @@ export class QuickInputList {
 		this._onButtonTriggered.fire(event);
 	}
 
-	style(styles: IListStyles) {
+	style(styles: IListStyles & IKeybindingLabelStyles) {
+		this._listElementRenderer.style(styles);
 		this.list.style(styles);
 	}
 }

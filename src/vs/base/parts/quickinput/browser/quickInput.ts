@@ -32,6 +32,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { isString } from 'vs/base/common/types';
+import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -57,7 +58,7 @@ export interface IQuickInputStyles {
 	countBadge: ICountBadgetyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
-	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+	list: IListStyles & IKeybindingLabelStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
 }
 
 export interface IQuickInputWidgetStyles {

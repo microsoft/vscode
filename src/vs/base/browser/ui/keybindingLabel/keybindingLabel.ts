@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./keybindingLabel';
-import { equals } from 'vs/base/common/objects';
+import { equals, mixin } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
+import { IThemable } from 'vs/base/common/styler';
+import { Color, RGBA } from 'vs/base/common/color';
 
 const $ = dom.$;
 
@@ -26,18 +28,36 @@ export interface Matches {
 	chordPart: PartMatches;
 }
 
-export interface KeybindingLabelOptions {
-	renderUnboundKeybindings: boolean;
+export interface KeybindingLabelOptions extends IKeybindingLabelStyles {
+	renderUnboundKeybindings?: boolean;
 }
 
-export class KeybindingLabel {
+export interface IKeybindingLabelStyles {
+	keybindingLabelBackground?: Color;
+	keybindingLabelForeground?: Color;
+}
+
+const defaultOpts = {
+	keybindingLabelBackground: new Color(new RGBA(221, 221, 221, 0.4)),
+	keybindingLabelForeground: Color.fromHex('#555555')
+};
+
+export class KeybindingLabel implements IThemable {
 
 	private domNode: HTMLElement;
 	private keybinding: ResolvedKeybinding | undefined;
 	private matches: Matches | undefined;
 	private didEverRender: boolean;
 
+	private labelBackground: Color | undefined;
+	private labelForeground: Color | undefined;
+
 	constructor(container: HTMLElement, private os: OperatingSystem, private options?: KeybindingLabelOptions) {
+		this.options = options || {};
+		mixin(this.options, defaultOpts, false);
+		this.labelBackground = this.options.keybindingLabelBackground;
+		this.labelForeground = this.options.keybindingLabelForeground;
+
 		this.domNode = dom.append(container, $('.monaco-keybinding'));
 		this.didEverRender = false;
 		container.appendChild(this.domNode);
@@ -74,6 +94,8 @@ export class KeybindingLabel {
 			this.renderUnbound(this.domNode);
 		}
 
+		this.applyStyles();
+
 		this.didEverRender = true;
 	}
 
@@ -106,6 +128,28 @@ export class KeybindingLabel {
 
 	private renderUnbound(parent: HTMLElement): void {
 		dom.append(parent, $('span.monaco-keybinding-key', undefined, localize('unbound', "Unbound")));
+	}
+
+	style(styles: IKeybindingLabelStyles) {
+		this.labelBackground = styles.keybindingLabelBackground;
+		this.labelForeground = styles.keybindingLabelForeground;
+
+		this.applyStyles();
+	}
+
+	private applyStyles() {
+		if (this.element) {
+			const background = this.labelBackground
+				? this.labelBackground.toString()
+				: defaultOpts.keybindingLabelBackground.toString();
+			const foreground = this.labelForeground
+				? this.labelForeground.toString()
+				: defaultOpts.keybindingLabelForeground.toString();
+
+			this.element.querySelectorAll('.monaco-keybinding-key').forEach(e =>
+				(e as HTMLSpanElement).style.backgroundColor = background);
+			this.element.style.color = foreground;
+		}
 	}
 
 	private static areSame(a: Matches | undefined, b: Matches | undefined): boolean {
