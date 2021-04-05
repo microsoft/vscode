@@ -28,7 +28,7 @@ export class TabsView {
 	}
 
 	public layout(width: number, height: number): void {
-		this._splitView?.layout(width);
-		this._terminalService.terminalTabs.forEach(t => t.layout(width - 20, height));
+		this._splitView?.layout(100);
+		this._terminalService.terminalTabs.forEach(t => t.layout(width - 100, height));
 	}
 }
