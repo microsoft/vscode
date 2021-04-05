@@ -36,7 +36,7 @@ export class TerminalContributionService implements ITerminalContributionService
 				}
 				return c.value.types?.map(e => {
 					// TODO: Remove this when adopted by js-debug
-					if (!e.icon) {
+					if (c.description.identifier.value === 'ms-vscode.js-debug') {
 						e.icon = 'debug';
 					}
 					return e;
