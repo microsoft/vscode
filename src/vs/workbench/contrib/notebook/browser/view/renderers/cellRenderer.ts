@@ -460,17 +460,16 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel.notebookDocument!, element));
 
-		const cellEditorOptions = new CellEditorOptions(this.configurationService, 'markdown');
-		elementDisposables.add(cellEditorOptions);
-		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
-
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {
 			this.updateForLayout(element, templateData);
 		}));
 
 		this.updateForHover(element, templateData);
+		const cellEditorOptions = new CellEditorOptions(this.configurationService, 'markdown');
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
+		elementDisposables.add(cellEditorOptions);
+
 		elementDisposables.add(element.onDidChangeState(e => {
 			if (e.cellIsHoveredChanged) {
 				this.updateForHover(element, templateData);
@@ -502,6 +501,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
 		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors, { useRenderer: templateData.useRenderer });
 		elementDisposables.add(markdownCell);
+		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
 
 		templateData.statusBar.update(toolbarContext);
 	}
