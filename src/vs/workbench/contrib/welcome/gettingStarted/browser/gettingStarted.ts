@@ -39,6 +39,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -93,6 +94,7 @@ export class GettingStartedPage extends EditorPane {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private storageService: IStorageService,
+		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -201,90 +203,93 @@ export class GettingStartedPage extends EditorPane {
 
 					this.commandService.executeCommand('workbench.action.keepEditor');
 					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
-
-					switch (command) {
-						case 'scrollPrev': {
-							this.scrollPrev();
-							break;
-						}
-						case 'skip': {
-							this.runSkip();
-							break;
-						}
-						case 'showMoreRecents': {
-							this.commandService.executeCommand('workbench.action.openRecent');
-							break;
-						}
-						case 'configureVisibility': {
-							this.commandService.executeCommand('workbench.action.openSettings', hiddenEntriesConfigurationKey);
-							break;
-						}
-						case 'openFolder': {
-							this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
-							break;
-						}
-						case 'selectCategory': {
-							const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
-							if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-							if (selectedCategory.content.type === 'startEntry') {
-								this.commandService.executeCommand(selectedCategory.content.command);
-							} else {
-								this.scrollToCategory(argument);
+					(async () => {
+						switch (command) {
+							case 'scrollPrev': {
+								this.scrollPrev();
+								break;
 							}
-							break;
-						}
-						case 'hideCategory': {
-							const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
-							if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-							this.configurationService.updateValue(hiddenEntriesConfigurationKey,
-								[...(this.configurationService.getValue<string[]>(hiddenEntriesConfigurationKey) ?? []), argument]);
-							element.parentElement?.remove();
-							break;
-						}
-						case 'selectTask': {
-							this.selectTask(argument);
-							break;
-						}
-						case 'toggleTaskCompletion': {
-							if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
-								throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
+							case 'skip': {
+								this.runSkip();
+								break;
 							}
-
-							const taskToggle = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
-							if (taskToggle.done) {
-								this.gettingStartedService.deprogressTask(argument);
-							} else {
-								this.gettingStartedService.progressTask(argument);
+							case 'showMoreRecents': {
+								this.commandService.executeCommand('workbench.action.openRecent');
+								break;
 							}
-							break;
-						}
-						case 'runTaskAction': {
-							if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
-								throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
+							case 'configureVisibility': {
+								this.commandService.executeCommand('workbench.action.openSettings', hiddenEntriesConfigurationKey);
+								break;
 							}
-							const taskToRun = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
-							if (taskToRun.button.command) {
-								if (taskToRun.button.sideBySide) {
-									// todo: Only split when current layout is 1-column
-									this.commandService.executeCommand('workbench.action.editorLayoutTwoColumns')
-										.then(() => this.commandService.executeCommand('workbench.action.focusNextGroup'))
-										.then(() => this.commandService.executeCommand(taskToRun.button.command));
+							case 'openFolder': {
+								this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+								break;
+							}
+							case 'selectCategory': {
+								const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
+								if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
+								if (selectedCategory.content.type === 'startEntry') {
+									this.commandService.executeCommand(selectedCategory.content.command);
 								} else {
-									this.commandService.executeCommand(taskToRun.button.command);
+									this.scrollToCategory(argument);
 								}
-							} else if (taskToRun.button.link) {
-								this.openerService.open(taskToRun.button.link);
-								this.gettingStartedService.progressByEvent('linkOpened:' + taskToRun.button.link);
-							} else {
-								throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
+								break;
 							}
-							break;
+							case 'hideCategory': {
+								const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
+								if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
+								this.configurationService.updateValue(hiddenEntriesConfigurationKey,
+									[...(this.configurationService.getValue<string[]>(hiddenEntriesConfigurationKey) ?? []), argument]);
+								element.parentElement?.remove();
+								break;
+							}
+							case 'selectTask': {
+								this.selectTask(argument);
+								break;
+							}
+							case 'toggleTaskCompletion': {
+								if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
+									throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
+								}
+
+								const taskToggle = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
+								if (taskToggle.done) {
+									this.gettingStartedService.deprogressTask(argument);
+								} else {
+									this.gettingStartedService.progressTask(argument);
+								}
+								break;
+							}
+							case 'runTaskAction': {
+								if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
+									throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
+								}
+								const taskToRun = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
+								const command = taskToRun.button.command;
+								if (command) {
+									if (taskToRun.button.command && taskToRun.button.sideBySide) {
+										if (this.groupsService.count === 1) {
+											await this.commandService.executeCommand('workbench.action.editorLayoutTwoColumns');
+										}
+										await this.commandService.executeCommand('workbench.action.focusNextGroup');
+										await this.commandService.executeCommand(command);
+									} else {
+										await this.commandService.executeCommand(command);
+									}
+								} else if (taskToRun.button.link) {
+									this.openerService.open(taskToRun.button.link);
+									this.gettingStartedService.progressByEvent('linkOpened:' + taskToRun.button.link);
+								} else {
+									throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
+								}
+								break;
+							}
+							default: {
+								console.error('Dispatch to', command, argument, 'not defined');
+								break;
+							}
 						}
-						default: {
-							console.error('Dispatch to', command, argument, 'not defined');
-							break;
-						}
-					}
+					})();
 					e.stopPropagation();
 				}));
 			}
