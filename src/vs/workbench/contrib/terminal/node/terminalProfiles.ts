@@ -110,7 +110,6 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 			paths[i] = variableResolver?.resolve(workspaceFolder, paths[i]) || paths[i];
 		}
 		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.overrideName, profile.isAutoDetected, logService);
-		console.log('validated', validatedProfile?.profileName + ' ' + validatedProfile?.path);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			resultProfiles.push(validatedProfile);

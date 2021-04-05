@@ -124,7 +124,7 @@ suite('Workbench - TerminalProfiles', () => {
 					];
 					profilesEqual(profiles, expected);
 				});
-				test('should fallback to Windows PowerShell', async () => {
+				test.skip('should fallback to Windows PowerShell', async () => {
 					const fsProvider = createFsProvider([
 						'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
