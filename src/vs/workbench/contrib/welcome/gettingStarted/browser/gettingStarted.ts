@@ -23,7 +23,7 @@ import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -40,6 +40,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -96,6 +97,7 @@ export class GettingStartedPage extends EditorPane {
 		@IStorageService private storageService: IStorageService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
+		@IQuickInputService private quickInputService: IQuickInputService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService private readonly hostService: IHostService,
@@ -218,7 +220,7 @@ export class GettingStartedPage extends EditorPane {
 								break;
 							}
 							case 'configureVisibility': {
-								this.commandService.executeCommand('workbench.action.openSettings', hiddenEntriesConfigurationKey);
+								await this.configureCategoryVisibility();
 								break;
 							}
 							case 'openFolder': {
@@ -238,8 +240,7 @@ export class GettingStartedPage extends EditorPane {
 							case 'hideCategory': {
 								const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
 								if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-								this.configurationService.updateValue(hiddenEntriesConfigurationKey,
-									[...(this.configurationService.getValue<string[]>(hiddenEntriesConfigurationKey) ?? []), argument]);
+								this.setHiddenCategories([...this.getHiddenCategories().add(argument)]);
 								element.parentElement?.remove();
 								break;
 							}
@@ -294,6 +295,34 @@ export class GettingStartedPage extends EditorPane {
 				}));
 			}
 		});
+	}
+
+	private async configureCategoryVisibility() {
+		const hiddenCategories = this.getHiddenCategories();
+		const allCategories = this.gettingStartedCategories.filter(x => x.content.type === 'items');
+		const visibleCategories = await this.quickInputService.pick(allCategories.map(x => ({
+			picked: !hiddenCategories.has(x.id),
+			id: x.id,
+			label: x.title,
+			detail: x.description,
+		})), { canPickMany: true, title: localize('pickWalkthroughs', "Select Walkthroughs to Show") });
+		if (visibleCategories) {
+			const visibleIDs = new Set(visibleCategories.map(c => c.id));
+			this.setHiddenCategories(allCategories.map(c => c.id).filter(id => !visibleIDs.has(id)));
+			this.buildCategoriesSlide();
+		}
+	}
+
+	private getHiddenCategories(): Set<string> {
+		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
+	}
+
+	private setHiddenCategories(hidden: string[]) {
+		this.storageService.store(
+			hiddenEntriesConfigurationKey,
+			JSON.stringify(hidden),
+			StorageScope.GLOBAL,
+			StorageTarget.USER);
 	}
 
 	private selectTask(id: string | undefined, contractIfAlreadySelected = true, delayFocus = true) {
@@ -391,7 +420,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async buildCategoriesSlide() {
-		const hiddenCategories = new Set(this.configurationService.getValue(hiddenEntriesConfigurationKey) ?? []);
+		const hiddenCategories = this.getHiddenCategories();
 		const categoryElements = this.gettingStartedCategories
 			.filter(entry => entry.content.type === 'items')
 			.filter(entry => !hiddenCategories.has(entry.id))
@@ -464,9 +493,8 @@ export class GettingStartedPage extends EditorPane {
 				)
 			),
 			$('.footer', {},
-				$('p.showOnStartup', {},
-					showOnStartupCheckbox,
-					$('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup")))
+				$('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
+				$('p.configureVisibility', {}, $('button.button-link', { 'x-dispatch': 'configureVisibility' }, localize('configureVisibility', "Configure visibility of Welcome Page items"))),
 			)
 		);
 		this.categoriesScrollbar.scanDomNode();
