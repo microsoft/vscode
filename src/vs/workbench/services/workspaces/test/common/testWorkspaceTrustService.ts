@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustRequestModel, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { URI } from 'vs/base/common/uri';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustRequestModel, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { WorkspaceTrustRequestModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export class TestWorkspaceTrustService implements IWorkspaceTrustService {
@@ -18,11 +19,23 @@ export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 		return WorkspaceTrustState.Trusted;
 	}
 
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo {
+		throw new Error('Method not implemented.');
+	}
+
 	isWorkspaceTrustEnabled(): boolean {
 		return true;
 	}
 
+	refreshWorkspaceTrustState(): void {
+		throw new Error('Method not implemented.');
+	}
+
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
 		return Promise.resolve(WorkspaceTrustState.Trusted);
+	}
+
+	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void {
+		throw new Error('Method not implemented.');
 	}
 }

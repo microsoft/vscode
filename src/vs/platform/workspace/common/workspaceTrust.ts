@@ -82,9 +82,12 @@ export interface IWorkspaceTrustService {
 	readonly requestModel: IWorkspaceTrustRequestModel;
 
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
+	refreshWorkspaceTrustState(): void;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
+	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
 }
 
 export interface IWorkspaceTrustUriInfo {

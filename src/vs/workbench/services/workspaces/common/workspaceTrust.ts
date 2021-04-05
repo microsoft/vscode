@@ -249,7 +249,6 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		this._register(this.dataModel.onDidChangeTrustState(() => this.onTrustStateChanged()));
 		this._register(this.requestModel.onDidCancelRequest(() => this.onTrustRequestCancelled()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
-		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.TrustState.bindTo(contextKeyService);
 		this._ctxWorkspaceTrustPendingRequest = WorkspaceTrustContext.PendingRequest.bindTo(contextKeyService);
@@ -420,12 +419,16 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		}
 	}
 
-	private onWorkspaceFoldersChanged(): void {
-		this.currentTrustState = this.calculateWorkspaceTrustState();
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo {
+		return this.dataModel.getFolderTrustStateInfo(folder);
 	}
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
 		return this.currentTrustState;
+	}
+
+	refreshWorkspaceTrustState(): void {
+		this.currentTrustState = this.calculateWorkspaceTrustState();
 	}
 
 	isWorkspaceTrustEnabled(): boolean {
@@ -470,6 +473,10 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		this._ctxWorkspaceTrustPendingRequest.set(true);
 
 		return options.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
+	}
+
+	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void {
+		this.dataModel.setFolderTrustState(folder, trustState);
 	}
 }
 

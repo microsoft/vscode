@@ -200,6 +200,32 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(async e => {
+			const trustState = this.workspaceTrustService.getWorkspaceTrustState();
+
+			if (trustState === WorkspaceTrustState.Trusted) {
+				const addedFoldersTrustStateInfo = e.added.map(folder => this.workspaceTrustService.getFolderTrustStateInfo(folder.uri));
+				if (!addedFoldersTrustStateInfo.map(i => i.trustState).every(trustState => trustState === WorkspaceTrustState.Trusted)) {
+					// Adding untrusted/unspecified content to a trusted workspace
+					const result = await this.dialogService.confirm({
+						message: localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
+						detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?\n\nIf you do not trust the new files, we will have to reload the window in order to transition the trust state of the workspace."),
+						primaryButton: localize('yes', 'Yes'),
+						secondaryButton: localize('no', 'No')
+					});
+
+					// Apply changes for the added folders
+					const addedFoldersTrustState = result.confirmed ? WorkspaceTrustState.Trusted : WorkspaceTrustState.Untrusted;
+					addedFoldersTrustStateInfo.map(i => this.workspaceTrustService.setFolderTrustState(i.uri, addedFoldersTrustState));
+
+					return;
+				}
+			}
+
+			// Refresh the workspace trust state
+			this.workspaceTrustService.refreshWorkspaceTrustState();
+		}));
+
 		// Don't auto-show the UX editor if the request is 5 seconds after startup
 		setTimeout(() => { this.shouldShowManagementEditor = false; }, 5000);
 	}
