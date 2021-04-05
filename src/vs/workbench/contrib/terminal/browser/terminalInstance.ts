@@ -170,7 +170,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
-	public get icon(): Codicon { return this.shellLaunchConfig.iconId ? (iconRegistry.get(this.shellLaunchConfig.iconId) || Codicon.terminal) : Codicon.terminal; }
+	public get icon(): Codicon { return this.shellLaunchConfig.icon ? (iconRegistry.get(this.shellLaunchConfig.icon) || Codicon.terminal) : Codicon.terminal; }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }

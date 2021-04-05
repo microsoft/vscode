@@ -899,7 +899,7 @@ export class TerminalService implements ITerminalService {
 			const launchConfig: IShellLaunchConfig = {
 				executable: value.profile.path,
 				args: value.profile.args,
-				iconId: value.profile.icon,
+				icon: value.profile.icon,
 				name: value.profile.overrideName ? value.profile.profileName : undefined
 			};
 

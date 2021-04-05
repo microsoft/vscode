@@ -636,6 +636,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if (nameOrOptions.initialText) {
 						checkProposedApiEnabled(extension);
 					}
+					if (nameOrOptions.icon) {
+						checkProposedApiEnabled(extension);
+					}
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
 				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);

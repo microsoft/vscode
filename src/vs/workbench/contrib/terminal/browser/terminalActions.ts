@@ -1521,7 +1521,7 @@ export function registerTerminalActions() {
 						const instance = terminalService.createTerminal({
 							executable: launchConfig.path,
 							args: launchConfig.args,
-							iconId: launchConfig.icon,
+							icon: launchConfig.icon,
 							name: launchConfig.overrideName ? launchConfig.profileName : undefined
 						});
 						terminalService.setActiveInstance(instance);
