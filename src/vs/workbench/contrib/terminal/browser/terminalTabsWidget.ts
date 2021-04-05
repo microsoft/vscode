@@ -43,7 +43,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<Te
 	}
 
 	getWidgetAriaLabel() {
-		return localize('terminalTabs', "TerminalTabs");
+		return localize('terminal.tabs', "TerminalTabs");
 	}
 }
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalTab>  {
@@ -77,12 +77,13 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalTab>  {
 			keybindingService,
 			accessibilityService,
 		);
+		this.setChildren(null, undefined);
 		this.setChildren(null, createTerminalTabsIterator(terminalService.terminalTabs));
 	}
 }
 
 function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement<ITerminalTab>> {
-	return tabs.map(tab => {
+	const result = tabs.map(tab => {
 		const hasChildren = tab.terminalInstances.length > 1;
 		return {
 			element: tab,
@@ -92,11 +93,12 @@ function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement
 			children: undefined
 		};
 	});
+	return result;
 }
 
 class TerminalTabsRenderer implements ITreeRenderer<ITerminalTab, never, ITerminalTabEntryTemplate> {
 
-	templateId = 'terminal.tab';
+	templateId = 'terminal.tabs';
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
 		return {
@@ -106,7 +108,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalTab, never, ITermin
 
 	renderElement(node: ITreeNode<ITerminalTab>, index: number, template: ITerminalTabEntryTemplate): void {
 		const element = node.element;
-		const label = element ? element?.terminalInstances.length > 1 ? `Terminals (${element?.terminalInstances.length})` : element?.terminalInstances[0].title : '';
+		const label = element ? element.terminalInstances.length === 0 ? 'Starting...' : element?.terminalInstances.length > 1 ? `Terminals (${element?.terminalInstances.length})` : element?.terminalInstances[0].title : '';
 
 		template.labelElement.textContent = label;
 		template.labelElement.title = label;

@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+
+.tabs-widget-container {
+	width: 20%;
+	float: left;
+	height: 100%;
+}
+
 .monaco-workbench .pane-body.integrated-terminal {
 	align-content: flex-start;
 	align-items: baseline;
@@ -19,10 +26,13 @@
 	width: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
+	float:right;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tab {
 	height: 100%;
+	width: 80%;
+	float: right;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {

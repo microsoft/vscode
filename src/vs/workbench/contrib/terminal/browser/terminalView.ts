@@ -48,7 +48,7 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
-	private _tabsWidget: TerminalTabsWidget | undefined;
+	private _tabsWidgetContainer: HTMLElement | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -91,26 +91,44 @@ export class TerminalViewPane extends ViewPane {
 		});
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	public renderBody(container?: HTMLElement): void {
+		if (!container && !this._parentDomElement) {
+			return;
+		} else if (!container) {
+			container = this._parentDomElement;
+		}
+		if (!container) {
+			return;
+		}
 		super.renderBody(container);
 
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
 
-		this._terminalContainer = document.createElement('div');
-		this._terminalContainer.classList.add('terminal-outer-container');
-		this._terminalContainer.style.display = this.shouldShowWelcome() ? 'none' : 'block';
+		if (!this._terminalContainer) {
+			this._terminalContainer = document.createElement('div');
+			this._terminalContainer.classList.add('terminal-outer-container');
+			this._terminalContainer.style.display = this.shouldShowWelcome() ? 'none' : 'block';
+		}
+		if (!this._findWidget) {
+			this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
+			this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
+		}
+		if (this._tabsWidgetContainer) {
+			this._terminalContainer.removeChild(this._tabsWidgetContainer);
+		}
+		this._tabsWidgetContainer = dom.append(this._terminalContainer, dom.$('.tabs-widget-container'));
+		dom.append(this._tabsWidgetContainer, dom.$('.tabs-widget-wrapper', {
+			'role': 'navigation',
+			'aria-label': nls.localize('terminal-tabs-widget', "Terminal Tabs"),
+		}));
 
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
-		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
-		this._tabsWidget = this.instantiationService.createInstance(TerminalTabsWidget, this._parentDomElement);
+		this.instantiationService.createInstance(TerminalTabsWidget, this._tabsWidgetContainer);
+
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
 		this._parentDomElement.appendChild(this._findWidget.getDomNode());
-
-
-
 
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 

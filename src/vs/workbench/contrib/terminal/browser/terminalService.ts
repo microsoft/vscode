@@ -159,6 +159,13 @@ export class TerminalService implements ITerminalService {
 			}
 		});
 
+		this.onInstancesChanged(() => {
+			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+			if (pane) {
+				pane.renderBody();
+			}
+		});
+
 		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
 		const conn = this._remoteAgentService.getConnection();
