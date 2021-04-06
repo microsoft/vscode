@@ -741,7 +741,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// folder or file paths
 		const cliPaths = cli._;
 		for (const cliPath of cliPaths) {
-			const path = cli.remote ? this.doResolvePathRemote(cliPath, cli.remote) : this.doResolveFilePath(cliPath, pathResolveOptions);
+			const path = pathResolveOptions.remoteAuthority ? this.doResolvePathRemote(cliPath, pathResolveOptions) : this.doResolveFilePath(cliPath, pathResolveOptions);
 			if (path) {
 				pathsToOpen.push(path);
 			}
@@ -900,11 +900,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let columnNumber: number | undefined;
 
 		if (options.gotoLineMode) {
-			const parsedPath = parseLineAndColumnAware(path);
-			lineNumber = parsedPath.line;
-			columnNumber = parsedPath.column;
-
-			path = parsedPath.path;
+			({ path, line: lineNumber, column: columnNumber } = parseLineAndColumnAware(path));
 		}
 
 		// Ensure the path is normalized and absolute
@@ -947,8 +943,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return undefined;
 	}
 
-	private doResolvePathRemote(path: string, remoteAuthority: string, forceOpenWorkspaceAsFile?: boolean): IPathToOpen | undefined {
+	private doResolvePathRemote(path: string, options: IPathResolveOptions): IPathToOpen | undefined {
 		const first = path.charCodeAt(0);
+		const remoteAuthority = options.remoteAuthority;
+
+		// Extract line/col information from path
+		let lineNumber: number | undefined;
+		let columnNumber: number | undefined;
+
+		if (options.gotoLineMode) {
+			({ path, line: lineNumber, column: columnNumber } = parseLineAndColumnAware(path));
+		}
 
 		// make absolute
 		if (first !== CharCode.Slash) {
@@ -963,21 +968,21 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// guess the file type:
 		// - if it ends with a slash it's a folder
-		// - if it has a file extension, it's a file or a workspace
+		// - if in goto line mode or if it has a file extension, it's a file or a workspace
 		// - by defaults it's a folder
 		if (path.charCodeAt(path.length - 1) !== CharCode.Slash) {
 
 			// file name ends with .code-workspace
 			if (hasWorkspaceFileExtension(path)) {
-				if (forceOpenWorkspaceAsFile) {
-					return { fileUri: uri, remoteAuthority };
+				if (options.forceOpenWorkspaceAsFile) {
+					return { fileUri: uri, lineNumber, columnNumber, remoteAuthority: options.remoteAuthority };
 				}
 				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 			}
 
 			// file name starts with a dot or has an file extension
-			else if (posix.basename(path).indexOf('.') !== -1) {
-				return { fileUri: uri, remoteAuthority };
+			else if (options.gotoLineMode || posix.basename(path).indexOf('.') !== -1) {
+				return { fileUri: uri, lineNumber, columnNumber, remoteAuthority };
 			}
 		}
 
