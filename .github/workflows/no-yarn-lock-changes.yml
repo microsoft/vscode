@@ -13,15 +13,15 @@ jobs:
           username: ${{ github.event.pull_request.user.login }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set variable
-        id: permissions
+      - name: Set control output variable
+        id: control
         run: |
-          echo "::set-output name=is_allowed::${{ contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
+          echo "::set-output name=should_run::${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
       - name: Get file changes
         uses: trilom/file-changes-action@ce38c8ce2459ca3c303415eec8cb0409857b4272
-        if: ${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}
+        if: ${{ steps.control.should_run }}
       - name: Check for yarn.lock changes
-        if: ${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}
+        if: ${{ steps.control.should_run }}
         run: |
           cat $HOME/files.json | jq -e '.[] | test("yarn\\.lock$") | not' \
             || (echo "Changes to yarn.lock files aren't allowed in PRs." && exit 1)
