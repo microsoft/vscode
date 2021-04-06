@@ -158,8 +158,9 @@ export interface IExtensionContributions {
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
+
+export type ExtensionWorkspaceTrustRequest = 'never' | 'onStart' | 'onDemand';
+export type ExtensionWorkspaceTrust = { request: 'never' } | { request: 'onDemand' | 'onStart', description: string };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -305,18 +306,6 @@ export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 
 export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
-}
-
-export function getExtensionWorkspaceTrustRequirement(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequirement {
-	if (manifest.workspaceTrust?.required !== undefined) {
-		return manifest.workspaceTrust.required;
-	}
-
-	if (!manifest.main) {
-		return false;
-	}
-
-	return 'onStart';
 }
 
 export interface IScannedExtension {

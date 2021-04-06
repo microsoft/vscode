@@ -9,7 +9,8 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IProductService } from 'vs/platform/product/common/productService';
-
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { ExtensionWorkspaceTrustValues } from 'vs/base/common/product';
 
 export class ExtensionKindController {
 	constructor(
@@ -143,10 +144,52 @@ function getConfiguredExtensionKind(manifest: IExtensionManifest, configurationS
 	return _configuredExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionId));
 }
 
+let _productExtensionWorkspaceTrustValuesMap: Map<string, ExtensionWorkspaceTrustValues> | null = null;
+function getProductExtensionWorkspaceTrustValues(manifest: IExtensionManifest, productService: IProductService): ExtensionWorkspaceTrustValues | undefined {
+	if (_productExtensionWorkspaceTrustValuesMap === null) {
+		const productExtensionWorkspaceTrustValuesMap = new Map<string, ExtensionWorkspaceTrustValues>();
+		if (productService.extensionWorkspaceTrust) {
+			for (const id of Object.keys(productService.extensionWorkspaceTrust)) {
+				productExtensionWorkspaceTrustValuesMap.set(ExtensionIdentifier.toKey(id), productService.extensionWorkspaceTrust[id]);
+			}
+		}
+		_productExtensionWorkspaceTrustValuesMap = productExtensionWorkspaceTrustValuesMap;
+	}
+
+	const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+	return _productExtensionWorkspaceTrustValuesMap.get(ExtensionIdentifier.toKey(extensionId));
+}
+
+export function getExtensionWorkspaceTrustRequirement(manifest: IExtensionManifest, productService: IProductService, workspaceTrustService: IWorkspaceTrustService) {
+	// Workspace trust feature is disabled, or extension has no entry point
+	if (!workspaceTrustService.isWorkspaceTrustEnabled() || !manifest.main) {
+		return 'never';
+	}
+
+	// Get extension worspace trust requirements from product.json
+	const productWorkspaceTrustRequirement = getProductExtensionWorkspaceTrustValues(manifest, productService);
+
+	// Use product.json override value if it exists
+	if (productWorkspaceTrustRequirement?.overrideValue) {
+		return productWorkspaceTrustRequirement.overrideValue;
+	}
+
+	// Use extension manifest value if it exists
+	if (manifest.workspaceTrust?.request !== undefined) {
+		return manifest.workspaceTrust.request;
+	}
+
+	// Use product.json default value if it exists
+	if (productWorkspaceTrustRequirement?.defaultValue) {
+		return productWorkspaceTrustRequirement.defaultValue;
+	}
+
+	return 'onStart';
+}
+
 function toArray(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[] {
 	if (Array.isArray(extensionKind)) {
 		return extensionKind;
 	}
 	return extensionKind === 'ui' ? ['ui', 'workspace'] : [extensionKind];
 }
-
