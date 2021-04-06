@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions, IOutputDto, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions, IOutputDto, ICellOutput, CellMetadataChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { hash } from 'vs/base/common/hash';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
@@ -23,8 +23,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	private _onDidChangeMetadata = new Emitter<void>();
-	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+	private _onDidChangeMetadata = new Emitter<CellMetadataChangedEvent>();
+	onDidChangeMetadata: Event<CellMetadataChangedEvent> = this._onDidChangeMetadata.event;
 
 	private _onDidChangeLanguage = new Emitter<string>();
 	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
@@ -42,9 +42,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set metadata(newMetadata: NotebookCellMetadata) {
+		const runStateChanged = this._metadata.runState !== newMetadata.runState;
 		this._metadata = newMetadata;
 		this._hash = null;
-		this._onDidChangeMetadata.fire();
+		this._onDidChangeMetadata.fire({ runStateChanged });
 	}
 
 	get language() {
@@ -52,6 +53,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set language(newLanguage: string) {
+		if (this._language === newLanguage) {
+			return;
+		}
+
 		this._language = newLanguage;
 		this._hash = null;
 		this._onDidChangeLanguage.fire(newLanguage);
@@ -81,6 +86,31 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	private _hash: number | null = null;
 
+	private _textModelDisposables = new DisposableStore();
+	private _textModel: model.ITextModel | undefined = undefined;
+	get textModel(): model.ITextModel | undefined {
+		return this._textModel;
+	}
+
+	set textModel(m: model.ITextModel | undefined) {
+		if (this._textModel === m) {
+			return;
+		}
+
+		this._textModelDisposables.clear();
+		this._textModel = m;
+		if (this._textModel) {
+			// Init language from text model
+			this.language = this._textModel.getLanguageIdentifier().language;
+
+			// Listen to language changes on the model
+			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
+				this.language = e.newLanguage;
+				this._onDidChangeContent.fire();
+			}));
+			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
+		}
+	}
 
 	constructor(
 		readonly uri: URI,
@@ -143,11 +173,12 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
-		splices.reverse().forEach(splice => {
-			this.outputs.splice(splice[0], splice[1], ...splice[2]);
-		});
-
-		this._onDidChangeOutputs.fire(splices);
+		if (splices.length > 0) {
+			splices.reverse().forEach(splice => {
+				this.outputs.splice(splice[0], splice[1], ...splice[2]);
+			});
+			this._onDidChangeOutputs.fire(splices);
+		}
 	}
 
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
@@ -168,6 +199,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	async resolveTextModelRef() {
 		const ref = await this._modelService.createModelReference(this.uri);
+		this.textModel = ref.object.textEditorModel;
 		return ref;
 	}
 

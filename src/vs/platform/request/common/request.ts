@@ -102,7 +102,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			'http.systemCertificates': {
 				type: 'boolean',
 				default: true,
-				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS a reload of the window is required after turning this off.)")
+				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS, a reload of the window is required after turning this off.)")
 			}
 		}
 	});

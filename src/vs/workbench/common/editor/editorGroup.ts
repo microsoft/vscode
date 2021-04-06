@@ -73,8 +73,8 @@ export class EditorGroup extends Disposable {
 	private readonly _onDidCloseEditor = this._register(new Emitter<EditorCloseEvent>());
 	readonly onDidCloseEditor = this._onDidCloseEditor.event;
 
-	private readonly _onDidDisposeEditor = this._register(new Emitter<EditorInput>());
-	readonly onDidDisposeEditor = this._onDidDisposeEditor.event;
+	private readonly _onWillDisposeEditor = this._register(new Emitter<EditorInput>());
+	readonly onWillDisposeEditor = this._onWillDisposeEditor.event;
 
 	private readonly _onDidChangeEditorDirty = this._register(new Emitter<EditorInput>());
 	readonly onDidChangeEditorDirty = this._onDidChangeEditorDirty.event;
@@ -315,9 +315,9 @@ export class EditorGroup extends Disposable {
 		const listeners = new DisposableStore();
 
 		// Re-emit disposal of editor input as our own event
-		listeners.add(Event.once(editor.onDispose)(() => {
+		listeners.add(Event.once(editor.onWillDispose)(() => {
 			if (this.indexOf(editor) >= 0) {
-				this._onDidDisposeEditor.fire(editor);
+				this._onWillDisposeEditor.fire(editor);
 			}
 		}));
 
@@ -755,9 +755,9 @@ export class EditorGroup extends Disposable {
 			const editor = this.editors[i];
 			let canSerializeEditor = false;
 
-			const factory = registry.getEditorInputFactory(editor.getTypeId());
-			if (factory) {
-				const value = factory.serialize(editor);
+			const editorSerializer = registry.getEditorInputSerializer(editor.getTypeId());
+			if (editorSerializer) {
+				const value = editorSerializer.serialize(editor);
 
 				// Editor can be serialized
 				if (typeof value === 'string') {
@@ -808,9 +808,9 @@ export class EditorGroup extends Disposable {
 		this.editors = coalesce(data.editors.map((e, index) => {
 			let editor: EditorInput | undefined = undefined;
 
-			const factory = registry.getEditorInputFactory(e.id);
-			if (factory) {
-				editor = factory.deserialize(this.instantiationService, e.value);
+			const editorSerializer = registry.getEditorInputSerializer(e.id);
+			if (editorSerializer) {
+				editor = editorSerializer.deserialize(this.instantiationService, e.value);
 				if (editor) {
 					this.registerEditorListeners(editor);
 				}

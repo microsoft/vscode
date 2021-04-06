@@ -43,7 +43,7 @@ export const NOTEBOOK_EDITOR_OPEN = new RawContextKey<boolean>('notebookEditorOp
 export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCellListFocused', false);
 export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
-export const NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK = new RawContextKey<boolean>('notebookExecuting', false);
+export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
 
 // Diff Editor Keys
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
@@ -55,18 +55,20 @@ export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEd
 export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false); // bool
 export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false); // bool
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
-export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // Idle, Running
+export type NotebookCellExecutionStateContext = 'idle' | 'pending' | 'executing' | 'succeeded' | 'failed';
+export const NOTEBOOK_CELL_EXECUTION_STATE = new RawContextKey<NotebookCellExecutionStateContext>('notebookCellExecutionState', undefined);
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 // Kernels
 export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
+export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 
 //#endregion
 
 //#region Shared commands
-export const EXPAND_CELL_CONTENT_COMMAND_ID = 'notebook.cell.expandCellContent';
+export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 
 //#endregion
@@ -81,6 +83,7 @@ export const enum RenderOutputType {
 export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
 	supportAppend?: boolean;
+	initHeight?: number;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -127,15 +130,18 @@ export interface IGenericCellViewModel {
 	uri: URI;
 	metadata: NotebookCellMetadata | undefined;
 	outputIsHovered: boolean;
+	outputIsFocused: boolean;
 	outputsViewModels: ICellOutputViewModel[];
 	getOutputOffset(index: number): number;
-	updateOutputHeight(index: number, height: number): void;
+	updateOutputHeight(index: number, height: number, source?: string): void;
 }
 
 export interface IDisplayOutputLayoutUpdateRequest {
+	readonly cell: IGenericCellViewModel;
 	output: IDisplayOutputViewModel;
 	cellTop: number;
 	outputOffset: number;
+	forceDisplay: boolean;
 }
 
 export interface ICommonCellInfo {
@@ -159,14 +165,16 @@ export interface ICommonNotebookEditor {
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
+	toggleNotebookCellSelection(cell: IGenericCellViewModel): void;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
 	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
 	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDragEnd(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragEnd(cellId: string): void;
 }
 
 //#endregion
@@ -205,6 +213,7 @@ export interface CodeCellLayoutInfo {
 }
 
 export interface CodeCellLayoutChangeEvent {
+	source?: string;
 	editorHeight?: boolean;
 	outputHeight?: boolean;
 	outputShowMoreContainerHeight?: number;
@@ -232,6 +241,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
 	readonly layoutInfo: { totalHeight: number; };
+	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -360,6 +370,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
 	isDisposed: boolean;
+	dispose(): void;
 
 	getId(): string;
 	getDomNode(): HTMLElement;
@@ -409,11 +420,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * Split a given cell into multiple cells of the same type using the selection start positions.
 	 */
 	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
-
-	/**
-	 * Joins the given cell either with the cell above or the one below depending on the given direction.
-	 */
-	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null>;
 
 	/**
 	 * Delete a cell from the notebook
@@ -473,10 +479,8 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
 	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	unhideMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	hideMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	removeMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	updateMarkdownPreviewSelectionState(cell: ICellViewModel, isSelected: boolean): Promise<void>;
+	unhideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	hideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
@@ -576,6 +580,11 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	getViewIndex(cell: ICellViewModel): number;
 
 	/**
+	 * Get the view height of a cell (from the list view)
+	 */
+	getViewHeight(cell: ICellViewModel): number;
+
+	/**
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
 	 */
@@ -585,7 +594,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * @param startIndex Inclusive
 	 * @param endIndex Exclusive
 	 */
-	getCellsFromViewRange(startIndex: number, endIndex: number): ICellViewModel[];
+	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel>;
 
 	/**
 	 * Set hidden areas on cell text models.
@@ -626,7 +635,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	getCellByInfo(cellInfo: ICommonCellInfo): ICellViewModel;
 	getCellById(cellId: string): ICellViewModel | undefined;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 }
 
 export interface INotebookCellList {
@@ -647,9 +656,9 @@ export interface INotebookCellList {
 	scrollLeft: number;
 	length: number;
 	rowsContainer: HTMLElement;
-	readonly onDidRemoveOutput: Event<ICellOutputViewModel>;
-	readonly onDidHideOutput: Event<ICellOutputViewModel>;
-	readonly onDidRemoveCellFromView: Event<ICellViewModel>;
+	readonly onDidRemoveOutputs: Event<readonly ICellOutputViewModel[]>;
+	readonly onDidHideOutputs: Event<readonly ICellOutputViewModel[]>;
+	readonly onDidRemoveCellsFromView: Event<readonly ICellViewModel[]>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
@@ -662,7 +671,7 @@ export interface INotebookCellList {
 	getModelIndex2(viewIndex: number): number | undefined;
 	getVisibleRangesPlusViewportAboveBelow(): ICellRange[];
 	focusElement(element: ICellViewModel): void;
-	selectElement(element: ICellViewModel): void;
+	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	revealElementsInView(range: ICellRange): void;
@@ -686,12 +695,10 @@ export interface INotebookCellList {
 	domFocus(): void;
 	setCellSelection(element: ICellViewModel, range: Range): void;
 	style(styles: IListStyles): void;
+	getRenderHeight(): number;
 	updateOptions(options: IListOptions<ICellViewModel>): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;
-
-	// TODO@roblourens resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
-	getFocus(): number[];
 }
 
 export interface BaseCellRenderTemplate {
@@ -746,6 +753,7 @@ export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): 
 }
 
 export interface IOutputTransformContribution {
+	getType(): RenderOutputType;
 	getMimetypes(): string[];
 	/**
 	 * Dispose this contribution.
@@ -805,6 +813,7 @@ export enum CursorAtBoundary {
 
 export interface CellViewModelStateChangeEvent {
 	readonly metadataChanged?: boolean;
+	readonly runStateChanged?: boolean;
 	readonly selectionChanged?: boolean;
 	readonly focusModeChanged?: boolean;
 	readonly editStateChanged?: boolean;
@@ -812,6 +821,7 @@ export interface CellViewModelStateChangeEvent {
 	readonly foldingStateChanged?: boolean;
 	readonly contentChanged?: boolean;
 	readonly outputIsHoveredChanged?: boolean;
+	readonly outputIsFocusedChanged?: boolean;
 	readonly cellIsHoveredChanged?: boolean;
 }
 
@@ -933,4 +943,27 @@ export function expandCellRangesWithHiddenCells(editor: INotebookEditor, viewMod
 	});
 
 	return reduceRanges(modelRanges);
+}
+
+/**
+ * Return a set of ranges for the cells matching the given predicate
+ */
+export function getRanges(cells: ICellViewModel[], included: (cell: ICellViewModel) => boolean): ICellRange[] {
+	const ranges: ICellRange[] = [];
+	let currentRange: ICellRange | undefined;
+
+	cells.forEach((cell, idx) => {
+		if (included(cell)) {
+			if (!currentRange) {
+				currentRange = { start: idx, end: idx + 1 };
+				ranges.push(currentRange);
+			} else {
+				currentRange.end = idx + 1;
+			}
+		} else {
+			currentRange = undefined;
+		}
+	});
+
+	return ranges;
 }

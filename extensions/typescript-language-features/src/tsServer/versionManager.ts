@@ -39,7 +39,7 @@ export class TypeScriptVersionManager extends Disposable {
 				}
 			} else {
 				setImmediate(() => {
-					vscode.workspace.requireWorkspaceTrust({ modal: false })
+					vscode.workspace.requestWorkspaceTrust({ modal: false })
 						.then(trustState => {
 							if (trustState === vscode.WorkspaceTrustState.Trusted && this.versionProvider.localVersion) {
 								this.updateActiveVersion(this.versionProvider.localVersion);
@@ -120,7 +120,7 @@ export class TypeScriptVersionManager extends Disposable {
 				description: version.displayName,
 				detail: version.pathLabel,
 				run: async () => {
-					const trustState = await vscode.workspace.requireWorkspaceTrust();
+					const trustState = await vscode.workspace.requestWorkspaceTrust();
 					if (trustState === vscode.WorkspaceTrustState.Trusted) {
 						await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 						const tsConfig = vscode.workspace.getConfiguration('typescript');

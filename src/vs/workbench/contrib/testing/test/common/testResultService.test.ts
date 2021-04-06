@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { timeout } from 'vs/base/common/async';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { HydratedTestResult, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ReExportedTestRunState as TestRunState } from 'vs/workbench/contrib/testing/common/testStubs';
 import { getInitializedMainTestCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -20,19 +24,19 @@ suite('Workbench - Test Results Service', () => {
 	let r: LiveTestResult;
 	let changed = new Set<TestResultItemChange>();
 
-	setup(() => {
+	setup(async () => {
 		changed = new Set();
 		r = LiveTestResult.from(
-			[getInitializedMainTestCollection()],
-			{ tests: [{ providerId: 'provider', testId: 'id-a' }], debug: false }
+			[await getInitializedMainTestCollection()],
+			{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: 'id-a' }], debug: false }
 		);
 
 		r.onChange(e => changed.add(e));
 	});
 
 	suite('LiveTestResult', () => {
-		test('is empty if no tests are requesteed', () => {
-			const r = LiveTestResult.from([getInitializedMainTestCollection()], { tests: [], debug: false });
+		test('is empty if no tests are requesteed', async () => {
+			const r = LiveTestResult.from([await getInitializedMainTestCollection()], { tests: [], debug: false });
 			assert.deepStrictEqual(getLabelsIn(r.tests), []);
 		});
 
@@ -52,7 +56,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('setAllToState', () => {
-			r.setAllToState({ state: TestRunState.Queued, duration: 0, messages: [] }, t => t.item.label !== 'root');
+			r.setAllToState(TestRunState.Queued, t => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Unset]: 1,
@@ -69,7 +73,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('updateState', () => {
-			r.updateState('id-a', { state: TestRunState.Running, duration: 0, messages: [] });
+			r.updateState('id-a', TestRunState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Running]: 1,
@@ -98,7 +102,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('addTestToRun', () => {
-			r.updateState('id-b', { state: TestRunState.Running, duration: 0, messages: [] });
+			r.updateState('id-b', TestRunState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Running]: 1,
@@ -110,8 +114,8 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('markComplete', () => {
-			r.setAllToState({ state: TestRunState.Queued, duration: 0, messages: [] }, t => true);
-			r.updateState('id-aa', { state: TestRunState.Passed, duration: 0, messages: [] });
+			r.setAllToState(TestRunState.Queued, () => true);
+			r.updateState('id-aa', TestRunState.Passed);
 			changed.clear();
 
 			r.markComplete();
@@ -128,15 +132,16 @@ suite('Workbench - Test Results Service', () => {
 	});
 
 	suite('service', () => {
-		let storage: TestStorageService;
+		let storage: ITestResultStorage;
 		let results: TestResultService;
 
+		class TestTestResultService extends TestResultService {
+			persistScheduler = { schedule: () => this.persistImmediately() } as any;
+		}
+
 		setup(() => {
-			storage = new TestStorageService();
-			results = new TestResultService(
-				new MockContextKeyService(),
-				storage,
-			);
+			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
+			results = new TestTestResultService(new MockContextKeyService(), storage);
 		});
 
 		test('pushes new result', () => {
@@ -144,45 +149,51 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(results.results, [r]);
 		});
 
-		test('serializes and re-hydrates', () => {
+		test('serializes and re-hydrates', async () => {
 			results.push(r);
-			r.updateState('id-aa', { state: TestRunState.Passed, duration: 0, messages: [] });
+			r.updateState('id-aa', TestRunState.Passed);
 			r.markComplete();
+			await timeout(0); // allow persistImmediately async to happen
 
 			results = new TestResultService(
 				new MockContextKeyService(),
 				storage,
 			);
 
+			assert.strictEqual(0, results.results.length);
+			await timeout(0); // allow load promise to resolve
+			assert.strictEqual(1, results.results.length);
+
 			const [rehydrated, actual] = results.getStateById('id-root')!;
-			const expected = r.getStateById('id-root')!;
+			const expected: any = { ...r.getStateById('id-root')! };
 			delete expected.state.duration; // delete undefined props that don't survive serialization
-			delete expected.item.location;
+			delete expected.item.range;
 			delete expected.item.description;
+			expected.item.uri = actual.item.uri;
 
 			assert.deepStrictEqual(actual, { ...expected, retired: true });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});
 
-		test('clears results but keeps ongoing tests', () => {
+		test('clears results but keeps ongoing tests', async () => {
 			results.push(r);
 			r.markComplete();
 
 			const r2 = results.push(LiveTestResult.from(
-				[getInitializedMainTestCollection()],
-				{ tests: [{ providerId: 'provider', testId: '1' }], debug: false }
+				[await getInitializedMainTestCollection()],
+				{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: '1' }], debug: false }
 			));
 			results.clear();
 
 			assert.deepStrictEqual(results.results, [r2]);
 		});
 
-		test('keeps ongoing tests on top', () => {
+		test('keeps ongoing tests on top', async () => {
 			results.push(r);
 			const r2 = results.push(LiveTestResult.from(
-				[getInitializedMainTestCollection()],
-				{ tests: [{ providerId: 'provider', testId: '1' }], debug: false }
+				[await getInitializedMainTestCollection()],
+				{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: '1' }], debug: false }
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);
@@ -192,11 +203,11 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(results.results, [r, r2]);
 		});
 
-		const makeHydrated = (completedAt = 42, state = TestRunState.Passed) => new HydratedTestResult({
+		const makeHydrated = async (completedAt = 42, state = TestRunState.Passed) => new HydratedTestResult({
 			completedAt,
 			id: 'some-id',
 			items: [{
-				...getInitializedMainTestCollection().getNodeById('id-a')!,
+				...(await getInitializedMainTestCollection()).getNodeById('id-a')!,
 				state: { state, duration: 0, messages: [] },
 				computedState: state,
 				retired: undefined,
@@ -204,36 +215,36 @@ suite('Workbench - Test Results Service', () => {
 			}]
 		});
 
-		test('pushes hydrated results', () => {
+		test('pushes hydrated results', async () => {
 			results.push(r);
-			const hydrated = makeHydrated();
+			const hydrated = await makeHydrated();
 			results.push(hydrated);
 			assert.deepStrictEqual(results.results, [r, hydrated]);
 		});
 
-		test('deduplicates identical results', () => {
+		test('deduplicates identical results', async () => {
 			results.push(r);
-			const hydrated1 = makeHydrated();
+			const hydrated1 = await makeHydrated();
 			results.push(hydrated1);
-			const hydrated2 = makeHydrated();
+			const hydrated2 = await makeHydrated();
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated1]);
 		});
 
-		test('does not deduplicate if different completedAt', () => {
+		test('does not deduplicate if different completedAt', async () => {
 			results.push(r);
-			const hydrated1 = makeHydrated();
+			const hydrated1 = await makeHydrated();
 			results.push(hydrated1);
-			const hydrated2 = makeHydrated(30);
+			const hydrated2 = await makeHydrated(30);
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
 		});
 
-		test('does not deduplicate if different tests', () => {
+		test('does not deduplicate if different tests', async () => {
 			results.push(r);
-			const hydrated1 = makeHydrated();
+			const hydrated1 = await makeHydrated();
 			results.push(hydrated1);
-			const hydrated2 = makeHydrated(undefined, TestRunState.Failed);
+			const hydrated2 = await makeHydrated(undefined, TestRunState.Failed);
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated2, hydrated1]);
 		});

@@ -1047,6 +1047,21 @@ suite('Editor Controller - Cursor', () => {
 		});
 	});
 
+	test('issue #118062: Column selection cannot select first position of a line', () => {
+		withTestCodeEditor([
+			'hello world',
+		].join('\n'), {}, (editor, viewModel) => {
+
+			moveTo(editor, viewModel, 1, 2, false);
+			assertCursor(viewModel, new Position(1, 2));
+
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel, {});
+			assertCursor(viewModel, [
+				new Selection(1, 2, 1, 1)
+			]);
+		});
+	});
+
 	test('column select with keyboard', () => {
 		withTestCodeEditor([
 			'var gulp = require("gulp");',
@@ -5307,6 +5322,41 @@ suite('autoClosingPairs', () => {
 
 			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(())');
+		});
+		mode.dispose();
+	});
+
+	test('issue #118270 - auto closing deletes only those characters that it inserted', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'',
+				'y=();'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (editor, model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
+
+			viewModel.type('x=(', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			viewModel.type('asd', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getLineContent(1), 'x=()');
+
+			// delete closing char!
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getLineContent(1), 'x=');
+
+			// do not delete closing char!
+			viewModel.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.strictEqual(model.getLineContent(2), 'y=);');
+
 		});
 		mode.dispose();
 	});

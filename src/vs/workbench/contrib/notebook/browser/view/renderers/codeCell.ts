@@ -8,7 +8,6 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -33,8 +32,7 @@ export class CodeCell extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IOpenerService readonly openerService: IOpenerService,
-		@ITextFileService readonly textFileService: ITextFileService,
-		@IModeService private readonly _modeService: IModeService,
+		@ITextFileService readonly textFileService: ITextFileService
 		// @IKeybindingService private readonly _keybindingService: IKeybindingService,
 
 	) {
@@ -80,7 +78,7 @@ export class CodeCell extends Disposable {
 				templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 			}
 
-			if (viewCell.focusMode === CellFocusMode.Editor) {
+			if (viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.getActiveCell() === this.viewCell) {
 				templateData.editor?.focus();
 			}
 
@@ -105,13 +103,6 @@ export class CodeCell extends Disposable {
 				this.viewCell.layoutChange({});
 				updateForCollapseState();
 				this.relayoutCell();
-			}
-		}));
-
-		this._register(viewCell.onDidChangeState((e) => {
-			if (e.languageChanged) {
-				const mode = this._modeService.create(viewCell.language);
-				templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
 			}
 		}));
 
@@ -204,7 +195,13 @@ export class CodeCell extends Disposable {
 		}));
 
 		// Focus Mode
-		const updateFocusMode = () => viewCell.focusMode = templateData.editor.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		const updateFocusMode = () => {
+			viewCell.focusMode =
+				(templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
+					? CellFocusMode.Editor
+					: CellFocusMode.Container;
+		};
+
 		this._register(templateData.editor.onDidFocusEditorWidget(() => {
 			updateFocusMode();
 		}));
@@ -212,7 +209,7 @@ export class CodeCell extends Disposable {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
-			if (document.activeElement?.contains(this.templateData.container)) {
+			if (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)) {
 				setTimeout(() => {
 					updateFocusMode();
 				}, 300);
@@ -220,7 +217,6 @@ export class CodeCell extends Disposable {
 				updateFocusMode();
 			}
 		}));
-		updateFocusMode();
 
 		// Render Outputs
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData);

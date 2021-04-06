@@ -16,7 +16,7 @@ export enum WorkspaceTrustScope {
 export enum WorkspaceTrustState {
 	Untrusted = 0,
 	Trusted = 1,
-	Unknown = 2
+	Unspecified = 2
 }
 
 export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
@@ -25,9 +25,9 @@ export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
 			return localize('trusted', "Trusted");
 		case WorkspaceTrustState.Untrusted:
 			return localize('untrusted', "Untrusted");
-		case WorkspaceTrustState.Unknown:
+		case WorkspaceTrustState.Unspecified:
 		default:
-			return localize('unknown', "Unknown");
+			return localize('unspecified', "Unspecified");
 	}
 }
 
@@ -36,7 +36,7 @@ export interface IWorkspaceTrustModel {
 	readonly onDidChangeTrustState: Event<void>;
 
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
-	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustFolderInfo;
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo;
 
 	setTrustedFolders(folders: URI[]): void;
 	setUntrustedFolders(folders: URI[]): void;
@@ -44,23 +44,32 @@ export interface IWorkspaceTrustModel {
 	getTrustStateInfo(): IWorkspaceTrustStateInfo;
 }
 
-export interface WorkspaceTrustRequest {
-	modal: boolean;
+export interface WorkspaceTrustRequestButton {
+	readonly label: string;
+	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+}
+
+export interface WorkspaceTrustRequestOptions {
+	readonly buttons?: WorkspaceTrustRequestButton[];
+	readonly message?: string;
+	readonly modal: boolean;
 }
 
 export interface IWorkspaceTrustRequestModel {
-	readonly trustRequest: WorkspaceTrustRequest | undefined;
+	readonly trustRequestOptions: WorkspaceTrustRequestOptions | undefined;
 
 	readonly onDidInitiateRequest: Event<void>;
 	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
+	readonly onDidCancelRequest: Event<void>;
 
-	initiateRequest(request?: WorkspaceTrustRequest): void;
+	initiateRequest(options?: WorkspaceTrustRequestOptions): void;
 	completeRequest(trustState?: WorkspaceTrustState): void;
+	cancelRequest(): void;
 }
 
 export interface WorkspaceTrustStateChangeEvent {
-	previousTrustState: WorkspaceTrustState;
-	currentTrustState: WorkspaceTrustState;
+	readonly previousTrustState: WorkspaceTrustState;
+	readonly currentTrustState: WorkspaceTrustState;
 }
 
 export type WorkspaceTrustChangeEvent = Event<WorkspaceTrustStateChangeEvent>;
@@ -75,17 +84,14 @@ export interface IWorkspaceTrustService {
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	requireWorkspaceTrust(request?: WorkspaceTrustRequest): Promise<WorkspaceTrustState>;
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
 }
 
-export interface IWorkspaceTrustFolderInfo {
-	uri: string,
+export interface IWorkspaceTrustUriInfo {
+	uri: URI,
 	trustState: WorkspaceTrustState
 }
 
 export interface IWorkspaceTrustStateInfo {
-	localFolders: IWorkspaceTrustFolderInfo[]
-
-	// Removing complexity of remote items
-	//trustedRemoteItems: { uri: string }[]
+	uriTrustInfo: IWorkspaceTrustUriInfo[]
 }

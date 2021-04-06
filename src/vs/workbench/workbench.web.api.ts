@@ -16,7 +16,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
@@ -223,6 +223,12 @@ interface ISettingsSyncOptions {
 	 * Is settings sync enabled
 	 */
 	readonly enabled: boolean;
+
+	/**
+	 * Version of extensions sync state.
+	 * Extensions sync state will be reset if version is provided and different from previous version.
+	 */
+	readonly extensionsSyncStateVersion?: string;
 
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.

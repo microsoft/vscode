@@ -39,12 +39,6 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		@ILocalPtyService private readonly _localPtyService: ILocalPtyService
 	) {
 		super();
-
-		if (this._localPtyService.onPtyHostExit) {
-			this._localPtyService.onPtyHostExit(() => {
-				this._onProcessExit.fire(undefined);
-			});
-		}
 	}
 
 	start(): Promise<ITerminalLaunchError | undefined> {
@@ -55,6 +49,12 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	}
 	shutdown(immediate: boolean): void {
 		this._localPtyService.shutdown(this.id, immediate);
+	}
+	async processBinary(data: string): Promise<void> {
+		if (this._inReplay) {
+			return;
+		}
+		return this._localPtyService.processBinary(this.id, data);
 	}
 	input(data: string): void {
 		if (this._inReplay) {

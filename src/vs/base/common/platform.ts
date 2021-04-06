@@ -24,7 +24,7 @@ interface NLSConfig {
 }
 
 export interface IProcessEnvironment {
-	[key: string]: string;
+	[key: string]: string | undefined;
 }
 
 /**
@@ -53,17 +53,17 @@ declare const self: unknown;
 export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 let nodeProcess: INodeProcess | undefined = undefined;
-if (typeof process !== 'undefined') {
-	// Native environment (non-sandboxed)
-	nodeProcess = process;
-} else if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined') {
 	// Native environment (sandboxed)
 	nodeProcess = globals.vscode.process;
+} else if (typeof process !== 'undefined') {
+	// Native environment (non-sandboxed)
+	nodeProcess = process;
 }
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';
 export const isElectronSandboxed = isElectronRenderer && nodeProcess?.sandboxed;
-export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' | undefined = (() => {
+export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' | undefined = (() => {//
 
 	// Always enabled when sandbox is enabled
 	if (isElectronSandboxed) {
@@ -71,7 +71,7 @@ export const browserCodeLoadingCacheStrategy: 'none' | 'code' | 'bypassHeatCheck
 	}
 
 	// Otherwise, only enabled conditionally
-	const env = nodeProcess?.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'];
+	const env = nodeProcess?.env['VSCODE_BROWSER_CODE_LOADING'];
 	if (typeof env === 'string') {
 		if (env === 'none' || env === 'code' || env === 'bypassHeatCheck' || env === 'bypassHeatCheckAndEagerCompile') {
 			return env;

@@ -236,7 +236,7 @@ export interface ISettingListChangeEvent<TDataItem extends object> {
 	targetIndex?: number;
 }
 
-abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
+export abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
 	private rowElements: HTMLElement[] = [];
 
@@ -438,13 +438,13 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 			return -1;
 		}
 
-		const actionbar = DOM.findParentWithClass(<any>e.target, 'monaco-action-bar');
+		const actionbar = DOM.findParentWithClass(e.target as HTMLElement, 'monaco-action-bar');
 		if (actionbar) {
 			// Don't handle doubleclicks inside the action bar
 			return -1;
 		}
 
-		const element = DOM.findParentWithClass((<any>e.target), 'setting-list-row');
+		const element = DOM.findParentWithClass(e.target as HTMLElement, 'setting-list-row');
 		if (!element) {
 			return -1;
 		}

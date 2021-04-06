@@ -81,7 +81,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		this._hasLostConnection = false;
 		this._terminating = false;
 
-		this._register(this._lifecycleService.onShutdown(reason => this.dispose()));
+		this._register(this._lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const devOpts = parseExtensionDevOptions(this._environmentService);
 		this._isExtensionDevHost = devOpts.isExtensionDevHost;

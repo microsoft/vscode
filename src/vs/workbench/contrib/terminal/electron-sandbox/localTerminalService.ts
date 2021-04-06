@@ -59,7 +59,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		// Attach pty host listeners
 		if (this._localPtyService.onPtyHostExit) {
 			this._register(this._localPtyService.onPtyHostExit(() => {
-				notificationService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
+				this._logService.error(`The terminal's pty host process exited, the connection to all terminal processes was lost`);
 			}));
 		}
 		let unresponsiveNotification: INotificationHandle | undefined;
@@ -116,8 +116,12 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return undefined;
 	}
 
-	public async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
-		return this._localPtyService.listProcesses(reduceGraceTime);
+	public async listProcesses(): Promise<IProcessDetails[]> {
+		return this._localPtyService.listProcesses();
+	}
+
+	public async reduceConnectionGraceTime(): Promise<void> {
+		this._localPtyService.reduceConnectionGraceTime();
 	}
 
 	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
@@ -134,6 +138,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		};
 		let result = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 		return result;
+	}
+
+	public processBinary(id: number, data: string): void {
+		this._localPtyService.processBinary(id, data);
 	}
 
 	private _getWorkspaceId(): string {

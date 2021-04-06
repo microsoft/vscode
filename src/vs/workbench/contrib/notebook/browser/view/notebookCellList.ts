@@ -46,12 +46,15 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
 
-	private readonly _onDidRemoveOutput = new Emitter<ICellOutputViewModel>();
-	readonly onDidRemoveOutput: Event<ICellOutputViewModel> = this._onDidRemoveOutput.event;
-	private readonly _onDidHideOutput = new Emitter<ICellOutputViewModel>();
-	readonly onDidHideOutput: Event<ICellOutputViewModel> = this._onDidHideOutput.event;
-	private readonly _onDidRemoveCellFromView = new Emitter<ICellViewModel>();
-	readonly onDidRemoveCellFromView: Event<ICellViewModel> = this._onDidRemoveCellFromView.event;
+	private readonly _onDidRemoveOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
+
+	private readonly _onDidHideOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	readonly onDidHideOutputs = this._onDidHideOutputs.event;
+
+	private readonly _onDidRemoveCellsFromView = new Emitter<readonly ICellViewModel[]>();
+	readonly onDidRemoveCellsFromView = this._onDidRemoveCellsFromView.event;
+
 	private _viewModel: NotebookViewModel | null = null;
 	get viewModel(): NotebookViewModel | null {
 		return this._viewModel;
@@ -196,6 +199,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			const top = this.getViewScrollTop();
 			const bottom = this.getViewScrollBottom();
+			if (top >= bottom) {
+				return;
+			}
+
 			const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
 			const topElement = this.view.element(topViewIndex);
 			const topModelIndex = this._viewModel!.getCellIndex(topElement);
@@ -294,9 +301,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			// convert model selections to view selections
-			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			const viewSelections = cellRangesToIndexes(model.getSelections()).map(index => model.cellAt(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 			this.setSelection(viewSelections, undefined, true);
-			const primary = cellRangesToIndexes([model.getFocus()]).map(index => model.getCellByIndex(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			const primary = cellRangesToIndexes([model.getFocus()]).map(index => model.cellAt(index)).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
 
 			if (primary.length) {
 				this.setFocus(primary, undefined, true);
@@ -309,9 +316,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewCells = model.viewCells.slice(0) as CellViewModel[];
 		newRanges.reverse().forEach(range => {
 			const removedCells = viewCells.splice(range.start, range.end - range.start + 1);
-			removedCells.forEach(cell => {
-				this._onDidRemoveCellFromView.fire(cell);
-			});
+			this._onDidRemoveCellsFromView.fire(removedCells);
 		});
 
 		this.splice2(0, 0, viewCells);
@@ -319,7 +324,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _updateElementsInWebview(viewDiffs: ISplice<CellViewModel>[]) {
 		viewDiffs.reverse().forEach((diff) => {
-			const hideOutputs: ICellOutputViewModel[] = [];
+			const hiddenOutputs: ICellOutputViewModel[] = [];
 			const deletedOutputs: ICellOutputViewModel[] = [];
 			const removedMarkdownCells: ICellViewModel[] = [];
 
@@ -327,7 +332,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				const cell = this.element(i);
 				if (cell.cellKind === CellKind.Code) {
 					if (this._viewModel!.hasCell(cell.handle)) {
-						hideOutputs.push(...cell?.outputsViewModels);
+						hiddenOutputs.push(...cell?.outputsViewModels);
 					} else {
 						deletedOutputs.push(...cell?.outputsViewModels);
 					}
@@ -338,9 +343,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			this.splice2(diff.start, diff.deleteCount, diff.toInsert);
 
-			hideOutputs.forEach(output => this._onDidHideOutput.fire(output));
-			deletedOutputs.forEach(output => this._onDidRemoveOutput.fire(output));
-			removedMarkdownCells.forEach(cell => this._onDidRemoveCellFromView.fire(cell));
+			this._onDidHideOutputs.fire(hiddenOutputs);
+			this._onDidRemoveOutputs.fire(deletedOutputs);
+			this._onDidRemoveCellsFromView.fire(removedMarkdownCells);
 		});
 	}
 
@@ -615,11 +620,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	selectElement(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-		if (index >= 0) {
-			this.setSelection([index]);
-		}
+	selectElements(elements: ICellViewModel[]) {
+		const indices = elements.map(cell => this._getViewIndexUpperBound(cell)).filter(index => index >= 0);
+		this.setSelection(indices);
 	}
 
 	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
@@ -689,6 +692,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.setSelection(indexes, browserEvent);
 	}
 
+	/**
+	 * The range will be revealed with as little scrolling as possible.
+	 */
 	revealElementsInView(range: ICellRange) {
 		const startIndex = this._getViewIndexUpperBound2(range.start);
 
@@ -708,6 +714,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			const endElementTop = this.view.elementTop(endIndex);
 			const endElementHeight = this.view.elementHeight(endIndex);
+
+			if (endElementTop + endElementHeight <= wrapperBottom) {
+				// fully visible
+				return;
+			}
 
 			if (endElementTop >= wrapperBottom) {
 				return this._revealInternal(endIndex, false, CellRevealPosition.Bottom);
@@ -1082,8 +1093,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				this.view.setScrollTop(this.view.elementTop(viewIndex) - this.view.renderHeight / 2);
 				break;
 			case CellRevealPosition.Bottom:
-				this.view.setScrollTop(elementBottom - this.view.renderHeight);
-				this.view.setScrollTop(this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.view.renderHeight);
+				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
+				this.view.setScrollTop(this.scrollTop + (this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.getViewScrollBottom()));
 				break;
 			default:
 				break;
@@ -1234,6 +1245,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (newStyles !== this.styleElement.textContent) {
 			this.styleElement.textContent = newStyles;
 		}
+	}
+
+	getRenderHeight() {
+		return this.view.renderHeight;
 	}
 
 	layout(height?: number, width?: number): void {

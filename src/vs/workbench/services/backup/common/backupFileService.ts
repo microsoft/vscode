@@ -455,7 +455,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private backups: Map<string, ITextSnapshot> = new Map();
+	private backups = new Map<string, { content: ITextSnapshot, meta?: object }>();
 
 	constructor(private readonly hashPath: (resource: URI) => string) { }
 
@@ -471,14 +471,14 @@ export class InMemoryBackupFileService implements IBackupFileService {
 
 	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
-		this.backups.set(backupResource.toString(), content || stringToSnapshot(''));
+		this.backups.set(backupResource.toString(), { content: content || stringToSnapshot(''), meta });
 	}
 
 	async resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> {
 		const backupResource = this.toBackupResource(resource);
-		const snapshot = this.backups.get(backupResource.toString());
-		if (snapshot) {
-			return { value: createTextBufferFactoryFromSnapshot(snapshot) };
+		const backup = this.backups.get(backupResource.toString());
+		if (backup) {
+			return { value: createTextBufferFactoryFromSnapshot(backup.content), meta: backup.meta as T | undefined };
 		}
 
 		return undefined;

@@ -32,7 +32,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalTab = terminalTabs[tabIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalTab.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalTab.terminalInstances[terminalIndex];
-				const label = `${tabIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
+				const label = `$(${terminal.icon.id}) ${tabIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
 
 				const highlights = matchesFuzzy(filter, label, true);
 				if (highlights) {
@@ -74,11 +74,17 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			terminalPicks.push({ type: 'separator' });
 		}
 
-		const createTerminalLabel = localize("workbench.action.terminal.newplus", "Create New Integrated Terminal");
+		const createTerminalLabel = localize("workbench.action.terminal.newplus", "Create New Terminal");
 		terminalPicks.push({
 			label: `$(plus) ${createTerminalLabel}`,
 			ariaLabel: createTerminalLabel,
-			accept: () => this.commandService.executeCommand('workbench.action.terminal.new')
+			accept: () => this.commandService.executeCommand(TERMINAL_COMMAND_ID.NEW)
+		});
+		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile");
+		terminalPicks.push({
+			label: `$(plus) ${createWithProfileLabel}`,
+			ariaLabel: createWithProfileLabel,
+			accept: () => this.commandService.executeCommand(TERMINAL_COMMAND_ID.NEW_WITH_PROFILE)
 		});
 
 		return terminalPicks;

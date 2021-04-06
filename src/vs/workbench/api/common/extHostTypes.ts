@@ -707,7 +707,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
 	}
 
 	// --- text
@@ -1179,8 +1179,8 @@ export class DocumentSymbol {
 
 
 export enum CodeActionTriggerKind {
-	Automatic = 1,
-	Manual = 2,
+	Invoke = 1,
+	Automatic = 2,
 }
 
 @es5ClassCompat
@@ -2922,6 +2922,22 @@ export class NotebookCellRange {
 		this._start = start;
 		this._end = end;
 	}
+
+	with(change: { start?: number, end?: number }): NotebookCellRange {
+		let start = this._start;
+		let end = this._end;
+
+		if (change.start !== undefined) {
+			start = change.start;
+		}
+		if (change.end !== undefined) {
+			end = change.end;
+		}
+		if (start === this._start && end === this._end) {
+			return this;
+		}
+		return new NotebookCellRange(start, end);
+	}
 }
 
 export class NotebookCellMetadata {
@@ -2930,11 +2946,7 @@ export class NotebookCellMetadata {
 		readonly editable?: boolean,
 		readonly breakpointMargin?: boolean,
 		readonly hasExecutionOrder?: boolean,
-		readonly executionOrder?: number,
-		readonly runState?: NotebookCellRunState,
-		readonly runStartTime?: number,
 		readonly statusMessage?: string,
-		readonly lastRunDuration?: number,
 		readonly inputCollapsed?: boolean,
 		readonly outputCollapsed?: boolean,
 		readonly custom?: Record<string, any>,
@@ -2944,17 +2956,13 @@ export class NotebookCellMetadata {
 		editable?: boolean | null,
 		breakpointMargin?: boolean | null,
 		hasExecutionOrder?: boolean | null,
-		executionOrder?: number | null,
-		runState?: NotebookCellRunState | null,
-		runStartTime?: number | null,
 		statusMessage?: string | null,
-		lastRunDuration?: number | null,
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
 		custom?: Record<string, any> | null,
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, hasExecutionOrder, executionOrder, runState, runStartTime, statusMessage, lastRunDuration, inputCollapsed, outputCollapsed, custom } = change;
+		let { editable, breakpointMargin, hasExecutionOrder, statusMessage, inputCollapsed, outputCollapsed, custom } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -2971,30 +2979,10 @@ export class NotebookCellMetadata {
 		} else if (hasExecutionOrder === null) {
 			hasExecutionOrder = undefined;
 		}
-		if (executionOrder === undefined) {
-			executionOrder = this.executionOrder;
-		} else if (executionOrder === null) {
-			executionOrder = undefined;
-		}
-		if (runState === undefined) {
-			runState = this.runState;
-		} else if (runState === null) {
-			runState = undefined;
-		}
-		if (runStartTime === undefined) {
-			runStartTime = this.runStartTime;
-		} else if (runStartTime === null) {
-			runStartTime = undefined;
-		}
 		if (statusMessage === undefined) {
 			statusMessage = this.statusMessage;
 		} else if (statusMessage === null) {
 			statusMessage = undefined;
-		}
-		if (lastRunDuration === undefined) {
-			lastRunDuration = this.lastRunDuration;
-		} else if (lastRunDuration === null) {
-			lastRunDuration = undefined;
 		}
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
@@ -3015,11 +3003,7 @@ export class NotebookCellMetadata {
 		if (editable === this.editable &&
 			breakpointMargin === this.breakpointMargin &&
 			hasExecutionOrder === this.hasExecutionOrder &&
-			executionOrder === this.executionOrder &&
-			runState === this.runState &&
-			runStartTime === this.runStartTime &&
 			statusMessage === this.statusMessage &&
-			lastRunDuration === this.lastRunDuration &&
 			inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
 			custom === this.custom
@@ -3031,11 +3015,7 @@ export class NotebookCellMetadata {
 			editable,
 			breakpointMargin,
 			hasExecutionOrder,
-			executionOrder,
-			runState,
-			runStartTime,
 			statusMessage,
-			lastRunDuration,
 			inputCollapsed,
 			outputCollapsed,
 			custom,
@@ -3050,7 +3030,6 @@ export class NotebookDocumentMetadata {
 		readonly cellEditable: boolean = true,
 		readonly cellHasExecutionOrder: boolean = true,
 		readonly custom: { [key: string]: any; } = {},
-		readonly runState: NotebookRunState = NotebookRunState.Idle,
 		readonly trusted: boolean = true,
 	) { }
 
@@ -3059,11 +3038,10 @@ export class NotebookDocumentMetadata {
 		cellEditable?: boolean | null,
 		cellHasExecutionOrder?: boolean | null,
 		custom?: { [key: string]: any; } | null,
-		runState?: NotebookRunState | null,
 		trusted?: boolean | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, cellEditable, cellHasExecutionOrder, custom, runState, trusted } = change;
+		let { editable, cellEditable, cellHasExecutionOrder, custom, trusted } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -3085,11 +3063,6 @@ export class NotebookDocumentMetadata {
 		} else if (custom === null) {
 			custom = undefined;
 		}
-		if (runState === undefined) {
-			runState = this.runState;
-		} else if (runState === null) {
-			runState = undefined;
-		}
 		if (trusted === undefined) {
 			trusted = this.trusted;
 		} else if (trusted === null) {
@@ -3100,7 +3073,6 @@ export class NotebookDocumentMetadata {
 			cellEditable === this.cellEditable &&
 			cellHasExecutionOrder === this.cellHasExecutionOrder &&
 			custom === this.custom &&
-			runState === this.runState &&
 			trusted === this.trusted
 		) {
 			return this;
@@ -3112,7 +3084,6 @@ export class NotebookDocumentMetadata {
 			cellEditable,
 			cellHasExecutionOrder,
 			custom,
-			runState,
 			trusted
 		);
 	}
@@ -3125,13 +3096,15 @@ export class NotebookCellData {
 	language: string;
 	outputs?: NotebookCellOutput[];
 	metadata?: NotebookCellMetadata;
+	latestExecutionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata) {
+	constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.source = source;
 		this.language = language;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
+		this.latestExecutionSummary = latestExecutionSummary;
 	}
 }
 
@@ -3187,16 +3160,10 @@ export enum NotebookCellKind {
 	Code = 2
 }
 
-export enum NotebookCellRunState {
-	Running = 1,
-	Idle = 2,
-	Success = 3,
-	Error = 4
-}
-
-export enum NotebookRunState {
-	Running = 1,
-	Idle = 2
+export enum NotebookCellExecutionState {
+	Idle = 1,
+	Pending = 2,
+	Executing = 3,
 }
 
 export enum NotebookCellStatusBarAlignment {
@@ -3272,7 +3239,7 @@ export class LinkedEditingRanges {
 }
 
 //#region Testing
-export enum TestResult {
+export enum TestResultState {
 	Unset = 0,
 	Queued = 1,
 	Running = 2,
@@ -3289,28 +3256,132 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export class TestItem implements vscode.TestItem {
-	public id!: string;
-	public location?: Location;
-	public description?: string;
-	public runnable = true;
-	public debuggable = false;
-	public children: vscode.TestItem[] = [];
+export const TestItemHookProperty = Symbol('TestItemHookProperty');
 
-	constructor(id: string, public label: string) {
-		Object.defineProperty(this, 'id', {
-			value: id,
-			enumerable: true,
-			writable: false,
-		});
+export interface ITestItemHook {
+	created(item: vscode.TestItem): void;
+	setProp<K extends keyof vscode.TestItem>(key: K, value: vscode.TestItem[K]): void;
+	invalidate(id: string): void;
+	delete(id: string): void;
+}
+
+const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, key: K, defaultValue: vscode.TestItem[K]) => {
+	let value = defaultValue;
+	return {
+		enumerable: true,
+		configurable: false,
+		get() {
+			return value;
+		},
+		set(newValue: vscode.TestItem[K]) {
+			item[TestItemHookProperty]?.setProp(key, newValue);
+			value = newValue;
+		},
+	};
+};
+
+export class TestChildrenCollection implements vscode.TestChildrenCollection<vscode.TestItem> {
+	#map = new Map<string, vscode.TestItem>();
+	#hookRef: () => ITestItemHook | undefined;
+
+	public get size() {
+		return this.#map.size;
+	}
+
+	constructor(hookRef: () => ITestItemHook | undefined) {
+		this.#hookRef = hookRef;
+	}
+
+	public add(child: vscode.TestItem) {
+		const map = this.#map;
+		const hook = this.#hookRef();
+
+		const existing = map.get(child.id);
+		if (existing === child) {
+			return;
+		}
+
+		if (existing) {
+			hook?.delete(child.id);
+		}
+
+		map.set(child.id, child);
+		hook?.created(child);
+	}
+
+	public get(id: string) {
+		return this.#map.get(id);
+	}
+
+	public clear() {
+		for (const key of this.#map.keys()) {
+			this.delete(key);
+		}
+	}
+
+	public delete(childOrId: vscode.TestItem | string) {
+		const id = typeof childOrId === 'string' ? childOrId : childOrId.id;
+		if (this.#map.has(id)) {
+			this.#map.delete(id);
+			this.#hookRef()?.delete(id);
+		}
+	}
+
+	public toJSON() {
+		return [...this.#map.values()];
+	}
+
+	public [Symbol.iterator]() {
+		return this.#map.values();
 	}
 }
 
-export class TestState implements vscode.TestState {
-	public messages: TestMessage[] = [];
-	public duration?: number;
+export class TestItem implements vscode.TestItem {
+	public id!: string;
+	public range!: vscode.Range | undefined;
+	public description!: string | undefined;
+	public runnable!: boolean;
+	public debuggable!: boolean;
+	public children!: TestChildrenCollection;
+	public uri!: vscode.Uri;
+	public [TestItemHookProperty]!: ITestItemHook | undefined;
 
-	constructor(public state: TestResult) { }
+	constructor(id: string, public label: string, uri: vscode.Uri, public expandable: boolean) {
+		Object.defineProperties(this, {
+			id: {
+				value: id,
+				enumerable: true,
+				writable: false,
+			},
+			uri: {
+				value: uri,
+				enumerable: true,
+				writable: false,
+			},
+			children: {
+				value: new TestChildrenCollection(() => this[TestItemHookProperty]),
+				enumerable: true,
+				writable: false,
+			},
+			[TestItemHookProperty]: {
+				enumerable: false,
+				writable: true,
+				configurable: false,
+			},
+			range: testItemPropAccessor(this, 'range', undefined),
+			description: testItemPropAccessor(this, 'description', undefined),
+			runnable: testItemPropAccessor(this, 'runnable', true),
+			debuggable: testItemPropAccessor(this, 'debuggable', true),
+		});
+	}
+
+	public invalidate() {
+		this[TestItemHookProperty]?.invalidate(this.id);
+	}
+
+	public discoverChildren(progress: vscode.Progress<{ busy: boolean }>, _token: vscode.CancellationToken) {
+		progress.report({ busy: false });
+	}
 }
 
 export class TestMessage implements vscode.TestMessage {
@@ -3340,7 +3411,7 @@ export enum ExternalUriOpenerPriority {
 export enum WorkspaceTrustState {
 	Untrusted = 0,
 	Trusted = 1,
-	Unknown = 2
+	Unspecified = 2
 }
 
 export enum PortAutoForwardAction {

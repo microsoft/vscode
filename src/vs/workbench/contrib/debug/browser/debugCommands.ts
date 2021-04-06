@@ -30,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
 import { deepClone } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -250,7 +250,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: STEP_INTO_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
-	primary: KeyCode.F11,
+	primary: (isWeb && isWindows) ? (KeyMod.Alt | KeyCode.F11) : KeyCode.F11, // Windows browsers use F11 for full screen, thus use alt+F11 as the default shortcut
 	// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
 	when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
@@ -278,7 +278,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown): Promise<void> {
+async function stopHandler(accessor: ServicesAccessor, _: string, context: CallStackContext | unknown, disconnect: boolean): Promise<void> {
 	const debugService = accessor.get(IDebugService);
 	let session: IDebugSession | undefined;
 	if (isSessionContext(context)) {
@@ -294,7 +294,7 @@ async function stopHandler(accessor: ServicesAccessor, _: string, context: CallS
 		session = session.parentSession;
 	}
 
-	await debugService.stopSession(session);
+	await debugService.stopSession(session, disconnect);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -302,7 +302,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.Shift | KeyCode.F5,
 	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE),
-	handler: stopHandler
+	handler: (accessor, _, context) => stopHandler(accessor, _, context, true)
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -310,7 +310,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.Shift | KeyCode.F5,
 	when: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_IN_DEBUG_MODE),
-	handler: stopHandler
+	handler: (accessor, _, context) => stopHandler(accessor, _, context, false)
 });
 
 CommandsRegistry.registerCommand({
@@ -385,12 +385,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.F5,
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
-	handler: async (accessor: ServicesAccessor, debugStartOptions: { config?: Partial<IConfig>; noDebug?: boolean } = {}) => {
+	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;
 		const config = await getConfig();
-		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions.config) : name;
-		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions.noDebug });
+		const configOrName = config ? Object.assign(deepClone(config), debugStartOptions?.config) : name;
+		await debugService.startDebugging(launch, configOrName, { noDebug: debugStartOptions?.noDebug });
 	}
 });
 

@@ -218,9 +218,12 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -247,9 +250,12 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 

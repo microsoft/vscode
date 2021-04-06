@@ -47,7 +47,7 @@ import { ExtHostUrls } from 'vs/workbench/api/common/extHostUrls';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { IExtHostWindow } from 'vs/workbench/api/common/extHostWindow';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { throwProposedApiError, checkProposedApiEnabled, checkRequiresWorkspaceTrust } from 'vs/workbench/services/extensions/common/extensions';
+import { throwProposedApiError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
@@ -425,7 +425,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.registerEvaluatableExpressionProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerInlineValuesProvider(selector: vscode.DocumentSelector, provider: vscode.InlineValuesProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension);
 				return extHostLanguageFeatures.registerInlineValuesProvider(extension, checkSelector(selector), provider, extension.identifier);
 			},
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
@@ -633,6 +632,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof nameOrOptions === 'object') {
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
+					}
+					if (nameOrOptions.initialText) {
+						checkProposedApiEnabled(extension);
+					}
+					if (nameOrOptions.icon) {
+						checkProposedApiEnabled(extension);
 					}
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
@@ -911,13 +916,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get trustState() {
 				checkProposedApiEnabled(extension);
-				checkRequiresWorkspaceTrust(extension);
 				return extHostWorkspace.trustState;
 			},
-			requireWorkspaceTrust: (request?: vscode.WorkspaceTrustRequest) => {
+			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension);
-				checkRequiresWorkspaceTrust(extension);
-				return extHostWorkspace.requireWorkspaceTrust(request);
+				return extHostWorkspace.requestWorkspaceTrust(options);
 			},
 			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
 				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
@@ -1052,6 +1055,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeActiveNotebookKernel;
 			},
+			registerNotebookSerializer(viewType, serializer, options) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options);
+			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: {
 				transientOutputs: boolean;
 				transientMetadata: { [K in keyof vscode.NotebookCellMetadata]?: boolean }
@@ -1075,6 +1082,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
 			},
+			onDidChangeCellExecutionState(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeNotebookCellExecutionState(listener, thisArgs, disposables);
+			},
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeCellOutputs(listener, thisArgs, disposables);
@@ -1090,6 +1101,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createCellStatusBarItem(cell: vscode.NotebookCell, alignment?: vscode.NotebookCellStatusBarAlignment, priority?: number): vscode.NotebookCellStatusBarItem {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookCellStatusBarItemInternal(cell, alignment, priority);
+			},
+			createNotebookCellExecutionTask(uri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.createNotebookCellExecution(uri, index, kernelId);
 			}
 		};
 
@@ -1228,20 +1243,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TimelineItem: extHostTypes.TimelineItem,
 			NotebookCellRange: extHostTypes.NotebookCellRange,
 			NotebookCellKind: extHostTypes.NotebookCellKind,
-			NotebookCellRunState: extHostTypes.NotebookCellRunState,
+			NotebookCellExecutionState: extHostTypes.NotebookCellExecutionState,
 			NotebookDocumentMetadata: extHostTypes.NotebookDocumentMetadata,
 			NotebookCellMetadata: extHostTypes.NotebookCellMetadata,
 			NotebookCellData: extHostTypes.NotebookCellData,
 			NotebookData: extHostTypes.NotebookData,
-			NotebookRunState: extHostTypes.NotebookRunState,
 			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment,
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestItem: extHostTypes.TestItem,
-			TestState: extHostTypes.TestState,
-			TestResult: extHostTypes.TestResult,
+			TestResultState: extHostTypes.TestResultState,
 			TestMessage: extHostTypes.TestMessage,
 			TestMessageSeverity: extHostTypes.TestMessageSeverity,
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState

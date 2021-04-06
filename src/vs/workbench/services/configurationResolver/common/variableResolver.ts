@@ -40,10 +40,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private _envVariables?: IProcessEnvironment;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
-
-	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariables?: IProcessEnvironment) {
+	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariables?: IProcessEnvironment, _envVariablesPromise?: Promise<IProcessEnvironment>) {
 		this._context = _context;
 		this._labelService = _labelService;
+		// TODO: delete _envVariables in favor of _envVariablesPromise https://github.com/microsoft/vscode/issues/108804
 		if (_envVariables) {
 			if (isWindows) {
 				// windows env variables are case insensitive
@@ -58,13 +58,30 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		}
 	}
 
+	public resolveWithEnvironment(environment: IProcessEnvironment, root: IWorkspaceFolder | undefined, value: string): string {
+		return this.recursiveResolve(environment, root ? root.uri : undefined, value);
+	}
+
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string): Promise<string>;
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): Promise<IStringDictionary<string>>;
+	public async resolveAsync(root: IWorkspaceFolder | undefined, value: any): Promise<any> {
+		return this.recursiveResolve(this._envVariables, root ? root.uri : undefined, value);
+	}
+
+	/**
+	 * @deprecated Use the async version of `resolve` instead.
+	 */
 	public resolve(root: IWorkspaceFolder | undefined, value: string): string;
 	public resolve(root: IWorkspaceFolder | undefined, value: string[]): string[];
 	public resolve(root: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
 	public resolve(root: IWorkspaceFolder | undefined, value: any): any {
-		return this.recursiveResolve(root ? root.uri : undefined, value);
+		return this.recursiveResolve(this._envVariables, root ? root.uri : undefined, value);
 	}
 
+	/**
+	 * @deprecated Use the async version of `resolve` instead.
+	 */
 	public resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 
 		const result = objects.deepClone(config) as any;
@@ -84,10 +101,14 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		delete result.linux;
 
 		// substitute all variables recursively in string values
-		return this.recursiveResolve(workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
+		return this.recursiveResolve(this._envVariables, workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
 	}
 
 	public resolveAny(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any {
+		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
+	}
+
+	public async resolveAnyAsync(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any> {
 		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
 	}
 
@@ -113,23 +134,23 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		}
 	}
 
-	private recursiveResolve(folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
+	private recursiveResolve(environment: IProcessEnvironment | undefined, folderUri: uri | undefined, value: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): any {
 		if (types.isString(value)) {
-			return this.resolveString(folderUri, value, commandValueMapping, resolvedVariables);
+			return this.resolveString(environment, folderUri, value, commandValueMapping, resolvedVariables);
 		} else if (types.isArray(value)) {
-			return value.map(s => this.recursiveResolve(folderUri, s, commandValueMapping, resolvedVariables));
+			return value.map(s => this.recursiveResolve(environment, folderUri, s, commandValueMapping, resolvedVariables));
 		} else if (types.isObject(value)) {
 			let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 			Object.keys(value).forEach(key => {
-				const replaced = this.resolveString(folderUri, key, commandValueMapping, resolvedVariables);
-				result[replaced] = this.recursiveResolve(folderUri, value[key], commandValueMapping, resolvedVariables);
+				const replaced = this.resolveString(environment, folderUri, key, commandValueMapping, resolvedVariables);
+				result[replaced] = this.recursiveResolve(environment, folderUri, value[key], commandValueMapping, resolvedVariables);
 			});
 			return result;
 		}
 		return value;
 	}
 
-	private resolveString(folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): string {
+	private resolveString(environment: IProcessEnvironment | undefined, folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): string {
 
 		// loop through all variables occurrences in 'value'
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
@@ -138,7 +159,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				return match;
 			}
 
-			let resolvedValue = this.evaluateSingleVariable(match, variable, folderUri, commandValueMapping);
+			let resolvedValue = this.evaluateSingleVariable(environment, match, variable, folderUri, commandValueMapping);
 
 			if (resolvedVariables) {
 				resolvedVariables.set(variable, resolvedValue);
@@ -154,7 +175,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
-	private evaluateSingleVariable(match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
+	private evaluateSingleVariable(environment: IProcessEnvironment | undefined, match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
 
 		// try to separate variable arguments from variable name
 		let argument: string | undefined;
@@ -213,8 +234,8 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			case 'env':
 				if (argument) {
-					if (this._envVariables) {
-						const env = this._envVariables[isWindows ? argument.toLowerCase() : argument];
+					if (environment) {
+						const env = environment[isWindows ? argument.toLowerCase() : argument];
 						if (types.isString(env)) {
 							return env;
 						}

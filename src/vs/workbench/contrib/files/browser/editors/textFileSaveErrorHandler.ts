@@ -9,14 +9,13 @@ import { basename, isEqual } from 'vs/base/common/resources';
 import { Action, IAction } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -54,7 +53,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -78,7 +77,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		let activeConflictResolutionResource: URI | undefined;
 
 		const activeInput = this.editorService.activeEditor;
-		if (activeInput instanceof DiffEditorInput && activeInput.originalInput instanceof ResourceEditorInput && activeInput.modifiedInput instanceof FileEditorInput) {
+		if (activeInput instanceof DiffEditorInput) {
 			const resource = activeInput.originalInput.resource;
 			if (resource?.scheme === CONFLICT_RESOLUTION_SCHEME) {
 				isActiveEditorSaveConflictResolution = true;
@@ -331,16 +330,26 @@ class SaveModelAsAction extends Action {
 	}
 
 	private findEditor(): IEditorIdentifier | undefined {
-		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+		let preferredMatchingEditor: IEditorIdentifier | undefined;
+		let otherMatchingEditors: IEditorIdentifier[] = [];
+
+		FindEditorLoop: for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			const editors = this.editorService.findEditors(this.model.resource, group);
 			for (const editor of editors) {
 				if (editor instanceof FileEditorInput) {
-					return { editor, groupId: group.id };
+					// We prefer a `FileEditorInput` for "Save As", but it is possible
+					// that a custom editor is leveraging the text file model and as
+					// such we need to fallback to any other editor having the resource
+					// opened for running the save.
+					preferredMatchingEditor = { editor, groupId: group.id };
+					break FindEditorLoop;
 				}
+
+				otherMatchingEditors.push({ editor, groupId: group.id });
 			}
 		}
 
-		return undefined;
+		return preferredMatchingEditor || otherMatchingEditors[0];
 	}
 }
 
@@ -387,9 +396,16 @@ class ConfigureSaveConflictAction extends Action {
 	}
 }
 
-export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, resource: URI) => {
+export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
+	return acceptOrRevertLocalChangesCommand(accessor, resource, true);
+};
+
+export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
+	return acceptOrRevertLocalChangesCommand(accessor, resource, false);
+};
+
+async function acceptOrRevertLocalChangesCommand(accessor: ServicesAccessor, resource: URI, accept: boolean) {
 	const editorService = accessor.get(IEditorService);
-	const resolverService = accessor.get(ITextModelService);
 
 	const editorPane = editorService.activeEditorPane;
 	if (!editorPane) {
@@ -399,58 +415,20 @@ export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const editor = editorPane.input;
 	const group = editorPane.group;
 
-	const reference = await resolverService.createModelReference(resource);
-	const model = reference.object as IResolvedTextFileEditorModel;
+	// Hide any previously shown message about how to use these actions
+	clearPendingResolveSaveConflictMessages();
 
-	try {
-
-		// hide any previously shown message about how to use these actions
-		clearPendingResolveSaveConflictMessages();
-
-		// Trigger save
-		await model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
-
-		// Reopen file input
-		await editorService.openEditor({ resource: model.resource }, group);
-
-		// Clean up
-		group.closeEditor(editor);
-		editor.dispose();
-	} finally {
-		reference.dispose();
-	}
-};
-
-export const revertLocalChangesCommand = async (accessor: ServicesAccessor, resource: URI) => {
-	const editorService = accessor.get(IEditorService);
-	const resolverService = accessor.get(ITextModelService);
-
-	const editorPane = editorService.activeEditorPane;
-	if (!editorPane) {
-		return;
+	// Accept or revert
+	if (accept) {
+		const options: ITextFileSaveAsOptions = { ignoreModifiedSince: true, reason: SaveReason.EXPLICIT };
+		await editorService.save({ editor, groupId: group.id }, options);
+	} else {
+		await editorService.revert({ editor, groupId: group.id });
 	}
 
-	const editor = editorPane.input;
-	const group = editorPane.group;
+	// Reopen original editor
+	await editorService.openEditor({ resource }, group);
 
-	const reference = await resolverService.createModelReference(resource);
-	const model = reference.object as ITextFileEditorModel;
-
-	try {
-
-		// hide any previously shown message about how to use these actions
-		clearPendingResolveSaveConflictMessages();
-
-		// Revert on model
-		await model.revert();
-
-		// Reopen file input
-		await editorService.openEditor({ resource: model.resource }, group);
-
-		// Clean up
-		group.closeEditor(editor);
-		editor.dispose();
-	} finally {
-		reference.dispose();
-	}
-};
+	// Clean up
+	return group.closeEditor(editor);
+}

@@ -30,7 +30,7 @@ suite('Notebook Outline', function () {
 	});
 
 	function withNotebookOutline<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (outline: NotebookCellOutline, editor: IActiveNotebookEditor) => R): Promise<R> {
-		return withTestNotebook(instantiationService, cells, (editor) => {
+		return withTestNotebook(cells, (editor) => {
 			if (!editor.hasModel()) {
 				assert.ok(false, 'MUST have active text editor');
 			}

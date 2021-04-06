@@ -10,9 +10,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { InternalTestItem, TestDiffOpType, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, TestDiffOpType, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestResultService, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
+import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
@@ -66,7 +67,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 	 */
 	private makeRunner() {
 		let isRunning = false;
-		const rerunIds = new Map<string, TestIdWithProvider>();
+		const rerunIds = new Map<string, TestIdWithSrc>();
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
 		store.add(toDisposable(() => cts.dispose(true)));
@@ -91,7 +92,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		}, delay));
 
 		const addToRerun = (test: InternalTestItem) => {
-			rerunIds.set(`${test.item.extId}/${test.providerId}`, ({ testId: test.item.extId, providerId: test.providerId }));
+			rerunIds.set(`${test.item.extId}/${test.src.provider}`, ({ testId: test.item.extId, src: test.src }));
 			if (!isRunning) {
 				scheduler.schedule(delay);
 			}

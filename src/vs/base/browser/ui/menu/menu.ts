@@ -37,7 +37,7 @@ export enum Direction {
 }
 
 export interface IMenuOptions {
-	context?: any;
+	context?: unknown;
 	actionViewItemProvider?: IActionViewItemProvider;
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;

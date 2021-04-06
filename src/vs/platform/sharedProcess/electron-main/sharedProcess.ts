@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMainEvent, RenderProcessGoneDetails } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { Barrier } from 'vs/base/common/async';
@@ -10,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { FileAccess } from 'vs/base/common/network';
-import { browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
+import { browserCodeLoadingCacheStrategy, IProcessEnvironment } from 'vs/base/common/platform';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
@@ -18,6 +19,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
 import { WindowError } from 'vs/platform/windows/electron-main/windows';
 import { resolveShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
 
@@ -31,11 +33,12 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 	constructor(
 		private readonly machineId: string,
-		private userEnv: NodeJS.ProcessEnv,
+		private userEnv: IProcessEnvironment,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
 		super();
 
@@ -158,6 +161,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	}
 
 	private createWindow(): void {
+		const configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<ISharedProcessConfiguration>());
 
 		// shared process is a hidden window by default
 		this.window = new BrowserWindow({
@@ -165,6 +169,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
 				v8CacheOptions: browserCodeLoadingCacheStrategy,
 				nodeIntegration: true,
 				enableWebSQL: false,
@@ -177,7 +182,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			}
 		});
 
-		const config: ISharedProcessConfiguration = {
+		// Store into config object URL
+		configObjectUrl.update({
 			machineId: this.machineId,
 			windowId: this.window.id,
 			appRoot: this.environmentMainService.appRoot,
@@ -185,15 +191,12 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
-			logLevel: this.logService.getLevel()
-		};
+			logLevel: this.logService.getLevel(),
+			product
+		});
 
 		// Load with config
-		this.window.loadURL(FileAccess
-			.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require)
-			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
-			.toString(true)
-		);
+		this.window.loadURL(FileAccess.asBrowserUri('vs/code/electron-browser/sharedProcess/sharedProcess.html', require).toString(true));
 	}
 
 	private registerWindowListeners(): void {
@@ -216,7 +219,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 
 		this.window.on('close', this.windowCloseListener);
 
-		// Crashes & Unrsponsive & Failed to load
+		// Crashes & Unresponsive & Failed to load
 		// We use `onUnexpectedError` explicitly because the error handler
 		// will send the error to the active window to log in devtools too
 		this.window.webContents.on('render-process-gone', (event, details) => this._onDidError.fire({ type: WindowError.CRASHED, details }));
@@ -250,5 +253,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			this.window.show();
 			this.window.webContents.openDevTools();
 		}
+	}
+
+	isVisible(): boolean {
+		return this.window?.isVisible() ?? false;
 	}
 }

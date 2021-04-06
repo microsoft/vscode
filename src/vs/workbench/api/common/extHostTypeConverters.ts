@@ -3,36 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as modes from 'vs/editor/common/modes';
-import * as types from './extHostTypes';
-import * as search from 'vs/workbench/contrib/search/common/search';
-import { ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
-import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import type * as vscode from 'vscode';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
-import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
-import { IPosition } from 'vs/editor/common/core/position';
-import * as editorRange from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import * as htmlContent from 'vs/base/common/htmlContent';
-import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { isString, isNumber, isDefined } from 'vs/base/common/types';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
-import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
+import { isDefined, isNumber, isString } from 'vs/base/common/types';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
+import { IPosition } from 'vs/editor/common/core/position';
+import * as editorRange from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
+import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import * as languageSelector from 'vs/editor/common/modes/languageSelector';
+import { EditorOverride, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
+import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import * as search from 'vs/workbench/contrib/search/common/search';
+import { ISerializedTestResults, ITestItem, ITestMessage, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import type * as vscode from 'vscode';
+import * as types from './extHostTypes';
 
 export interface PositionLike {
 	line: number;
@@ -568,7 +567,7 @@ export namespace WorkspaceEdit {
 							metadata: entry.metadata,
 							resource: entry.uri,
 							edit: {
-								editType: notebooks.CellEditType.Metadata,
+								editType: notebooks.CellEditType.PartialMetadata,
 								index: entry.index,
 								metadata: entry.newMetadata
 							}
@@ -594,7 +593,6 @@ export namespace WorkspaceEdit {
 						resource: entry.uri,
 						edit: {
 							editType: notebooks.CellEditType.OutputItems,
-							index: entry.index,
 							outputId: entry.outputId,
 							items: entry.newOutputItems?.map(NotebookCellOutputItem.from) || [],
 							append: entry.append
@@ -1420,7 +1418,7 @@ export namespace NotebookCellRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.executionOrder, data.runState, data.runStartTime, data.statusMessage, data.lastRunDuration, data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.statusMessage, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
 
@@ -1431,9 +1429,26 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.runState, data.trusted);
+		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.trusted);
+	}
+}
+
+export namespace NotebookCellPreviousExecutionResult {
+	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
+		return {
+			duration: data.lastRunDuration,
+			executionOrder: data.executionOrder,
+			success: data.lastRunSuccess
+		};
 	}
 
+	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
+		return {
+			lastRunSuccess: data.success,
+			lastRunDuration: data.duration,
+			executionOrder: data.executionOrder
+		};
+	}
 }
 
 export namespace NotebookCellKind {
@@ -1465,9 +1480,22 @@ export namespace NotebookCellData {
 			cellKind: NotebookCellKind.from(data.kind),
 			language: data.language,
 			source: data.source,
-			metadata: data.metadata,
+			metadata: {
+				...data.metadata,
+				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
+			},
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
+	}
+
+	export function to(data: notebooks.ICellDto2): vscode.NotebookCellData {
+		return new types.NotebookCellData(
+			NotebookCellKind.to(data.cellKind),
+			data.source,
+			data.language,
+			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
+			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
+		);
 	}
 }
 
@@ -1584,20 +1612,21 @@ export namespace NotebookDecorationRenderOptions {
 	}
 }
 
-export namespace TestState {
-	export function from(item: vscode.TestState): ITestState {
+export namespace NotebookDocumentContentOptions {
+	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
-			state: item.state,
-			duration: item.duration,
-			messages: item.messages.map(TestMessage.from),
+			transientOutputs: options ? options.transientOutputs : false,
+			transientMetadata: {
+				...(options?.transientMetadata ?? {}),
+				...{
+					executionOrder: true,
+					lastRunDuration: true,
+					runState: true,
+					runStartTime: true,
+					lastRunSuccess: true
+				}
+			}
 		};
-	}
-
-	export function to(item: ITestState): vscode.TestState {
-		const ts = new types.TestState(item.state);
-		ts.duration = item.duration;
-		ts.messages = item.messages.map(TestMessage.to);
-		return ts;
 	}
 }
 
@@ -1628,36 +1657,44 @@ export namespace TestItem {
 		return {
 			extId: item.id,
 			label: item.label,
-			location: item.location ? location.from(item.location) as any : undefined,
+			uri: item.uri,
+			range: Range.from(item.range),
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
+			expandable: item.expandable,
 		};
 	}
 
-	export function toPlainShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
+	export function fromResultSnapshot(item: vscode.TestResultSnapshot): ITestItem {
+		return {
+			extId: item.id,
+			label: item.label,
+			uri: item.uri,
+			range: Range.from(item.range),
+			debuggable: false,
+			description: item.description,
+			runnable: true,
+			expandable: true,
+		};
+	}
+
+	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
 			id: item.extId,
 			label: item.label,
-			location: item.location && location.to({
-				range: item.location.range,
-				uri: URI.revive(item.location.uri)
-			}),
+			uri: URI.revive(item.uri),
+			range: Range.to(item.range),
+			expandable: item.expandable,
 			debuggable: item.debuggable,
 			description: item.description,
 			runnable: item.runnable,
 		};
 	}
 
-	export function toShallow(item: ITestItem): Omit<types.TestItem, 'children'> {
-		const testItem = new types.TestItem(item.extId, item.label);
-		if (item.location) {
-			testItem.location = location.to({
-				range: item.location.range,
-				uri: URI.revive(item.location.uri)
-			});
-		}
-
+	export function to(item: ITestItem): types.TestItem {
+		const testItem = new types.TestItem(item.extId, item.label, URI.revive(item.uri), item.expandable);
+		testItem.range = Range.to(item.range);
 		testItem.debuggable = item.debuggable;
 		testItem.description = item.description;
 		testItem.runnable = item.runnable;
@@ -1666,14 +1703,14 @@ export namespace TestItem {
 }
 
 export namespace TestResults {
-	export function from(id: string, results: vscode.TestResults): ISerializedTestResults {
+	export function from(id: string, results: vscode.TestRunResult): ISerializedTestResults {
 		const serialized: ISerializedTestResults = {
 			completedAt: results.completedAt,
 			id,
 			items: [],
 		};
 
-		const queue: [parent: SerializedTestResultItem | null, children: Iterable<vscode.TestItemWithResults>][] = [
+		const queue: [parent: SerializedTestResultItem | null, children: Iterable<vscode.TestResultSnapshot>][] = [
 			[null, results.results],
 		];
 
@@ -1682,12 +1719,17 @@ export namespace TestResults {
 			for (const item of children) {
 				const serializedItem: SerializedTestResultItem = {
 					children: item.children?.map(c => c.id) ?? [],
-					computedState: item.result.state,
-					item: TestItem.from(item),
-					state: TestState.from(item.result),
+					computedState: item.state,
+					item: TestItem.fromResultSnapshot(item),
+					state: {
+						state: item.state,
+						duration: item.duration,
+						messages: item.messages.map(TestMessage.from),
+					},
 					retired: undefined,
+					expand: TestItemExpandState.Expanded,
 					parent: parent?.item.extId ?? null,
-					providerId: '',
+					src: { provider: '', tree: -1 },
 					direct: !parent,
 				};
 
@@ -1701,16 +1743,18 @@ export namespace TestResults {
 		return serialized;
 	}
 
-	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestItemWithResults => ({
-		...TestItem.toPlainShallow(item.item),
-		result: TestState.to(item.state),
+	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => ({
+		...TestItem.toPlain(item.item),
+		state: item.state.state,
+		duration: item.state.duration,
+		messages: item.state.messages.map(TestMessage.to),
 		children: item.children
 			.map(c => byInternalId.get(c))
 			.filter(isDefined)
 			.map(c => convertTestResultItem(c, byInternalId)),
 	});
 
-	export function to(serialized: ISerializedTestResults): vscode.TestResults {
+	export function to(serialized: ISerializedTestResults): vscode.TestRunResult {
 		const roots: SerializedTestResultItem[] = [];
 		const byInternalId = new Map<string, SerializedTestResultItem>();
 		for (const item of serialized.items) {
@@ -1731,11 +1775,11 @@ export namespace CodeActionTriggerKind {
 
 	export function to(value: modes.CodeActionTriggerType): types.CodeActionTriggerKind {
 		switch (value) {
+			case modes.CodeActionTriggerType.Invoke:
+				return types.CodeActionTriggerKind.Invoke;
+
 			case modes.CodeActionTriggerType.Auto:
 				return types.CodeActionTriggerKind.Automatic;
-
-			case modes.CodeActionTriggerType.Manual:
-				return types.CodeActionTriggerKind.Manual;
 		}
 	}
 }

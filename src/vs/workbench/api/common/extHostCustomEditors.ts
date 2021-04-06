@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
+import { ExtHostWebviews, shouldSerializeBuffersForPostMessage, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { EditorGroupColumn } from 'vs/workbench/common/editor';
 import type * as vscode from 'vscode';
@@ -183,7 +183,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
 			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
 				supportsMove: !!provider.moveCustomTextEditor,
-			});
+			}, shouldSerializeBuffersForPostMessage(extension));
 		} else {
 			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
 
@@ -199,7 +199,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				}));
 			}
 
-			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.supportsMultipleEditorsPerDocument);
+			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.supportsMultipleEditorsPerDocument, shouldSerializeBuffersForPostMessage(extension));
 		}
 
 		return extHostTypes.Disposable.from(

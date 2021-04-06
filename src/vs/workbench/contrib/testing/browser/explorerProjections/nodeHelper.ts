@@ -76,11 +76,7 @@ export class NodeChangeList<T extends ITestTreeElement & { children: Iterable<T>
 		this.updatedNodes.add(node);
 	}
 
-	public removed(node: T) {
-		this.added(node);
-	}
-
-	public added(node: T) {
+	public addedOrRemoved(node: T) {
 		this.changedParents.add(this.getNearestNotOmittedParent(node));
 	}
 

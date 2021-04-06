@@ -152,8 +152,15 @@
 	justify-content: flex-start;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item {
+	margin-right: 0;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.manage) {
 	margin-top: 0px; /* overrides from extension actions */
+	border-radius: 0;
+	padding-top: 0;
+	padding-bottom: 0;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action,
@@ -239,11 +246,12 @@
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	margin-right: 16px;
+	font-size: inherit;
+	opacity: 0.7;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
-	font-size: inherit;
-	opacity: 0.7;
+	background: none !important;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
@@ -368,10 +376,6 @@
 	line-height: 22px;
 }
 
-.extension-editor > .body > .content details > summary::-webkit-details-marker {
-	color: rgba(128, 128, 128, 0.5);
-}
-
 .extension-editor > .body > .content table tr:nth-child(odd) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
@@ -393,6 +397,12 @@
 .extension-editor > .body > .content table th {
 	text-align: left;
 	word-break: keep-all;
+}
+
+.extension-editor > .body > .content table td > div,
+.extension-editor > .body > .content table td > div > p {
+	padding: 0px;
+	margin: 0px;
 }
 
 .extension-editor > .body > .content code:not(:empty) {
@@ -499,7 +509,7 @@
 }
 
 .extension-editor .extensions-grid-view > .extension-container {
-	height: 275px;
+	width: 275px;
 	margin: 0 10px 20px 0;
 }
 

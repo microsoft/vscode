@@ -35,7 +35,6 @@ import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
-import { FileProtocolHandler } from 'vs/code/electron-main/protocol';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow, OpenContext, WindowError } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
@@ -282,71 +281,73 @@ export class CodeApplication extends Disposable {
 		//#region Bootstrap IPC Handlers
 
 		let slowShellResolveWarningShown = false;
-		ipcMain.on('vscode:fetchShellEnv', async event => {
+		ipcMain.handle('vscode:fetchShellEnv', event => {
+			return new Promise(async resolve => {
 
-			// DO NOT remove: not only usual windows are fetching the
-			// shell environment but also shared process, issue reporter
-			// etc, so we need to reply via `webContents` always
-			const webContents = event.sender;
+				// DO NOT remove: not only usual windows are fetching the
+				// shell environment but also shared process, issue reporter
+				// etc, so we need to reply via `webContents` always
+				const webContents = event.sender;
 
-			let replied = false;
+				let replied = false;
 
-			function acceptShellEnv(env: NodeJS.ProcessEnv): void {
-				clearTimeout(shellEnvSlowWarningHandle);
-				clearTimeout(shellEnvTimeoutErrorHandle);
+				function acceptShellEnv(env: IProcessEnvironment): void {
+					clearTimeout(shellEnvSlowWarningHandle);
+					clearTimeout(shellEnvTimeoutErrorHandle);
 
-				if (!replied) {
-					replied = true;
+					if (!replied) {
+						replied = true;
 
-					if (!webContents.isDestroyed()) {
-						webContents.send('vscode:acceptShellEnv', env);
+						if (!webContents.isDestroyed()) {
+							resolve(env);
+						}
 					}
 				}
-			}
 
-			// Handle slow shell environment resolve calls:
-			// - a warning after 3s but continue to resolve (only once in active window)
-			// - an error after 10s and stop trying to resolve (in every window where this happens)
-			const cts = new CancellationTokenSource();
+				// Handle slow shell environment resolve calls:
+				// - a warning after 3s but continue to resolve (only once in active window)
+				// - an error after 10s and stop trying to resolve (in every window where this happens)
+				const cts = new CancellationTokenSource();
 
-			const shellEnvSlowWarningHandle = setTimeout(() => {
-				if (!slowShellResolveWarningShown) {
-					this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
-					slowShellResolveWarningShown = true;
+				const shellEnvSlowWarningHandle = setTimeout(() => {
+					if (!slowShellResolveWarningShown) {
+						this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
+						slowShellResolveWarningShown = true;
+					}
+				}, 3000);
+
+				const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
+				const shellEnvTimeoutErrorHandle = setTimeout(() => {
+					cts.dispose(true);
+					window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
+					acceptShellEnv({});
+				}, 10000);
+
+				// Prefer to use the args and env from the target window
+				// when resolving the shell env. It is possible that
+				// a first window was opened from the UI but a second
+				// from the CLI and that has implications for whether to
+				// resolve the shell environment or not.
+				//
+				// Window can be undefined for e.g. the shared process
+				// that is not part of our windows registry!
+				let args: NativeParsedArgs;
+				let env: IProcessEnvironment;
+				if (window?.config) {
+					args = window.config;
+					env = { ...process.env, ...window.config.userEnv };
+				} else {
+					args = this.environmentMainService.args;
+					env = process.env;
 				}
-			}, 3000);
 
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
-			const shellEnvTimeoutErrorHandle = setTimeout(() => {
-				cts.dispose(true);
-				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
-				acceptShellEnv({});
-			}, 10000);
-
-			// Prefer to use the args and env from the target window
-			// when resolving the shell env. It is possible that
-			// a first window was opened from the UI but a second
-			// from the CLI and that has implications for whether to
-			// resolve the shell environment or not.
-			//
-			// Window can be undefined for e.g. the shared process
-			// that is not part of our windows registry!
-			let args: NativeParsedArgs;
-			let env: NodeJS.ProcessEnv;
-			if (window?.config) {
-				args = window.config;
-				env = { ...process.env, ...window.config.userEnv };
-			} else {
-				args = this.environmentMainService.args;
-				env = process.env;
-			}
-
-			// Resolve shell env
-			const shellEnv = await resolveShellEnv(this.logService, args, env);
-			acceptShellEnv(shellEnv);
+				// Resolve shell env
+				const shellEnv = await resolveShellEnv(this.logService, args, env);
+				acceptShellEnv(shellEnv);
+			});
 		});
 
-		ipcMain.handle('vscode:writeNlsFile', async (event, path: unknown, data: unknown) => {
+		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
 			const uri = this.validateNlsPath([path]);
 			if (!uri || typeof data !== 'string') {
 				throw new Error('Invalid operation (vscode:writeNlsFile)');
@@ -439,9 +440,6 @@ export class CodeApplication extends Disposable {
 			this.logService.error(error);
 		}
 
-		// Setup Protocol Handler
-		const fileProtocolHandler = this._register(this.mainInstantiationService.createInstance(FileProtocolHandler));
-
 		// Main process server (electron IPC based)
 		const mainProcessElectronServer = new ElectronIPCServer();
 
@@ -471,7 +469,7 @@ export class CodeApplication extends Disposable {
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Open Windows
-		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer, fileProtocolHandler));
+		const windows = appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor, mainProcessElectronServer));
 
 		// Post Open Windows Tasks
 		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
@@ -553,7 +551,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
-		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
+		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
@@ -675,22 +673,20 @@ export class CodeApplication extends Disposable {
 		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerService),);
 		mainProcessElectronServer.registerChannel('logger', loggerChannel);
+		sharedProcessClient.then(client => client.registerChannel('logger', loggerChannel));
 
 		// Extension Host Debug Broadcasting
 		const electronExtensionHostDebugBroadcastChannel = new ElectronExtensionHostDebugBroadcastChannel(accessor.get(IWindowsMainService));
 		mainProcessElectronServer.registerChannel('extensionhostdebugservice', electronExtensionHostDebugBroadcastChannel);
 	}
 
-	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, fileProtocolHandler: FileProtocolHandler): ICodeWindow[] {
+	private openFirstWindow(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): ICodeWindow[] {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = accessor.get(INativeHostMainService);
 
 		// Signal phase: ready (services set)
 		this.lifecycleMainService.phase = LifecycleMainPhase.Ready;
-
-		// Forward windows main service to protocol handler
-		fileProtocolHandler.injectWindowsMainService(this.windowsMainService);
 
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
@@ -954,12 +950,18 @@ export class CodeApplication extends Disposable {
 			type SharedProcessErrorClassification = {
 				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;
 				reason: string | undefined;
+				visible: boolean;
 			};
-			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', { type, reason: typeof details !== 'string' ? details.reason : undefined });
+			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
+				type,
+				reason: typeof details !== 'string' ? details?.reason : undefined,
+				visible: sharedProcess.isVisible()
+			});
 		}));
 
 		// Windows: install mutex

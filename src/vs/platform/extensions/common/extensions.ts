@@ -113,22 +113,24 @@ export interface IAuthenticationContribution {
 	readonly label: string;
 }
 
-export interface IWelcomeItem {
+export interface IWalkthroughTask {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
-	readonly button: { title: string } & ({ command?: never, link: string } | { command: string, link?: never }),
-	readonly media: { path: string | { hc: string, light: string, dark: string }, altText: string },
-	readonly doneOn?:
-	| { event: string; command?: never }
-	| { event?: never; command: string };
+	readonly button:
+	| { title: string, link: string, command?: never }
+	| { title: string, command: string, link?: never },
+	readonly media: { path: string, altText: string },
+	readonly doneOn?: { command: string };
 	readonly when?: string;
 }
 
-export interface IWelcomeCategory {
+export interface IWalkthrough {
 	readonly id: string,
 	readonly title: string;
 	readonly description: string;
+	readonly tasks: IWalkthroughTask[];
+	readonly primary?: boolean;
 	readonly when?: string;
 }
 
@@ -144,6 +146,7 @@ export interface IExtensionContributions {
 	snippets?: ISnippet[];
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
+	productIconThemes?: ITheme[];
 	viewsContainers?: { [location: string]: IViewContainer[] };
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
@@ -151,13 +154,12 @@ export interface IExtensionContributions {
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
-	welcomeItems?: { [category: string]: IWelcomeItem[] };
-	welcomeCategories?: IWelcomeCategory[];
+	walkthroughs?: IWalkthrough[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-
 export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
+export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -214,7 +216,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
-	readonly requiresWorkspaceTrust?: ExtensionWorkspaceTrustRequirement;
+	readonly workspaceTrust?: ExtensionWorkspaceTrust;
 }
 
 export const enum ExtensionType {
@@ -303,6 +305,18 @@ export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 
 export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
+}
+
+export function getExtensionWorkspaceTrustRequirement(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequirement {
+	if (manifest.workspaceTrust?.required !== undefined) {
+		return manifest.workspaceTrust.required;
+	}
+
+	if (!manifest.main) {
+		return false;
+	}
+
+	return 'onStart';
 }
 
 export interface IScannedExtension {

@@ -16,7 +16,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IGalleryExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import type { IStaticExtension } from 'vs/workbench/workbench.web.api';
@@ -244,9 +244,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	async addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension> {
 		if (!this.canAddExtension(galleryExtension)) {
-			const error = new Error(localize('cannot be installed', "Cannot install '{0}' because this extension is not a web extension.", galleryExtension.displayName || galleryExtension.name));
-			error.name = INSTALL_ERROR_NOT_SUPPORTED;
-			throw error;
+			throw new Error(localize('cannot be installed', "Cannot install '{0}' because this extension is not a web extension.", galleryExtension.displayName || galleryExtension.name));
 		}
 
 		const extensionLocation = galleryExtension.webResource!;

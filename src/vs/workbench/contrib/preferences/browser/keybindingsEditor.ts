@@ -184,24 +184,21 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <IKeybindingItemEntry>focusedElement : null;
 	}
 
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry, add: boolean): Promise<any> {
+	async defineKeybinding(keybindingEntry: IKeybindingItemEntry, add: boolean): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
-		return this.defineKeybindingWidget.define().then(key => {
+		try {
+			const key = await this.defineKeybindingWidget.define();
 			if (key) {
 				this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
-				return this.updateKeybinding(keybindingEntry, key, keybindingEntry.keybindingItem.when, add);
+				await this.updateKeybinding(keybindingEntry, key, keybindingEntry.keybindingItem.when, add);
 			}
-			return null;
-		}).then(() => {
-			this.hideOverlayContainer();
-			this.selectEntry(keybindingEntry);
-		}, error => {
-			this.hideOverlayContainer();
+		} catch (error) {
 			this.onKeybindingEditingError(error);
+		} finally {
+			this.hideOverlayContainer();
 			this.selectEntry(keybindingEntry);
-			return error;
-		});
+		}
 	}
 
 	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void {
@@ -211,7 +208,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		}
 	}
 
-	async updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined, add?: boolean): Promise<any> {
+	async updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined, add?: boolean): Promise<void> {
 		const currentKey = keybindingEntry.keybindingItem.keybinding ? keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel() : '';
 		if (currentKey !== key || keybindingEntry.keybindingItem.when !== when) {
 			if (add) {
@@ -225,34 +222,33 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		}
 	}
 
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any> {
+	async removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
-			return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem)
-				.then(() => this.focus(),
-					error => {
-						this.onKeybindingEditingError(error);
-						this.selectEntry(keybindingEntry);
-					});
+			try {
+				await this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
+				this.focus();
+			} catch (error) {
+				this.onKeybindingEditingError(error);
+				this.selectEntry(keybindingEntry);
+			}
 		}
-		return Promise.resolve(null);
 	}
 
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any> {
+	async resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
-		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
-			.then(() => {
-				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
-					this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
-				}
-				this.selectEntry(keybindingEntry);
-			},
-				error => {
-					this.onKeybindingEditingError(error);
-					this.selectEntry(keybindingEntry);
-				});
+		try {
+			await this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
+			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+				this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
+			}
+			this.selectEntry(keybindingEntry);
+		} catch (error) {
+			this.onKeybindingEditingError(error);
+			this.selectEntry(keybindingEntry);
+		}
 	}
 
 	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
@@ -324,7 +320,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
 		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Recording Keys. Press Escape to exit");
 
-		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, () => { this.clearSearchResults(); return Promise.resolve(null); });
+		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, {
@@ -1056,14 +1052,19 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 		const _onDidReject: Emitter<void> = disposables.add(new Emitter<void>());
 		const onDidReject: Event<void> = _onDidReject.event;
 
+		const hideInputBox = () => {
+			element.classList.remove('input-mode');
+			container.style.paddingLeft = '10px';
+		};
+
 		disposables.add(DOM.addStandardDisposableListener(whenInput.inputElement, DOM.EventType.KEY_DOWN, e => {
 			let handled = false;
 			if (e.equals(KeyCode.Enter)) {
-				element.classList.remove('input-mode');
+				hideInputBox();
 				_onDidAccept.fire();
 				handled = true;
 			} else if (e.equals(KeyCode.Escape)) {
-				element.classList.remove('input-mode');
+				hideInputBox();
 				_onDidReject.fire();
 				handled = true;
 			}
@@ -1073,7 +1074,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 			}
 		}));
 		disposables.add((DOM.addDisposableListener(whenInput.inputElement, DOM.EventType.BLUR, () => {
-			element.classList.remove('input-mode');
+			hideInputBox();
 			_onDidReject.fire();
 		})));
 
@@ -1099,6 +1100,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 				templateData.element.classList.add('input-mode');
 				templateData.whenInput.focus();
 				templateData.whenInput.select();
+				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
 		}));
 
