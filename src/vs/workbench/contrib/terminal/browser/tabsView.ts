@@ -8,12 +8,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/workbench/common/views';
-import * as dom from 'vs/base/browser/dom';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { Sizing } from 'vs/base/browser/ui/grid/grid';
 
 export class TabsView extends Disposable {
 	private _height: number;
