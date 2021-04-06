@@ -552,7 +552,7 @@ export namespace Codicon {
 	export const workspaceUntrusted = new Codicon('workspace-untrusted', { fontCharacter: '\\ebc2' });
 	export const workspaceUnspecified = new Codicon('workspace-unspecified', { fontCharacter: '\\ebc3' });
 	export const terminalCmd = new Codicon('terminal-cmd', { fontCharacter: '\\ebc4' });
-	export const terminalDebian = new Codicon('terminal-debian', { fontCharacter: '\\f101' });
+	export const terminalDebian = new Codicon('terminal-debian', { fontCharacter: '\\ebc5' });
 	export const terminalLinux = new Codicon('terminal-linux', { fontCharacter: '\\ebc6' });
 	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
 	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
