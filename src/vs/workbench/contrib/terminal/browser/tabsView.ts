@@ -13,9 +13,9 @@ import { IView } from 'vs/workbench/common/views';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export class TabsView extends Disposable {
-	private _height: number;
-	private _width: number;
-	private _widget: HTMLElement;
+	private height: number;
+	private width: number;
+	private _widget!: HTMLElement;
 	private _splitView!: SplitView;
 	private readonly _splitViewDisposables = this._register(new DisposableStore());
 	private _children: SplitTabsPane[] = [];
@@ -25,21 +25,22 @@ export class TabsView extends Disposable {
 
 	constructor(
 		context: string,
-		private _container: HTMLElement,
-		private _parentContainer: HTMLElement,
+		private container: HTMLElement,
+		private parentContainer: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 		if (context === 'terminal') {
 			const div = document.createElement('div');
-			_instantiationService.createInstance(TerminalTabsWidget, div);
+			div.classList.add('tabs-widget');
+			this._instantiationService.createInstance(TerminalTabsWidget, div);
 			this._widget = div;
 		}
 		this._createSplitView();
-		this._width = _parentContainer.offsetWidth;
-		this._height = _parentContainer.offsetHeight;
-		this._splitView.layout(this._width);
+		this.width = parentContainer.offsetWidth;
+		this.height = parentContainer.offsetHeight;
+		this._splitView.layout(this.width);
 	}
 
 	public get splitView(): SplitView {
@@ -47,16 +48,19 @@ export class TabsView extends Disposable {
 	}
 
 	private _createSplitView(): void {
-		this._splitView = new SplitView(this._parentContainer, { orientation: Orientation.HORIZONTAL });
+		this._splitView = new SplitView(this.parentContainer, { orientation: Orientation.HORIZONTAL });
 		this._splitViewDisposables.clear();
 		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
-		this._splitView.addView(new SplitTabsPane(this._widget, 140), 140, 0);
-		this._splitView.addView(new SplitTabsPane(this._container, 300), 300, 1);
+		const widgetWidth = 140;
+		// this._splitView.addView(new SplitTabsPane(this._widget, widgetWidth, this._terminalService), widgetWidth, 0);
+		// this._splitView.addView(new SplitTabsPane(this._container, this._width - widgetWidth, this._terminalService), this._width - widgetWidth, 1);
+		this._children.push(new SplitTabsPane(this._widget, widgetWidth, this._terminalService));
+		this._children.push(new SplitTabsPane(this.container, this.width - widgetWidth, this._terminalService));
 	}
 
 	public layout(width: number, height: number): void {
-		this._width = width;
-		this._height = height;
+		this.width = width;
+		this.height = height;
 		this._children.forEach(c => c.orthogonalLayout(width));
 		this._splitView.layout(width);
 	}
@@ -72,9 +76,14 @@ class SplitTabsPane implements IView {
 
 	readonly element: HTMLElement;
 
+	private readonly _item: HTMLElement;
+
+	private readonly _terminalService: ITerminalService;
+
 	constructor(
 		readonly item: HTMLElement,
-		public orthogonalSize: number
+		public height: number,
+		@ITerminalService terminalService: ITerminalService
 	) {
 		this.element = document.createElement('div');
 		this.element.className = 'terminal-tabs-split-pane';
@@ -82,6 +91,8 @@ class SplitTabsPane implements IView {
 		console.log(this.element);
 		this.element.appendChild(item);
 		console.log('after', this.element);
+		this._item = item;
+		this._terminalService = terminalService;
 
 	}
 	id: string = 'split-tabs-view';
@@ -100,17 +111,22 @@ class SplitTabsPane implements IView {
 	getProgressIndicator(): IProgressIndicator | undefined {
 		throw new Error('Method not implemented.');
 	}
+
 	public layout(size: number): void {
 		// Only layout when both sizes are known
-		if (!size || !this.orthogonalSize) {
+		if (!size || !this.height) {
 			return;
 		}
 
+		if (this._item.classList.contains('tabs-widget')) {
 
+		} else {
+			this._terminalService.terminalTabs.forEach(t => t.layout(size, this.height));
+		}
 	}
 
 	public orthogonalLayout(size: number): void {
-		this.orthogonalSize = size;
+		this.height = size;
 	}
 }
 
