@@ -153,7 +153,6 @@ export class TerminalViewPane extends ViewPane {
 		this._tabsViewWrapper = document.createElement('div');
 		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
 		this.instantiationService.createInstance(TabsView, this._parentDomElement, this._findWidget);
-		// make helper function
 		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
