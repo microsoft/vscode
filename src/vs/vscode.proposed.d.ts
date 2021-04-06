@@ -1190,8 +1190,6 @@ declare module 'vscode' {
 		/**
 		 * The column in which this editor shows.
 		 */
-		// @jrieken
-		// this is not implemented...
 		readonly viewColumn?: ViewColumn;
 
 		/**
