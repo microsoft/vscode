@@ -1359,7 +1359,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return {
 				id: item.id,
 				label: !icon ? title : undefined,
-				accessibilityLabel: title,
 				icon
 			};
 		});
