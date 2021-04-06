@@ -15,15 +15,13 @@ jobs:
       #     username:
       #   env:
       #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # - uses: octokit/request-action@v2.x
-      #   id: get_permissions
-      #   with:
-      #     route: GET /repos/{owner}/{repo}/collaborators/{username}/permission
-      #     owner: octokit
-      #     repo: request-action
-      #     username:
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: octokit/request-action@v2.x
+        id: get_permissions
+        with:
+          route: GET /repos/microsoft/vscode/collaborators/{username}/permission
+          username: ${{ github.event.pull_request.user.login }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # - id: file_changes
       #   uses: trilom/file-changes-action@ce38c8ce2459ca3c303415eec8cb0409857b4272
       # - name: Check for yarn.lock changes
@@ -32,4 +30,4 @@ jobs:
       #       || (echo "Changes to yarn.lock files aren't allowed in PRs." && exit 1)
       - name: debug
         run: |
-          cat ${{ github.event.pull_request.user.login }}
+          echo ${{ fromJson(steps.get_permissions.outputs.data).permission }}
