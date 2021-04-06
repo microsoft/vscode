@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-.tabs-widget-container {
-	width: 20%;
-	float: left;
-	height: 100%;
-}
 .monaco-workbench .pane-body.integrated-terminal {
 	align-content: flex-start;
 	align-items: baseline;
@@ -25,13 +19,10 @@
 	width: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
-	float:right;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tab {
 	height: 100%;
-	width: 80%;
-	float: right;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
@@ -109,14 +100,6 @@
 /* Use the default cursor when alt is active to help with clicking to move cursor */
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container.alt-active .xterm {
 	cursor: default;
-}
-
-.monaco-list-row {
-	padding-left: 4px; /* align top level twistie with `Explorer` title label */
-}
-
-.monaco-list .monaco-tl-twistie {
-	opacity: 0.3;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .xterm {
@@ -213,4 +196,3 @@
 .monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal > .monaco-select-box {
 	padding: 0 22px 0 6px;
 }
-

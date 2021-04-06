@@ -756,6 +756,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				this.rowsContainer.appendChild(item.row.domNode);
 			}
 		}
+
 		this.updateItemInDOM(item, index);
 
 		const renderer = this.renderers.get(item.templateId);

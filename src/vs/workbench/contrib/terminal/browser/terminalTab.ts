@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
-export class SplitPaneContainer extends Disposable {
+class SplitPaneContainer extends Disposable {
 	private _height: number;
 	private _width: number;
 	private _splitView!: SplitView;
@@ -193,7 +193,7 @@ export class SplitPaneContainer extends Disposable {
 	}
 }
 
-export class SplitPane implements IView {
+class SplitPane implements IView {
 	public minimumSize: number = SPLIT_PANE_MIN_SIZE;
 	public maximumSize: number = Number.MAX_VALUE;
 
