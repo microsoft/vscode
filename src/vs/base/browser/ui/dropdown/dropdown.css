@@ -11,6 +11,9 @@
 .monaco-dropdown > .dropdown-label {
 	cursor: pointer;
 	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-dropdown > .dropdown-label > .action-label.disabled {

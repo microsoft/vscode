@@ -13,26 +13,33 @@ suite('vscode API - commands', () => {
 
 	teardown(assertNoRpc);
 
-	test('getCommands', async function () {
+	test('getCommands', function (done) {
 
-		let cmds = await commands.getCommands();
-		let hasOneWithUnderscore = false;
-		for (let command of cmds) {
-			if (command[0] === '_') {
-				hasOneWithUnderscore = true;
-				break;
+		let p1 = commands.getCommands().then(commands => {
+			let hasOneWithUnderscore = false;
+			for (let command of commands) {
+				if (command[0] === '_') {
+					hasOneWithUnderscore = true;
+					break;
+				}
 			}
-		}
-		assert.ok(hasOneWithUnderscore);
+			assert.ok(hasOneWithUnderscore);
+		}, done);
 
-		cmds = await commands.getCommands(true);
-		for (let command of cmds) {
-			if (command[0] === '_') {
-				hasOneWithUnderscore = true;
-				break;
+		let p2 = commands.getCommands(true).then(commands => {
+			let hasOneWithUnderscore = false;
+			for (let command of commands) {
+				if (command[0] === '_') {
+					hasOneWithUnderscore = true;
+					break;
+				}
 			}
-		}
-		assert.ok(!hasOneWithUnderscore);
+			assert.ok(!hasOneWithUnderscore);
+		}, done);
+
+		Promise.all([p1, p2]).then(() => {
+			done();
+		}, done);
 	});
 
 	test('command with args', async function () {
