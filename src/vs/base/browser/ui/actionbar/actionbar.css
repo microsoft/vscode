@@ -31,10 +31,6 @@
 	min-width: 24px;
 }
 
-.monaco-action-bar:not(.vertical) .action-item {
-	margin-right: 4px;
-}
-
 .monaco-action-bar .action-item.disabled {
 	cursor: default;
 	min-width: 0;
