@@ -14,7 +14,6 @@ import { dirname } from 'path';
 const localize = nls.loadMessageBundle();
 
 const LIMIT = 40;
-const SCOPED_LIMIT = 250;
 
 const USER_AGENT = 'Visual Studio Code';
 
@@ -107,13 +106,12 @@ export class PackageJSONContribution implements IJSONContribution {
 								for (const result of results) {
 									this.processPackage(result.package, addValue, isLast, collector);
 								}
-								if (results.length === LIMIT) {
-									collector.setAsIncomplete();
-								}
+
 							}
 						} catch (e) {
 							// ignore
 						}
+						collector.setAsIncomplete();
 					} else {
 						collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 						return 0;
@@ -168,13 +166,11 @@ export class PackageJSONContribution implements IJSONContribution {
 							for (let object of objects) {
 								this.processPackage(object.package, addValue, isLast, collector);
 							}
-							if (objects.length === SCOPED_LIMIT) {
-								collector.setAsIncomplete();
-							}
 						}
 					} catch (e) {
 						// ignore
 					}
+					collector.setAsIncomplete();
 				} else {
 					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 				}
