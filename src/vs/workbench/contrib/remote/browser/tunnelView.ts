@@ -437,6 +437,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			inputBox,
 			dom.addStandardDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, async (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
+					e.stopPropagation();
 					if (inputBox.validate() !== MessageType.ERROR) {
 						return done(true, true);
 					} else {
@@ -889,7 +890,7 @@ namespace LabelTunnelAction {
 						onFinish: async (value, success) => {
 							value = value.trim();
 							remoteExplorerService.setEditable(context, TunnelEditId.Label, null);
-							const changed = success && value && (value !== startingValue);
+							const changed = success && (value !== startingValue);
 							if (changed) {
 								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 							}
