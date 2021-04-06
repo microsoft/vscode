@@ -35,23 +35,27 @@ export class TerminalTabbedView extends Disposable {
 		if (this._splitView) {
 			return;
 		}
+
 		this._splitView = new SplitView(this._parentElement, { orientation: Orientation.HORIZONTAL });
+		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 
 		this._terminalContainer = document.createElement('div');
-		this._terminalContainer.innerText = 'Hi';
 		this._terminalTabTree = document.createElement('div');
-		this._terminalTabTree.innerText = 'Hello';
+		this._configureViews();
 
 		if (this._displayTabs) {
+			// show tab tree
 			this._splitView.addView({
 				element: this._terminalTabTree,
 				layout: size => this._layout(size),
-				minimumSize: 220,
-				maximumSize: Number.POSITIVE_INFINITY,
+				minimumSize: 100,
+				maximumSize: 220,
 				onDidChange: () => Disposable.None
 			}, Sizing.Distribute);
 		}
+
 		this._splitView.addView({
+			// always show terminals
 			element: this._terminalContainer,
 			layout: size => this._layout(size),
 			minimumSize: 220,
@@ -59,6 +63,12 @@ export class TerminalTabbedView extends Disposable {
 			onDidChange: () => Disposable.None
 		}, Sizing.Distribute);
 	}
+
+	private _configureViews(): void {
+		this._terminalContainer!.innerText = 'Hi';
+		this._terminalTabTree!.innerText = 'Hello';
+	}
+
 	private _layout(size: number): void {
 
 	}
