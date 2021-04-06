@@ -22,7 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionWorkspaceTrustRequirement, getExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
+import { ExtensionWorkspaceTrustRequestType, getExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
@@ -295,8 +295,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
-		const onDemandExtensions = await this.getExtensionsByTrustRequirement(installedExtensions, 'onDemand');
-		const onStartExtensions = await this.getExtensionsByTrustRequirement(installedExtensions, 'onStart');
+		const onDemandExtensions = await this.getExtensionsByTrustRequestType(installedExtensions, 'onDemand');
+		const onStartExtensions = await this.getExtensionsByTrustRequestType(installedExtensions, 'onStart');
 
 		this.renderExtensionList(
 			localize('onStartExtensions', "Disabled Extensions"),
@@ -317,8 +317,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = false;
 	}
 
-	private async getExtensionsByTrustRequirement(extensions: IExtensionStatus[], trustRequirement: ExtensionWorkspaceTrustRequirement): Promise<IExtension[]> {
-		const filtered = extensions.filter(ext => getExtensionWorkspaceTrustRequirement(ext.local.manifest) === trustRequirement);
+	private async getExtensionsByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): Promise<IExtension[]> {
+		const filtered = extensions.filter(ext => getExtensionWorkspaceTrustRequestType(ext.local.manifest) === trustRequestType);
 		const ids = filtered.map(ext => ext.identifier.id);
 
 		return getExtensions(ids, this.extensionWorkbenchService);

@@ -20,7 +20,7 @@ import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteB
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { getExtensionWorkspaceTrustRequirement, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { getExtensionWorkspaceTrustRequestType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, listActiveSelectionForeground, listActiveSelectionBackground, listInactiveSelectionForeground, listInactiveSelectionBackground, listFocusForeground, listFocusBackground, listHoverForeground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
@@ -203,13 +203,14 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
 
-		if (extension.local?.manifest.workspaceTrust?.required) {
+		if (extension.local?.manifest.workspaceTrust?.request) {
 			const trustRequirement = extension.local.manifest.workspaceTrust;
-			if (trustRequirement.description) {
+			const requestType = getExtensionWorkspaceTrustRequestType(extension.local.manifest);
+			if (requestType !== 'never' && trustRequirement.request !== 'never') {
 				data.workspaceTrustDescription.textContent = trustRequirement.description;
-			} else if (getExtensionWorkspaceTrustRequirement(extension.local.manifest) === 'onStart') {
+			} else if (requestType === 'onStart') {
 				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
-			} else if (getExtensionWorkspaceTrustRequirement(extension.local.manifest) === 'onDemand') {
+			} else if (requestType === 'onDemand') {
 				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
 			}
 		}
