@@ -205,11 +205,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		if (extension.local?.manifest.workspaceTrust?.request) {
 			const trustRequirement = extension.local.manifest.workspaceTrust;
-			if (trustRequirement.description) {
+			const requestType = getExtensionWorkspaceTrustRequestType(extension.local.manifest);
+			if (requestType !== 'never' && trustRequirement.request !== 'never') {
 				data.workspaceTrustDescription.textContent = trustRequirement.description;
-			} else if (getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onStart') {
+			} else if (requestType === 'onStart') {
 				data.workspaceTrustDescription.textContent = localize('onStartDefaultText', "A trusted workspace is required to enable this extension.");
-			} else if (getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onDemand') {
+			} else if (requestType === 'onDemand') {
 				data.workspaceTrustDescription.textContent = localize('onDemandDefaultText', "Some features require a trusted workspace.");
 			}
 		}
