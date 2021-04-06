@@ -94,7 +94,7 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onShutdown(() => this.dispose());
+		this.lifecycleService.onDidShutdown(() => this.dispose());
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKBENCH_TIPS_ENABLED_KEY)) {

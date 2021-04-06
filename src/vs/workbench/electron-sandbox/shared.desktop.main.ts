@@ -129,7 +129,7 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
-		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
 	protected abstract registerFileSystemProviders(fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void;
