@@ -247,8 +247,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._initDimensions();
 		this._createProcessManager();
-		this.statusList.onDidAddStatus(e => console.log('add', e));
-		this.statusList.onDidRemoveStatus(e => console.log('remove', e));
 
 		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._xtermReadyPromise = this._createXterm();
@@ -468,6 +466,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
+		this._xterm.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning }, 3000));
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
