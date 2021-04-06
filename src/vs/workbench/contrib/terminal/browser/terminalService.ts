@@ -1039,33 +1039,33 @@ export class TerminalService implements ITerminalService {
 
 	public async focusFindWidget(): Promise<void> {
 		await this.showPanel(false);
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		pane.focusFindWidget();
+		// const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
+		// pane.focusFindWidget();
 		this._findWidgetVisible.set(true);
 	}
 
 	public hideFindWidget(): void {
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
-			pane.hideFindWidget();
-			this._findWidgetVisible.reset();
-			pane.focus();
+			// pane.hideFindWidget();
+			// this._findWidgetVisible.reset();
+			// pane.focus();
 		}
 	}
 
 	public findNext(): void {
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
-			pane.showFindWidget();
-			pane.getFindWidget().find(false);
+			// pane.showFindWidget();
+			// pane.getFindWidget().find(false);
 		}
 	}
 
 	public findPrevious(): void {
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
-			pane.showFindWidget();
-			pane.getFindWidget().find(true);
+			// pane.showFindWidget();
+			// pane.getFindWidget().find(true);
 		}
 	}
 

@@ -66,10 +66,6 @@ export class TabsView extends Disposable {
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 		this._createSplitView();
 		_findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
-		// this._terminalService.onInstancesChanged(() => {
-		// 	this._splitView.dispose();
-		// 	this._createSplitView();
-		// });
 	}
 
 	public get splitView(): SplitView {

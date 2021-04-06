@@ -10,7 +10,6 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { configureTerminalSettingsTitle, selectDefaultProfileTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
@@ -30,12 +29,13 @@ import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TabsView } from 'vs/workbench/contrib/terminal/browser/tabsView';
+import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
-	private _findWidget: TerminalFindWidget;
+	// private _findWidget: TerminalFindWidget;
 	private _tabsViewWrapper: HTMLElement | undefined;
 	private _tabsView: TabsView | undefined;
 	private _terminalsInitialized = false;
@@ -85,17 +85,17 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
+		// this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
 		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
-		this._parentDomElement.appendChild(
-			this._parentDomElement.appendChild(this._findWidget.getDomNode()));
+		// this._parentDomElement.appendChild(
+		// this._parentDomElement.appendChild(this._findWidget.getDomNode()));
 
-		this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		// this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
@@ -108,7 +108,7 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}));
-		this._updateTheme();
+		// this._updateTheme();
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -124,7 +124,7 @@ export class TerminalViewPane extends ViewPane {
 					}
 				}
 
-				this._updateTheme();
+				// this._updateTheme();
 				if (hadTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
 				} else {
@@ -148,7 +148,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._tabsViewWrapper = document.createElement('div');
 		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
-		this.instantiationService.createInstance(TabsView, this._parentDomElement, this._findWidget);
+		this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
 		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
@@ -190,40 +190,6 @@ export class TerminalViewPane extends ViewPane {
 
 	private _focus() {
 		this._terminalService.getActiveInstance()?.focusWhenReady();
-	}
-
-	public focusFindWidget() {
-		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget!.reveal(activeInstance.selection);
-		} else {
-			this._findWidget!.reveal();
-		}
-	}
-
-	public hideFindWidget() {
-		this._findWidget!.hide();
-	}
-
-	public showFindWidget() {
-		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget!.show(activeInstance.selection);
-		} else {
-			this._findWidget!.show();
-		}
-	}
-
-	public getFindWidget(): TerminalFindWidget {
-		return this._findWidget!;
-	}
-
-	private _updateTheme(theme?: IColorTheme): void {
-		if (!theme) {
-			theme = this.themeService.getColorTheme();
-		}
-
-		this._findWidget?.updateTheme(theme);
 	}
 
 	shouldShowWelcome(): boolean {
