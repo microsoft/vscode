@@ -11,39 +11,56 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { IView } from 'vs/workbench/common/views';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import * as dom from 'vs/base/browser/dom';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction } from 'vs/base/common/actions';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { DataTransfers } from 'vs/base/browser/dnd';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { URI } from 'vs/base/common/uri';
 
 export class TabsView extends Disposable {
-	private height: number;
-	private width: number;
-	private _widget!: HTMLElement;
-	private _terminalService: ITerminalService;
+	private _menu: IMenu;
+	private _width: number;
+	private _height: number;
+	private _cancelContextMenu: boolean = false;
+	private _tabsElement: HTMLElement;
 	private _splitView!: SplitView;
 	private readonly _splitViewDisposables = this._register(new DisposableStore());
 	private _children: SplitTabsPane[] = [];
-	private _container: HTMLElement;
+	private _terminalContainer: HTMLElement;
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
 	constructor(
-		context: string,
-		private container: HTMLElement,
-		private parentContainer: HTMLElement,
+		private _parentDomElement: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IMenuService _menuService: IMenuService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
-		if (context === 'terminal' && !this._widget) {
-			const div = document.createElement('div');
-			div.classList.add('tabs-widget');
-			this._instantiationService.createInstance(TerminalTabsWidget, div);
-			this._widget = div;
-		}
-		this.width = parentContainer.offsetWidth;
-		this.height = parentContainer.offsetHeight;
-		this._terminalService = this.terminalService;
-		this._container = container;
+		this._menu = this._register(_menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
+		this._tabsElement = document.createElement('div');
+		this._tabsElement.classList.add('tabs-widget');
+		this._instantiationService.createInstance(TerminalTabsWidget, this._tabsElement);
+
+		this._width = _parentDomElement.offsetWidth;
+		this._height = _parentDomElement.offsetHeight;
+
 		this._createSplitView();
-		this._splitView.layout(this.width);
+
+		this._terminalContainer = document.createElement('div');
+		this._terminalContainer.classList.add('terminal-outer-container');
+
+		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 	}
 
 	public get splitView(): SplitView {
@@ -51,22 +68,140 @@ export class TabsView extends Disposable {
 	}
 
 	private _createSplitView(): void {
-		if (!this._splitView) {
-			this._splitView = new SplitView(this.parentContainer, { orientation: Orientation.HORIZONTAL });
-			this._splitViewDisposables.clear();
-			this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
-			const widgetWidth = 200;
-			this._splitView.addView(new SplitTabsPane(this._widget, widgetWidth, this._terminalService), widgetWidth, 0);
-			this._splitView.addView(new SplitTabsPane(this._container, this.width - widgetWidth, this._terminalService), this.width - widgetWidth, 1);
+		if (this._splitView) {
+			return;
 		}
+		this._splitView = new SplitView(this._parentDomElement, { orientation: Orientation.HORIZONTAL });
+		this._splitViewDisposables.clear();
+		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
+		const tabsWidgetWidth = 200;
+		if (this._terminalService.configHelper.config.showTabs) {
+			this._splitView.addView(new SplitTabsPane(this._tabsElement, tabsWidgetWidth, this._terminalService), tabsWidgetWidth, 0);
+		}
+		const tabContainer = new SplitTabsPane(this._terminalContainer, this._width - tabsWidgetWidth, this._terminalService);
+		this._splitView.addView(tabContainer, this._width - tabsWidgetWidth, 1);
+		this._terminalService.terminalTabs.forEach(tab => tab.attachToElement(tabContainer.element));
 	}
 
 	public layout(width: number, height: number): void {
-		this.width = width;
-		this.height = height;
+		this._width = width;
+		this._height = height;
 		this._children.forEach(c => c.orthogonalLayout(width));
-		this._terminalService.terminalTabs.forEach(tab => tab.attachToElement(this._children[1].element));
 		this._splitView.layout(width);
+	}
+
+	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
+		this._register(dom.addDisposableListener(parentDomElement, 'mousedown', async (event: MouseEvent) => {
+			if (this._terminalService.terminalInstances.length === 0) {
+				return;
+			}
+
+			if (event.which === 2 && isLinux) {
+				// Drop selection and focus terminal on Linux to enable middle button paste when click
+				// occurs on the selection itself.
+				const terminal = this._terminalService.getActiveInstance();
+				if (terminal) {
+					terminal.focus();
+				}
+			} else if (event.which === 3) {
+				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+					const terminal = this._terminalService.getActiveInstance();
+					if (!terminal) {
+						return;
+					}
+
+					// copyPaste: Shift+right click should open context menu
+					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
+						this._openContextMenu(event);
+						return;
+					}
+
+					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
+						await terminal.copySelection();
+						terminal.clearSelection();
+					} else {
+						if (BrowserFeatures.clipboard.readText) {
+							terminal.paste();
+						} else {
+							this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
+						}
+					}
+					// Clear selection after all click event bubbling is finished on Mac to prevent
+					// right-click selecting a word which is seemed cannot be disabled. There is a
+					// flicker when pasting but this appears to give the best experience if the
+					// setting is enabled.
+					if (isMacintosh) {
+						setTimeout(() => {
+							terminal.clearSelection();
+						}, 0);
+					}
+					this._cancelContextMenu = true;
+				}
+			}
+		}));
+		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
+			if (!this._cancelContextMenu) {
+				this._openContextMenu(event);
+			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			this._cancelContextMenu = false;
+		}));
+		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
+			terminalContainer.classList.toggle('alt-active', !!event.altKey);
+		}));
+		this._register(dom.addDisposableListener(document, 'keyup', (event: KeyboardEvent) => {
+			terminalContainer.classList.toggle('alt-active', !!event.altKey);
+		}));
+		this._register(dom.addDisposableListener(parentDomElement, 'keyup', (event: KeyboardEvent) => {
+			if (event.keyCode === 27) {
+				// Keep terminal open on escape
+				event.stopPropagation();
+			}
+		}));
+		this._register(dom.addDisposableListener(parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
+			if (e.target === this._parentDomElement || dom.isAncestor(e.target as HTMLElement, parentDomElement)) {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				// Check if files were dragged from the tree explorer
+				let path: string | undefined;
+				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+				if (resources) {
+					path = URI.parse(JSON.parse(resources)[0]).fsPath;
+				} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+					// Check if the file was dragged from the filesystem
+					path = URI.file(e.dataTransfer.files[0].path).fsPath;
+				}
+
+				if (!path) {
+					return;
+				}
+
+				const terminal = this._terminalService.getActiveInstance();
+				if (terminal) {
+					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType);
+					terminal.sendText(preparedPath, false);
+					terminal.focus();
+				}
+			}
+		}));
+	}
+	private _openContextMenu(event: MouseEvent): void {
+		const standardEvent = new StandardMouseEvent(event);
+		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this._menu, undefined, actions);
+
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			getActionsContext: () => this._parentDomElement,
+			onHide: () => actionsDisposable.dispose()
+		});
 	}
 }
 class SplitTabsPane implements IView {
@@ -80,24 +215,14 @@ class SplitTabsPane implements IView {
 
 	readonly element: HTMLElement;
 
-	private readonly _item: HTMLElement;
-
-	private readonly _terminalService: ITerminalService;
-
 	constructor(
 		readonly item: HTMLElement,
 		public height: number,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalService _terminalService: ITerminalService
 	) {
 		this.element = document.createElement('div');
 		this.element.className = 'terminal-tabs-split-pane';
-		console.log(item);
-		console.log(this.element);
 		this.element.appendChild(item);
-		console.log('after', this.element);
-		this._item = item;
-		this._terminalService = terminalService;
-
 	}
 	id: string = 'split-tabs-view';
 	focus(): void {
@@ -122,15 +247,14 @@ class SplitTabsPane implements IView {
 			return;
 		}
 
-		if (this._item.classList.contains('tabs-widget')) {
+		// if (this._item.classList.contains('tabs-widget')) {
 
-		} else {
-			// this._terminalService.terminalTabs.forEach(t => t.layout(size, this.height));
-		}
+		// } else {
+		// 	// this._terminalService.terminalTabs.forEach(t => t.layout(size, this.height));
+		// }
 	}
 
 	public orthogonalLayout(size: number): void {
 		this.height = size;
 	}
 }
-

@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -14,10 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { configureTerminalSettingsTitle, selectDefaultProfileTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -26,31 +21,26 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TabsView } from 'vs/workbench/contrib/terminal/browser/tabsView';
-import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalViewPane extends ViewPane {
-	private _menu: IMenu;
 	private _actions: IAction[] | undefined;
-	private _cancelContextMenu: boolean = false;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
 	private _tabsViewWrapper: HTMLElement | undefined;
-	private _tabsView: TerminalTabsWidget | undefined;
+	private _tabsView: TabsView | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -61,7 +51,7 @@ export class TerminalViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextMenuService _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService protected readonly themeService: IThemeService,
@@ -71,7 +61,6 @@ export class TerminalViewPane extends ViewPane {
 		@IMenuService menuService: IMenuService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
-		this._menu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 		this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
@@ -90,51 +79,34 @@ export class TerminalViewPane extends ViewPane {
 				this._terminalContainer.style.display = 'block';
 				this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
 			}
+			if (!this._tabsView && this._parentDomElement) {
+				this._createTabsView();
+				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
+			}
 		});
 	}
 
 	public renderBody(container?: HTMLElement): void {
-		if (!container && !this._parentDomElement) {
-			return;
-		} else if (!container) {
-			container = this._parentDomElement;
-		}
-		if (!container) {
+		if (!container || !this._parentDomElement) {
 			return;
 		}
+
 		super.renderBody(container);
 
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
 
-		if (!this._terminalContainer) {
-			this._terminalContainer = document.createElement('div');
-			this._terminalContainer.classList.add('terminal-outer-container');
-			this._terminalContainer.style.display = this.shouldShowWelcome() ? 'none' : 'block';
-		}
-		if (!this._findWidget) {
-			this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
-			this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
-		}
+		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
+		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 
-		if (this._tabsViewWrapper) {
-			this._parentDomElement.removeChild(this._tabsViewWrapper);
-			this._tabsViewWrapper = undefined;
-		}
-		if (!this._tabsViewWrapper && this._terminalService.configHelper.config.showTabs) {
-			this._tabsViewWrapper = document.createElement('div');
-			this._tabsViewWrapper.classList.add('tabs-view-wrapper');
-			this.instantiationService.createInstance(TabsView, 'terminal', this._terminalContainer, this._parentDomElement);
-			this._parentDomElement.append(this._tabsViewWrapper);
+		if (!this.shouldShowWelcome()) {
+			this._createTabsView();
 		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(
-			// this._parentDomElement.appendChild(this._terminalContainer);
 			this._parentDomElement.appendChild(this._findWidget.getDomNode()));
-
-		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 
 		this._terminalService.setContainers(container, this._parentDomElement);
 
@@ -182,9 +154,18 @@ export class TerminalViewPane extends ViewPane {
 				});
 			}
 		}));
+		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
+	}
 
-		// Force another layout (first is setContainers) since config has changed
-		this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
+	private _createTabsView(): void {
+		if (!this._parentDomElement) {
+			return;
+		}
+		this._tabsViewWrapper = document.createElement('div');
+		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
+		this.instantiationService.createInstance(TabsView, this._parentDomElement);
+		// make helper function
+		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -193,9 +174,7 @@ export class TerminalViewPane extends ViewPane {
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
 		if (this._tabsView) {
-			this._tabsView?.layout(width, height);
-		} else {
-			this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
+			this._tabsView.layout(width, height);
 		}
 	}
 
@@ -253,121 +232,6 @@ export class TerminalViewPane extends ViewPane {
 
 	public getFindWidget(): TerminalFindWidget {
 		return this._findWidget!;
-	}
-
-	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
-		this._register(dom.addDisposableListener(parentDomElement, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalService.terminalInstances.length === 0) {
-				return;
-			}
-
-			if (event.which === 2 && platform.isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				const terminal = this._terminalService.getActiveInstance();
-				if (terminal) {
-					terminal.focus();
-				}
-			} else if (event.which === 3) {
-				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalService.getActiveInstance();
-					if (!terminal) {
-						return;
-					}
-
-					// copyPaste: Shift+right click should open context menu
-					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						this._openContextMenu(event);
-						return;
-					}
-
-					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
-						await terminal.copySelection();
-						terminal.clearSelection();
-					} else {
-						if (BrowserFeatures.clipboard.readText) {
-							terminal.paste();
-						} else {
-							this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${platform.isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
-						}
-					}
-					// Clear selection after all click event bubbling is finished on Mac to prevent
-					// right-click selecting a word which is seemed cannot be disabled. There is a
-					// flicker when pasting but this appears to give the best experience if the
-					// setting is enabled.
-					if (platform.isMacintosh) {
-						setTimeout(() => {
-							terminal.clearSelection();
-						}, 0);
-					}
-					this._cancelContextMenu = true;
-				}
-			}
-		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
-			if (!this._cancelContextMenu) {
-				this._openContextMenu(event);
-			}
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			this._cancelContextMenu = false;
-		}));
-		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
-			terminalContainer.classList.toggle('alt-active', !!event.altKey);
-		}));
-		this._register(dom.addDisposableListener(document, 'keyup', (event: KeyboardEvent) => {
-			terminalContainer.classList.toggle('alt-active', !!event.altKey);
-		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'keyup', (event: KeyboardEvent) => {
-			if (event.keyCode === 27) {
-				// Keep terminal open on escape
-				event.stopPropagation();
-			}
-		}));
-		this._register(dom.addDisposableListener(parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
-			if (e.target === this._parentDomElement || dom.isAncestor(e.target as HTMLElement, parentDomElement)) {
-				if (!e.dataTransfer) {
-					return;
-				}
-
-				// Check if files were dragged from the tree explorer
-				let path: string | undefined;
-				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				if (resources) {
-					path = URI.parse(JSON.parse(resources)[0]).fsPath;
-				} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
-					// Check if the file was dragged from the filesystem
-					path = URI.file(e.dataTransfer.files[0].path).fsPath;
-				}
-
-				if (!path) {
-					return;
-				}
-
-				const terminal = this._terminalService.getActiveInstance();
-				if (terminal) {
-					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType);
-					terminal.sendText(preparedPath, false);
-					terminal.focus();
-				}
-			}
-		}));
-	}
-
-	private _openContextMenu(event: MouseEvent): void {
-		const standardEvent = new StandardMouseEvent(event);
-		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this._menu, undefined, actions);
-
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			getActionsContext: () => this._parentDomElement,
-			onHide: () => actionsDisposable.dispose()
-		});
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
