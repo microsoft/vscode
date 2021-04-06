@@ -12,9 +12,9 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { getExtensionWorkspaceTrustRequestType, IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { ExtensionKindController, getExtensionWorkspaceTrustRequestType } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -50,7 +50,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -276,7 +276,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private _isDisabledByTrustRequirement(extension: IExtension): boolean {
 		const workspaceTrustState = this.workspaceTrustService.getWorkspaceTrustState();
 
-		if (getExtensionWorkspaceTrustRequestType(extension.manifest) === 'onStart') {
+		if (getExtensionWorkspaceTrustRequestType(extension.manifest, this.productService, this.workspaceTrustService) === 'onStart') {
 			if (workspaceTrustState !== WorkspaceTrustState.Trusted) {
 				this._addToWorkspaceDisabledExtensionsByTrustRequirement(extension);
 			}
