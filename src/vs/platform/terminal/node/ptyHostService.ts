@@ -158,7 +158,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	listProcesses(): Promise<IProcessDetails[]> {
 		return this._proxy.listProcesses();
 	}
-	reduceConnectionGraceTime(): void {
+	reduceConnectionGraceTime(): Promise<void> {
 		return this._proxy.reduceConnectionGraceTime();
 	}
 	start(id: number): Promise<ITerminalLaunchError | undefined> {
@@ -188,7 +188,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	orphanQuestionReply(id: number): Promise<void> {
 		return this._proxy.orphanQuestionReply(id);
 	}
-
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		return this._proxy.setTerminalLayoutInfo(args);
 	}

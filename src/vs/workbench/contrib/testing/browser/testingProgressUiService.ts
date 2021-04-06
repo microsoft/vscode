@@ -10,7 +10,8 @@ import { localize } from 'vs/nls';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { ITestResultService, TestStateCount } from 'vs/workbench/contrib/testing/common/testResultService';
+import { TestStateCount } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
 export interface ITestingProgressUiService {
 	readonly _serviceBrand: undefined;

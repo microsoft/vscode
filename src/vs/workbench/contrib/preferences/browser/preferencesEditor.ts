@@ -300,10 +300,10 @@ export class PreferencesEditor extends EditorPane {
 			const metadata = filterResult && filterResult.metadata;
 			const counts = filterResult && this._countById(filterResult.filteredGroups);
 
-			let durations: any;
+			let durations: Record<string, number> | undefined;
 			if (metadata) {
 				durations = Object.create(null);
-				Object.keys(metadata).forEach(key => durations[key] = metadata[key].duration);
+				Object.keys(metadata).forEach(key => durations![key] = metadata[key].duration);
 			}
 
 			const data = {
@@ -920,15 +920,15 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor;
 	}
 
-	private updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
-		return editor.setInput(input, options, context, token)
-			.then<any>(() => {
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
+	private async updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
+		await editor.setInput(input, options, context, token);
 
-				return withNullAsUndefined((<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
-			});
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return withNullAsUndefined(
+			await (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
 	}
 
 	private getSettingsTarget(resource: URI): SettingsTarget {
@@ -1158,7 +1158,7 @@ export class DefaultSettingsEditorContribution extends AbstractSettingsEditorCon
 
 	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting> | null> | null {
 		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel()!.uri)
-			.then<any>(editorModel => {
+			.then(editorModel => {
 				if (editorModel instanceof DefaultSettingsEditorModel && this.editor.getModel()) {
 					const preferencesRenderer = this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
 					preferencesRenderer.render();
@@ -1186,7 +1186,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		const model = this.editor.getModel();
 		if (model) {
 			return this.preferencesService.createPreferencesEditorModel(model.uri)
-				.then<any>(settingsModel => {
+				.then(settingsModel => {
 					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
 							case ConfigurationTarget.USER_LOCAL:

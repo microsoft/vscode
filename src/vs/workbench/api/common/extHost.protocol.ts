@@ -455,6 +455,7 @@ export interface TerminalLaunchConfig {
 	shellArgs?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: ITerminalEnvironment;
+	icon?: string;
 	initialText?: string;
 	waitOnExit?: boolean;
 	strictEnv?: boolean;

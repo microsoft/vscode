@@ -429,7 +429,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	isWorkspaceTrustEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
+		return this.configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
 	}
 
 	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<WorkspaceTrustState | undefined> {

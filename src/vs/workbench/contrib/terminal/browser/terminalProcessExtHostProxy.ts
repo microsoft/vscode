@@ -128,7 +128,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		// Flow control is disabled for extension terminals
 	}
 
-	public processBinary(data: string): void {
+	public async processBinary(data: string): Promise<void> {
 		// Disabled for extension terminals
 		this._onBinary.fire(data);
 	}

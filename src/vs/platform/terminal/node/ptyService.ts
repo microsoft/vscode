@@ -116,7 +116,7 @@ export class PtyService extends Disposable implements IPtyService {
 		this._throwIfNoPty(id).detach();
 	}
 
-	reduceConnectionGraceTime(): void {
+	async reduceConnectionGraceTime(): Promise<void> {
 		for (const pty of this._ptys.values()) {
 			pty.reduceGraceTime();
 		}
@@ -344,7 +344,7 @@ export class PersistentTerminalProcess extends Disposable {
 		}
 		return this._terminalProcess.input(data);
 	}
-	writeBinary(data: string): void {
+	writeBinary(data: string): Promise<void> {
 		return this._terminalProcess.processBinary(data);
 	}
 	resize(cols: number, rows: number): void {

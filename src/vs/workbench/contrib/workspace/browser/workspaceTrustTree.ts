@@ -59,7 +59,7 @@ export class WorkspaceTrustSettingsTreeEntry {
 }
 
 export interface IWorkspaceTrustSettingItemTemplate<T = any> {
-	onChange?: (value: T) => void;
+	onChange?: (value: T, type: WorkspaceTrustSettingListItemChangeType) => void;
 
 	toDispose: DisposableStore;
 	context?: WorkspaceTrustSettingsTreeEntry;
@@ -225,9 +225,11 @@ interface IWorkspaceTrustSettingListItemTemplate extends IWorkspaceTrustSettingI
 	validationErrorMessageElement: HTMLElement;
 }
 
+export type WorkspaceTrustSettingListItemChangeType = 'added' | 'removed' | 'changed';
 export interface IWorkspaceTrustSettingChangeEvent {
 	key: string;
 	value: URI[] | undefined; // undefined => reset/unconfigure
+	type: WorkspaceTrustSettingListItemChangeType;
 }
 
 
@@ -339,9 +341,9 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
-				const newList = this.computeNewList(template, e);
+				const { list: newList, changeType } = this.computeNewList(template, e);
 				if (newList !== null && template.onChange) {
-					template.onChange(newList);
+					template.onChange(newList, changeType);
 				}
 			})
 		);
@@ -349,9 +351,11 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 		return template;
 	}
 
-	private computeNewList(template: IWorkspaceTrustSettingListItemTemplate, e: ISettingListChangeEvent<IWorkspaceTrustUriDataItem>): URI[] | undefined | null {
+	private computeNewList(template: IWorkspaceTrustSettingListItemTemplate, e: ISettingListChangeEvent<IWorkspaceTrustUriDataItem>): { list: URI[] | null, changeType: WorkspaceTrustSettingListItemChangeType } {
 		if (template.context) {
 			let newValue: URI[] = [];
+
+			let changeType: WorkspaceTrustSettingListItemChangeType = 'changed';
 			if (isArray(template.context.value)) {
 				newValue = [...template.context.value];
 			}
@@ -360,28 +364,32 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 				// Delete value
 				if (!e.item?.path && e.originalItem.path && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
+					changeType = 'removed';
 				}
 				// Update value
 				else if (e.item?.path && e.originalItem.path) {
 					if (e.targetIndex > -1) {
 						newValue[e.targetIndex] = URI.revive(e.item);
+						changeType = e.targetIndex < template.context.value.length ? 'changed' : 'added';
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
 						newValue.push(URI.revive(e.item));
+						changeType = 'added';
 					}
 				}
 				// Add value
 				else if (e.item?.path && !e.originalItem.path && e.targetIndex >= newValue.length) {
 					newValue.push(URI.revive(e.item));
+					changeType = 'added';
 				}
 			}
 
-			return newValue;
+			return { list: newValue, changeType };
 		}
 
-		return undefined;
+		return { list: null, changeType: 'changed' };
 	}
 
 	renderElement(node: ITreeNode<WorkspaceTrustSettingsTreeEntry, never>, index: number, template: IWorkspaceTrustSettingListItemTemplate): void {
@@ -395,17 +403,17 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 
 		template.descriptionElement.innerText = element.setting.description;
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value });
+		const onChange = (value: any, type: WorkspaceTrustSettingListItemChangeType) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type });
 		this.renderValue(element, template, onChange);
 	}
 
-	protected renderValue(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, onChange: (value: URI[] | undefined) => void): void {
+	protected renderValue(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, onChange: (value: URI[] | undefined, type: WorkspaceTrustSettingListItemChangeType) => void): void {
 		const value = getListDisplayValue(dataElement);
 		template.listWidget.setValue(value);
 		template.context = dataElement;
 
-		template.onChange = (v) => {
-			onChange(v);
+		template.onChange = (v, t) => {
+			onChange(v, t);
 			renderArrayValidations(dataElement, template, v, false);
 		};
 

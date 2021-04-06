@@ -330,7 +330,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._startWrite();
 	}
 
-	public processBinary(data: string): void {
+	public async processBinary(data: string): Promise<void> {
 		this.input(data, true);
 	}
 

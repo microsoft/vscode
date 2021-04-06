@@ -36,7 +36,8 @@ import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc, TestResultItem 
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { ITestResult, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getAllTestsInHierarchy, getTestByPath, ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

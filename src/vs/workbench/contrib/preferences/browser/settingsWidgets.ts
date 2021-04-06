@@ -438,13 +438,13 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			return -1;
 		}
 
-		const actionbar = DOM.findParentWithClass(<any>e.target, 'monaco-action-bar');
+		const actionbar = DOM.findParentWithClass(e.target as HTMLElement, 'monaco-action-bar');
 		if (actionbar) {
 			// Don't handle doubleclicks inside the action bar
 			return -1;
 		}
 
-		const element = DOM.findParentWithClass((<any>e.target), 'setting-list-row');
+		const element = DOM.findParentWithClass(e.target as HTMLElement, 'setting-list-row');
 		if (!element) {
 			return -1;
 		}

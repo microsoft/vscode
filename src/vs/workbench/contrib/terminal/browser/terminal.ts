@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
@@ -108,6 +109,12 @@ export interface ITerminalService {
 	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
+	 * Creates a terminal.
+	 * @param profile The profile to launch the terminal with.
+	 */
+	createTerminal(profile: ITerminalProfile): ITerminalInstance;
+
+	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
@@ -119,6 +126,7 @@ export interface ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
+	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -244,6 +252,7 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
+	readonly icon: Codicon;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated

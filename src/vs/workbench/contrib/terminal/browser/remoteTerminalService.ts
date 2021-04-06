@@ -191,11 +191,11 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
 	}
 
-	public reduceConnectionGraceTime(): void {
+	public async reduceConnectionGraceTime(): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error('Cannot reduce grace time when there is no remote');
 		}
-		this._remoteTerminalChannel.reduceConnectionGraceTime();
+		return this._remoteTerminalChannel.reduceConnectionGraceTime();
 	}
 
 	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {

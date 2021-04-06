@@ -96,7 +96,7 @@ export interface IOffProcessTerminalService {
 	listProcesses(reduceGraceTime?: boolean): Promise<IProcessDetails[]>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): void;
+	reduceConnectionGraceTime(): Promise<void>;
 }
 
 export const ILocalTerminalService = createDecorator<ILocalTerminalService>('localTerminalService');
@@ -160,7 +160,7 @@ export interface IPtyService {
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
-	reduceConnectionGraceTime(): void;
+	reduceConnectionGraceTime(): Promise<void>;
 }
 
 export enum HeartbeatConstants {
@@ -281,6 +281,12 @@ export interface IShellLaunchConfig {
 	 * Whether this terminal was created by an extension.
 	 */
 	isExtensionOwnedTerminal?: boolean;
+
+	/**
+	 * The codicon ID to use for this terminal. If not specified it will use the default fallback
+	 * icon.
+	 */
+	icon?: string;
 }
 
 export interface IShellLaunchConfigDto {
@@ -347,7 +353,7 @@ export interface ITerminalChildProcess {
 	 */
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
-	processBinary(data: string): void;
+	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
 
 	/**

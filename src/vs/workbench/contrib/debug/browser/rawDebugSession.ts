@@ -13,8 +13,6 @@ import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
-import { IProcessEnvironment } from 'vs/base/common/platform';
-import { env as processEnv } from 'vs/base/common/process';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -620,15 +618,7 @@ export class RawDebugSession implements IDisposable {
 			}
 		}
 
-		let env: IProcessEnvironment = processEnv;
-		if (vscodeArgs.env && Object.keys(vscodeArgs.env).length > 0) {
-			// merge environment variables into a copy of the process.env
-			env = objects.mixin(objects.deepClone(processEnv), vscodeArgs.env);
-			// and delete some if necessary
-			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
-		}
-
-		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env, !!vscodeArgs.debugRenderer);
+		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, vscodeArgs.env, !!vscodeArgs.debugRenderer);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R | undefined> {

@@ -96,7 +96,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
 	public get onProcessBinary(): Event<{ id: number, event: string }> {
-		return this._channel.listen<{ id: number, event: string }>('$onProcessBinaryEvent');
+		return this._channel.listen<{ id: number, event: string }>('$onProcessBinary');
 	}
 	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');

@@ -65,6 +65,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			withNullAsUndefined(options.shellArgs),
 			withNullAsUndefined(options.cwd),
 			withNullAsUndefined(options.env),
+			withNullAsUndefined(options.icon),
 			withNullAsUndefined(options.initialText),
 			/*options.waitOnExit*/ undefined,
 			withNullAsUndefined(options.strictEnv),
@@ -139,7 +140,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public async $getAvailableProfiles(configuredProfilesOnly: boolean): Promise<ITerminalProfile[]> {
 		const config = await (await this._extHostConfiguration.getConfigProvider()).getConfiguration().get('terminal.integrated');
-		return detectAvailableProfiles(configuredProfilesOnly, this._logService, config as ITerminalConfiguration, await this._variableResolverPromise, this._lastActiveWorkspace);
+		return detectAvailableProfiles(configuredProfilesOnly, undefined, this._logService, config as ITerminalConfiguration, await this._variableResolverPromise, this._lastActiveWorkspace);
 	}
 
 	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {

@@ -29,6 +29,7 @@ import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/co
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { IWorkspaceTestCollectionService, WorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
@@ -36,6 +37,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import * as Action from './testExplorerActions';
 
 registerSingleton(ITestService, TestService);
+registerSingleton(ITestResultStorage, TestResultStorage);
 registerSingleton(ITestResultService, TestResultService);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState);
 registerSingleton(ITestingAutoRun, TestingAutoRun, true);
