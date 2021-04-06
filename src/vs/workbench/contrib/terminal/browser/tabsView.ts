@@ -64,8 +64,8 @@ export class TabsView extends Disposable {
 	public layout(width: number, height: number): void {
 		this.width = width;
 		this.height = height;
-		this._children.forEach(c => c.orthogonalLayout(height));
-		this._terminalService.terminalTabs.forEach(tab => tab.attachToElement(this._container));
+		this._children.forEach(c => c.orthogonalLayout(width));
+		this._terminalService.terminalTabs.forEach(tab => tab.attachToElement(this._children[1].element));
 		this._splitView.layout(width);
 	}
 }
