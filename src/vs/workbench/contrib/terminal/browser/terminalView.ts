@@ -116,7 +116,7 @@ export class TerminalViewPane extends ViewPane {
 			this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 		}
 		if (!this._tabsView && this._terminalService.configHelper.config.showTabs) {
-			this._tabsView = this.instantiationService.createInstance(TabsView, 'terminal', this._terminalContainer);
+			this._tabsView = this.instantiationService.createInstance(TabsView, 'terminal', this._terminalContainer, this._parentDomElement);
 		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);

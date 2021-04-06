@@ -193,7 +193,7 @@ export class SplitPaneContainer extends Disposable {
 	}
 }
 
-class SplitPane implements IView {
+export class SplitPane implements IView {
 	public minimumSize: number = SPLIT_PANE_MIN_SIZE;
 	public maximumSize: number = Number.MAX_VALUE;
 

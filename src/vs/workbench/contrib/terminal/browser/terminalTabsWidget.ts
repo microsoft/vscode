@@ -17,6 +17,7 @@ import { ITerminalInstance, ITerminalService, ITerminalTab } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
 
@@ -114,14 +115,17 @@ class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITermina
 
 	renderElement(node: ITreeNode<TabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
+		let icon;
 		let item = node.element;
 		if ('children' in item) {
 			label = item ? item.children.length === 0 ? 'Starting...' : item?.children.length > 1 ? `Terminals (${item.children.length})` : item.children[0].instance.title : '';
 		} else if ('instance' in item) {
 			label = item.instance.title;
+			icon = item.instance.icon;
 		}
 		template.labelElement.textContent = label;
 		template.labelElement.title = label;
+		template.icon = icon;
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
@@ -130,6 +134,7 @@ class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITermina
 
 interface ITerminalTabEntryTemplate {
 	labelElement: HTMLElement;
+	icon?: Codicon;
 }
 
 type TabTreeNode = TabTreeElement | TabTreeChild;
@@ -188,7 +193,7 @@ function getChildren(elt: TabTreeElement): Iterable<ITreeElement<TabTreeChild>> 
 			return {
 				element: child,
 				collapsed: true,
-				collapsible: false
+				collapsible: false,
 			};
 		});
 	}

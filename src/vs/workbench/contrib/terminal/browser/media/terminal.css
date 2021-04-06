@@ -9,7 +9,6 @@
 	float: left;
 	height: 100%;
 }
-
 .monaco-workbench .pane-body.integrated-terminal {
 	align-content: flex-start;
 	align-items: baseline;
@@ -110,6 +109,14 @@
 /* Use the default cursor when alt is active to help with clicking to move cursor */
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container.alt-active .xterm {
 	cursor: default;
+}
+
+.monaco-list-row {
+	padding-left: 4px; /* align top level twistie with `Explorer` title label */
+}
+
+.monaco-list .monaco-tl-twistie {
+	opacity: 0.3;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .xterm {
