@@ -37,6 +37,7 @@ import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TabsView } from 'vs/workbench/contrib/terminal/browser/tabsView';
+import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 
 const FIND_FOCUS_CLASS = 'find-focused';
 
@@ -48,7 +49,8 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
-	private _tabsView: TabsView | undefined;
+	private _tabsViewWrapper: HTMLElement | undefined;
+	private _tabsView: TerminalTabsWidget | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -115,17 +117,26 @@ export class TerminalViewPane extends ViewPane {
 			this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 			this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 		}
-		if (!this._tabsView && this._terminalService.configHelper.config.showTabs) {
-			this._tabsView = this.instantiationService.createInstance(TabsView, 'terminal', this._terminalContainer, this._parentDomElement);
+
+		if (this._tabsViewWrapper) {
+			this._parentDomElement.removeChild(this._tabsViewWrapper);
+			this._tabsViewWrapper = undefined;
+		}
+		if (!this._tabsViewWrapper && this._terminalService.configHelper.config.showTabs) {
+			this._tabsViewWrapper = document.createElement('div');
+			this._tabsViewWrapper.classList.add('tabs-view-wrapper');
+			this.instantiationService.createInstance(TabsView, 'terminal', this._terminalContainer, this._parentDomElement);
+			this._parentDomElement.append(this._tabsViewWrapper);
 		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
-		this._parentDomElement.appendChild(this._terminalContainer);
-		this._parentDomElement.appendChild(this._findWidget.getDomNode());
+		this._parentDomElement.appendChild(
+			// this._parentDomElement.appendChild(this._terminalContainer);
+			this._parentDomElement.appendChild(this._findWidget.getDomNode()));
 
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 
-		this._terminalService.setContainers(container, this._terminalContainer);
+		this._terminalService.setContainers(container, this._parentDomElement);
 
 		this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

@@ -16,10 +16,11 @@ export class TabsView extends Disposable {
 	private height: number;
 	private width: number;
 	private _widget!: HTMLElement;
+	private _terminalService: ITerminalService;
 	private _splitView!: SplitView;
 	private readonly _splitViewDisposables = this._register(new DisposableStore());
 	private _children: SplitTabsPane[] = [];
-
+	private _container: HTMLElement;
 	private _onDidChange: Event<number | undefined> = Event.None;
 	public get onDidChange(): Event<number | undefined> { return this._onDidChange; }
 
@@ -28,18 +29,20 @@ export class TabsView extends Disposable {
 		private container: HTMLElement,
 		private parentContainer: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
 		super();
-		if (context === 'terminal') {
+		if (context === 'terminal' && !this._widget) {
 			const div = document.createElement('div');
 			div.classList.add('tabs-widget');
 			this._instantiationService.createInstance(TerminalTabsWidget, div);
 			this._widget = div;
 		}
-		this._createSplitView();
 		this.width = parentContainer.offsetWidth;
 		this.height = parentContainer.offsetHeight;
+		this._terminalService = this.terminalService;
+		this._container = container;
+		this._createSplitView();
 		this._splitView.layout(this.width);
 	}
 
@@ -48,20 +51,21 @@ export class TabsView extends Disposable {
 	}
 
 	private _createSplitView(): void {
-		this._splitView = new SplitView(this.parentContainer, { orientation: Orientation.HORIZONTAL });
-		this._splitViewDisposables.clear();
-		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
-		const widgetWidth = 140;
-		// this._splitView.addView(new SplitTabsPane(this._widget, widgetWidth, this._terminalService), widgetWidth, 0);
-		// this._splitView.addView(new SplitTabsPane(this._container, this._width - widgetWidth, this._terminalService), this._width - widgetWidth, 1);
-		this._children.push(new SplitTabsPane(this._widget, widgetWidth, this._terminalService));
-		this._children.push(new SplitTabsPane(this.container, this.width - widgetWidth, this._terminalService));
+		if (!this._splitView) {
+			this._splitView = new SplitView(this.parentContainer, { orientation: Orientation.HORIZONTAL });
+			this._splitViewDisposables.clear();
+			this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
+			const widgetWidth = 200;
+			this._splitView.addView(new SplitTabsPane(this._widget, widgetWidth, this._terminalService), widgetWidth, 0);
+			this._splitView.addView(new SplitTabsPane(this._container, this.width - widgetWidth, this._terminalService), this.width - widgetWidth, 1);
+		}
 	}
 
 	public layout(width: number, height: number): void {
 		this.width = width;
 		this.height = height;
-		this._children.forEach(c => c.orthogonalLayout(width));
+		this._children.forEach(c => c.orthogonalLayout(height));
+		this._terminalService.terminalTabs.forEach(tab => tab.attachToElement(this._container));
 		this._splitView.layout(width);
 	}
 }
@@ -121,7 +125,7 @@ class SplitTabsPane implements IView {
 		if (this._item.classList.contains('tabs-widget')) {
 
 		} else {
-			this._terminalService.terminalTabs.forEach(t => t.layout(size, this.height));
+			// this._terminalService.terminalTabs.forEach(t => t.layout(size, this.height));
 		}
 	}
 

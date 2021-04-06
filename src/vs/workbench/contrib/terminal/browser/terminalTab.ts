@@ -264,7 +264,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 		this._activeInstanceIndex = 0;
 		if (this._container) {
-			this.attachToElement(this._container);
+			// this.attachToElement(this._container);
 		}
 	}
 
