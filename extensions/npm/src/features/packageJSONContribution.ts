@@ -94,7 +94,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					collector.setAsIncomplete();
 				}
 
-				queryUrl = `https://api.npms.io/v2/search/suggestions?size=${LIMIT}&q=${encodeURIComponent(currentWord)}`;
+				queryUrl = `https://registry.npmjs.org/-/v1/search?size=${LIMIT}&text=${encodeURIComponent(currentWord)}`;
 				return this.xhr({
 					url: queryUrl,
 					agent: USER_AGENT
@@ -102,8 +102,8 @@ export class PackageJSONContribution implements IJSONContribution {
 					if (success.status === 200) {
 						try {
 							const obj = JSON.parse(success.responseText);
-							if (obj && Array.isArray(obj)) {
-								const results = <{ package: SearchPackageInfo; }[]>obj;
+							if (obj && obj.objects && Array.isArray(obj.objects)) {
+								const results = <{ package: SearchPackageInfo; }[]>obj.objects;
 								for (const result of results) {
 									this.processPackage(result.package, addValue, isLast, collector);
 								}
@@ -155,7 +155,7 @@ export class PackageJSONContribution implements IJSONContribution {
 			if (name.length < 4) {
 				name = '';
 			}
-			let queryUrl = `https://api.npms.io/v2/search?q=scope:${scope}%20${name}&size=250`;
+			let queryUrl = `https://registry.npmjs.com/-/v1/search?text=scope:${scope}%20${name}&size=250`;
 			return this.xhr({
 				url: queryUrl,
 				agent: USER_AGENT
@@ -163,8 +163,8 @@ export class PackageJSONContribution implements IJSONContribution {
 				if (success.status === 200) {
 					try {
 						const obj = JSON.parse(success.responseText);
-						if (obj && Array.isArray(obj.results)) {
-							const objects = <{ package: SearchPackageInfo }[]>obj.results;
+						if (obj && Array.isArray(obj.objects)) {
+							const objects = <{ package: SearchPackageInfo; }[]>obj.objects;
 							for (let object of objects) {
 								this.processPackage(object.package, addValue, isLast, collector);
 							}
@@ -305,21 +305,18 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
-		const queryUrl = 'https://api.npms.io/v2/package/' + encodeURIComponent(pack);
+		const queryUrl = 'https://registry.npmjs.org/' + encodeURIComponent(pack);
 		try {
 			const success = await this.xhr({
 				url: queryUrl,
 				agent: USER_AGENT
 			});
 			const obj = JSON.parse(success.responseText);
-			const metadata = obj?.collected?.metadata;
-			if (metadata) {
-				return {
-					description: metadata.description || '',
-					version: metadata.version,
-					homepage: metadata.links?.homepage || ''
-				};
-			}
+			return {
+				description: obj.description || '',
+				version: Object.keys(obj.versions).pop(),
+				homepage: obj.homepage || ''
+			};
 		}
 		catch (e) {
 			//ignore
