@@ -1090,10 +1090,6 @@ declare module 'vscode' {
 		// todo@API should we really expose this?
 		readonly viewType: string;
 
-		// todo@API cellsAt(range)? getCell(index>)?
-		/** @deprecated Use `getCells(<...>) instead */
-		readonly cells: ReadonlyArray<NotebookCell>;
-
 		/**
 		 * The number of cells in the notebook document.
 		 */
