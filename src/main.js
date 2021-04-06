@@ -6,6 +6,12 @@
 //@ts-check
 'use strict';
 
+/**
+ * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
+ * @typedef {import('./vs/base/node/languagePacks').NLSConfiguration} NLSConfiguration
+ * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+ */
+
 const perf = require('./vs/base/common/performance');
 perf.mark('code/didStartMain');
 
@@ -16,7 +22,7 @@ const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
-/** @type {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} */
+/** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
@@ -74,7 +80,7 @@ const nodeCachedDataDir = getNodeCachedDir();
  * Support user defined locale: load it early before app('ready')
  * to have more things running in parallel.
  *
- * @type {Promise<import('./vs/base/node/languagePacks').NLSConfiguration> | undefined}
+ * @type {Promise<NLSConfiguration> | undefined}
  */
 let nlsConfigurationPromise = undefined;
 
@@ -104,7 +110,7 @@ app.once('ready', function () {
  * Main startup routine
  *
  * @param {string | undefined} cachedDataDir
- * @param {import('./vs/base/node/languagePacks').NLSConfiguration} nlsConfig
+ * @param {NLSConfiguration} nlsConfig
  */
 function startup(cachedDataDir, nlsConfig) {
 	nlsConfig._languagePackSupport = true;
@@ -132,7 +138,7 @@ async function onReady() {
 }
 
 /**
- * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
+ * @param {NativeParsedArgs} cliArgs
  */
 function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_ELECTRON_SWITCHES = [
@@ -396,7 +402,7 @@ function configureCrashReporter() {
 }
 
 /**
- * @param {import('./vs/platform/environment/common/argv').NativeParsedArgs} cliArgs
+ * @param {NativeParsedArgs} cliArgs
  * @returns {string | null}
  */
 function getJSFlags(cliArgs) {
@@ -416,7 +422,7 @@ function getJSFlags(cliArgs) {
 }
 
 /**
- * @returns {import('./vs/platform/environment/common/argv').NativeParsedArgs}
+ * @returns {NativeParsedArgs}
  */
 function parseCLIArgs() {
 	const minimist = require('minimist');
@@ -534,7 +540,7 @@ function mkdirp(dir) {
 /**
  * Resolve the NLS configuration
  *
- * @return {Promise<import('./vs/base/node/languagePacks').NLSConfiguration>}
+ * @return {Promise<NLSConfiguration>}
  */
 async function resolveNlsConfiguration() {
 

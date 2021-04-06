@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdPath, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const ITestService = createDecorator<ITestService>('testService');
 

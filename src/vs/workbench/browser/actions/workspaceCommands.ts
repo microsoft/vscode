@@ -22,6 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = localize('addFolderToWorkspace', "Add Folder to Workspace...");
@@ -60,12 +61,14 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor) => {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const dialogsService = accessor.get(IFileDialogService);
+		const pathService = accessor.get(IPathService);
 		const folders = await dialogsService.showOpenDialog({
 			openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
 			title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
 			canSelectFolders: true,
 			canSelectMany: true,
-			defaultUri: await dialogsService.defaultFolderPath()
+			defaultUri: await dialogsService.defaultFolderPath(),
+			availableFileSystems: [pathService.defaultUriScheme]
 		});
 
 		if (!folders || !folders.length) {

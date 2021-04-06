@@ -20,7 +20,7 @@ export type BuiltinGettingStartedItem = {
 	description: string,
 	button:
 	| { title: string, command?: never, link: string }
-	| { title: string, command: string, link?: never },
+	| { title: string, command: string, link?: never, sideBySide?: boolean },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
 	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
@@ -290,7 +290,8 @@ export const content: GettingStartedContent = [
 					when: 'workspaceFolderCount != 0',
 					button: {
 						title: localize('gettingStarted.quickOpen.button', "Quick Open a File"),
-						command: 'workbench.action.quickOpen'
+						command: 'workbench.action.quickOpen',
+						sideBySide: true
 					},
 					doneOn: { commandExecuted: 'workbench.action.quickOpen' },
 					media: {
@@ -371,7 +372,8 @@ export const content: GettingStartedContent = [
 					description: localize('gettingStarted.settings.description', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started."),
 					button: {
 						title: localize('gettingStarted.settings.button', "Tweak my Settings"),
-						command: 'workbench.action.openSettings'
+						command: 'workbench.action.openSettings',
+						sideBySide: true
 					},
 					doneOn: { commandExecuted: 'workbench.action.openSettings' },
 					media: {

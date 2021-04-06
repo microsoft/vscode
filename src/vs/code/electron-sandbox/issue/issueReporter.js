@@ -11,12 +11,32 @@
 
 	// Load issue reporter into window
 	bootstrapWindow.load(['vs/code/electron-sandbox/issue/issueReporterMain'], function (issueReporter, configuration) {
-		issueReporter.startup(configuration);
-	}, { forceEnableDeveloperKeybindings: true, disallowReloadKeybinding: true });
+		return issueReporter.startup(configuration);
+	},
+		{
+			configureDeveloperKeybindings: function () {
+				return {
+					forceEnableDeveloperKeybindings: true,
+					disallowReloadKeybinding: true
+				};
+			}
+		}
+	);
 
 	/**
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => unknown, options?: { forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean }) => Promise<unknown>
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperKeybindings?: (config: ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	     canModifyDOM?: (config: ISandboxConfiguration) => void,
+	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *       beforeRequire?: () => void
+	 *     }
+	 *   ) => Promise<unknown>
 	 * }}
 	 */
 	function bootstrapWindowLib() {

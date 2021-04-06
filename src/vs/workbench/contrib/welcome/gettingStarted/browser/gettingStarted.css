@@ -487,6 +487,11 @@
 	visibility: hidden;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .footer {
+	position: absolute;
+	bottom: 0;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category:hover .codicon-close {
 	visibility: visible;
 }

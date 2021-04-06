@@ -27,7 +27,6 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -916,24 +915,21 @@ export class SettingsEditor2 extends EditorPane {
 		this.telemetryService.publicLog('settingsEditor.settingModified', data);
 	}
 
-	private render(token: CancellationToken): Promise<any> {
+	private async render(token: CancellationToken): Promise<void> {
 		if (this.input) {
-			return this.input.resolve()
-				.then((model: IEditorModel | null) => {
-					if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
-						return undefined;
-					}
+			const model = await this.input.resolve();
+			if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
+				return;
+			}
 
-					this._register(model.onDidChangeGroups(() => {
-						this.updatedConfigSchemaDelayer.trigger(() => {
-							this.onConfigUpdate(undefined, undefined, true);
-						});
-					}));
-					this.defaultSettingsEditorModel = model;
-					return this.onConfigUpdate(undefined, true);
+			this._register(model.onDidChangeGroups(() => {
+				this.updatedConfigSchemaDelayer.trigger(() => {
+					this.onConfigUpdate(undefined, undefined, true);
 				});
+			}));
+			this.defaultSettingsEditorModel = model;
+			await this.onConfigUpdate(undefined, true);
 		}
-		return Promise.resolve(null);
 	}
 
 	private onSearchModeToggled(): void {

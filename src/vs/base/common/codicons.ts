@@ -550,7 +550,7 @@ export namespace Codicon {
 	export const debugRerun = new Codicon('debug-rerun', { fontCharacter: '\\ebc0' });
 	export const workspaceTrusted = new Codicon('workspace-trusted', { fontCharacter: '\\ebc1' });
 	export const workspaceUntrusted = new Codicon('workspace-untrusted', { fontCharacter: '\\ebc2' });
-	export const workspaceUnknown = new Codicon('workspace-unknown', { fontCharacter: '\\ebc3' });
+	export const workspaceUnspecified = new Codicon('workspace-unspecified', { fontCharacter: '\\ebc3' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

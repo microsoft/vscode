@@ -22,7 +22,7 @@
 	}
 }(this, function () {
 	const bootstrapLib = bootstrap();
-	const preloadGlobals = globals();
+	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
 
 	// Start to resolve process.env before anything gets load
@@ -30,38 +30,42 @@
 	const whenEnvResolved = safeProcess.resolveEnv();
 
 	/**
+	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
 	 * @param {string[]} modulePaths
-	 * @param {(result: unknown, configuration: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
-	 * 	forceEnableDeveloperKeybindings?: boolean,
-	 * 	disallowReloadKeybinding?: boolean,
-	 * 	removeDeveloperKeybindingsAfterLoad?: boolean,
-	 * 	canModifyDOM?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
-	 * 	beforeLoaderConfig?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration, loaderConfig: object) => void,
+	 * 	configureDeveloperKeybindings?: (config: ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
+	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *  beforeRequire?: () => void
 	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
-		performance.mark('code/willWaitForWindowConfig');
-		/** @type {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} */
-		const configuration = await preloadGlobals.context.configuration;
-		performance.mark('code/didWaitForWindowConfig');
 
 		// Error handler
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
 			onUnexpectedError(error, enableDeveloperKeybindings);
 		});
 
-		// Developer tools
-		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || configuration.forceEnableDeveloperKeybindings || options?.forceEnableDeveloperKeybindings;
+		// Await window configuration from preload
+		performance.mark('code/willWaitForWindowConfig');
+		/** @type {ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.resolveConfiguration();
+		performance.mark('code/didWaitForWindowConfig');
+
+		// Developer keybindings
+		const { forceEnableDeveloperKeybindings, disallowReloadKeybinding, removeDeveloperKeybindingsAfterLoad } = typeof options?.configureDeveloperKeybindings === 'function' ? options.configureDeveloperKeybindings(configuration) : { forceEnableDeveloperKeybindings: false, disallowReloadKeybinding: false, removeDeveloperKeybindingsAfterLoad: false };
+		const enableDeveloperKeybindings = safeProcess.env['VSCODE_DEV'] || forceEnableDeveloperKeybindings;
 		let developerDeveloperKeybindingsDisposable;
 		if (enableDeveloperKeybindings) {
-			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(options?.disallowReloadKeybinding);
+			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
 		// Enable ASAR support
 		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
 
+		// Signal DOM modifications are now OK
 		if (typeof options?.canModifyDOM === 'function') {
 			options.canModifyDOM(configuration);
 		}
@@ -122,7 +126,7 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// cached data config
+		// Cached data config
 		if (configuration.nodeCachedDataDir) {
 			loaderConfig.nodeCachedData = {
 				path: configuration.nodeCachedDataDir,
@@ -130,22 +134,27 @@
 			};
 		}
 
+		// Signal before require.config()
 		if (typeof options?.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(configuration, loaderConfig);
+			options.beforeLoaderConfig(loaderConfig);
 		}
 
+		// Configure loader
 		require.config(loaderConfig);
 
+		// Handle pseudo NLS
 		if (nlsConfig.pseudo) {
 			require(['vs/nls'], function (nlsPlugin) {
 				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 			});
 		}
 
+		// Signal before require()
 		if (typeof options?.beforeRequire === 'function') {
 			options.beforeRequire();
 		}
 
+		// Actually require the main module as specified
 		require(modulePaths, async result => {
 			try {
 
@@ -161,7 +170,7 @@
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 
-					if (developerDeveloperKeybindingsDisposable && options?.removeDeveloperKeybindingsAfterLoad) {
+					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 						developerDeveloperKeybindingsDisposable();
 					}
 				}
@@ -245,13 +254,12 @@
 	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
-	function globals() {
+	function sandboxGlobals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
 	}
 
 	return {
-		load,
-		globals
+		load
 	};
 }));

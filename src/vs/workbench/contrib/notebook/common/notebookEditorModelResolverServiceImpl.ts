@@ -7,7 +7,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { combinedDisposable, DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -15,6 +15,7 @@ import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/se
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { ResourceMap } from 'vs/base/common/map';
 
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
@@ -24,6 +25,11 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
 	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;
+
+	private readonly _onDidChangeDirty = new Emitter<{ resource: URI, isDirty: boolean }>();
+	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }> = this._onDidChangeDirty.event;
+
+	private readonly _dirtyStates = new ResourceMap<boolean>();
 
 	constructor(
 		@IInstantiationService readonly _instantiationService: IInstantiationService,
@@ -36,6 +42,17 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			FileWorkingCopyManager,
 			new NotebookFileWorkingCopyModelFactory(_notebookService)
 		);
+	}
+
+	dispose(): void {
+		this._onDidSaveNotebook.dispose();
+		this._onDidChangeDirty.dispose();
+		dispose(this._modelListener.values());
+		this._workingCopyManager.dispose();
+	}
+
+	isDirty(resource: URI): boolean {
+		return this._dirtyStates.get(resource) ?? false;
 	}
 
 	protected async createReferencedObject(key: string, viewType: string): Promise<IResolvedNotebookEditorModel> {
@@ -56,7 +73,14 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			throw new Error(`CANNOT open ${key}, no provider found`);
 		}
 
-		this._modelListener.set(result, result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)));
+		this._modelListener.set(result, combinedDisposable(
+			result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)),
+			result.onDidChangeDirty(() => {
+				const isDirty = result.isDirty();
+				this._dirtyStates.set(result.resource, isDirty);
+				this._onDidChangeDirty.fire({ resource: result.resource, isDirty });
+			}),
+		));
 		return result;
 	}
 
@@ -78,6 +102,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	private readonly _data: NotebookModelReferenceCollection;
 
 	readonly onDidSaveNotebook: Event<URI>;
+	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -87,6 +112,15 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	) {
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 		this.onDidSaveNotebook = this._data.onDidSaveNotebook;
+		this.onDidChangeDirty = this._data.onDidChangeDirty;
+	}
+
+	dispose() {
+		this._data.dispose();
+	}
+
+	isDirty(resource: URI): boolean {
+		return this._data.isDirty(resource);
 	}
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>> {

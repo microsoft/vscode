@@ -812,6 +812,30 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Terminal initial text https://github.com/microsoft/vscode/issues/120368
+
+	export interface TerminalOptions {
+		/**
+		 * Initial text to write to the terminal, note that this is not sent to the process but
+		 * rather written directly to the terminal. This supports escape sequences such a setting
+		 * text style.
+		 */
+		readonly initialText?: string;
+	}
+
+	//#endregion
+
+	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
+
+	export interface TerminalOptions {
+		/**
+		 * A codicon ID to associate with this terminal.
+		 */
+		readonly icon?: string;
+	}
+
+	//#endregion
+
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
@@ -1066,8 +1090,22 @@ declare module 'vscode' {
 		// todo@API should we really expose this?
 		readonly viewType: string;
 
+		// todo@API cellsAt(range)? getCell(index>)?
 		/** @deprecated Use `getCells(<...>) instead */
 		readonly cells: ReadonlyArray<NotebookCell>;
+
+		/**
+		 * The number of cells in the notebook document.
+		 */
+		readonly cellCount: number;
+
+		/**
+		 * Return the cell at the specified index. The index will be adjusted to the notebook.
+		 *
+		 * @param index - The index of the cell to retrieve.
+		 * @return A [cell](#NotebookCell).
+		 */
+		cellAt(index: number): NotebookCell;
 
 		/**
 		 * Get the cells of this notebook. A subset can be retrieved by providing
@@ -1605,6 +1643,14 @@ declare module 'vscode' {
 		filenamePattern?: NotebookFilenamePattern;
 	}
 
+	// export interface NotebookFilter {
+	// 	readonly viewType?: string;
+	// 	readonly scheme?: string;
+	// 	readonly pattern?: GlobPattern;
+	// }
+
+	// export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
+
 	// todo@API very unclear, provider MUST not return alive object but only data object
 	// todo@API unclear how the flow goes
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
@@ -2070,7 +2116,7 @@ declare module 'vscode' {
 	*/
 	export namespace test {
 		/**
-		 * Registers a provider that discovers and runs tests.
+		 * Registers a provider that discovers tests in workspaces and documents.
 		 */
 		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
 
@@ -2080,7 +2126,7 @@ declare module 'vscode' {
 		 * that "run" is called, all tests given in the run have their state
 		 * automatically set to {@link TestRunState.Queued}.
 		 */
-		export function runTests<T extends TestItem>(run: TestRunOptions<T>, cancellationToken?: CancellationToken): Thenable<void>;
+		export function runTests<T extends TestItem>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2106,13 +2152,13 @@ declare module 'vscode' {
 		 * @param persist whether the test results should be saved by VS Code
 		 * and persisted across reloads. Defaults to true.
 		 */
-		export function publishTestResult(results: TestResults, persist?: boolean): void;
+		export function publishTestResult(results: TestRunResult, persist?: boolean): void;
 
 		/**
 		* List of test results stored by VS Code, sorted in descnding
 		* order by their `completedAt` time.
 		*/
-		export const testResults: ReadonlyArray<TestResults>;
+		export const testResults: ReadonlyArray<TestRunResult>;
 
 		/**
 		* Event that fires when the {@link testResults} array is updated.
@@ -2131,7 +2177,7 @@ declare module 'vscode' {
 		 * null if a top-level test was added or removed. When fired, the consumer
 		 * should check the test item and all its children for changes.
 		 */
-		readonly onDidChangeTest: Event<TestChangeEvent>;
+		readonly onDidChangeTest: Event<TestsChangeEvent>;
 
 		/**
 		 * An event that fires when all test providers have signalled that the tests
@@ -2150,7 +2196,7 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	export interface TestChangeEvent {
+	export interface TestsChangeEvent {
 		/**
 		 * List of all tests that are newly added.
 		 */
@@ -2168,18 +2214,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Tree of tests returned from the provide methods in the {@link TestProvider}.
-	 */
-	export interface TestHierarchy<T extends TestItem> {
-		/**
-		 * Root node for tests. The root instance must not be replaced over
-		 * the lifespan of the TestHierarchy, since you will need to reference it
-		 * in {@link onDidChangeTest} when a test is added or removed.
-		 */
-		readonly root: T;
-	}
-
-	/**
 	 * Discovers and provides tests.
 	 *
 	 * Additionally, the UI may request it to discover tests for the workspace
@@ -2194,7 +2228,7 @@ declare module 'vscode' {
 		 * when the user opens the test explorer.
 		 *
 		 * It's guaranteed that this method will not be called again while
-		 * there is a previous uncancelled hierarchy for the given workspace folder.
+		 * there is a previous uncancelled call for the given workspace folder.
 		 *
 		 * @param workspace The workspace in which to observe tests
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
@@ -2231,13 +2265,13 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		runTests(options: TestRun<T>, token: CancellationToken): ProviderResult<void>;
+		runTests(options: TestRunOptions<T>, token: CancellationToken): ProviderResult<void>;
 	}
 
 	/**
 	 * Options given to {@link test.runTests}.
 	 */
-	export interface TestRunOptions<T extends TestItem = TestItem> {
+	export interface TestRunRequest<T extends TestItem = TestItem> {
 		/**
 		 * Array of specific tests to run. The {@link TestProvider.testRoot} may
 		 * be provided as an indication to run all tests.
@@ -2258,20 +2292,40 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options given to `TestProvider.runTests`
+	 * Options given to {@link TestProvider.runTests}
 	 */
-	export interface TestRun<T extends TestItem = TestItem> extends TestRunOptions<T> {
+	export interface TestRunOptions<T extends TestItem = TestItem> extends TestRunRequest<T> {
 		/**
 		 * Updates the state of the test in the run. By default, all tests involved
 		 * in the run will have a "queued" state until they are updated by this method.
 		 *
-		 * Calling with method with nodes outside the {@link tests} or in the
-		 * {@link exclude} array will no-op.
+		 * Calling with method with nodes outside the {@link TestRunRequesttests}
+		 * or in the {@link TestRunRequestexclude} array will no-op.
 		 *
 		 * @param test The test to update
 		 * @param state The state to assign to the test
+		 * @param duration Optionally sets how long the test took to run
 		 */
-		setState(test: T, state: TestState): void;
+		setState(test: T, state: TestResultState, duration?: number): void;
+
+		/**
+		 * Appends a message, such as an assertion error, to the test item.
+		 *
+		 * Calling with method with nodes outside the {@link TestRunRequesttests}
+		 * or in the {@link TestRunRequestexclude} array will no-op.
+		 *
+		 * @param test The test to update
+		 * @param state The state to assign to the test
+		 *
+		 */
+		appendMessage(test: T, message: TestMessage): void;
+
+		/**
+		 * Appends raw output from the test runner. On the user's request, the
+		 * output will be displayed in a terminal. ANSI escape sequences,
+		 * such as colors and text styles, are supported.
+		 */
+		appendOutput(output: string): void;
 	}
 
 	export interface TestChildrenCollection<T> extends Iterable<T> {
@@ -2318,7 +2372,7 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * URI this TestItem is associated with. May be a file or file.
+		 * URI this TestItem is associated with. May be a file or directory.
 		 */
 		readonly uri: Uri;
 
@@ -2345,25 +2399,21 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
-		 * Whether this test item can be run individually, defaults to `true`.
-		 *
-		 * In some cases, like Go's tests, test can have children but these
-		 * children cannot be run independently.
+		 * Whether this test item can be run by providing it in the
+		 * {@link TestRunRequest.tests} array. Defaults to `true`.
 		 */
 		runnable: boolean;
 
 		/**
-		 * Whether this test item can be debugged individually, defaults to `false`.
-		 *
-		 * In some cases, like Go's tests, test can have children but these
-		 * children cannot be run independently.
+		 * Whether this test item can be debugged by providing it in the
+		 * {@link TestRunRequest.tests} array. Defaults to `false`.
 		 */
 		debuggable: boolean;
 
 		/**
 		 * Whether this test item can be expanded in the tree view, implying it
-		 * has (or may have) children. If this is given, the item may be
-		 * passed to the {@link TestHierarchy.getChildren} method.
+		 * has (or may have) children. If this is true, VS Code may call
+		 * the {@link TestItem.discoverChildren} method.
 		 */
 		expandable: boolean;
 
@@ -2372,8 +2422,7 @@ declare module 'vscode' {
 		 * @param id Value of the "id" property
 		 * @param label Value of the "label" property.
 		 * @param uri Value of the "uri" property.
-		 * @param parent Parent of this item. This should only be defined for the
-		 * test root.
+		 * @param expandable Value of the "expandable" property.
 		 */
 		constructor(id: string, label: string, uri: Uri, expandable: boolean);
 
@@ -2414,7 +2463,7 @@ declare module 'vscode' {
 	/**
 	 * Possible states of tests in a test run.
 	 */
-	export enum TestResult {
+	export enum TestResultState {
 		// Initial state
 		Unset = 0,
 		// Test will be run, but is not currently running.
@@ -2429,32 +2478,6 @@ declare module 'vscode' {
 		Skipped = 5,
 		// Test run failed for some other reason (compilation error, timeout, etc)
 		Errored = 6
-	}
-
-	/**
-	 * TestState associated with a test in its results.
-	 */
-	export class TestState {
-		/**
-		 * Current state of the test.
-		 */
-		readonly state: TestResult;
-
-		/**
-		 * Optional duration of the test run, in milliseconds.
-		 */
-		duration?: number;
-
-		/**
-		 * Associated test run message. Can, for example, contain assertion
-		 * failure information if the test fails.
-		 */
-		messages: TestMessage[];
-
-		/**
-		 * Creates a new TestState instance.
-		 */
-		constructor(state: TestResult);
 	}
 
 	/**
@@ -2513,18 +2536,19 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * TestResults can be provided to VS Code, or read from it.
+	 * TestResults can be provided to VS Code in {@link test.publishTestResult},
+	 * or read from it in {@link test.testResults}.
 	 *
 	 * The results contain a 'snapshot' of the tests at the point when the test
-	 * run is complete. Therefore, information such as {@link Location} instances
-	 * may be out of date. If the test still exists in the workspace, consumers
-	 * can use its `id` to correlate the result instance with the living test.
+	 * run is complete. Therefore, information such as its {@link Range} may be
+	 * out of date. If the test still exists in the workspace, consumers can use
+	 * its `id` to correlate the result instance with the living test.
 	 *
 	 * @todo coverage and other info may eventually be provided here
 	 */
-	export interface TestResults {
+	export interface TestRunResult {
 		/**
-		 * Unix milliseconds timestamp at which the tests were completed.
+		 * Unix milliseconds timestamp at which the test run was completed.
 		 */
 		completedAt: number;
 
@@ -2571,7 +2595,19 @@ declare module 'vscode' {
 		/**
 		 * Current result of the test.
 		 */
-		readonly result: TestState;
+		readonly state: TestResultState;
+
+		/**
+		 * The number of milliseconds the test took to run. This is set once the
+		 * `state` is `Passed`, `Failed`, or `Errored`.
+		 */
+		readonly duration?: number;
+
+		/**
+		 * Associated test run message. Can, for example, contain assertion
+		 * failure information if the test fails.
+		 */
+		readonly messages: ReadonlyArray<TestMessage>;
 
 		/**
 		 * Optional list of nested tests for this item.
@@ -2774,22 +2810,19 @@ declare module 'vscode' {
 		 *
 		 * If trust will be required, users will be prompted to make a choice.
 		 */
-		Unknown = 2
+		Unspecified = 2
 	}
 
 	/**
-	 * The event data that is fired when the trust state of the workspace changes
+	 * The event data that is fired when the trust state of the workspace changes.
+	 * When trust is revoked, the workspace will be reloaded. Therefore, extensions are
+	 * not expected to handle transitions out of a trusted state.
 	 */
 	export interface WorkspaceTrustStateChangeEvent {
 		/**
-		 * Previous trust state of the workspace
+		 * New trust state of the workspace
 		 */
-		previousTrustState: WorkspaceTrustState;
-
-		/**
-		 * Current trust state of the workspace
-		 */
-		currentTrustState: WorkspaceTrustState;
+		readonly newTrustState: WorkspaceTrustState;
 	}
 
 	/**
@@ -2800,7 +2833,7 @@ declare module 'vscode' {
 		 * When true, a modal dialog will be used to request workspace trust.
 		 * When false, a badge will be displayed on the Setting activity bar item
 		 */
-		modal: boolean;
+		readonly modal: boolean;
 	}
 
 	export namespace workspace {
@@ -2814,7 +2847,7 @@ declare module 'vscode' {
 		 * @param options Optional object describing the properties of the
 		 * workspace trust request
 		 */
-		export function requireWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState>;
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState | undefined>;
 
 		/**
 		 * Event that fires when the trust state of the current workspace changes

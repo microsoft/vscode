@@ -198,15 +198,6 @@ export class StatefulMarkdownCell extends Disposable {
 			if (this.viewCell.layoutInfo.totalHeight > 0) {
 				this.relayoutCell();
 			}
-
-			// Update for selection
-			this._register(this.notebookEditor.onDidChangeSelection(() => {
-				const selectedCells = this.notebookEditor.getSelectionViewModels();
-
-				// Only show selection if there are more than one cells selected
-				const isSelected = selectedCells.length > 1 && selectedCells.some(selectedCell => selectedCell === viewCell);
-				this.notebookEditor.updateMarkdownPreviewSelectionState(viewCell, isSelected);
-			}));
 		}
 
 		// apply decorations
@@ -317,13 +308,13 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 
 		if (this.useRenderer) {
-			this.notebookEditor.hideMarkdownPreview(this.viewCell);
+			this.notebookEditor.hideMarkdownPreviews([this.viewCell]);
 		}
 
 		this.templateData.container.classList.toggle('collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', true);
 
-		if (this.editor) {
+		if (this.editor && this.editor.hasModel()) {
 			editorHeight = this.editor.getContentHeight();
 
 			// not first time, we don't need to create editor or bind listeners
@@ -337,6 +328,8 @@ export class StatefulMarkdownCell extends Disposable {
 				height: editorHeight
 			});
 		} else {
+			this.editor?.dispose();
+
 			const width = this.viewCell.layoutInfo.editorWidth;
 			const lineNum = this.viewCell.lineCount;
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;

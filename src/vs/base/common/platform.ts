@@ -53,12 +53,12 @@ declare const self: unknown;
 export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 let nodeProcess: INodeProcess | undefined = undefined;
-if (typeof process !== 'undefined') {
-	// Native environment (non-sandboxed)
-	nodeProcess = process;
-} else if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined') {
 	// Native environment (sandboxed)
 	nodeProcess = globals.vscode.process;
+} else if (typeof process !== 'undefined') {
+	// Native environment (non-sandboxed)
+	nodeProcess = process;
 }
 
 const isElectronRenderer = typeof nodeProcess?.versions?.electron === 'string' && nodeProcess.type === 'renderer';

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
@@ -108,6 +109,12 @@ export interface ITerminalService {
 	createTerminal(shell?: IShellLaunchConfig): ITerminalInstance;
 
 	/**
+	 * Creates a terminal.
+	 * @param profile The profile to launch the terminal with.
+	 */
+	createTerminal(profile: ITerminalProfile): ITerminalInstance;
+
+	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	createInstance(container: HTMLElement | undefined, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
@@ -119,6 +126,7 @@ export interface ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
+	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -155,7 +163,7 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	selectDefaultProfile(): Promise<void>;
+	showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void>;
 
 	/**
 	 * Gets the detected terminal profiles for the platform
@@ -244,6 +252,7 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
+	readonly icon: Codicon;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -291,6 +300,11 @@ export interface ITerminalInstance {
 	 * sequences.
 	 */
 	onData: Event<string>;
+
+	/**
+	 * Attach a listener to the binary data stream coming from xterm and going to pty
+	 */
+	onBinary: Event<string>;
 
 	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.

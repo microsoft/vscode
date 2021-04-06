@@ -14,6 +14,9 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 
 class StackOperation implements IWorkspaceUndoRedoElement {
@@ -222,12 +225,28 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		metadata: NotebookDocumentMetadata,
 		options: TransientOptions,
 		@IUndoRedoService private _undoService: IUndoRedoService,
-		@ITextModelService private _modelService: ITextModelService,
+		@ITextModelService private _textModelService: ITextModelService,
+		@IModelService _modelService: IModelService,
 	) {
 		super();
 		this.transientOptions = options;
 		this.metadata = metadata;
 		this._initialize(cells);
+
+		this._register(_modelService.onModelAdded(e => {
+			if (e.uri.scheme === Schemas.vscodeNotebookCell) {
+				const cellUri = CellUri.parse(e.uri);
+				if (cellUri && isEqual(cellUri.notebook, this.uri)) {
+					const cellIdx = this._getCellIndexByHandle(cellUri.handle);
+					if (cellIdx >= 0) {
+						const cell = this.cells[cellIdx];
+						if (cell) {
+							cell.textModel = e;
+						}
+					}
+				}
+			}
+		}));
 
 		this._eventEmitter = new DelayedEmitter(
 			this._onDidChangeContent,
@@ -252,7 +271,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modelService);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._textModelService);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -412,7 +431,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, this.transientOptions,
-				this._modelService
+				this._textModelService
 			);
 			const dirtyStateListener = cell.onDidChangeContent(() => {
 				this._increaseVersionId();

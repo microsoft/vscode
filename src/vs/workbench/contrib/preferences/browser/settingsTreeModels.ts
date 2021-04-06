@@ -431,7 +431,7 @@ export class SettingsTreeModel {
 
 interface IInspectResult {
 	isConfigured: boolean;
-	inspected: IConfigurationValue<any>;
+	inspected: IConfigurationValue<unknown>;
 	targetSelector: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
 }
 

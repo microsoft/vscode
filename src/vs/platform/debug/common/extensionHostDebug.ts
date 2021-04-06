@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const IExtensionHostDebugService = createDecorator<IExtensionHostDebugService>('extensionHostDebugService');
 
@@ -32,6 +31,13 @@ export interface IOpenExtensionWindowResult {
 	rendererDebugPort?: number;
 }
 
+/**
+ * Like a IProcessEnvironment, but the value "null" deletes an environment variable
+ */
+export interface INullableProcessEnvironment {
+	[key: string]: string | null;
+}
+
 export interface IExtensionHostDebugService {
 	readonly _serviceBrand: undefined;
 
@@ -47,5 +53,5 @@ export interface IExtensionHostDebugService {
 	terminateSession(sessionId: string, subId?: string): void;
 	readonly onTerminateSession: Event<ITerminateSessionEvent>;
 
-	openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
+	openExtensionDevelopmentHostWindow(args: string[], env: INullableProcessEnvironment | undefined, debugRenderer: boolean): Promise<IOpenExtensionWindowResult>;
 }

@@ -6,26 +6,26 @@
 import { isWindows, isMacintosh, setImmediate, globals, INodeProcess } from 'vs/base/common/platform';
 
 let safeProcess: INodeProcess & { nextTick: (callback: (...args: any[]) => void) => void; };
-
-// Native node.js environment
 declare const process: INodeProcess;
-if (typeof process !== 'undefined') {
-	safeProcess = {
-		get platform() { return process.platform; },
-		get env() { return process.env; },
-		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); },
-		nextTick(callback: (...args: any[]) => void): void { return process.nextTick!(callback); }
-	};
-}
 
 // Native sandbox environment
-else if (typeof globals.vscode !== 'undefined') {
+if (typeof globals.vscode !== 'undefined') {
 	const sandboxProcess: INodeProcess = globals.vscode.process;
 	safeProcess = {
 		get platform() { return sandboxProcess.platform; },
 		get env() { return sandboxProcess.env; },
 		cwd() { return sandboxProcess.cwd(); },
 		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
+	};
+}
+
+// Native node.js environment
+else if (typeof process !== 'undefined') {
+	safeProcess = {
+		get platform() { return process.platform; },
+		get env() { return process.env; },
+		cwd() { return process.env['VSCODE_CWD'] || process.cwd(); },
+		nextTick(callback: (...args: any[]) => void): void { return process.nextTick!(callback); }
 	};
 }
 

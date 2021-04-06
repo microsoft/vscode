@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { CellEditType, ICellEditOperation, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -101,8 +101,7 @@ export class ExtHostNotebookEditor {
 
 	constructor(
 		readonly id: string,
-		private readonly _viewType: string,
-		private readonly _proxy: MainThreadNotebookShape,
+		private readonly _proxy: MainThreadNotebookEditorsShape,
 		readonly notebookData: ExtHostNotebookDocument,
 		visibleRanges: vscode.NotebookCellRange[],
 		selections: vscode.NotebookCellRange[],
@@ -184,6 +183,10 @@ export class ExtHostNotebookEditor {
 		this._selections = selections;
 	}
 
+	_acceptViewColumn(value: vscode.ViewColumn | undefined) {
+		this._viewColumn = value;
+	}
+
 	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
 
 		// return when there is nothing to do
@@ -217,7 +220,7 @@ export class ExtHostNotebookEditor {
 			compressedEditsIndex++;
 		}
 
-		return this._proxy.$tryApplyEdits(this._viewType, this.notebookData.uri, editData.documentVersionId, compressedEdits);
+		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, compressedEdits);
 	}
 
 	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookCellRange): void {

@@ -35,7 +35,8 @@ import { ITestItem, ITestMessage, ITestState, TestResultItem } from 'vs/workbenc
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResult, ITestResultService, ResultChangeEvent, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface ITestDto {
@@ -252,7 +253,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * else, then clear the peek.
 	 */
 	private closePeekOnTestChange(evt: TestResultItemChange) {
-		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous.state === evt.item.state.state) {
+		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous === evt.item.state.state) {
 			return;
 		}
 

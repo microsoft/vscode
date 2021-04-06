@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { release } from 'os';
+import product from 'vs/platform/product/common/product';
 import { join } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { getMarks, mark } from 'vs/base/common/performance';
@@ -846,12 +847,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.fullscreen = this.isFullScreen;
 
 		// Set Accessibility Config
+		configuration.autoDetectHighContrast = windowConfig?.autoDetectHighContrast ?? true;
+		configuration.accessibilitySupport = app.accessibilitySupportEnabled;
 		configuration.colorScheme = {
 			dark: nativeTheme.shouldUseDarkColors,
 			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
 		};
-		configuration.autoDetectHighContrast = windowConfig?.autoDetectHighContrast ?? true;
-		configuration.accessibilitySupport = app.accessibilitySupportEnabled;
 
 		// Title style related
 		configuration.maximized = this._win.isMaximized();
@@ -867,8 +868,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			release: release()
 		};
 
-		// Force enable developer tools for extension development
-		configuration.forceEnableDeveloperKeybindings = Array.isArray(configuration.extensionDevelopmentPath);
+		// Product
+		configuration.product = product;
 
 		// Store into config object URL
 		this.configObjectUrl.update(configuration);

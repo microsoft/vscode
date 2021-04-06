@@ -13,19 +13,19 @@
     "jschardet": "2.3.0",
     "minimist": "^1.2.5",
     "native-watchdog": "1.3.0",
-    "node-pty": "0.11.0-beta4",
+    "node-pty": "0.10.0-beta19",
     "nsfw": "2.1.2",
     "spdlog": "^0.11.1",
     "tas-client-umd": "0.1.4",
     "vscode-oniguruma": "1.3.1",
-    "vscode-proxy-agent": "^0.9.0",
+    "vscode-proxy-agent": "^0.8.2",
     "vscode-regexpp": "^3.1.0",
     "vscode-ripgrep": "^1.11.1",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.12.0-beta.11",
+    "xterm": "4.12.0-beta.15",
     "xterm-addon-search": "0.9.0-beta.1",
     "xterm-addon-unicode11": "0.3.0-beta.4",
-    "xterm-addon-webgl": "0.11.0-beta.2",
+    "xterm-addon-webgl": "0.11.0-beta.4",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -33,8 +33,5 @@
     "vscode-windows-ca-certs": "0.3.0",
     "vscode-windows-registry": "1.0.2",
     "windows-process-tree": "0.2.4"
-  },
-  "resolutions": {
-    "mkdirp": "^1.0.4"
   }
 }

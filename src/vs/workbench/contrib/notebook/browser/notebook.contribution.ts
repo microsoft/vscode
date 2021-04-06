@@ -50,7 +50,6 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorServiceImpl';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { Event } from 'vs/base/common/event';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -68,6 +67,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
+import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 
 
 // Diff Editor Contribution
@@ -192,7 +192,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 		canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
 			if (editorInput instanceof NotebookEditorInput) {
-				if (isEqual(editorInput.resource.with({ scheme: Schemas.vscodeNotebook }), backupResource)) {
+				if (isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editorInput.resource.toString() }), backupResource)) {
 					return true;
 				}
 			}
@@ -694,32 +694,35 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	private readonly _dirtyListener: IDisposable;
 
 	constructor(
-		@INotebookService private readonly _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
 	) {
-		this._dirtyListener = Event.debounce(_workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
-			const inputs = this._createMissingNotebookEditors();
-			this._editorService.openEditors(inputs);
-		});
+
+		type E = { resource: URI, isDirty: boolean };
+		this._dirtyListener = Event.debounce<E, E[]>(
+			this._notebookEditorModelService.onDidChangeDirty,
+			(last, current) => !last ? [current] : [...last, current],
+			100
+		)(this._openMissingDirtyNotebookEditors, this);
 	}
 
 	dispose(): void {
 		this._dirtyListener.dispose();
 	}
 
-	private _createMissingNotebookEditors(): IResourceEditorInput[] {
+	private _openMissingDirtyNotebookEditors(inputs: { resource: URI, isDirty: boolean }[]): void {
 		const result: IResourceEditorInput[] = [];
-
-		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			if (this._workingCopyService.isDirty(notebook.uri.with({ scheme: Schemas.vscodeNotebook })) && !this._editorService.isOpen({ resource: notebook.uri })) {
+		for (let input of inputs) {
+			if (input.isDirty && !this._editorService.isOpen({ resource: input.resource })) {
 				result.push({
-					resource: notebook.uri,
+					resource: input.resource,
 					options: { inactive: true, preserveFocus: true, pinned: true }
 				});
 			}
 		}
-		return result;
+		if (result.length > 0) {
+			this._editorService.openEditors(result);
+		}
 	}
 }
 

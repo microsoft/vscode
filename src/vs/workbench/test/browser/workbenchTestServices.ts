@@ -1507,6 +1507,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 }
 
 export class TestLocalTerminalService implements ILocalTerminalService {
+
 	declare readonly _serviceBrand: undefined;
 
 	onPtyHostExit = Event.None;
@@ -1518,9 +1519,11 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 		return new TestTerminalChildProcess(shouldPersist);
 	}
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
-	async listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
+	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
+	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }
+	processBinary(id: number, data: string): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
@@ -1544,6 +1547,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	async getInitialCwd(): Promise<string> { return ''; }
 	async getCwd(): Promise<string> { return ''; }
 	async getLatency(): Promise<number> { return 0; }
+	async processBinary(data: string): Promise<void> { }
 }
 
 export class TestQuickInputService implements IQuickInputService {

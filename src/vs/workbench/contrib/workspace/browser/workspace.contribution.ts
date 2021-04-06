@@ -33,6 +33,7 @@ import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerialize
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -42,6 +43,7 @@ const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, 
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
 	private readonly requestModel = this.workspaceTrustService.requestModel;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private shouldShowManagementEditor = true;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -53,6 +55,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -67,6 +70,13 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				badge: new IconBadge(workspaceTrustIcon, () => localize('requestTrustIconText', "Some features require workspace trust.")),
 				priority: 10
 			});
+
+			const managementEditorShownKey = 'workspace.trust.management.shown';
+			const seen = this.storageService.getBoolean(managementEditorShownKey, StorageScope.WORKSPACE, false);
+			if (!seen && this.shouldShowManagementEditor) {
+				this.storageService.store(managementEditorShownKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this.commandService.executeCommand('workbench.trust.manage');
+			}
 		}
 	}
 
@@ -140,7 +150,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		this._register(this.requestModel.onDidCompleteRequest(trustState => {
-			if (trustState !== undefined && trustState !== WorkspaceTrustState.Unknown) {
+			if (trustState !== undefined && trustState !== WorkspaceTrustState.Unspecified) {
 				this.toggleRequestBadge(false);
 			}
 		}));
@@ -170,14 +180,14 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 
 			// Hide soft request badge
-			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unknown) {
+			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unspecified) {
 				this.toggleRequestBadge(false);
 			}
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKSPACE_TRUST_ENABLED)) {
-				const isEnabled = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED);
+				const isEnabled = this.configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue;
 				if (!isEnabled || typeof isEnabled === 'boolean') {
 					this.dialogService.confirm({
 						message: localize('trustConfigurationChangeMessage', "In order for this change to take effect, the window needs to be reloaded. Do you want to reload the window now?")
@@ -189,6 +199,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				}
 			}
 		}));
+
+		// Don't auto-show the UX editor if the request is 5 seconds after startup
+		setTimeout(() => { this.shouldShowManagementEditor = false; }, 5000);
 	}
 }
 

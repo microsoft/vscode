@@ -633,6 +633,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
 					}
+					if (nameOrOptions.initialText) {
+						checkProposedApiEnabled(extension);
+					}
+					if (nameOrOptions.icon) {
+						checkProposedApiEnabled(extension);
+					}
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
 				return extHostTerminalService.createTerminal(nameOrOptions, shellPath, shellArgs);
@@ -912,9 +918,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostWorkspace.trustState;
 			},
-			requireWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
+			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension);
-				return extHostWorkspace.requireWorkspaceTrust(options);
+				return extHostWorkspace.requestWorkspaceTrust(options);
 			},
 			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
 				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
@@ -1248,8 +1254,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestItem: extHostTypes.TestItem,
-			TestState: extHostTypes.TestState,
-			TestResult: extHostTypes.TestResult,
+			TestResultState: extHostTypes.TestResultState,
 			TestMessage: extHostTypes.TestMessage,
 			TestMessageSeverity: extHostTypes.TestMessageSeverity,
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState

@@ -18,7 +18,6 @@ export interface ISharedProcess {
 
 export interface ISharedProcessConfiguration extends ISandboxConfiguration {
 	readonly machineId: string;
-	readonly windowId: number;
 
 	readonly args: NativeParsedArgs;
 

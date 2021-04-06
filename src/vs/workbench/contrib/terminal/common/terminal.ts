@@ -238,6 +238,7 @@ export interface ITerminalProfile {
 	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
 	overrideName?: boolean;
+	icon?: string;
 }
 
 export const enum ProfileSource {
@@ -250,6 +251,7 @@ export interface ITerminalExecutable {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
+	icon?: string;
 }
 
 export interface ITerminalProfileSource {
@@ -257,6 +259,7 @@ export interface ITerminalProfileSource {
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	args?: string | string[] | undefined;
+	icon?: string;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
@@ -306,6 +309,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
 	acknowledgeDataEvent(charCount: number): void;
+	processBinary(data: string): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -345,6 +349,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitLatency(latency: number): void;
 
 	onInput: Event<string>;
+	onBinary: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
@@ -400,6 +405,7 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW_WITH_CWD = 'workbench.action.terminal.newWithCwd',
 	NEW_LOCAL = 'workbench.action.terminal.newLocal',
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
+	NEW_WITH_PROFILE = 'workbench.action.terminal.newWithProfile',
 	SPLIT = 'workbench.action.terminal.split',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
@@ -580,6 +586,7 @@ export interface ITerminalContributions {
 export interface ITerminalTypeContribution {
 	title: string;
 	command: string;
+	icon?: string;
 }
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
@@ -602,6 +609,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						},
 						title: {
 							description: nls.localize('vscode.extension.contributes.terminal.types.title', "Title for this type of terminal."),
+							type: 'string',
+						},
+						icon: {
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
 							type: 'string',
 						},
 					},

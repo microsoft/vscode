@@ -51,6 +51,8 @@ import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITe
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -131,6 +133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private hasHadInput: boolean;
 
+	public readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	public disableLayout: boolean;
 	public get instanceId(): number { return this._instanceId; }
 	public get cols(): number {
@@ -169,6 +172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
+	public get icon(): Codicon { return this.shellLaunchConfig.icon ? (iconRegistry.get(this.shellLaunchConfig.icon) || Codicon.terminal) : Codicon.terminal; }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -184,6 +188,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onData = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
+	private readonly _onBinary = new Emitter<string>();
+	public get onBinary(): Event<string> { return this._onBinary.event; }
 	private readonly _onLineData = new Emitter<string>();
 	public get onLineData(): Event<string> { return this._onLineData.event; }
 	private readonly _onRequestExtHostProcess = new Emitter<ITerminalInstance>();
@@ -228,7 +234,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._instanceId = TerminalInstance._instanceIdCounter++;
 
 		this.hasHadInput = false;
-
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
 		});
@@ -242,6 +247,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._initDimensions();
 		this._createProcessManager();
+		this.statusList.onDidAddStatus(e => console.log('add', e));
+		this.statusList.onDidRemoveStatus(e => console.log('remove', e));
 
 		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._xtermReadyPromise = this._createXterm();
@@ -468,6 +475,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(e => this._onProcessData(e));
 		this._xterm.onData(data => this._processManager.write(data));
+		this._xterm.onBinary(data => this._processManager.processBinary(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
 				this._linkManager.processCwd = await this._processManager.getInitialCwd();
@@ -1005,10 +1013,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
+			this.statusList.add({ id: TerminalStatus.Disconnected, severity: Severity.Error });
 			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
 			this._safeSetOption('disableStdin', false);
+			this.statusList.remove(TerminalStatus.Disconnected);
+			// TODO: Remove title change + (disconnected) from title
 			this._onTitleChanged.fire(this);
 		});
 	}
@@ -1189,6 +1200,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Dispose the environment info widget if it exists
+		this.statusList.remove(TerminalStatus.RelaunchNeeded);
 		this._environmentInfo?.disposable.dispose();
 		this._environmentInfo = undefined;
 
@@ -1310,6 +1322,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._webglAddon = new Addon();
 		try {
 			this._xterm.loadAddon(this._webglAddon);
+			this._webglAddon.onContextLoss(() => {
+				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
+				this._disposeOfWebglRenderer();
+				this._safeSetOption('rendererType', 'dom');
+			});
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
@@ -1587,9 +1604,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
 		// Check if the widget should not exist
-		if (!info ||
+		if (
+			!info ||
 			this._configHelper.config.environmentChangesIndicator === 'off' ||
-			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction) {
+			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction
+		) {
+			this.statusList.remove(TerminalStatus.RelaunchNeeded);
 			this._environmentInfo?.disposable.dispose();
 			this._environmentInfo = undefined;
 			return;
@@ -1611,6 +1631,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// (Re-)create the widget
+		this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Error });
 		this._environmentInfo?.disposable.dispose();
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);

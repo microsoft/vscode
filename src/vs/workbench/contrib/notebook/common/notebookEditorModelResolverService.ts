@@ -14,7 +14,10 @@ export const INotebookEditorModelResolverService = createDecorator<INotebookEdit
 export interface INotebookEditorModelResolverService {
 	readonly _serviceBrand: undefined;
 
-	onDidSaveNotebook: Event<URI>;
+	readonly onDidSaveNotebook: Event<URI>;
+	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }>;
+
+	isDirty(resource: URI): boolean;
 
 	resolve(resource: URI, viewType?: string): Promise<IReference<IResolvedNotebookEditorModel>>;
 }
