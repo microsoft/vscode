@@ -71,11 +71,12 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region file://
 
-	private async handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
+	private handleFileRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback) {
 		const uri = URI.parse(request.url);
 
 		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol`);
-		callback({ error: -3 /* ABORTED */ });
+
+		return callback({ error: -3 /* ABORTED */ });
 	}
 
 	//#endregion
