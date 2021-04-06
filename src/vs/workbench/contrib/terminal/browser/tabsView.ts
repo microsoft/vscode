@@ -65,7 +65,11 @@ export class TabsView extends Disposable {
 		this._terminalService.setContainers(this._terminalContainer, this._parentDomElement);
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
 		this._createSplitView();
-		_findWidget?.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
+		_findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
+		// this._terminalService.onInstancesChanged(() => {
+		// 	this._splitView.dispose();
+		// 	this._createSplitView();
+		// });
 	}
 
 	public get splitView(): SplitView {
@@ -79,8 +83,9 @@ export class TabsView extends Disposable {
 		this._splitView = new SplitView(this._parentDomElement, { orientation: Orientation.HORIZONTAL });
 		this._splitViewDisposables.clear();
 		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
-		const tabsWidgetWidth = 200;
-		if (this._terminalService.configHelper.config.showTabs) {
+		const showTabs = this._terminalService.configHelper.config.showTabs;
+		const tabsWidgetWidth = showTabs ? 200 : 0;
+		if (showTabs) {
 			this._splitView.addView(new SplitTabsPane(this._tabsElement, tabsWidgetWidth, this._terminalService), tabsWidgetWidth, 0);
 		}
 		const tabContainer = new SplitTabsPane(this._terminalContainer, this._width - tabsWidgetWidth, this._terminalService);

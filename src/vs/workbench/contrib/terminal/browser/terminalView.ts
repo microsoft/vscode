@@ -79,11 +79,7 @@ export class TerminalViewPane extends ViewPane {
 		});
 	}
 
-	public renderBody(container?: HTMLElement): void {
-		if (!container || !this._parentDomElement) {
-			return;
-		}
-
+	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._parentDomElement = container;
