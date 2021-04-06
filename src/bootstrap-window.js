@@ -22,7 +22,7 @@
 	}
 }(this, function () {
 	const bootstrapLib = bootstrap();
-	const preloadGlobals = globals();
+	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
 	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
@@ -262,7 +262,7 @@
 	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
-	function globals() {
+	function sandboxGlobals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
 	}
