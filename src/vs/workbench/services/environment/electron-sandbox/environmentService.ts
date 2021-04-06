@@ -72,7 +72,13 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get webviewExternalEndpoint(): string { return `${Schemas.vscodeWebview}://{{uuid}}`; }
 
 	@memoize
-	get webviewResourceRoot(): string { return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`; }
+	get webviewResourceRoot(): string {
+		// On desktop, this endpoint is only used for the service worker to identify resouce loads and
+		// should never actually be requested.
+		//
+		// Required due to https://github.com/electron/electron/issues/28528
+		return 'https://{{uuid}}.vscode-webview-test.com/vscode-resource/{{resource}}';
+	}
 
 	@memoize
 	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
