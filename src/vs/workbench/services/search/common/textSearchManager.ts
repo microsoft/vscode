@@ -12,7 +12,6 @@ import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { TextSearchProvider, TextSearchResult, TextSearchMatch, TextSearchComplete, Range, TextSearchOptions, TextSearchQuery } from 'vs/workbench/services/search/common/searchExtTypes';
-import { nextTick } from 'vs/base/common/process';
 import { Schemas } from 'vs/base/common/network';
 
 export interface IFileUtils {
@@ -109,7 +108,7 @@ export class TextSearchManager {
 		};
 	}
 
-	private searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
 		const testingPs: Promise<void>[] = [];
 		const progress = {
@@ -138,12 +137,9 @@ export class TextSearchManager {
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-		return new Promise(resolve => nextTick(resolve))
-			.then(() => this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token))
-			.then(result => {
-				return Promise.all(testingPs)
-					.then(() => result);
-			});
+		const result = await this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), searchOptions, progress, token);
+		await Promise.all(testingPs);
+		return result;
 	}
 
 	private validateProviderResult(result: TextSearchResult): boolean {
