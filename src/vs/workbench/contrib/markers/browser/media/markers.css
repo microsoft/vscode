@@ -50,18 +50,7 @@
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.markers-filters {
-	line-height: 20px;
-	height: 20px;
-	min-width: 22px;
-	margin-left: 4px;
-}
-
-.pane-header .markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.markers-filters {
-	line-height: 18px;
-	height: 18px;
-	width: 28px;
-	margin-right: 0px;
-	justify-content: center;
+	padding: 2px;
 }
 
 .panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
@@ -207,10 +196,12 @@
 	display: block;
 }
 
+.markers-panel .monaco-tl-contents .actions,
 .markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar {
 	height: 22px;
 }
 
+.markers-panel .monaco-tl-contents .actions .action-label,
 .markers-panel .monaco-tl-contents .multiline-actions .monaco-action-bar .action-label {
 	padding: 2px;
 }
