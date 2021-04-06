@@ -2260,7 +2260,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					output: output.source,
 					cellTop,
 					outputOffset,
-					forceDisplay: true,
+					forceDisplay: !cell.metadata.outputCollapsed,
 				}], []);
 			}
 		});
