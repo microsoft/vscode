@@ -63,6 +63,20 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
+	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
+	get lineNumbers(): 'on' | 'off' | 'inherit' {
+		return this._lineNumbers;
+	}
+
+	set lineNumbers(lineNumbers: 'on' | 'off' | 'inherit') {
+		if (lineNumbers === this._lineNumbers) {
+			return;
+		}
+
+		this._lineNumbers = lineNumbers;
+		this._onDidChangeState.fire({ cellLineNumberChanged: true });
+	}
+
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
 	get focusMode() {
 		return this._focusMode;
@@ -121,6 +135,10 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ShowCellStatusBarKey)) {
 				this.layoutChange({});
+			}
+
+			if (e.affectsConfiguration('notebook.lineNumbers')) {
+				this.lineNumbers = 'inherit';
 			}
 		}));
 	}

@@ -810,8 +810,8 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const context = this.getEditorContextFromArgsOrActive(accessor);
+	async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
 		}
@@ -835,8 +835,8 @@ registerAction2(class extends NotebookAction {
 			});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const context = this.getEditorContextFromArgsOrActive(accessor);
+	async run(accessor: ServicesAccessor, context?: INotebookActionContext): Promise<void> {
+		context = context ?? this.getEditorContextFromArgsOrActive(accessor);
 		if (context) {
 			this.runWithContext(accessor, context);
 		}
