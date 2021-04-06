@@ -24,7 +24,7 @@
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
-	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
+	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	// Start to resolve process.env before anything gets load
 	// so that we can run loading and resolving in parallel

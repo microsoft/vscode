@@ -209,7 +209,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			};
 
 			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window#ctor: using vscode-file protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+				this.logService.trace(`window#ctor: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+			} else {
+				this.logService.info(`window#ctor: vscode-file:// protocol is explicitly disabled`);
 			}
 
 			// Apply icon to window

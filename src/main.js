@@ -165,15 +165,17 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// TODO@sandbox remove me once testing is done on `vscode-file` protocol
-		// (all traces of `enable-browser-code-loading` and `ENABLE_VSCODE_BROWSER_CODE_LOADING`)
+		// (all traces of `enable-browser-code-loading` and `VSCODE_BROWSER_CODE_LOADING`)
 		'enable-browser-code-loading',
 
 		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level',
+		'log-level'
 	];
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
+
+	let browserCodeLoadingStrategy = 'bypassHeatCheck';
 
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
@@ -210,8 +212,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					break;
 
 				case 'enable-browser-code-loading':
-					if (typeof argvValue === 'string') {
-						process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = argvValue;
+					if (argvValue === false) {
+						browserCodeLoadingStrategy = undefined;
+					} else if (typeof argvValue === 'string') {
+						browserCodeLoadingStrategy = argvValue;
 					}
 					break;
 
@@ -230,9 +234,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
 
-	// Support __sandbox flag
-	if (cliArgs.__sandbox) {
-		process.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] = 'bypassHeatCheck';
+	// Configure vscode-file:// code loading environment
+	if (cliArgs.__sandbox || browserCodeLoadingStrategy) {
+		process.env['VSCODE_BROWSER_CODE_LOADING'] = browserCodeLoadingStrategy || 'bypassHeatCheck';
 	}
 
 	return argvConfig;
