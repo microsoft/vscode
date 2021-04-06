@@ -253,8 +253,7 @@
 }
 
 .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
-	width: 16px;
-	height: 16px;
+	padding: 2px;
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */
