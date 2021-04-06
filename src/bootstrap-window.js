@@ -26,10 +26,6 @@
 	const safeProcess = preloadGlobals.process;
 	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
-	// Start to resolve process.env before anything gets load
-	// so that we can run loading and resolving in parallel
-	const whenEnvResolved = safeProcess.resolveEnv();
-
 	/**
 	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
 	 *
@@ -169,7 +165,7 @@
 				// Wait for process environment being fully resolved
 				performance.mark('code/willWaitForShellEnv');
 				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-					await whenEnvResolved;
+					await safeProcess.shellEnv();
 				}
 				performance.mark('code/didWaitForShellEnv');
 
