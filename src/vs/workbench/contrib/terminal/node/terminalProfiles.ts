@@ -61,6 +61,7 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 		detectedProfiles.set('Command Prompt',
 			{
 				path: [`${system32Path}\\cmd.exe`],
+				icon: 'terminal-cmd',
 				isAutoDetected: true
 			},
 		);
@@ -155,7 +156,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: await getPowershellPaths(),
-		icon: 'plug'
+		icon: 'terminal-powershell'
 	});
 }
 
@@ -206,12 +207,13 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 					path: wslPath,
 					args: [`-d`, `${distroName}`]
 				};
-				// TODO: Use proper icons
-				if (distroName.includes('Ubuntu')) {
-					profile.icon = 'ruby';
-				}
+				// TODO: Use Ubuntu icon
+				// if (distroName.includes('Ubuntu')) {
+				// }
 				if (distroName.includes('Debian')) {
-					profile.icon = 'star-full';
+					profile.icon = 'terminal-debian';
+				} else {
+					profile.icon = 'terminal-linux';
 				}
 
 				// Add the profile
