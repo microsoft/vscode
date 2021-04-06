@@ -31,14 +31,11 @@ import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TabsView } from 'vs/workbench/contrib/terminal/browser/tabsView';
 
-const FIND_FOCUS_CLASS = 'find-focused';
-
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
-	private _terminalContainer: HTMLElement | undefined;
-	private _findWidget: TerminalFindWidget | undefined;
+	private _findWidget: TerminalFindWidget;
 	private _tabsViewWrapper: HTMLElement | undefined;
 	private _tabsView: TabsView | undefined;
 	private _terminalsInitialized = false;
@@ -75,10 +72,6 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._isWelcomeShowing = true;
 			this._onDidChangeViewWelcomeState.fire();
-			if (this._terminalContainer) {
-				this._terminalContainer.style.display = 'block';
-				this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
-			}
 			if (!this._tabsView && this._parentDomElement) {
 				this._createTabsView();
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
@@ -96,9 +89,7 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
-
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
-		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
@@ -107,8 +98,6 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(
 			this._parentDomElement.appendChild(this._findWidget.getDomNode()));
-
-		this._terminalService.setContainers(container, this._parentDomElement);
 
 		this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -163,7 +152,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._tabsViewWrapper = document.createElement('div');
 		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
-		this.instantiationService.createInstance(TabsView, this._parentDomElement);
+		this.instantiationService.createInstance(TabsView, this._parentDomElement, this._findWidget);
 		// make helper function
 		this._parentDomElement.append(this._tabsViewWrapper);
 	}

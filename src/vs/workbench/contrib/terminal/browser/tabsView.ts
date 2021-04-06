@@ -23,11 +23,14 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URI } from 'vs/base/common/uri';
+import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
+
+const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TabsView extends Disposable {
 	private _menu: IMenu;
-	private _width: number;
-	private _height: number;
+	_width: number;
+	_height: number;
 	private _cancelContextMenu: boolean = false;
 	private _tabsElement: HTMLElement;
 	private _splitView!: SplitView;
@@ -39,12 +42,13 @@ export class TabsView extends Disposable {
 
 	constructor(
 		private _parentDomElement: HTMLElement,
+		_findWidget: TerminalFindWidget,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IMenuService _menuService: IMenuService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		this._menu = this._register(_menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
@@ -55,12 +59,13 @@ export class TabsView extends Disposable {
 		this._width = _parentDomElement.offsetWidth;
 		this._height = _parentDomElement.offsetHeight;
 
-		this._createSplitView();
-
 		this._terminalContainer = document.createElement('div');
 		this._terminalContainer.classList.add('terminal-outer-container');
-
+		this._terminalContainer.style.display = 'block';
+		this._terminalService.setContainers(this._terminalContainer, this._parentDomElement);
 		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
+		this._createSplitView();
+		_findWidget?.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
 	}
 
 	public get splitView(): SplitView {
