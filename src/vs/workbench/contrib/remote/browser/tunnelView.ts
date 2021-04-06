@@ -887,8 +887,9 @@ namespace LabelTunnelAction {
 					const startingValue = context.name ? context.name : `${context.remotePort}`;
 					remoteExplorerService.setEditable(context, TunnelEditId.Label, {
 						onFinish: async (value, success) => {
+							value = value.trim();
 							remoteExplorerService.setEditable(context, TunnelEditId.Label, null);
-							const changed = success && (value !== startingValue);
+							const changed = success && value && (value !== startingValue);
 							if (changed) {
 								await remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 							}
