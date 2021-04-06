@@ -9,6 +9,7 @@ import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainCon
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as vscode from 'vscode';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 
 export interface VsCodeNotebookKernel {
 
@@ -37,7 +38,7 @@ export interface VsCodeNotebookKernel {
 	interruptCommand?: vscode.Command;
 
 	// // kernels (and _only_ they) can create executions
-	// createNotebookCellExecutionTask(uri: vscode.Uri, index: number): vscode.NotebookCellExecutionTask;
+	createNotebookCellExecutionTask(uri: vscode.Uri, index: number): vscode.NotebookCellExecutionTask;
 
 	// // kernels can establish IPC channels to (visible) notebook editors
 	// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
@@ -49,17 +50,16 @@ export interface VsCodeNotebookKernel {
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
-	private readonly _commands: ExtHostCommands;
 
 	private readonly _selectionState = new Map<number, { value: boolean, emitter: Emitter<boolean> }>();
 	private _handlePool: number = 0;
 
 	constructor(
 		mainContext: IMainContext,
-		commands: ExtHostCommands,
+		private readonly _extHostCommands: ExtHostCommands,
+		private readonly _extHostNotebook: ExtHostNotebookController
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
-		this._commands = commands;
 	}
 
 	createKernel(id: string, label: string, selector: NotebookSelector, executeCommand: vscode.Command): VsCodeNotebookKernel {
@@ -76,7 +76,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			id,
 			selector,
 			label,
-			executeCommand: this._commands.converter.toInternal(executeCommand, commandDisposables),
+			executeCommand: this._extHostCommands.converter.toInternal(executeCommand, commandDisposables),
 			supportedLanguages: [],
 		};
 		this._proxy.$addKernel(handle, data);
@@ -128,18 +128,21 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get executeCommand() {
-				return that._commands.converter.fromInternal(data.executeCommand)!;
+				return that._extHostCommands.converter.fromInternal(data.executeCommand)!;
 			},
 			set executeCommand(value) {
-				data.executeCommand = that._commands.converter.toInternal(value, commandDisposables);
+				data.executeCommand = that._extHostCommands.converter.toInternal(value, commandDisposables);
 				_update();
 			},
 			get interruptCommand() {
-				return data.interruptCommand && that._commands.converter.fromInternal(data.interruptCommand);
+				return data.interruptCommand && that._extHostCommands.converter.fromInternal(data.interruptCommand);
 			},
 			set interruptCommand(value) {
-				data.interruptCommand = that._commands.converter.toInternal(value, commandDisposables);
+				data.interruptCommand = that._extHostCommands.converter.toInternal(value, commandDisposables);
 				_update();
+			},
+			createNotebookCellExecutionTask(uri, index) {
+				return that._extHostNotebook.createNotebookCellExecution(uri, index, data.id)!;
 			},
 			dispose: () => {
 				this._selectionState.delete(handle);
