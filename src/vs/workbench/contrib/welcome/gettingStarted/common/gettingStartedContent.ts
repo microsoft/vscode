@@ -11,6 +11,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of getting started"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of getting started"));
+const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.mortarBoard, localize('getting-started-intermediate-icon', "Icon used for the intermediate category of getting started"));
 const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
 
 
@@ -180,7 +181,7 @@ export const content: GettingStartedContent = [
 
 	{
 		id: 'Setup',
-		title: localize('gettingStarted.setup.title', "Quick Setup"),
+		title: localize('gettingStarted.setup.title', "Customize your Setup"),
 		description: localize('gettingStarted.setup.description', "Extend and customize VS Code to make it yours."),
 		icon: setupIcon,
 		when: 'remoteName != codespaces',
@@ -214,10 +215,10 @@ export const content: GettingStartedContent = [
 				},
 				{
 					id: 'keymaps',
-					title: localize('gettingStarted.keymaps.title', "Migrate your keyboard shortcuts"),
+					title: localize('gettingStarted.keymaps.title', "Switch between editors"),
 					description: localize('gettingStarted.keymaps.description', "Keymap extensions bring your favorite keyboard shortcuts from other editors to VS Code."),
 					button: {
-						title: localize('gettingStarted.keymaps.button', "Keymap Extensions"),
+						title: localize('gettingStarted.keymaps.button', "Browse Keymap Extensions"),
 						command: 'workbench.extensions.action.showRecommendedKeymapExtensions',
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedKeymapExtensions' },
@@ -353,7 +354,7 @@ export const content: GettingStartedContent = [
 					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
 					description: localize('gettingStarted.extensions.description', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities."),
 					button: {
-						title: localize('gettingStarted.extensions.button', "Browse Recommended Extensions"),
+						title: localize('gettingStarted.extensions.button', "Recommended Extensions"),
 						command: 'workbench.extensions.action.showRecommendedExtensions'
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedExtensions' },
@@ -392,6 +393,159 @@ export const content: GettingStartedContent = [
 					},
 					doneOn: { eventFired: 'linkOpened:https://aka.ms/vscode-getting-started-video' },
 					media: { type: 'image', altText: 'VS Code Settings', path: 'tutorialVideo.png' },
+				}
+			]
+		}
+	},
+
+	{
+		id: 'Intermediate',
+		title: localize('gettingStarted.intermediate.title', "Boost your Productivity"),
+		icon: intermediateIcon,
+		description: localize('gettingStarted.intermediate.description', "Optimize your development workflow with these tips & tricks."),
+		content: {
+			type: 'items',
+			items: [
+				{
+					id: 'playground',
+					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
+					description: localize('gettingStarted.playground.description', "Want to code faster and smarter? Practice powerful code editing feature without creating files or a project."),
+					button: {
+						title: localize('gettingStarted.playground.button', "Interactive Playground"),
+						command: 'workbench.action.showInteractivePlayground'
+					},
+					doneOn: { commandExecuted: 'workbench.action.showInteractivePlayground' },
+					media: {
+						type: 'image', altText: 'Interactive Playground.', path: {
+							dark: 'dark/playground.png',
+							light: 'light/playground.png',
+							hc: 'light/playground.png'
+						},
+					},
+				},
+				{
+					id: 'splitview',
+					title: localize('gettingStarted.splitview.title', "Side by side editing"),
+					description: localize('gettingStarted.splitview.description', "Make the most of your screen estate by opening files side by side vertically and horizontally."),
+					button: {
+						title: localize('gettingStarted.splitview.button', "Split Editor"),
+						command: 'workbench.action.splitEditor'
+					},
+					doneOn: { commandExecuted: 'workbench.action.splitEditor' },
+					media: {
+						type: 'image', altText: 'Multiple editors in split view.', path: {
+							dark: 'dark/splitview.png',
+							light: 'light/splitview.png',
+							hc: 'light/splitview.png'
+						},
+					},
+				},
+				{
+					id: 'debugging',
+					title: localize('gettingStarted.debug.title', "Run, test & debug your code"),
+					description: localize('gettingStarted.debug.description', "Catch errors faster with an accelerated edit, build and debug loop."),
+					when: 'workspaceFolderCount != 0',
+					button: {
+						title: localize('gettingStarted.debug.button', "Run your Project"),
+						command: 'workbench.action.debug.selectandstart'
+					},
+					doneOn: { commandExecuted: 'workbench.action.debug.selectandstart' },
+					media: {
+						type: 'image', altText: 'Run and debug view.', path: {
+							dark: 'dark/debug.png',
+							light: 'light/debug.png',
+							hc: 'light/debug.png'
+						},
+					},
+				},
+				{
+					id: 'scmClone',
+					title: localize('gettingStarted.scm.title', "Track your code with Git"),
+					description: localize('gettingStarted.scmSetup.description', "Set up your project to use Git and GitHub integration right inside your editor."),
+					when: 'config.git.enabled && !git.missing && workspaceFolderCount == 0',
+					button: {
+						title: localize('gettingStarted.scmClone.button', "Clone Repository"),
+						command: 'git.clone'
+					},
+					doneOn: { commandExecuted: 'git.clone' },
+					media: {
+						type: 'image', altText: 'Source Control view.', path: {
+							dark: 'dark/scm.png',
+							light: 'light/scm.png',
+							hc: 'light/scm.png'
+						},
+					},
+				},
+				{
+					id: 'scmSetup',
+					title: localize('gettingStarted.scm.title', "Track your code with Git"),
+					description: localize('gettingStarted.scmSetup.description', "Set up your project to use Git and GitHub integration right inside your editor."),
+					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount == 0',
+					button: {
+						title: localize('gettingStarted.scmSetup.button', "Initialize Git Repository"),
+						command: 'git.init'
+					},
+					doneOn: { commandExecuted: 'git.init' },
+					media: {
+						type: 'image', altText: 'Source Control view.', path: {
+							dark: 'dark/scm.png',
+							light: 'light/scm.png',
+							hc: 'light/scm.png'
+						},
+					},
+				},
+				{
+					id: 'scm',
+					title: localize('gettingStarted.scm.title', "Track your code with Git"),
+					description: localize('gettingStarted.scm.description', "Manage common Git and GitHub tasks right inside your editor."),
+					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount != 0 && activeViewlet != \'workbench.view.scm\'',
+					button: {
+						title: localize('gettingStarted.scm.button', "Open Source Control"),
+						command: 'workbench.view.scm'
+					},
+					doneOn: { commandExecuted: 'workbench.view.scm.focus' },
+					media: {
+						type: 'image', altText: 'Source Control view.', path: {
+							dark: 'dark/scm.png',
+							light: 'light/scm.png',
+							hc: 'light/scm.png'
+						},
+					},
+				},
+				{
+					id: 'tasks',
+					title: localize('gettingStarted.tasks.title', "Automate your project tasks"),
+					when: 'workspaceFolderCount != 0',
+					description: localize('gettingStarted.tasks.description', "Configure your workflows as tasks and enjoy the fully integrated experience of running scripts and monitoring results."),
+					button: {
+						title: localize('gettingStarted.tasks.button', "Run Auto-detected Tasks"),
+						command: 'workbench.action.tasks.runTask'
+					},
+					doneOn: { commandExecuted: 'workbench.action.tasks.runTask' },
+					media: {
+						type: 'image', altText: 'Task runner.', path: {
+							dark: 'dark/tasks.png',
+							light: 'light/tasks.png',
+							hc: 'light/tasks.png'
+						},
+					},
+				},
+				{
+					id: 'shortcuts',
+					title: localize('gettingStarted.shortcuts.title', "Assign some hot keys"),
+					description: localize('gettingStarted.shortcuts.description', "Once you discovered your favorite commands, lookup and customize their keyboard shortcuts for instant access."),
+					button: {
+						title: localize('gettingStarted.shortcuts.button', "Keyboard Shortcuts"),
+						command: 'workbench.action.openGlobalKeybindings'
+					},
+					doneOn: { commandExecuted: 'workbench.action.openGlobalKeybindings' },
+					media: {
+						type: 'image', altText: 'Interactive shortcuts.', path: {
+							dark: 'dark/shortcuts.png',
+							light: 'light/shortcuts.png',
+							hc: 'light/shortcuts.png'
+						},
+					}
 				}
 			]
 		}
