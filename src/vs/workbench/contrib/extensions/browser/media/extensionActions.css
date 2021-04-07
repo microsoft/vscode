@@ -15,6 +15,10 @@
 	padding: 0 5px;
 }
 
+.monaco-action-bar .action-dropdown-item > .monaco-dropdown .action-label {
+	padding: 0;
+}
+
 .monaco-action-bar .action-item .action-label.extension-action.label {
 	outline-offset: 1px;
 }
