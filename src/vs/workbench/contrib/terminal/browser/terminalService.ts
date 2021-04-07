@@ -1072,6 +1072,7 @@ export class TerminalService implements ITerminalService {
 	public async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;
 		this._terminalContainer = terminalContainer;
+		this._terminalTabs.forEach(tab => tab.attachToElement(terminalContainer));
 	}
 
 	public hidePanel(): void {

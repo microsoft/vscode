@@ -158,10 +158,8 @@ export class TerminalViewPane extends ViewPane {
 
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
-		if (this._tabsView) {
-			this._tabsView.layout(width, height);
-		}
-		this._terminalTabbedView.layout(width);
+
+		this._terminalTabbedView.layout(width, height);
 	}
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
