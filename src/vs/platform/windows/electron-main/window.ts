@@ -5,7 +5,7 @@
 
 import { join } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
-import { mark } from 'vs/base/common/performance';
+import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, RenderProcessGoneDetails } from 'electron';
@@ -690,6 +690,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	load(configuration: INativeWindowConfiguration, options: ILoadOptions = Object.create(null)): void {
 
+		// Clear Document Edited if needed
+		if (this.isDocumentEdited()) {
+			if (!options.isReload || !this.backupMainService.isHotExitEnabled()) {
+				this.setDocumentEdited(false);
+			}
+		}
+
+		// Clear Title and Filename if needed
+		if (!options.isReload) {
+			if (this.getRepresentedFilename()) {
+				this.setRepresentedFilename('');
+			}
+
+			this._win.setTitle(this.productService.nameLong);
+		}
+
 		// Update configuration values based on our window context
 		// and set it into the config object URL for usage.
 		this.updateConfiguration(configuration, options);
@@ -709,24 +725,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.readyState = ReadyState.NAVIGATING;
 		}
 
-		// Clear Document Edited if needed
-		if (this.isDocumentEdited()) {
-			if (!options.isReload || !this.backupMainService.isHotExitEnabled()) {
-				this.setDocumentEdited(false);
-			}
-		}
-
-		// Clear Title and Filename if needed
-		if (!options.isReload) {
-			if (this.getRepresentedFilename()) {
-				this.setRepresentedFilename('');
-			}
-
-			this._win.setTitle(this.productService.nameLong);
-		}
-
 		// Load URL
-		mark('code/willOpenNewWindow');
 		this._win.loadURL(FileAccess.asBrowserUri(this.environmentMainService.sandbox ?
 			'vs/code/electron-sandbox/workbench/workbench.html' :
 			'vs/code/electron-browser/workbench/workbench.html', require
@@ -778,6 +777,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Update window related properties
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
+
+		// Update with latest perf marks
+		mark('code/willOpenNewWindow');
+		configuration.perfMarks = getMarks();
 
 		// Update in config object URL for usage in renderer
 		this.configObjectUrl.update(configuration);
