@@ -2888,11 +2888,11 @@ declare module 'vscode' {
 
 	export interface PortAttributesProvider {
 		/**
-		 * Provides attributes for the given ports. For ports that your extension doesn't know about, simply don't include
-		 * them in the returned array. For example, if `providePortAttributes` is called with ports [3000, 4000] but your
-		 * extension doesn't know anything about those ports you can return an empty array.
+		 * Provides attributes for the given port. For ports that your extension doesn't know about, simply
+		 * return undefined. For example, if `providePortAttributes` is called with ports 3000 but your
+		 * extension doesn't know anything about 3000 you should return undefined.
 		 */
-		providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes[]>;
+		providePortAttributes(port: number, pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes>;
 	}
 
 	export namespace workspace {
