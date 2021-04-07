@@ -138,7 +138,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbers',
-			title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.EditorTitle,
