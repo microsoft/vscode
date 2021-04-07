@@ -130,7 +130,21 @@ app.on('ready', () => {
 		}
 	});
 
-	ipcMain.handle('vscode:test-vscode-window-config', async () => Object.create(null));
+	// We need to provide a basic `ISandboxConfiguration`
+	// for our preload script to function properly because
+	// some of our types depend on it (e.g. product.ts).
+	ipcMain.handle('vscode:test-vscode-window-config', async () => {
+		return {
+			product: {
+				version: '1.x.y',
+				nameShort: 'Code - OSS Dev',
+				nameLong: 'Code - OSS Dev',
+				applicationName: 'code-oss',
+				dataFolderName: '.vscode-oss',
+				urlProtocol: 'code-oss',
+			}
+		};
+	});
 
 	const win = new BrowserWindow({
 		height: 600,

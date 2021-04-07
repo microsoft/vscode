@@ -52,6 +52,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -132,6 +133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private hasHadInput: boolean;
 
+	public readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	public disableLayout: boolean;
 	public get instanceId(): number { return this._instanceId; }
 	public get cols(): number {
@@ -464,6 +466,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
+		this._xterm.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning }, 3000));
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
@@ -1009,10 +1012,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
+			this.statusList.add({ id: TerminalStatus.Disconnected, severity: Severity.Error });
 			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
 			this._safeSetOption('disableStdin', false);
+			this.statusList.remove(TerminalStatus.Disconnected);
+			// TODO: Remove title change + (disconnected) from title
 			this._onTitleChanged.fire(this);
 		});
 	}
@@ -1193,6 +1199,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Dispose the environment info widget if it exists
+		this.statusList.remove(TerminalStatus.RelaunchNeeded);
 		this._environmentInfo?.disposable.dispose();
 		this._environmentInfo = undefined;
 
@@ -1596,9 +1603,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
 		// Check if the widget should not exist
-		if (!info ||
+		if (
+			!info ||
 			this._configHelper.config.environmentChangesIndicator === 'off' ||
-			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction) {
+			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction
+		) {
+			this.statusList.remove(TerminalStatus.RelaunchNeeded);
 			this._environmentInfo?.disposable.dispose();
 			this._environmentInfo = undefined;
 			return;
@@ -1620,6 +1630,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// (Re-)create the widget
+		this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Error });
 		this._environmentInfo?.disposable.dispose();
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);

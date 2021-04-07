@@ -72,6 +72,7 @@
 
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
 	opacity: 0.9;
+	border-radius: 0;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .last-synced-label {
@@ -177,9 +178,10 @@
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container {
 	position: absolute;
 	left: -22px;
-	top: 11px;
+	top: 8px;
 	bottom: 0px;
-	width: 26px;
+	width: 22px;
+	height: 22px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .mouseover .setting-toolbar-container > .monaco-toolbar .codicon,
@@ -284,7 +286,7 @@
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 211px;
+	padding-left: 221px;
 	padding-right: 24px;
 	overflow: visible;
 }

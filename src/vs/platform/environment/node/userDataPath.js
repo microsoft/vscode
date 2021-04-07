@@ -10,6 +10,8 @@
 	'use strict';
 
 	/**
+	 * @typedef {import('../../environment/common/argv').NativeParsedArgs} NativeParsedArgs
+	 * 
 	 * @param {typeof import('path')} path
 	 * @param {typeof import('os')} os
 	 * @param {string} productName
@@ -17,7 +19,7 @@
 	function factory(path, os, productName) {
 
 		/**
-		 * @param {import('../../environment/common/argv').NativeParsedArgs} cliArgs
+		 * @param {NativeParsedArgs} cliArgs
 		 *
 		 * @returns {string}
 		 */
@@ -26,7 +28,7 @@
 		}
 
 		/**
-		 * @param {import('../../environment/common/argv').NativeParsedArgs} cliArgs
+		 * @param {NativeParsedArgs} cliArgs
 		 *
 		 * @returns {string}
 		 */

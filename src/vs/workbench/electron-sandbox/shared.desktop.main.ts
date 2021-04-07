@@ -41,7 +41,7 @@ import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uri
 import { KeyboardLayoutService } from 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -129,7 +129,7 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		// Workbench Lifecycle
 		this._register(workbench.onWillShutdown(event => event.join(storageService.close(), 'join.closeStorage')));
-		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
 	protected abstract registerFileSystemProviders(fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void;
@@ -163,11 +163,12 @@ export abstract class SharedDesktopMain extends Disposable {
 		serviceCollection.set(IProductService, this.productService);
 
 		// Logger
-		const loggerService = new LoggerChannelClient(mainProcessService.getChannel('logger'));
+		const logLevelChannelClient = new LogLevelChannelClient(mainProcessService.getChannel('logLevel'));
+		const loggerService = new LoggerChannelClient(this.environmentService.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
-		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, loggerService, mainProcessService, this.environmentService));
+		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, this.environmentService.configuration.logLevel, loggerService, logLevelChannelClient, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote

@@ -985,6 +985,7 @@ export class TerminalService implements ITerminalService {
 			return {
 				executable: profile.path,
 				args: profile.args,
+				env: profile.env,
 				icon: profile.icon,
 				name: profile.overrideName ? profile.profileName : undefined
 			};

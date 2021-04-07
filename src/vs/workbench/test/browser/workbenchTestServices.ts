@@ -1040,7 +1040,7 @@ export class TestLifecycleService implements ILifecycleService {
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
 	private readonly _onShutdown = new Emitter<void>();
-	get onShutdown(): Event<void> { return this._onShutdown.event; }
+	get onDidShutdown(): Event<void> { return this._onShutdown.event; }
 
 	async when(): Promise<void> { }
 

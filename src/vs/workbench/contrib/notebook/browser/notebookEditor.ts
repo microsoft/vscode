@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/notebook';
 import { localize } from 'vs/nls';
+import { extname } from 'vs/base/common/resources';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -130,7 +131,7 @@ export class NotebookEditor extends EditorPane {
 	}
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-
+		const startTime = Date.now();
 		const group = this.group!;
 
 		this._saveEditorViewState(this.input);
@@ -155,6 +156,7 @@ export class NotebookEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();
+		const inputResolveTime = Date.now() - startTime;
 		// Check for cancellation
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -188,6 +190,30 @@ export class NotebookEditor extends EditorPane {
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
 			containsGroup: (group) => this.group?.id === group.group.id
 		}));
+
+		type WorkbenchNotebookOpenClassification = {
+			scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			loadInput: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			loadEditor: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+		};
+
+		type WorkbenchNotebookOpenEvent = {
+			scheme: string;
+			ext: string;
+			viewType: string;
+			loadInput: number;
+			loadEditor: number;
+		};
+
+		this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
+			scheme: model.notebook.uri.scheme,
+			ext: extname(model.notebook.uri),
+			viewType: model.notebook.viewType,
+			loadInput: inputResolveTime,
+			loadEditor: Date.now() - startTime,
+		});
 	}
 
 	clearInput(): void {

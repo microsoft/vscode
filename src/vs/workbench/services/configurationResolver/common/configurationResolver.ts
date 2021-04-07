@@ -7,6 +7,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
@@ -32,6 +33,8 @@ export interface IConfigurationResolverService {
 	 * @deprecated Use the async version of `resolveAny` instead.
 	 */
 	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any;
+
+	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): string;
 
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;

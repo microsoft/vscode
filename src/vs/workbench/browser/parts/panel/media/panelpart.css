@@ -144,8 +144,10 @@
 	opacity: 1;
 }
 
-.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label{
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 	margin-right: 0;
+	border-radius: 0;
+	background: none !important;
 }
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-child {

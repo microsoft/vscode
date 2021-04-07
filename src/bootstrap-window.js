@@ -22,20 +22,18 @@
 	}
 }(this, function () {
 	const bootstrapLib = bootstrap();
-	const preloadGlobals = globals();
+	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
-	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['ENABLE_VSCODE_BROWSER_CODE_LOADING'] === 'string';
-
-	// Start to resolve process.env before anything gets load
-	// so that we can run loading and resolving in parallel
-	const whenEnvResolved = safeProcess.resolveEnv();
+	const useCustomProtocol = safeProcess.sandboxed || typeof safeProcess.env['VSCODE_BROWSER_CODE_LOADING'] === 'string';
 
 	/**
+	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 *
 	 * @param {string[]} modulePaths
-	 * @param {(result: unknown, configuration: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
+	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
-	 * 	configureDeveloperKeybindings?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
-	 * 	canModifyDOM?: (config: import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration) => void,
+	 * 	configureDeveloperKeybindings?: (config: ISandboxConfiguration) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
 	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *  beforeRequire?: () => void
 	 * }} [options]
@@ -49,8 +47,8 @@
 
 		// Await window configuration from preload
 		performance.mark('code/willWaitForWindowConfig');
-		/** @type {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} */
-		const configuration = await preloadGlobals.context.configuration;
+		/** @type {ISandboxConfiguration} */
+		const configuration = await preloadGlobals.context.resolveConfiguration();
 		performance.mark('code/didWaitForWindowConfig');
 
 		// Developer keybindings
@@ -167,7 +165,7 @@
 				// Wait for process environment being fully resolved
 				performance.mark('code/willWaitForShellEnv');
 				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-					await whenEnvResolved;
+					await safeProcess.shellEnv();
 				}
 				performance.mark('code/didWaitForShellEnv');
 
@@ -260,7 +258,7 @@
 	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
-	function globals() {
+	function sandboxGlobals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
 	}

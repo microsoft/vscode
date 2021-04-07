@@ -71,7 +71,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -281,71 +281,73 @@ export class CodeApplication extends Disposable {
 		//#region Bootstrap IPC Handlers
 
 		let slowShellResolveWarningShown = false;
-		ipcMain.on('vscode:fetchShellEnv', async event => {
+		ipcMain.handle('vscode:fetchShellEnv', event => {
+			return new Promise(async resolve => {
 
-			// DO NOT remove: not only usual windows are fetching the
-			// shell environment but also shared process, issue reporter
-			// etc, so we need to reply via `webContents` always
-			const webContents = event.sender;
+				// DO NOT remove: not only usual windows are fetching the
+				// shell environment but also shared process, issue reporter
+				// etc, so we need to reply via `webContents` always
+				const webContents = event.sender;
 
-			let replied = false;
+				let replied = false;
 
-			function acceptShellEnv(env: IProcessEnvironment): void {
-				clearTimeout(shellEnvSlowWarningHandle);
-				clearTimeout(shellEnvTimeoutErrorHandle);
+				function acceptShellEnv(env: IProcessEnvironment): void {
+					clearTimeout(shellEnvSlowWarningHandle);
+					clearTimeout(shellEnvTimeoutErrorHandle);
 
-				if (!replied) {
-					replied = true;
+					if (!replied) {
+						replied = true;
 
-					if (!webContents.isDestroyed()) {
-						webContents.send('vscode:acceptShellEnv', env);
+						if (!webContents.isDestroyed()) {
+							resolve(env);
+						}
 					}
 				}
-			}
 
-			// Handle slow shell environment resolve calls:
-			// - a warning after 3s but continue to resolve (only once in active window)
-			// - an error after 10s and stop trying to resolve (in every window where this happens)
-			const cts = new CancellationTokenSource();
+				// Handle slow shell environment resolve calls:
+				// - a warning after 3s but continue to resolve (only once in active window)
+				// - an error after 10s and stop trying to resolve (in every window where this happens)
+				const cts = new CancellationTokenSource();
 
-			const shellEnvSlowWarningHandle = setTimeout(() => {
-				if (!slowShellResolveWarningShown) {
-					this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
-					slowShellResolveWarningShown = true;
+				const shellEnvSlowWarningHandle = setTimeout(() => {
+					if (!slowShellResolveWarningShown) {
+						this.windowsMainService?.sendToFocused('vscode:showShellEnvSlowWarning', cts.token);
+						slowShellResolveWarningShown = true;
+					}
+				}, 3000);
+
+				const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
+				const shellEnvTimeoutErrorHandle = setTimeout(() => {
+					cts.dispose(true);
+					window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
+					acceptShellEnv({});
+				}, 10000);
+
+				// Prefer to use the args and env from the target window
+				// when resolving the shell env. It is possible that
+				// a first window was opened from the UI but a second
+				// from the CLI and that has implications for whether to
+				// resolve the shell environment or not.
+				//
+				// Window can be undefined for e.g. the shared process
+				// that is not part of our windows registry!
+				let args: NativeParsedArgs;
+				let env: IProcessEnvironment;
+				if (window?.config) {
+					args = window.config;
+					env = { ...process.env, ...window.config.userEnv };
+				} else {
+					args = this.environmentMainService.args;
+					env = process.env;
 				}
-			}, 3000);
 
-			const window = this.windowsMainService?.getWindowByWebContents(event.sender); // Note: this can be `undefined` for the shared process!!
-			const shellEnvTimeoutErrorHandle = setTimeout(() => {
-				cts.dispose(true);
-				window?.sendWhenReady('vscode:showShellEnvTimeoutError', CancellationToken.None);
-				acceptShellEnv({});
-			}, 10000);
-
-			// Prefer to use the args and env from the target window
-			// when resolving the shell env. It is possible that
-			// a first window was opened from the UI but a second
-			// from the CLI and that has implications for whether to
-			// resolve the shell environment or not.
-			//
-			// Window can be undefined for e.g. the shared process
-			// that is not part of our windows registry!
-			let args: NativeParsedArgs;
-			let env: IProcessEnvironment;
-			if (window?.config) {
-				args = window.config;
-				env = { ...process.env, ...window.config.userEnv };
-			} else {
-				args = this.environmentMainService.args;
-				env = process.env;
-			}
-
-			// Resolve shell env
-			const shellEnv = await resolveShellEnv(this.logService, args, env);
-			acceptShellEnv(shellEnv);
+				// Resolve shell env
+				const shellEnv = await resolveShellEnv(this.logService, args, env);
+				acceptShellEnv(shellEnv);
+			});
 		});
 
-		ipcMain.handle('vscode:writeNlsFile', async (event, path: unknown, data: unknown) => {
+		ipcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
 			const uri = this.validateNlsPath([path]);
 			if (!uri || typeof data !== 'string') {
 				throw new Error('Invalid operation (vscode:writeNlsFile)');
@@ -414,6 +416,18 @@ export class CodeApplication extends Disposable {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
+
+		// TODO@bpasero TODO@deepak1556 workaround for #120655
+		try {
+			const cachedDataPath = URI.file(this.environmentMainService.chromeCachedDataDir);
+			this.logService.trace(`Deleting Chrome cached data path: ${cachedDataPath.fsPath}`);
+
+			await this.fileService.del(cachedDataPath, { recursive: true });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+		}
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -549,7 +563,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
-		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
+		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));

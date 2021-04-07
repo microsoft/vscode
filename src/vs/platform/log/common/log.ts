@@ -487,6 +487,46 @@ export class LogService extends Disposable implements ILogService {
 	}
 }
 
+export abstract class AbstractLoggerService extends Disposable implements ILoggerService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly loggers = new Map<string, ILogger>();
+	private readonly logLevelChangeableLoggers: ILogger[] = [];
+
+	constructor(
+		private logLevel: LogLevel,
+		onDidChangeLogLevel: Event<LogLevel>,
+	) {
+		super();
+		this._register(onDidChangeLogLevel(logLevel => {
+			this.logLevel = logLevel;
+			this.logLevelChangeableLoggers.forEach(logger => logger.setLevel(logLevel));
+		}));
+	}
+
+	createLogger(resource: URI, options?: ILoggerOptions): ILogger {
+		let logger = this.loggers.get(resource.toString());
+		if (!logger) {
+			logger = this.doCreateLogger(resource, options?.always ? LogLevel.Trace : this.logLevel, options);
+			this.loggers.set(resource.toString(), logger);
+			if (!options?.always) {
+				this.logLevelChangeableLoggers.push(logger);
+			}
+		}
+		return logger;
+	}
+
+	dispose(): void {
+		this.logLevelChangeableLoggers.splice(0, this.logLevelChangeableLoggers.length);
+		this.loggers.forEach(logger => logger.dispose());
+		this.loggers.clear();
+		super.dispose();
+	}
+
+	protected abstract doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger;
+}
+
 export class NullLogService implements ILogService {
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChangeLogLevel: Event<LogLevel> = new Emitter<LogLevel>().event;

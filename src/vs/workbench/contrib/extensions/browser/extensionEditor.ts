@@ -282,7 +282,8 @@ export class ExtensionEditor extends EditorPane {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				return undefined;
-			}
+			},
+			focusOnlyEnabledItems: true
 		}));
 
 		const subtextContainer = append(details, $('.subtext-container'));
@@ -464,6 +465,7 @@ export class ExtensionEditor extends EditorPane {
 
 		template.extensionActionBar.clear();
 		template.extensionActionBar.push(actions, { icon: true, label: true });
+		template.extensionActionBar.setFocusable(true);
 		for (const disposable of [...actions, ...widgets, extensionContainers]) {
 			this.transientDisposables.add(disposable);
 		}

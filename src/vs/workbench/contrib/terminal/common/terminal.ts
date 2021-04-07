@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
@@ -239,6 +239,7 @@ export interface ITerminalProfile {
 	isAutoDetected?: boolean;
 	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
+	env?: ITerminalEnvironment;
 	overrideName?: boolean;
 	icon?: string;
 }
@@ -254,6 +255,7 @@ export interface ITerminalExecutable {
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	icon?: string;
+	env?: ITerminalEnvironment;
 }
 
 export interface ITerminalProfileSource {
@@ -262,6 +264,7 @@ export interface ITerminalProfileSource {
 	overrideName?: boolean;
 	args?: string | string[] | undefined;
 	icon?: string;
+	env?: ITerminalEnvironment;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;

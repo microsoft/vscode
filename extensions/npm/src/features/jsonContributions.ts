@@ -136,7 +136,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		}
 		if (collectPromise) {
 			return collectPromise.then(() => {
-				if (items.length > 0) {
+				if (items.length > 0 || isIncomplete) {
 					return new CompletionList(items, isIncomplete);
 				}
 				return null;

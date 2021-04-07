@@ -702,7 +702,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				if (document) {
 					document.dispose();
 					this._documents.delete(revivedUri);
-					this._textDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: document.notebookDocument.cells.map(cell => cell.document.uri) });
+					this._textDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: document.notebookDocument.getCells().map(cell => cell.document.uri) });
 					this._onDidCloseNotebookDocument.fire(document.notebookDocument);
 				}
 

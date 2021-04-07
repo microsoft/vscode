@@ -11,7 +11,7 @@ const suite = 'Custom Editor Tests';
 const options: any = {
 	ui: 'tdd',
 	color: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
-	timeout: 6000000
+	timeout: 60000
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {

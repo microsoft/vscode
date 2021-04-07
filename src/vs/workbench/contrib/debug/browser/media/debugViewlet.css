@@ -160,16 +160,6 @@
 	margin-right: 2px;
 }
 
-.monaco-workbench .debug-pane .monaco-action-bar .action-item > .action-label {
-	width: 16px;
-	height: 100%;
-	line-height: 22px;
-	margin-right: 8px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
-}
-
 .debug-pane .debug-call-stack .stack-frame {
 	overflow: hidden;
 	text-overflow: ellipsis;

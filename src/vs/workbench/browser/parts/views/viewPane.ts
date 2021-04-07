@@ -46,6 +46,7 @@ export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
+	donotForwardArgs?: boolean;
 }
 
 type WelcomeActionClassification = {
@@ -142,6 +143,7 @@ class ViewMenuActions extends CompositeMenuActions {
 		viewId: string,
 		menuId: MenuId,
 		contextMenuId: MenuId,
+		donotForwardArgs: boolean,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -149,7 +151,7 @@ class ViewMenuActions extends CompositeMenuActions {
 		const scopedContextKeyService = contextKeyService.createScoped(element);
 		scopedContextKeyService.createKey('view', viewId);
 		const viewLocationKey = scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!));
-		super(menuId, contextMenuId, { shouldForwardArgs: true }, scopedContextKeyService, menuService);
+		super(menuId, contextMenuId, { shouldForwardArgs: !donotForwardArgs }, scopedContextKeyService, menuService);
 		this._register(scopedContextKeyService);
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(viewId)!))));
 	}
@@ -225,7 +227,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._titleDescription = options.titleDescription;
 		this.showActionsAlways = !!options.showActionsAlways;
 
-		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
+		this.menuActions = this._register(this.instantiationService.createInstance(ViewMenuActions, this.element, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext, !!options.donotForwardArgs));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);

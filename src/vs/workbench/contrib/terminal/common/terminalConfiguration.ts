@@ -35,6 +35,14 @@ const terminalProfileSchema: IJSONSchema = {
 		icon: {
 			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 			type: 'string'
+		},
+		env: {
+			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+			type: 'object',
+			additionalProperties: {
+				type: ['string', 'null']
+			},
+			default: {}
 		}
 	}
 };
@@ -121,14 +129,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'PowerShell': {
-					source: 'PowerShell'
+					source: 'PowerShell',
+					icon: 'terminal-powershell'
 				},
 				'Command Prompt': {
 					path: [
 						'${env:windir}\\Sysnative\\cmd.exe',
 						'${env:windir}\\System32\\cmd.exe'
 					],
-					args: []
+					args: [],
+					icon: 'terminal-cmd'
 				},
 				'Git Bash': {
 					source: 'Git Bash'
@@ -151,6 +161,14 @@ export const terminalConfiguration: IConfigurationNode = {
 							icon: {
 								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 								type: 'string'
+							},
+							env: {
+								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+								type: 'object',
+								additionalProperties: {
+									type: ['string', 'null']
+								},
+								default: {}
 							}
 						}
 					},
@@ -179,10 +197,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					path: 'tmux',
+					icon: 'terminal-tmux'
 				},
 				'pwsh': {
-					path: 'pwsh'
+					path: 'pwsh',
+					icon: 'terminal-powershell'
 				}
 			},
 			additionalProperties: {
@@ -212,10 +232,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					path: 'tmux',
+					icon: 'terminal-tmux'
 				},
 				'pwsh': {
-					path: 'pwsh'
+					path: 'pwsh',
+					icon: 'terminal-powershell'
 				}
 			},
 			additionalProperties: {

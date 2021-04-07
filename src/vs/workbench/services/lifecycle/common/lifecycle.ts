@@ -149,9 +149,10 @@ export interface ILifecycleService {
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
 
 	/**
-	 * Fired when no client is preventing the shutdown from happening (from onBeforeShutdown).
-	 * Can be used to save UI state even if that is long running through the WillShutdownEvent#join()
-	 * method.
+	 * Fired when no client is preventing the shutdown from happening (from `onBeforeShutdown`).
+	 *
+	 * This event can be joined with a long running operation via `WillShutdownEvent#join()` to
+	 * handle long running shutdown operations.
 	 *
 	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
@@ -159,9 +160,11 @@ export interface ILifecycleService {
 
 	/**
 	 * Fired when the shutdown is about to happen after long running shutdown operations
-	 * have finished (from onWillShutdown). This is the right place to dispose resources.
+	 * have finished (from `onWillShutdown`).
+	 *
+	 * This event should be used to dispose resources.
 	 */
-	readonly onShutdown: Event<void>;
+	readonly onDidShutdown: Event<void>;
 
 	/**
 	 * Returns a promise that resolves when a certain lifecycle phase
@@ -185,7 +188,7 @@ export const NullLifecycleService: ILifecycleService = {
 
 	onBeforeShutdown: Event.None,
 	onWillShutdown: Event.None,
-	onShutdown: Event.None,
+	onDidShutdown: Event.None,
 
 	phase: LifecyclePhase.Restored,
 	startupKind: StartupKind.NewWindow,
