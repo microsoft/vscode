@@ -193,3 +193,7 @@
 .extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {
 	margin-right: 4px;
 }
+
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
+}
