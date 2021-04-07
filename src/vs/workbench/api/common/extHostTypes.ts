@@ -3160,6 +3160,15 @@ export enum NotebookEditorRevealType {
 	AtTop = 3
 }
 
+export class NotebookCellStatusBarItem {
+	constructor(
+		readonly text: string,
+		readonly alignment: NotebookCellStatusBarAlignment,
+		readonly command?: string | vscode.Command,
+		readonly tooltip?: string,
+		readonly priority?: number,
+		readonly accessibilityInformation?: vscode.AccessibilityInformation) { }
+}
 
 //#endregion
 

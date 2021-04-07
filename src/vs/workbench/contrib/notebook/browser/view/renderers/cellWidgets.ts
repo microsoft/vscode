@@ -26,7 +26,8 @@ import { ChangeCellLanguageAction, INotebookCellActionContext } from 'vs/workben
 import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarEntry } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 
 const $ = DOM.$;
@@ -57,6 +58,8 @@ export class CellEditorStatusBar extends Disposable {
 	private currentContext: INotebookCellActionContext | undefined;
 	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
 	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
+
+	private currentUpdateToken: CancellationTokenSource | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -116,6 +119,11 @@ export class CellEditorStatusBar extends Disposable {
 	}
 
 	update(context: INotebookCellActionContext) {
+		if (this.currentUpdateToken) {
+			this.currentUpdateToken.cancel();
+			this.currentUpdateToken = undefined;
+		}
+
 		this.currentContext = context;
 		this.languageStatusBarItem.update(context.cell, context.notebookEditor);
 		this.updateStatusBarItems();
@@ -125,22 +133,27 @@ export class CellEditorStatusBar extends Disposable {
 		this.statusBarContainer.style.width = `${width}px`;
 	}
 
-	private updateStatusBarItems() {
+	private async updateStatusBarItems() {
 		if (!this.currentContext) {
 			return;
 		}
+
+		this.currentUpdateToken = this._register(new CancellationTokenSource());
 
 		DOM.clearNode(this.leftContributedItemsContainer);
 		DOM.clearNode(this.rightContributedItemsContainer);
 		this.itemsDisposable.clear();
 
-		const items = this.notebookCellStatusBarService.getEntries(this.currentContext.cell.uri);
+		const vm = this.currentContext.notebookEditor.viewModel;
+		const docUri = vm.uri;
+		const cellIdx = vm.getCellIndex(this.currentContext.cell);
+		const items = await this.notebookCellStatusBarService.getEntries(docUri, cellIdx, vm.viewType, this.currentUpdateToken.token);
 		items.sort((itemA, itemB) => {
 			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
 		});
 		items.forEach(item => {
 			const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
-			if (item.alignment === CellStatusbarAlignment.LEFT) {
+			if (item.alignment === CellStatusbarAlignment.Left) {
 				this.leftContributedItemsContainer.appendChild(itemView.container);
 			} else {
 				this.rightContributedItemsContainer.appendChild(itemView.container);
@@ -155,7 +168,7 @@ class CellStatusBarItem extends Disposable {
 
 	constructor(
 		private readonly _context: INotebookCellActionContext,
-		private readonly _itemModel: INotebookCellStatusBarEntry,
+		private readonly _itemModel: INotebookCellStatusBarItem,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService
@@ -348,7 +361,7 @@ export function getResizesObserver(referenceDomElement: HTMLElement | null, dime
 
 export function getExecuteCellPlaceholder(viewCell: BaseCellViewModel) {
 	return {
-		alignment: CellStatusbarAlignment.LEFT,
+		alignment: CellStatusbarAlignment.Left,
 		priority: -1,
 		cellResource: viewCell.uri,
 		command: undefined,

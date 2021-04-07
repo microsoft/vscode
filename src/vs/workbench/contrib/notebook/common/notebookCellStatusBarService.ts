@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookCellStatusBarEntry } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookCellStatusBarItem, INotebookCellStatusBarItemProvider } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export const INotebookCellStatusBarService = createDecorator<INotebookCellStatusBarService>('notebookCellStatusBarService');
 
@@ -16,6 +17,8 @@ export interface INotebookCellStatusBarService {
 
 	onDidChangeEntriesForCell: Event<URI>;
 
-	addEntry(entry: INotebookCellStatusBarEntry): IDisposable;
-	getEntries(cell: URI): INotebookCellStatusBarEntry[];
+	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable;
+
+	// addEntry(entry: INotebookCellStatusBarItem): IDisposable;
+	getEntries(docUri: URI, index: number, viewType: string, token: CancellationToken): Promise<INotebookCellStatusBarItem[]>;
 }
