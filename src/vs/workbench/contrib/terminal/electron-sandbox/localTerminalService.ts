@@ -140,6 +140,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return result;
 	}
 
+	// TODO: Move into LocalPty
 	public processBinary(id: number, data: string): void {
 		this._localPtyService.processBinary(id, data);
 	}
