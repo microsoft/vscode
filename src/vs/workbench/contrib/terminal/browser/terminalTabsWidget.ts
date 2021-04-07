@@ -55,9 +55,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 			keybindingService,
 			accessibilityService,
 		);
-		this.setChildren(null, undefined);
-		const children = createTerminalTabsIterator(terminalService.terminalTabs);
-		this.setChildren(null, children);
 		this.onDidChangeSelection(e => {
 			if (e.elements && e.elements[0]) {
 				if ('_instance' in e.elements[0]) {
@@ -68,9 +65,14 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 			}
 		});
 		this._terminalService = terminalService;
+		this._render();
 	}
 
-	rerender(): void {
+	public rerender(): void {
+		this._render();
+	}
+
+	private _render(): void {
 		this.setChildren(null, undefined);
 		const children = createTerminalTabsIterator(this._terminalService.terminalTabs);
 		this.setChildren(null, children);

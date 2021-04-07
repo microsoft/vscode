@@ -13,46 +13,50 @@ import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/termin
 export class TerminalTabbedView extends Disposable {
 
 	private _splitView!: SplitView;
+
 	private _terminalContainer: HTMLElement;
 	private _terminalTabTree: HTMLElement;
-	private _showTabs: boolean;
+	private _tabsWidget: TerminalTabsWidget | undefined;
+
 	private TAB_TREE_INDEX: number;
 	private TERMINAL_CONTAINER_INDEX: number;
-	private _tabsWidget: TerminalTabsWidget | undefined;
+
+	private _showTabs: boolean;
+
+	private _height: number | undefined;
+
 	private _instantiationService: IInstantiationService;
 	private _terminalService: ITerminalService;
-	private _height: number | undefined;
 
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService terminalService: ITerminalService,
-		@IConfigurationService _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
+
 		this._instantiationService = instantiationService;
-		this._showTabs = terminalService.configHelper.config.showTabs;
-		this.TAB_TREE_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-		this.TERMINAL_CONTAINER_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+		this._terminalService = terminalService;
+
 		this._terminalTabTree = document.createElement('div');
 		this._terminalTabTree.classList.add('tabs-widget');
 		this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree);
+
 		this._terminalContainer = document.createElement('div');
 		this._terminalContainer.classList.add('terminal-outer-container');
 		this._terminalContainer.style.display = 'block';
 
+		this._showTabs = terminalService.configHelper.config.showTabs;
+
+		this.TAB_TREE_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+		this.TERMINAL_CONTAINER_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+
 		terminalService.setContainers(parentElement, this._terminalContainer);
 
-		terminalService.onInstanceCreated(() => {
-			this._tabsWidget!.rerender();
-		});
-		terminalService.onInstancesChanged(() => {
-			this._tabsWidget!.rerender();
-		});
+		terminalService.onInstancesChanged(() => this._tabsWidget!.rerender());
 
-		this._terminalService = terminalService;
-
-		_configurationService.onDidChangeConfiguration(e => {
+		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = terminalService.configHelper.config.showTabs;
 				this._updateVisibility();
@@ -72,8 +76,6 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
 		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
-
-		this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree);
 
 		this._splitView.addView({
 			element: this._terminalTabTree,
