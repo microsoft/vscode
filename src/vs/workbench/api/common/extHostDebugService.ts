@@ -384,7 +384,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				}
 			};
 		}
-		return this._variableResolver.resolveAny(ws, config);
+		return this._variableResolver.resolveAnyAsync(ws, config);
 	}
 
 	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {

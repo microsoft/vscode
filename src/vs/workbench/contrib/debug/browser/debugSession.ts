@@ -97,7 +97,7 @@ export class DebugSession implements IDebugSession {
 		const toDispose: IDisposable[] = [];
 		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
 		if (lifecycleService) {
-			toDispose.push(lifecycleService.onShutdown(() => {
+			toDispose.push(lifecycleService.onDidShutdown(() => {
 				this.shutdown();
 				dispose(toDispose);
 			}));

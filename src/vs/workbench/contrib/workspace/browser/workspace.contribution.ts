@@ -8,6 +8,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -22,7 +23,6 @@ import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
@@ -34,6 +34,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { isWeb } from 'vs/base/common/platform';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -50,7 +52,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IDialogService private readonly dialogService: IDialogService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -182,21 +183,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			// Hide soft request badge
 			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unspecified) {
 				this.toggleRequestBadge(false);
-			}
-		}));
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(WORKSPACE_TRUST_ENABLED)) {
-				const isEnabled = this.configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue;
-				if (!isEnabled || typeof isEnabled === 'boolean') {
-					this.dialogService.confirm({
-						message: localize('trustConfigurationChangeMessage', "In order for this change to take effect, the window needs to be reloaded. Do you want to reload the window now?")
-					}).then(result => {
-						if (result.confirmed) {
-							this.hostService.reload();
-						}
-					});
-				}
 			}
 		}));
 
@@ -400,7 +386,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.GlobalActivity,
 				group: '6_workspace_trust',
 				order: 40,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest.negate())
+				when: ContextKeyExpr.and(IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest.negate())
 			},
 		});
 	}
@@ -423,5 +409,22 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	},
 	group: '6_workspace_trust',
 	order: 40,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest)
+	when: ContextKeyExpr.and(IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest)
 });
+
+// Configuration
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		id: 'security',
+		order: 7,
+		title: localize('securityConfigurationTitle', "Security"),
+		type: 'object',
+		properties: {
+			[WORKSPACE_TRUST_ENABLED]: {
+				type: 'boolean',
+				default: false,
+				included: !isWeb,
+				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
+			}
+		}
+	});

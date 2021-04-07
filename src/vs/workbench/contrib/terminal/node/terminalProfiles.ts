@@ -61,6 +61,7 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 		detectedProfiles.set('Command Prompt',
 			{
 				path: [`${system32Path}\\cmd.exe`],
+				icon: 'terminal-cmd',
 				isAutoDetected: true
 			},
 		);
@@ -110,7 +111,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		const paths = originalPaths.slice();
 
 		for (let i = 0; i < paths.length; i++) {
-			paths[i] = variableResolver?.resolve(workspaceFolder, paths[i]) || paths[i];
+			paths[i] = await variableResolver?.resolveAsync(workspaceFolder, paths[i]) || paths[i];
 		}
 		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
@@ -155,7 +156,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: await getPowershellPaths(),
-		icon: 'plug'
+		icon: 'terminal-powershell'
 	});
 }
 
@@ -173,7 +174,7 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 	if (useWslProfiles) {
 		const distroOutput = await new Promise<string>((resolve, reject) => {
 			// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-			cp.exec('wsl.exe -l', { encoding: 'utf16le' }, (err, stdout) => {
+			cp.exec('wsl.exe -l -q', { encoding: 'utf16le' }, (err, stdout) => {
 				if (err) {
 					return reject('Problem occurred when getting wsl distros');
 				}
@@ -183,12 +184,7 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 		if (distroOutput) {
 			const regex = new RegExp(/[\r?\n]/);
 			const distroNames = distroOutput.split(regex).filter(t => t.trim().length > 0 && t !== '');
-			// don't need the Windows Subsystem for Linux Distributions header
-			distroNames.shift();
 			for (let distroName of distroNames) {
-				// Remove default from distro name
-				distroName = distroName.replace(/ \(Default\)$/, '');
-
 				// Skip empty lines
 				if (distroName === '') {
 					continue;
@@ -206,12 +202,13 @@ async function getWslProfiles(wslPath: string, useWslProfiles?: boolean): Promis
 					path: wslPath,
 					args: [`-d`, `${distroName}`]
 				};
-				// TODO: Use proper icons
-				if (distroName.includes('Ubuntu')) {
-					profile.icon = 'ruby';
-				}
+				// TODO: Use Ubuntu icon
+				// if (distroName.includes('Ubuntu')) {
+				// }
 				if (distroName.includes('Debian')) {
-					profile.icon = 'star-full';
+					profile.icon = 'terminal-debian';
+				} else {
+					profile.icon = 'terminal-linux';
 				}
 
 				// Add the profile

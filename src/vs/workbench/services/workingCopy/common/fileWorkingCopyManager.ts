@@ -226,7 +226,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(() => this.dispose());
+		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	//#region Resolve from file changes

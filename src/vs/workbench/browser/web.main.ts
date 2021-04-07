@@ -130,7 +130,7 @@ class BrowserMain extends Disposable {
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => storageService.close()));
-		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IWorkbenchConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {

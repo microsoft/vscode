@@ -8,7 +8,7 @@ import {
 	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getExtensionWorkspaceTrustRequirement } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -361,7 +361,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
-		if (getExtensionWorkspaceTrustRequirement(manifest) === 'onStart') {
+		if (getExtensionWorkspaceTrustRequestType(manifest) === 'onStart') {
 			const trustState = await this.workspaceTrustService.requestWorkspaceTrust({
 				modal: true,
 				message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),

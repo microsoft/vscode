@@ -346,13 +346,6 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-actions .action-label {
 	opacity: 0;
-	display: block;
-	height: 16px;
-	width: 16px;
-	background-size: 16px;
-	background-position: center center;
-	background-repeat: no-repeat;
-	margin-right: 0.5em;
 }
 
 /* Tab Actions: Off */
@@ -428,6 +421,10 @@
 	flex: initial;
 	padding: 0 8px 0 4px;
 	height: 35px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions .action-item {
+	margin-right: 4px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-actions {

@@ -4,15 +4,49 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FileAccess } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
+import { isWeb, globals } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IProductConfiguration } from 'vs/base/common/product';
+import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 
 let product: IProductConfiguration;
 
-// Web or Native (sandbox TODO@sandbox need to add all properties of product.json)
-if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !== 'function') {
+// Native sandbox environment
+if (typeof globals.vscode !== 'undefined') {
+	const configuration: ISandboxConfiguration | undefined = globals.vscode.context.configuration();
+	if (configuration) {
+		product = configuration.product;
+	} else {
+		throw new Error('Sandbox: unable to resolve product configuration from preload script.');
+	}
+}
+
+// Native node.js environment
+else if (typeof require?.__$__nodeRequire === 'function') {
+
+	// Obtain values from product.json and package.json
+	const rootPath = dirname(FileAccess.asFileUri('', require));
+
+	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
+	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+
+	// Running out of sources
+	if (env['VSCODE_DEV']) {
+		Object.assign(product, {
+			nameShort: `${product.nameShort} Dev`,
+			nameLong: `${product.nameLong} Dev`,
+			dataFolderName: `${product.dataFolderName}-dev`
+		});
+	}
+
+	Object.assign(product, {
+		version: pkg.version
+	});
+}
+
+// Web environment or unknown
+else {
 
 	// Built time configuration (do NOT modify)
 	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
@@ -39,29 +73,6 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 			],
 		});
 	}
-}
-
-// Native (non-sandboxed)
-else {
-
-	// Obtain values from product.json and package.json
-	const rootPath = dirname(FileAccess.asFileUri('', require));
-
-	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
-
-	// Running out of sources
-	if (env['VSCODE_DEV']) {
-		Object.assign(product, {
-			nameShort: `${product.nameShort} Dev`,
-			nameLong: `${product.nameLong} Dev`,
-			dataFolderName: `${product.dataFolderName}-dev`
-		});
-	}
-
-	Object.assign(product, {
-		version: pkg.version
-	});
 }
 
 export default product;

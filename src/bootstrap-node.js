@@ -98,7 +98,7 @@ exports.removeGlobalNodeModuleLookupPaths = function () {
 /**
  * Helper to enable portable mode.
  *
- * @param {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} product
+ * @param {Partial<import('./vs/base/common/product').IProductConfiguration>} product
  * @returns {{ portableDataPath: string; isPortable: boolean; }}
  */
 exports.configurePortable = function (product) {

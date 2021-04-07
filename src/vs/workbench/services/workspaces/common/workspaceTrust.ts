@@ -16,8 +16,9 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { dirname, resolve } from 'vs/base/common/path';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { isWeb } from 'vs/base/common/platform';
 
-export const WORKSPACE_TRUST_ENABLED = 'workspace.trustEnabled';
+export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
 export const WorkspaceTrustContext = {
@@ -429,7 +430,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 	}
 
 	isWorkspaceTrustEnabled(): boolean {
-		return this.configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
+		return isWeb ? false : this.configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
 	}
 
 	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<WorkspaceTrustState | undefined> {

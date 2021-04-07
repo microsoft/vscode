@@ -44,6 +44,7 @@ import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/envi
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import { INativeEnvironmentPaths } from 'vs/platform/environment/common/environmentService';
+import product from 'vs/platform/product/common/product';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
@@ -58,6 +59,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release() },
+	product,
 	...parseArgs(process.argv, OPTIONS)
 };
 
