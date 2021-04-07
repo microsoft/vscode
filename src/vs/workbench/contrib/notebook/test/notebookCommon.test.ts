@@ -8,10 +8,13 @@ import { NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, CellKind, diff, CellUri, cellRan
 import { TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 suite('NotebookCommon', () => {
 	const instantiationService = setupInstantiationService();
 	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
+
 
 	test('sortMimeTypes default orders', function () {
 		const defaultDisplayOrder = NOTEBOOK_DISPLAY_ORDER;
@@ -208,7 +211,7 @@ suite('NotebookCommon', () => {
 
 		for (let i = 0; i < 5; i++) {
 			cells.push(
-				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], textModelService)
+				new TestCell('notebook', i, `var a = ${i};`, 'javascript', CellKind.Code, [], textModelService, modeService)
 			);
 		}
 
@@ -234,8 +237,8 @@ suite('NotebookCommon', () => {
 		]
 		);
 
-		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], textModelService);
-		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], textModelService);
+		const cellA = new TestCell('notebook', 6, 'var a = 6;', 'javascript', CellKind.Code, [], textModelService, modeService);
+		const cellB = new TestCell('notebook', 7, 'var a = 7;', 'javascript', CellKind.Code, [], textModelService, modeService);
 
 		const modifiedCells = [
 			cells[0],
