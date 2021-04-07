@@ -2118,9 +2118,9 @@ declare module 'vscode' {
 		 * Runs tests. The "run" contains the list of tests to run as well as a
 		 * method that can be used to update their state. At the point in time
 		 * that "run" is called, all tests given in the run have their state
-		 * automatically set to {@link TestRunState.Queued}.
+		 * automatically set to {@link TestResultState.Queued}.
 		 */
-		export function runTests<T extends TestItem>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
+		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2133,20 +2133,19 @@ declare module 'vscode' {
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
 
 		/**
-		 * Inserts custom test results into the VS Code UI. The results are
-		 * inserted and sorted based off the `completedAt` timestamp. If the
-		 * results are being read from a file, for example, the `completedAt`
-		 * time should generally be the modified time of the file if not more
-		 * specific time is available.
+		 * Creates a {@link TestRunTask<T>}. This should be called by the
+		 * {@link TestRunner} when a request is made to execute tests, and may also
+		 * be called if a test run is detected externally. Once created, tests
+		 * that are included in the results will be moved into the
+		 * {@link TestResultState.Pending} state.
 		 *
-		 * This will no-op if the inserted results are deeply equal to an
-		 * existing result.
-		 *
-		 * @param results test results
-		 * @param persist whether the test results should be saved by VS Code
-		 * and persisted across reloads. Defaults to true.
+		 * @param request Test run request. Only tests inside the `include` may be
+		 * modified, and tests in its `exclude` are ignored.
+		 * @param persist Whether the results created by the run should be
+		 * persisted in VS Code. This may be false if the results are coming from
+		 * a file already saved externally, such as a coverage information file.
 		 */
-		export function publishTestResult(results: TestRunResult, persist?: boolean): void;
+		export function createTestRunTask<T extends TestItem>(request: TestRunRequest<T>, persist?: boolean): TestRunTask<T>;
 
 		/**
 		* List of test results stored by VS Code, sorted in descnding
@@ -2248,18 +2247,22 @@ declare module 'vscode' {
 		 * @returns the root test item for the workspace
 		 */
 		provideDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<T>;
+	}
 
+	/**
+	 * A type that can run tests provided by a {@link TestProvider}.
+	 */
+	export class TestRunner {
 		/**
-		 * @todo this will move out of the provider soon
-		 * @todo this will eventually need to be able to return a summary report, coverage for example.
-		 *
-		 * Starts a test run. This should cause {@link onDidChangeTest} to
-		 * fire with update test states during the run.
+		 * Requets to execute tests. This should cause {@link onDidChangeTest} to
+		 * fire with update test states during the run. If this runner can execute
+		 * the provided tests, then it should call `vscode.test.createTestRunTask`
+		 * prior to returning.
+		 * 
 		 * @param options Options for this test run
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
-		// eslint-disable-next-line vscode-dts-provider-naming
-		runTests(options: TestRunOptions<T>, token: CancellationToken): ProviderResult<void>;
+		runTests(options: TestRunRequest, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -2288,7 +2291,7 @@ declare module 'vscode' {
 	/**
 	 * Options given to {@link TestProvider.runTests}
 	 */
-	export interface TestRunOptions<T extends TestItem = TestItem> extends TestRunRequest<T> {
+	export interface TestRunTask<T extends TestItem> {
 		/**
 		 * Updates the state of the test in the run. By default, all tests involved
 		 * in the run will have a "queued" state until they are updated by this method.
@@ -2320,6 +2323,12 @@ declare module 'vscode' {
 		 * such as colors and text styles, are supported.
 		 */
 		appendOutput(output: string): void;
+
+		/**
+		 * Signals that the end of the test run. Any tests whose states have not
+		 * been updated will be moved into the {@link TestResultState.Unset} state.
+		 */
+		end(): void;
 	}
 
 	export interface TestChildrenCollection<T> extends Iterable<T> {
