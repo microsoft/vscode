@@ -732,6 +732,7 @@ export class TunnelPanel extends ViewPane {
 			if (((lastPortCount === 0) || (newPortCount === 0)) && (lastPortCount !== newPortCount)) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
+			lastPortCount = newPortCount;
 			rerender();
 		}));
 
