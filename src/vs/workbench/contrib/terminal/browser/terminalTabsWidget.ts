@@ -48,6 +48,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
+				// TODO: Add indent guides?
 				expandOnlyOnTwistieClick: true
 			},
 			contextKeyService,
@@ -172,7 +173,7 @@ function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement
 		const elt = new TabTreeElement(tab);
 		return {
 			element: elt,
-			collapsed: true,
+			collapsed: false,
 			collapsible: hasChildren,
 			children: getChildren(elt)
 		};

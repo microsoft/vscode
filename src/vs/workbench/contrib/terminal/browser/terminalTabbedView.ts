@@ -77,15 +77,15 @@ export class TerminalTabbedView extends Disposable {
 		this._splitView.addView({
 			element: this._terminalTabTree,
 			layout: width => this._tabsWidget!.layout(this._height, width),
-			minimumSize: 200,
-			maximumSize: 300,
+			minimumSize: 40,
+			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
 		}, Sizing.Distribute, this.TAB_TREE_INDEX);
 
 		this._splitView.addView({
 			element: this._terminalContainer,
 			layout: width => this._terminalService.terminalTabs.forEach(tab => tab.layout(width, this._height || 0)),
-			minimumSize: 800,
+			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None
 		}, Sizing.Distribute, this.TERMINAL_CONTAINER_INDEX);
