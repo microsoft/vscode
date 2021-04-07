@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel2, INotebookKernel2ChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
@@ -22,6 +22,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	readonly selector: NotebookSelector;
 	readonly detail: string;
 
+	implementsInterrupt: boolean;
 	label: string;
 	description?: string;
 	isPreferred?: boolean;
@@ -34,6 +35,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this.id = data.id;
 		this.selector = data.selector;
 		this.detail = data.extensionName;
+		this.implementsInterrupt = Boolean(data.interruptCommand);
 		this.label = data.label;
 		this.description = data.description;
 		this.isPreferred = data.isPreferred;
@@ -70,8 +72,8 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	}
 
 	abstract setSelected(value: boolean): void;
-	abstract executeCells(cells: ICell[]): void;
-	abstract cancelCells(cells: ICell[]): void;
+	abstract executeCells(uri: URI, ranges: ICellRange[]): void;
+	abstract cancelCells(uri: URI, ranges: ICellRange[]): void;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
@@ -100,13 +102,13 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			setSelected(value: boolean): void {
 				that._proxy.$acceptSelection(handle, value);
 			}
-			executeCells(cells: ICell[]): void {
+			executeCells(uri: URI, ranges: ICellRange[]): void {
 				// todo@jrieken push down to INotebookKernel2?
 				if (data.executeCommand) {
-					that._commandService.executeCommand(data.executeCommand.id, cells);
+					that._commandService.executeCommand(data.executeCommand.id, uri, ranges);
 				}
 			}
-			cancelCells(cells: ICell[]): void {
+			cancelCells(uri: URI, ranges: ICellRange[]): void {
 				// todo@jrieken
 			}
 		}(data);

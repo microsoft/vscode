@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICell, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 export interface INotebookKernel2ChangeEvent {
@@ -32,13 +32,14 @@ export interface INotebookKernel2 {
 	isPreferred?: boolean;
 	supportedLanguages: string[];
 	hasExecutionOrder: boolean;
+	implementsInterrupt: boolean;
 
 	localResourceRoot: URI;
 	preloads?: URI[];
 
 	setSelected(value: boolean): void;
-	executeCells(cells: ICell[]): void;
-	cancelCells(cells: ICell[]): void
+	executeCells(uri: URI, ranges: ICellRange[]): void;
+	cancelCells(uri: URI, ranges: ICellRange[]): void
 }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
