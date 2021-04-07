@@ -140,7 +140,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			let totalHeight: number;
 			if (!state.editorHeight && this._layoutInfo.layoutState === CodeCellLayoutState.FromCache) {
 				// No new editorHeight info - keep cached totalHeight and estimate editorHeight
-				editorHeight = this.estimateEditorHeight(state.font?.lineHeight);
+				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
 				totalHeight = this._layoutInfo.totalHeight;
 				newState = CodeCellLayoutState.FromCache;
 			} else if (state.editorHeight || this._layoutInfo.layoutState === CodeCellLayoutState.Measured) {
@@ -149,7 +149,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				totalHeight = this.computeTotalHeight(this._editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
 				newState = CodeCellLayoutState.Measured;
 			} else {
-				editorHeight = this.estimateEditorHeight(state.font?.lineHeight);
+				editorHeight = this.estimateEditorHeight(state.font?.lineHeight ?? this._layoutInfo.fontInfo?.lineHeight);
 				totalHeight = this.computeTotalHeight(editorHeight, outputTotalHeight, outputShowMoreContainerHeight);
 				newState = CodeCellLayoutState.Estimated;
 			}
@@ -162,7 +162,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
-				fontInfo: state.font || null,
+				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
 				editorHeight,
 				editorWidth,
 				outputContainerOffset,
@@ -184,7 +184,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
 			this._layoutInfo = {
-				fontInfo: state.font || null,
+				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
 				editorHeight: this._layoutInfo.editorHeight,
 				editorWidth,
 				outputContainerOffset,
