@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import { spawn } from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProcessEnvironment, isWindows, platform } from 'vs/base/common/platform';
@@ -75,14 +76,29 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 			ELECTRON_NO_ATTACH_CONSOLE: '1'
 		};
 
-		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		logService.trace('getUnixShellEnvironment#env', env);
-		logService.trace('getUnixShellEnvironment#spawn', command);
-
 		const systemShellUnix = await getSystemShell(platform, env);
 		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
-		const child = spawn(systemShellUnix, ['-ilc', command], {
+		let command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
+		let shellArgs = ['-ilc'];
+
+		// handle popular non-POSIX shells
+		const name = path.basename(systemShellUnix);
+		switch (name) {
+			case 'pwsh':
+			case 'pwsh-preview':
+				command = `& ${command}`;
+				shellArgs = ['-Login', '-Command'];
+				break;
+			default:
+				break;
+		}
+
+		shellArgs.push(command);
+		logService.trace('getUnixShellEnvironment#spawn', command);
+
+		const child = spawn(systemShellUnix, shellArgs, {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
 			env
