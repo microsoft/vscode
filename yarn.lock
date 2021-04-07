@@ -9648,10 +9648,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.3.0-dev.20210406:
-  version "4.3.0-dev.20210406"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210406.tgz#6994270b6bfd539c1946e2b548f5a9706f448fce"
-  integrity sha512-GQ6DfMTuUsy9oWOjrzBNL/aLgVy6ef/vS1j0iILTaaAc0tojeMIs5LNQMVc0aclcuuKnzuv9jXrBcpc045JWgQ==
+typescript@^4.3.0-dev.20210407:
+  version "4.3.0-dev.20210407"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210407.tgz#9a64dab0cd55c3baaee9a08d5eba5b6d2bee586c"
+  integrity sha512-zblU754+4x72OX0sWijDz/XmW6K4rgJ5DDYxLfrySU8QJWXR4i6VRgkBP03Jq1EjUfOR6cYsRXl5/wU0LNrhpA==
 
 typical@^4.0.0:
   version "4.0.0"
