@@ -12,7 +12,7 @@ import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/termin
 
 export class TerminalTabbedView extends Disposable {
 
-	private _splitView!: SplitView;
+	private _splitView: SplitView;
 
 	private _terminalContainer: HTMLElement;
 	private _terminalTabTree: HTMLElement;
@@ -67,14 +67,12 @@ export class TerminalTabbedView extends Disposable {
 			}
 		});
 
-		this._createSplitView(parentElement);
+		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
+
+		this._setupSplitView();
 	}
 
-	private _createSplitView(parentElement: HTMLElement): void {
-		if (this._splitView) {
-			return;
-		}
-		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
+	private _setupSplitView(): void {
 		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 
 		this._splitView.addView({
