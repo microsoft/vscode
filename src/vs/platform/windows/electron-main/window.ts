@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { release } from 'os';
-import product from 'vs/platform/product/common/product';
 import { join } from 'vs/base/common/path';
 import { localize } from 'vs/nls';
 import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, RenderProcessGoneDetails } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -836,46 +834,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			configuration['disable-extensions'] = options.disableExtensions;
 		}
 
-		// Set window ID
+		// Update window identifier and session
 		configuration.windowId = this._win.id;
 		configuration.sessionId = `window:${this._win.id}`;
-		configuration.logLevel = this.logService.getLevel();
-		configuration.logsPath = this.environmentMainService.logsPath;
 
-		// Set zoomlevel
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		const zoomLevel = windowConfig?.zoomLevel;
-		if (typeof zoomLevel === 'number') {
-			configuration.zoomLevel = zoomLevel;
-		}
-
-		// Set fullscreen state
+		// Update window related properties
 		configuration.fullscreen = this.isFullScreen;
-
-		// Set Accessibility Config
-		configuration.autoDetectHighContrast = windowConfig?.autoDetectHighContrast ?? true;
-		configuration.accessibilitySupport = app.accessibilitySupportEnabled;
-		configuration.colorScheme = {
-			dark: nativeTheme.shouldUseDarkColors,
-			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
-		};
-
-		// Title style related
 		configuration.maximized = this._win.isMaximized();
 
-		// Dump Perf Counters
+		// Update performance marks
 		configuration.perfMarks = getMarks();
-
-		// Parts splash
-		configuration.partsSplashPath = join(this.environmentMainService.userDataPath, 'rapid_render.json');
-
-		// OS Info
-		configuration.os = {
-			release: release()
-		};
-
-		// Product
-		configuration.product = product;
 
 		// Store into config object URL
 		this.configObjectUrl.update(configuration);
