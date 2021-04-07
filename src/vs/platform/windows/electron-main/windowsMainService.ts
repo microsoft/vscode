@@ -1146,8 +1146,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
-			...options.cli, // inherit all CLI arguments provided
-			_: options.cli?._ ?? [], // this is only needed to avoid `undefined`
+
+			// Inherit CLI arguments from environment and/or
+			// the specific properties from this launch if provided
+			...this.environmentMainService.args,
+			...options.cli,
 
 			machineId: this.machineId,
 
@@ -1255,6 +1258,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 			}
 		}
+
+		// Update window identifier and session now
+		// that we have the window object in hand.
+		configuration.windowId = window.id;
+		configuration.sessionId = `window:${window.id}`;
 
 		// If the window was already loaded, make sure to unload it
 		// first and only load the new configuration if that was
