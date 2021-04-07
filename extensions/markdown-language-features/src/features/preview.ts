@@ -207,7 +207,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		this.updatePreview();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this._disposed = true;
 		clearTimeout(this.throttleTimer);
@@ -537,7 +537,7 @@ export class StaticMarkdownPreview extends Disposable implements ManagedMarkdown
 	private readonly _onDidChangeViewState = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewState.event;
 
-	dispose() {
+	override dispose() {
 		this._onDispose.fire();
 		super.dispose();
 	}
@@ -682,7 +682,7 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 	private readonly _onDidChangeViewStateEmitter = this._register(new vscode.EventEmitter<vscode.WebviewPanelOnDidChangeViewStateEvent>());
 	public readonly onDidChangeViewState = this._onDidChangeViewStateEmitter.event;
 
-	dispose() {
+	override dispose() {
 		this._preview.dispose();
 		this._webviewPanel.dispose();
 
