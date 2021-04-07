@@ -65,12 +65,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 			}
 		});
 		this._terminalService = terminalService;
-		this._render();
-	}
 
-	public rerender(): void {
-		// TODO: Rerender isn't the best name, since ObjectTree.rerender already exists (which we
-		// may want to use to fix the below setChildren issue)
+		terminalService.onInstancesChanged(() => this._render());
+		terminalService.onInstanceTitleChanged(() => this._render());
+
 		this._render();
 	}
 
@@ -129,7 +127,13 @@ class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITermina
 		let icon;
 		let item = node.element;
 		if ('children' in item) {
-			label = item ? item.children.length === 0 ? 'Starting...' : item?.children.length > 1 ? `Terminals (${item.children.length})` : item.children[0].instance.title : '';
+			label = item
+				? item.children.length === 0
+					? 'Starting...'
+					: item?.children.length > 1
+						? `Terminals (${item.children.length})`
+						: item.children[0].instance.title
+				: '';
 		} else if ('instance' in item) {
 			label = item.instance.title;
 		}
