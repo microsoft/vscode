@@ -37,6 +37,7 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	// private _findWidget: TerminalFindWidget;
 	private _tabsViewWrapper: HTMLElement | undefined;
+	private _terminalTabbedView!: TerminalTabbedView;
 	private _tabsView: TabsView | undefined;
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
@@ -148,7 +149,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._tabsViewWrapper = document.createElement('div');
 		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
-		this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
+		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
 		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
@@ -160,6 +161,7 @@ export class TerminalViewPane extends ViewPane {
 		if (this._tabsView) {
 			this._tabsView.layout(width, height);
 		}
+		this._terminalTabbedView.layout(width);
 	}
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
