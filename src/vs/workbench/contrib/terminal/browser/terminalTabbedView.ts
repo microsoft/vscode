@@ -10,6 +10,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 
 export class TerminalTabbedView extends Disposable {
 	private _splitView!: SplitView;
+	private _width: number = 0;
 	private _parentElement: HTMLElement;
 	private _terminalContainer: HTMLElement | undefined;
 	private _terminalTabTree: HTMLElement | undefined;
@@ -22,6 +23,7 @@ export class TerminalTabbedView extends Disposable {
 		super();
 		this._parentElement = parentElement;
 		this._displayTabs = _terminalService.configHelper.config.showTabs;
+		this._width = this._parentElement.clientWidth;
 		this._createSplitView();
 
 		_configurationService.onDidChangeConfiguration(e => {
@@ -35,7 +37,6 @@ export class TerminalTabbedView extends Disposable {
 		if (this._splitView) {
 			return;
 		}
-
 		this._splitView = new SplitView(this._parentElement, { orientation: Orientation.HORIZONTAL });
 		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 
@@ -48,8 +49,8 @@ export class TerminalTabbedView extends Disposable {
 			this._splitView.addView({
 				element: this._terminalTabTree,
 				layout: size => this._layout(size),
-				minimumSize: 100,
-				maximumSize: 220,
+				minimumSize: 600,
+				maximumSize: 800,
 				onDidChange: () => Disposable.None
 			}, Sizing.Distribute);
 		}
@@ -62,6 +63,8 @@ export class TerminalTabbedView extends Disposable {
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None
 		}, Sizing.Distribute);
+
+		this._splitView.layout(this._width);
 	}
 
 	private _configureViews(): void {
