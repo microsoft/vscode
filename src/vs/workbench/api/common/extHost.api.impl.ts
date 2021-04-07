@@ -906,7 +906,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
 			},
-			registerPortAttributesProvider: (portSelector: { pid?: number, portRange?: [number, number] }, provider: vscode.PortAttributesProvider) => {
+			registerPortAttributesProvider: (portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostTunnelService.registerPortsAttributesProvider(portSelector, provider);
 			},
