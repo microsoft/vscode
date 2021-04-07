@@ -23,10 +23,10 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
-import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService, priorityToRank } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
@@ -63,8 +63,11 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
+		this.registerContributionPoints();
+
 		this._register(this._contributedEditors.onChange(() => {
 			this.updateContexts();
+			this.registerContributionPoints();
 			this._onDidChangeEditorTypes.fire();
 		}));
 		this._register(Registry.as<IEditorAssociationsRegistry>(EditorExtensions.Associations).registerEditorTypesHandler('Custom Editor', this));
@@ -101,6 +104,31 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			return true;
 		}
 		return false;
+	}
+
+	private registerContributionPoints(): void {
+		for (const contributedEditor of this._contributedEditors) {
+			for (const globPattern of contributedEditor.selector) {
+				if (!globPattern.filenamePattern || this.extensionContributedEditorService.hasContributionPoint(globPattern.filenamePattern)) {
+					continue;
+				}
+				this._register(this.extensionContributedEditorService.registerContributionPoint(
+					undefined,
+					globPattern.filenamePattern,
+					priorityToRank(contributedEditor.priority),
+					{
+						id: contributedEditor.id,
+						label: contributedEditor.displayName,
+						detail: contributedEditor.providerDisplayName,
+						active: (currentEditor) => currentEditor instanceof CustomEditorInput && currentEditor.viewType === contributedEditor.id,
+						instanceOf: (editorInput) => editorInput instanceof CustomEditorInput
+					},
+					{
+						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
+					},
+					(resource, editorID, group) => CustomEditorInput.create(this.instantiationService, resource, editorID, group.id)));
+			}
+		}
 	}
 
 	public get models() { return this._models; }
@@ -334,33 +362,6 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		this._register(this.extensionContributedEditorService.contributedEditorOverride({
 			open: (editor, options, group) => {
 				return this.onEditorOpening(editor, options, group);
-			},
-			getEditorOverrides: (resource: URI, currentEditor: IEditorInput | undefined): IOpenEditorOverrideEntry[] => {
-
-				const toOverride = (entry: CustomEditorInfo): IOpenEditorOverrideEntry => {
-					return {
-						id: entry.id,
-						active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
-						label: entry.displayName,
-						detail: entry.providerDisplayName,
-					};
-				};
-
-				// if (typeof options?.override === 'string') {
-				// 	// A specific override was requested. Only return it.
-				// 	const matchingEditor = this.customEditorService.getCustomEditor(options.override);
-				// 	return matchingEditor ? [toOverride(matchingEditor)] : [];
-				// }
-
-				// Otherwise, return all potential overrides.
-				const customEditors = this.customEditorService.getAllCustomEditors(resource);
-				if (!customEditors.length) {
-					return [];
-				}
-
-				return customEditors.allEditors
-					.filter(entry => entry.id !== defaultCustomEditor.id)
-					.map(toOverride);
 			}
 		}));
 	}

@@ -184,7 +184,7 @@ function isLowerPriority(otherEditor: CustomEditorInfo, editor: CustomEditorInfo
 	return priorityToRank(otherEditor.priority) < priorityToRank(editor.priority);
 }
 
-function priorityToRank(priority: CustomEditorPriority): number {
+export function priorityToRank(priority: CustomEditorPriority): number {
 	switch (priority) {
 		case CustomEditorPriority.default: return 3;
 		case CustomEditorPriority.builtin: return 2;
