@@ -33,10 +33,12 @@ export interface INotebookKernel2 {
 	supportedLanguages: string[];
 	hasExecutionOrder: boolean;
 
+	localResourceRoot: URI;
 	preloads?: URI[];
 
 	setSelected(value: boolean): void;
-	executeCells(cells: ICell[]): void
+	executeCells(cells: ICell[]): void;
+	cancelCells(cells: ICell[]): void
 }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');

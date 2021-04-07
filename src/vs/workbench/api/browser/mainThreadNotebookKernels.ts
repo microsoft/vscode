@@ -27,18 +27,20 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	isPreferred?: boolean;
 	supportedLanguages: string[];
 	hasExecutionOrder: boolean;
+	localResourceRoot: URI;
 	preloads?: URI[];
 
 	constructor(data: INotebookKernelDto2) {
 		this.id = data.id;
 		this.selector = data.selector;
-		this.detail = data.displayName;
+		this.detail = data.extensionName;
 		this.label = data.label;
 		this.description = data.description;
 		this.isPreferred = data.isPreferred;
 		this.supportedLanguages = data.supportedLanguages;
 		this.hasExecutionOrder = data.hasExecutionOrder ?? false;
-		this.preloads = data.preloads;
+		this.localResourceRoot = URI.revive(data.extensionLocation);
+		this.preloads = data.preloads && data.preloads.map(u => URI.revive(u));
 	}
 
 
@@ -69,6 +71,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 
 	abstract setSelected(value: boolean): void;
 	abstract executeCells(cells: ICell[]): void;
+	abstract cancelCells(cells: ICell[]): void;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
@@ -102,6 +105,9 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				if (data.executeCommand) {
 					that._commandService.executeCommand(data.executeCommand.id, cells);
 				}
+			}
+			cancelCells(cells: ICell[]): void {
+				// todo@jrieken
 			}
 		}(data);
 		const disposable = this._notebookKernelService.addKernel(kernel);

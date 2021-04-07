@@ -62,7 +62,7 @@ suite('NotebookKernel', function () {
 
 		let [first] = kernelData.values();
 		assert.strictEqual(first.id, 'foo');
-		assert.strictEqual(first.displayName, nullExtensionDescription.name);
+		assert.strictEqual(first.extensionName, nullExtensionDescription.name);
 		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.selector, '*');
 
