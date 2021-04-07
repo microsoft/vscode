@@ -22,6 +22,7 @@ import { Codicon } from 'vs/base/common/codicons';
 const $ = DOM.$;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
+	private _terminalService: ITerminalService;
 	constructor(
 		container: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -66,6 +67,13 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 				}
 			}
 		});
+		this._terminalService = terminalService;
+	}
+
+	rerender(): void {
+		this.setChildren(null, undefined);
+		const children = createTerminalTabsIterator(this._terminalService.terminalTabs);
+		this.setChildren(null, children);
 	}
 }
 

@@ -36,11 +36,17 @@ export class TerminalTabbedView extends Disposable {
 		this.TERMINAL_CONTAINER_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 		this._terminalTabTree = document.createElement('div');
 		this._terminalTabTree.classList.add('tabs-widget');
-		this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree);
+		this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree);
 		this._terminalContainer = document.createElement('div');
 		this._terminalContainer.classList.add('terminal-outer-container');
 		this._terminalContainer.style.display = 'block';
-		terminalService.onInstancesChanged(() => terminalService.setContainers(parentElement, this._terminalContainer));
+		terminalService.onInstanceCreated(() => {
+			this._tabsWidget?.rerender();
+		});
+		terminalService.onInstancesChanged(() => {
+			terminalService.setContainers(parentElement, this._terminalContainer);
+			this._tabsWidget?.rerender();
+		});
 		this._terminalService = terminalService;
 
 		_configurationService.onDidChangeConfiguration(e => {
@@ -68,7 +74,7 @@ export class TerminalTabbedView extends Disposable {
 
 		this._splitView.addView({
 			element: this._terminalTabTree,
-			layout: width => this._tabsWidget!.layout(undefined, width),
+			layout: width => this._tabsWidget!.layout(this._height, width),
 			minimumSize: 200,
 			maximumSize: 300,
 			onDidChange: () => Disposable.None,
@@ -92,7 +98,6 @@ export class TerminalTabbedView extends Disposable {
 		this._splitView.setViewVisible(this.TAB_TREE_INDEX, this._showTabs);
 		this._splitView.setViewVisible(this.TERMINAL_CONTAINER_INDEX, true);
 	}
-
 
 	layout(width: number, height: number): void {
 		this._splitView.layout(width);
