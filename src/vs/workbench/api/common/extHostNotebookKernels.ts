@@ -32,6 +32,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const handle = this._handlePool++;
 		const that = this;
 
+		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
 		const emitter = new Emitter<boolean>();
@@ -52,6 +53,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		// once per event loop execution
 		let tokenPool = 0;
 		const _update = () => {
+			if (isDisposed) {
+				return;
+			}
 			const myToken = ++tokenPool;
 			Promise.resolve().then(() => {
 				if (myToken === tokenPool) {
@@ -111,6 +115,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return that._extHostNotebook.createNotebookCellExecution(uri, index, data.id)!;
 			},
 			dispose: () => {
+				isDisposed = true;
 				this._selectionState.delete(handle);
 				commandDisposables.dispose();
 				emitter.dispose();
