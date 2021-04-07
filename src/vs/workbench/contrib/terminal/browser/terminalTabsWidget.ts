@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -12,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ITerminalInstance, ITerminalService, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
@@ -35,7 +34,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 		@IInstantiationService _instantiationService: IInstantiationService
 	) {
 		super('TerminalTabsTree', container,
-			new TerminalTabsDelegate(),
+			{
+				getHeight: () => 24,
+				getTemplateId: () => 'terminal.tabs'
+			},
 			[new TerminalTabsRenderer()],
 			{
 				horizontalScrolling: false,
@@ -57,10 +59,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 		);
 		this.onDidChangeSelection(e => {
 			if (e.elements && e.elements[0]) {
-				if ('_instance' in e.elements[0]) {
-					e.elements[0].instance.focus(true);
-				} else {
+				if ('tab' in e.elements[0]) {
 					terminalService.setActiveTabByIndex(terminalService.terminalTabs.indexOf(e.elements[0].tab));
+				} else {
+					e.elements[0].focus(true);
 				}
 			}
 		});
@@ -78,14 +80,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 	}
 }
 
-class TerminalTabsDelegate implements IListVirtualDelegate<TerminalTab> {
-	getHeight(element: any): number {
-		return 24;
-	}
-	getTemplateId(element: any): string {
-		return 'terminal.tabs';
-	}
-}
 class TerminalTabsIdentityProvider implements IIdentityProvider<TabTreeNode> {
 	constructor() {
 	}
@@ -93,7 +87,7 @@ class TerminalTabsIdentityProvider implements IIdentityProvider<TabTreeNode> {
 		if ('tab' in element) {
 			return element.tab.title;
 		} else {
-			return element.instance.instanceId;
+			return element.instanceId;
 		}
 	}
 
@@ -103,7 +97,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<Ta
 		if ('tab' in element) {
 			return element.tab ? element.tab.terminalInstances.length > 1 ? `Terminals (${element.tab.terminalInstances.length})` : element.tab.terminalInstances[0].title : '';
 		} else {
-			return element.instance.title;
+			return element.title;
 		}
 	}
 
@@ -132,10 +126,10 @@ class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITermina
 					? 'Starting...'
 					: item?.children.length > 1
 						? `Terminals (${item.children.length})`
-						: item.children[0].instance.title
+						: item.children[0].title
 				: '';
-		} else if ('instance' in item) {
-			label = item.instance.title;
+		} else {
+			label = item.title;
 		}
 		template.labelElement.textContent = label;
 		template.labelElement.title = label;
@@ -151,41 +145,26 @@ interface ITerminalTabEntryTemplate {
 	icon?: Codicon;
 }
 
-type TabTreeNode = TabTreeElement | TabTreeChild;
+type TabTreeNode = TabTreeElement | ITerminalInstance;
 
+// TODO: Remove in favor of ITerminalTab
 class TabTreeElement {
 	private _tab: ITerminalTab;
-	private _children: TabTreeChild[];
+	private _children: ITerminalInstance[];
 	constructor(tab: ITerminalTab) {
 		this._tab = tab;
-		this._children = this._tab.terminalInstances.map(i => new TabTreeChild(i, this._tab));
+		this._children = this._tab.terminalInstances;
 	}
 	get tab(): ITerminalTab {
 		return this._tab;
 	}
-	get children(): TabTreeChild[] {
+	get children(): ITerminalInstance[] {
 		return this._children;
 	}
-	set children(newChildren: TabTreeChild[]) {
+	set children(newChildren: ITerminalInstance[]) {
 		this._children = newChildren;
 	}
 }
-
-class TabTreeChild {
-	private _instance: ITerminalInstance;
-	private _tab: ITerminalTab;
-	constructor(instance: ITerminalInstance, tab: ITerminalTab) {
-		this._instance = instance;
-		this._tab = tab;
-	}
-	get instance(): ITerminalInstance {
-		return this._instance;
-	}
-	get parent(): ITerminalTab {
-		return this._tab;
-	}
-}
-
 
 function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement<TabTreeNode>> {
 	const result = tabs.map(tab => {
@@ -201,7 +180,7 @@ function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement
 	return result;
 }
 
-function getChildren(elt: TabTreeElement): Iterable<ITreeElement<TabTreeChild>> | undefined {
+function getChildren(elt: TabTreeElement): Iterable<ITreeElement<ITerminalInstance>> | undefined {
 	if (elt.children.length > 1) {
 		return elt.children.map(child => {
 			return {
