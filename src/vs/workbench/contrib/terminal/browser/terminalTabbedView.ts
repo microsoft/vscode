@@ -14,8 +14,8 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalContainer: HTMLElement | undefined;
 	private _terminalTabTree: HTMLElement | undefined;
 	private _showTabs: boolean;
-	private TABS_WIDGET_INDEX: number;
-	private TERMINALS_INDEX: number;
+	private TAB_TREE_INDEX: number;
+	private TERMINAL_CONTAINER_INDEX: number;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -24,17 +24,20 @@ export class TerminalTabbedView extends Disposable {
 	) {
 		super();
 		this._showTabs = _terminalService.configHelper.config.showTabs;
-		this._createSplitView(parentElement);
-
-		this.TABS_WIDGET_INDEX = 0;
-		this.TERMINALS_INDEX = 0;
+		this.TAB_TREE_INDEX = _terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+		this.TERMINAL_CONTAINER_INDEX = _terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
 		_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = _terminalService.configHelper.config.showTabs;
 				this._updateVisibility();
+			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
+				this.TAB_TREE_INDEX = _terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+				this.TERMINAL_CONTAINER_INDEX = _terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+				this._splitView.swapViews(0, 1);
 			}
 		});
+		this._createSplitView(parentElement);
 	}
 
 	private _createSplitView(parentElement: HTMLElement): void {
@@ -51,33 +54,34 @@ export class TerminalTabbedView extends Disposable {
 		this._splitView.addView({
 			element: this._terminalTabTree,
 			layout: size => undefined,
-			minimumSize: 600,
-			maximumSize: Number.POSITIVE_INFINITY,
+			minimumSize: 80,
+			maximumSize: 300,
 			onDidChange: () => Disposable.None,
-			setVisible: () => this._showTabs
-		}, Sizing.Distribute);
+		}, Sizing.Distribute, this.TAB_TREE_INDEX);
 
 
 		this._splitView.addView({
 			element: this._terminalContainer,
 			layout: size => undefined,
-			minimumSize: 220,
+			minimumSize: 800,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None
-		}, Sizing.Distribute);
+		}, Sizing.Distribute, this.TERMINAL_CONTAINER_INDEX);
+
+		this._updateVisibility();
 	}
 
 	private _updateVisibility() {
 		if (!this._splitView) {
 			return;
 		}
-		this._splitView.setViewVisible(this.TABS_WIDGET_INDEX, this._showTabs);
-		this._splitView.setViewVisible(this.TERMINALS_INDEX, true);
+		this._splitView.setViewVisible(this.TAB_TREE_INDEX, this._showTabs);
+		this._splitView.setViewVisible(this.TERMINAL_CONTAINER_INDEX, true);
 	}
 
 	private _configureViews(): void {
-		this._terminalContainer!.innerText = 'Hi';
-		this._terminalTabTree!.innerText = 'Hello';
+		this._terminalTabTree!.innerText = 'Tab tree';
+		this._terminalContainer!.innerText = 'Terminal container';
 	}
 
 	layout(width: number): void {

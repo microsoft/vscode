@@ -235,6 +235,12 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		'terminal.integrated.tabsLocation': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': 'left',
+			'description': localize('sideBarLocation', "Controls the location of the terminal tabs, either left or right of the terminal container.")
+		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
 			type: 'boolean',
