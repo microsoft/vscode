@@ -69,16 +69,14 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 	}
 
 	public rerender(): void {
+		// TODO: Rerender isn't the best name, since ObjectTree.rerender already exists (which we
+		// may want to use to fix the below setChildren issue)
 		this._render();
 	}
 
 	private _render(): void {
-		this.setChildren(null, undefined);
-		if (!this._terminalService || this._terminalService.terminalTabs.length === 0) {
-			return;
-		}
-		const children = createTerminalTabsIterator(this._terminalService.terminalTabs);
-		this.setChildren(null, children);
+		// TODO: We don't want to be setting children to undefined - a terminal being killed should not remove focus in the tab view
+		this.setChildren(null, createTerminalTabsIterator(this._terminalService.terminalTabs));
 	}
 }
 
