@@ -11,7 +11,6 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { hash } from 'vs/base/common/hash';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
@@ -127,7 +126,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		outputs: IOutputDto[],
 		metadata: NotebookCellMetadata | undefined,
 		public readonly transientOptions: TransientOptions,
-		private readonly _modelService: ITextModelService,
 		private readonly _modeService: IModeService
 	) {
 		super();
@@ -202,12 +200,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 				hasExecutionOrder
 			}
 		};
-	}
-
-	async resolveTextModelRef() {
-		const ref = await this._modelService.createModelReference(this.uri);
-		this.textModel = ref.object.textEditorModel;
-		return ref;
 	}
 
 	dispose() {
