@@ -3,49 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as vscode from 'vscode';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-
-export interface VsCodeNotebookKernel {
-
-	readonly id: string;
-
-	// select notebook of a type and/or by file-pattern
-	readonly selector: NotebookSelector;
-
-	// is this kernel selected
-	readonly selected: boolean;
-
-	// fired when kernel is selected/unselected
-	readonly onDidChangeSelection: Event<boolean>;
-
-	// UI properties (get/set)
-	label: string;
-	description: string;
-	supportedLanguages: string[];
-	hasExecutionOrder: boolean;
-
-	// invoked when Run, Run All, Run Selections is triggered,
-	// command is invoked with [kernel, cells] as arguments
-	executeCommand: vscode.Command;
-
-	// optional kernel interrupt command
-	interruptCommand?: vscode.Command;
-
-	// // kernels (and _only_ they) can create executions
-	createNotebookCellExecutionTask(uri: vscode.Uri, index: number): vscode.NotebookCellExecutionTask;
-
-	// // kernels can establish IPC channels to (visible) notebook editors
-	// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
-
-	// remove kernel
-	dispose(): void;
-}
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
@@ -62,7 +27,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createKernel(id: string, label: string, selector: NotebookSelector, executeCommand: vscode.Command): VsCodeNotebookKernel {
+	createKernel(extension: IExtensionDescription, id: string, label: string, selector: NotebookSelector, executeCommand: vscode.Command): vscode.NotebookKernel2 {
 
 		const handle = this._handlePool++;
 		const that = this;
@@ -75,6 +40,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const data: INotebookKernelDto2 = {
 			id,
 			selector,
+			displayName: extension.displayName ?? extension.name,
 			label,
 			executeCommand: this._extHostCommands.converter.toInternal(executeCommand, commandDisposables),
 			supportedLanguages: [],
@@ -83,7 +49,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		// update: all setters write directly into the dto object
 		// and trigger an update. the actual update will only happen
-		// once per event loop
+		// once per event loop execution
 		let tokenPool = 0;
 		const _update = () => {
 			const myToken = ++tokenPool;
@@ -160,5 +126,4 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			obj.emitter.fire(value);
 		}
 	}
-
 }

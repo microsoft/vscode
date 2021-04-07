@@ -1452,6 +1452,59 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/119949
+
+
+	export interface NotebookFilter {
+		readonly viewType?: string;
+		readonly scheme?: string;
+		readonly pattern?: GlobPattern;
+	}
+
+	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
+
+	export interface NotebookKernel2 {
+
+		readonly id: string;
+
+		// select notebook of a type and/or by file-pattern
+		readonly selector: NotebookSelector;
+
+		// is this kernel selected
+		readonly selected: boolean;
+
+		// fired when kernel is selected/unselected
+		readonly onDidChangeSelection: Event<boolean>;
+
+		// UI properties (get/set)
+		label: string;
+		description: string;
+		supportedLanguages: string[];
+		hasExecutionOrder: boolean;
+
+		// invoked when Run, Run All, Run Selections is triggered,
+		// command is invoked with [kernel, cells] as arguments
+		executeCommand: Command;
+
+		// optional kernel interrupt command
+		interruptCommand?: Command;
+
+		// // kernels (and _only_ they) can create executions
+		createNotebookCellExecutionTask(uri: Uri, index: number): NotebookCellExecutionTask;
+
+		// // kernels can establish IPC channels to (visible) notebook editors
+		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
+
+		// remove kernel
+		dispose(): void;
+	}
+
+	export namespace notebook {
+		export function createNotebookKernel(id: string, label: string, selector: NotebookSelector, executeCommand: Command): NotebookKernel2;
+	}
+
+	//#endregion
+
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookContentProvider
 
 

@@ -20,9 +20,9 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 
 	readonly id: string;
 	readonly selector: NotebookSelector;
+	readonly detail: string;
 
 	label: string;
-	detail?: string;
 	description?: string;
 	isPreferred?: boolean;
 	supportedLanguages: string[];
@@ -32,8 +32,8 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	constructor(data: INotebookKernelDto2) {
 		this.id = data.id;
 		this.selector = data.selector;
+		this.detail = data.displayName;
 		this.label = data.label;
-		this.detail = data.detail;
 		this.description = data.description;
 		this.isPreferred = data.isPreferred;
 		this.supportedLanguages = data.supportedLanguages;
@@ -47,10 +47,6 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		if (data.label !== undefined) {
 			this.label = data.label;
 			event.label = true;
-		}
-		if (data.detail !== undefined) {
-			this.detail = data.detail;
-			event.detail = true;
 		}
 		if (data.description !== undefined) {
 			this.description = data.description;

@@ -902,10 +902,10 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 export interface INotebookKernelDto2 {
 	id: string;
 	selector: NotebookSelector;
+	displayName: string;
 	label: string;
 	executeCommand: ICommandDto;
 	interruptCommand?: ICommandDto;
-	detail?: string;
 	description?: string;
 	isPreferred?: boolean;
 	supportedLanguages: string[];
