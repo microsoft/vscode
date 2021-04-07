@@ -85,7 +85,6 @@ export interface IWorkspaceTrustService {
 	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo;
 	getWorkspaceTrustState(): WorkspaceTrustState;
 	isWorkspaceTrustEnabled(): boolean;
-	refreshWorkspaceTrustState(): void;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
 	setFolderTrustState(folder: URI, trustState: WorkspaceTrustState): void;
 }

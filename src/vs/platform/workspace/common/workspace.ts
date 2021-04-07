@@ -33,6 +33,11 @@ export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
 	readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
+	 * An event which fires before workspace folders change.
+	 */
+	readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent>;
+
+	/**
 	 * Provides access to the complete workspace object.
 	 */
 	getCompleteWorkspace(): Promise<IWorkspace>;
@@ -79,6 +84,11 @@ export interface IWorkspaceFoldersChangeEvent {
 	added: IWorkspaceFolder[];
 	removed: IWorkspaceFolder[];
 	changed: IWorkspaceFolder[];
+}
+
+export interface IWorkspaceFoldersWillChangeEvent {
+	updateWorkspaceTrust(promise: Promise<void>): void;
+	readonly changes: IWorkspaceFoldersChangeEvent;
 }
 
 export interface IWorkspace {

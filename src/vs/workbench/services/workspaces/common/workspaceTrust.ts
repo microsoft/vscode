@@ -249,6 +249,7 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 		this._register(this.dataModel.onDidChangeTrustState(() => this.onTrustStateChanged()));
 		this._register(this.requestModel.onDidCancelRequest(() => this.onTrustRequestCancelled()));
 		this._register(this.requestModel.onDidCompleteRequest((trustState) => this.onTrustRequestCompleted(trustState)));
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrustState()));
 
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.TrustState.bindTo(contextKeyService);
 		this._ctxWorkspaceTrustPendingRequest = WorkspaceTrustContext.PendingRequest.bindTo(contextKeyService);
@@ -425,10 +426,6 @@ export class WorkspaceTrustService extends Disposable implements IWorkspaceTrust
 
 	getWorkspaceTrustState(): WorkspaceTrustState {
 		return this.currentTrustState;
-	}
-
-	refreshWorkspaceTrustState(): void {
-		this.currentTrustState = this.calculateWorkspaceTrustState();
 	}
 
 	isWorkspaceTrustEnabled(): boolean {

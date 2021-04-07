@@ -10,7 +10,7 @@ import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier, runWhenIdle, Promises } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -69,6 +69,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	protected readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
+
+	protected readonly _onWillChangeWorkspaceFolders: Emitter<IWorkspaceFoldersWillChangeEvent> = this._register(new Emitter<IWorkspaceFoldersWillChangeEvent>());
+	public readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent> = this._onWillChangeWorkspaceFolders.event;
 
 	private readonly configurationRegistry: IConfigurationRegistry;
 
@@ -656,10 +659,20 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const change = this._configuration.compareAndUpdateWorkspaceConfiguration(configuration);
 		const changes = this.compareFolders(this.workspace.folders, workspaceFolders);
 		if (changes.added.length || changes.removed.length || changes.changed.length) {
-			this.workspace.folders = workspaceFolders;
-			const change = await this.onFoldersChanged();
-			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
-			this._onDidChangeWorkspaceFolders.fire(changes);
+			const update = async () => {
+				this.workspace.folders = workspaceFolders;
+				const change = await this.onFoldersChanged();
+				this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
+				this._onDidChangeWorkspaceFolders.fire(changes);
+			};
+
+			// Update workspace trust for added/changed folders
+			this._onWillChangeWorkspaceFolders.fire({
+				updateWorkspaceTrust(updateWorkspaceTrustPromise) {
+					updateWorkspaceTrustPromise.then(_ => update());
+				},
+				changes
+			});
 		} else {
 			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
 		}

@@ -27,10 +27,6 @@ export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 		return true;
 	}
 
-	refreshWorkspaceTrustState(): void {
-		throw new Error('Method not implemented.');
-	}
-
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
 		return Promise.resolve(WorkspaceTrustState.Trusted);
 	}

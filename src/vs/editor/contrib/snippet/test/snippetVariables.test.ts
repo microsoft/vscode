@@ -311,6 +311,7 @@ suite('Snippet Variables Resolver', function () {
 			onDidChangeWorkbenchState = this._throw;
 			onDidChangeWorkspaceName = this._throw;
 			onDidChangeWorkspaceFolders = this._throw;
+			onWillChangeWorkspaceFolders = this._throw;
 			getCompleteWorkspace = this._throw;
 			getWorkspace(): IWorkspace { return workspace; }
 			getWorkbenchState = this._throw;
