@@ -2133,6 +2133,31 @@ declare module 'vscode' {
 		export function createDocumentTestObserver(document: TextDocument): TestObserver;
 
 		/**
+		 * TChildren makes this kind of ugly and possibly hard to deal with,
+		 * since TS does not partially infer generics. One option would be to
+		 * just have a `T` for data and let people differentiate themselves, but
+		 * this also leads to a poorer type model.
+		 *
+		 * also -- I tried to type the child of the parent, but it looks like if
+		 * the parent is typed as `TestItem<any, A | B>` and we constrain parent
+		 * to `TestItem<any, TSelf>`, then we cannot pass that into
+		 * `createTestItem<A>`.
+		 *
+		 * Another option here would be have some `createChild` on the `TestItem`,
+		 * but then how is the root item created? I would rather not pass a
+		 * pre-made root to `provide*Root` since I want to allow them to return
+		 * undefined...
+		 */
+		export function createTestItem<TSelf, TChildren = TSelf>(
+			parent: TestItem<any> | null,
+			id: string,
+			uri: Uri,
+			label: string,
+			expandable: boolean,
+			data: TSelf,
+		): TestItem<TSelf, TChildren>;
+
+		/**
 		 * Inserts custom test results into the VS Code UI. The results are
 		 * inserted and sorted based off the `completedAt` timestamp. If the
 		 * results are being read from a file, for example, the `completedAt`
@@ -2215,7 +2240,7 @@ declare module 'vscode' {
 	 *
 	 * @todo rename from provider
 	 */
-	export interface TestProvider<T extends TestItem = TestItem> {
+	export interface TestProvider<T> {
 		/**
 		 * Requests that tests be provided for the given workspace. This will
 		 * be called when tests need to be enumerated for the workspace, such as
@@ -2228,7 +2253,7 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 * @returns the root test item for the workspace
 		 */
-		provideWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<T>;
+		provideWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestItem<T>>;
 
 		/**
 		 * Requests that tests be provided for the given document. This will be
@@ -2247,7 +2272,7 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 * @returns the root test item for the workspace
 		 */
-		provideDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<T>;
+		provideDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<TestItem<T>>;
 
 		/**
 		 * @todo this will move out of the provider soon
@@ -2259,7 +2284,18 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
 		// eslint-disable-next-line vscode-dts-provider-naming
-		runTests(options: TestRunOptions<T>, token: CancellationToken): ProviderResult<void>;
+		runTests(options: TestRunOptions<TestItem<T>>, token: CancellationToken): ProviderResult<void>;
+
+
+		/**
+		 * Same discoverChildren that we had on the TestItem.
+		 *
+		 * The new `item.dispose()` method isn't enough to deal with cancellation
+		 * of child discovery, so we still need to take the CancellationToken here:
+		 * if the user collapses a node in the tree, the editor may not longer care
+		 * about its children but still want to keep that specific node alive.
+		 */
+		discoverChildren(item: TestItem<T>, progress: Progress<{ busy: boolean }>, token: CancellationToken): void;
 	}
 
 	/**
@@ -2322,42 +2358,11 @@ declare module 'vscode' {
 		appendOutput(output: string): void;
 	}
 
-	export interface TestChildrenCollection<T> extends Iterable<T> {
-		/**
-		 * Gets the number of children in the collection.
-		 */
-		readonly size: number;
-
-		/**
-		 * Gets an existing TestItem by its ID, if it exists.
-		 * @param id ID of the test.
-		 * @returns the TestItem instance if it exists.
-		 */
-		get(id: string): T | undefined;
-
-		/**
-		 * Adds a new child test item. No-ops if the test was already a child.
-		 * @param child The test item to add.
-		 */
-		add(child: T): void;
-
-		/**
-		 * Removes the child test item by reference or ID from the collection.
-		 * @param child Child ID or instance to remove.
-		 */
-		delete(child: T | string): void;
-
-		/**
-		 * Removes all children from the collection.
-		 */
-		clear(): void;
-	}
-
 	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export class TestItem<TChildren = any> {
+	export class TestItem<TData = unknown, TChildren = TData> {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2374,7 +2379,12 @@ declare module 'vscode' {
 		 * A set of children this item has. You can add new children to it, which
 		 * will propagate to the editor UI.
 		 */
-		readonly children: TestChildrenCollection<TChildren>;
+		readonly children: ReadonlyMap<string, TChildren>;
+
+		/**
+		 * Own extension-controlled metadata.
+		 */
+		data: TData;
 
 		/**
 		 * Display name describing the test case.
@@ -2425,33 +2435,13 @@ declare module 'vscode' {
 		 * for example. In "auto run" mode, tests that are outdated will be
 		 * automatically rerun after a short delay. Invoking this on a
 		 * test with children will mark the entire subtree as outdated.
-		 *
-		 * Extensions should generally not override this method.
 		 */
 		invalidate(): void;
 
 		/**
-		 * Requests the children of the test item. Extensions should override this
-		 * method for any test that can discover children.
-		 *
-		 * When called, the item should discover tests and update its's `children`.
-		 * The provider will be marked as 'busy' when this method is called, and
-		 * the provider should report `{ busy: false }` to {@link Progress.report}
-		 * once discovery is complete.
-		 *
-		 * The item should continue watching for changes to the children and
-		 * firing updates until the token is cancelled. The process of watching
-		 * the tests may involve creating a file watcher, for example.
-		 *
-		 * The editor will only call this method when it's interested in refreshing
-		 * the children of the item, and will not call it again while there's an
-		 * existing, uncancelled discovery for an item.
-		 *
-		 * @param token Cancellation for the request. Cancellation will be
-		 * requested if the test changes before the previous call completes.
-		 * @returns a provider result of child test items
+		 * Disposes the the item and removes it from its parent `children` map.
 		 */
-		discoverChildren(progress: Progress<{ busy: boolean }>, token: CancellationToken): void;
+		dispose(): void;
 	}
 
 	/**
