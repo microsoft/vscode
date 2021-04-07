@@ -633,7 +633,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
 					}
-					if (nameOrOptions.initialText) {
+					if (nameOrOptions.message) {
 						checkProposedApiEnabled(extension);
 					}
 					if (nameOrOptions.icon) {
