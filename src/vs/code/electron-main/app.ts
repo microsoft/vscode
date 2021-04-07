@@ -71,7 +71,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -416,6 +416,18 @@ export class CodeApplication extends Disposable {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
+
+		// TODO@bpasero TODO@deepak1556 workaround for #120655
+		try {
+			const cachedDataPath = URI.file(this.environmentMainService.chromeCachedDataDir);
+			this.logService.trace(`Deleting Chrome cached data path: ${cachedDataPath.fsPath}`);
+
+			await this.fileService.del(cachedDataPath, { recursive: true });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
+		}
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
