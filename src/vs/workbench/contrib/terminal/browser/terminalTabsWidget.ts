@@ -74,6 +74,9 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 
 	private _render(): void {
 		this.setChildren(null, undefined);
+		if (!this._terminalService || this._terminalService.terminalTabs.length === 0) {
+			return;
+		}
 		const children = createTerminalTabsIterator(this._terminalService.terminalTabs);
 		this.setChildren(null, children);
 	}
@@ -131,7 +134,6 @@ class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITermina
 			label = item ? item.children.length === 0 ? 'Starting...' : item?.children.length > 1 ? `Terminals (${item.children.length})` : item.children[0].instance.title : '';
 		} else if ('instance' in item) {
 			label = item.instance.title;
-			icon = item.instance.icon;
 		}
 		template.labelElement.textContent = label;
 		template.labelElement.title = label;

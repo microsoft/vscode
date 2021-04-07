@@ -343,10 +343,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 
 		// Fire events and dispose tab if it was the last instance
-		this._onInstancesChanged.fire();
 		if (this._terminalInstances.length === 0) {
 			this._onDisposed.fire(this);
 			this.dispose();
+		} else {
+			this._onInstancesChanged.fire();
 		}
 	}
 
