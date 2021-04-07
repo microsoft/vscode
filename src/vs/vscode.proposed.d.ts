@@ -1110,7 +1110,7 @@ declare module 'vscode' {
 		 * @param range A notebook range.
 		 * @returns The cells contained by the range or all cells.
 		 */
-		getCells(range?: NotebookCellRange): ReadonlyArray<NotebookCell>;
+		getCells(range?: NotebookCellRange): NotebookCell[];
 
 		/**
 		 * Save the document. The saving will be handled by the corresponding content provider
@@ -1484,10 +1484,10 @@ declare module 'vscode' {
 
 		// invoked when Run, Run All, Run Selections is triggered,
 		// command is invoked with [kernel, cells] as arguments
-		executeCommand: Command;
+		executeHandler: (notebook: NotebookDocument, cells: NotebookCell[]) => void
 
 		// optional kernel interrupt command
-		interruptCommand?: Command;
+		interruptHandler?: (notebook: NotebookDocument) => void
 
 		// // kernels (and _only_ they) can create executions
 		createNotebookCellExecutionTask(uri: Uri, index: number): NotebookCellExecutionTask;
@@ -1500,7 +1500,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		export function createNotebookKernel(id: string, label: string, selector: NotebookSelector, executeCommand: Command): NotebookKernel2;
+		export function createNotebookKernel(id: string, label: string, selector: NotebookSelector, executeHandler: (notebook: NotebookDocument, cells: NotebookCell[]) => void): NotebookKernel2;
 	}
 
 	//#endregion

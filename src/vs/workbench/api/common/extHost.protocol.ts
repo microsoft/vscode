@@ -905,11 +905,10 @@ export interface INotebookKernelDto2 {
 	extensionName: string;
 	extensionLocation: UriComponents;
 	label: string;
-	executeCommand: ICommandDto;
-	interruptCommand?: ICommandDto;
 	description?: string;
 	isPreferred?: boolean;
 	supportedLanguages: string[];
+	supportsInterrupt?: boolean;
 	hasExecutionOrder?: boolean;
 	preloads?: UriComponents[];
 }
@@ -1950,6 +1949,8 @@ export interface ExtHostNotebookEditorsShape {
 
 export interface ExtHostNotebookKernelsShape {
 	$acceptSelection(handle: number, value: boolean): void;
+	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
+	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
 }
 
 export interface ExtHostStorageShape {

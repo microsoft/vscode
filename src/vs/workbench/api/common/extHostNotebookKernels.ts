@@ -6,28 +6,33 @@
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as vscode from 'vscode';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellRange } from 'vs/workbench/api/common/extHostTypeConverters';
+import { flatten } from 'vs/base/common/arrays';
+
+type ExecuteHandler = (notebook: vscode.NotebookDocument, cells: vscode.NotebookCell[]) => void;
+type InterruptHandler = (notebook: vscode.NotebookDocument) => void;
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 
-	private readonly _selectionState = new Map<number, { value: boolean, emitter: Emitter<boolean> }>();
+	private readonly _kernelData = new Map<number, { executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, selected: boolean, emitter: Emitter<boolean> }>();
 	private _handlePool: number = 0;
 
 	constructor(
 		mainContext: IMainContext,
-		private readonly _extHostCommands: ExtHostCommands,
 		private readonly _extHostNotebook: ExtHostNotebookController
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createKernel(extension: IExtensionDescription, id: string, label: string, selector: NotebookSelector, executeCommand: vscode.Command): vscode.NotebookKernel2 {
+	createKernel(extension: IExtensionDescription, id: string, label: string, selector: NotebookSelector, executeHandler: ExecuteHandler): vscode.NotebookKernel2 {
 
 		const handle = this._handlePool++;
 		const that = this;
@@ -36,7 +41,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const commandDisposables = new DisposableStore();
 
 		const emitter = new Emitter<boolean>();
-		this._selectionState.set(handle, { value: false, emitter });
+		this._kernelData.set(handle, { executeHandler, selected: false, emitter });
 
 		const data: INotebookKernelDto2 = {
 			id,
@@ -44,8 +49,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionName: extension.displayName ?? extension.name,
 			extensionLocation: extension.extensionLocation,
 			label,
-			executeCommand: this._extHostCommands.converter.toInternal(executeCommand, commandDisposables),
 			supportedLanguages: [],
+			supportsInterrupt: false
 		};
 		this._proxy.$addKernel(handle, data);
 
@@ -68,7 +73,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
-			get selected() { return that._selectionState.get(handle)?.value ?? false; },
+			get selected() { return that._kernelData.get(handle)?.selected ?? false; },
 			onDidChangeSelection: emitter.event,
 			get label() {
 				return data.label;
@@ -98,18 +103,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.hasExecutionOrder = value;
 				_update();
 			},
-			get executeCommand() {
-				return that._extHostCommands.converter.fromInternal(data.executeCommand)!;
+			get executeHandler() {
+				return executeHandler;
 			},
-			set executeCommand(value) {
-				data.executeCommand = that._extHostCommands.converter.toInternal(value, commandDisposables);
-				_update();
+			get interruptHandler() {
+				return that._kernelData.get(handle)!.interruptHandler;
 			},
-			get interruptCommand() {
-				return data.interruptCommand && that._extHostCommands.converter.fromInternal(data.interruptCommand);
-			},
-			set interruptCommand(value) {
-				data.interruptCommand = that._extHostCommands.converter.toInternal(value, commandDisposables);
+			set interruptHandler(value) {
+				that._kernelData.get(handle)!.interruptHandler = value;
+				data.supportsInterrupt = Boolean(value);
 				_update();
 			},
 			createNotebookCellExecutionTask(uri, index) {
@@ -117,7 +119,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			dispose: () => {
 				isDisposed = true;
-				this._selectionState.delete(handle);
+				this._kernelData.delete(handle);
 				commandDisposables.dispose();
 				emitter.dispose();
 				this._proxy.$removeKernel(handle);
@@ -126,10 +128,40 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	}
 
 	$acceptSelection(handle: number, value: boolean): void {
-		const obj = this._selectionState.get(handle);
+		const obj = this._kernelData.get(handle);
 		if (obj) {
-			obj.value = value;
+			obj.selected = value;
 			obj.emitter.fire(value);
+		}
+	}
+
+	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void {
+		const obj = this._kernelData.get(handle);
+		if (!obj) {
+			// extension can dispose kernels in the meantime
+			return;
+		}
+		const document = this._extHostNotebook.lookupNotebookDocument(URI.revive(uri));
+		if (!document) {
+			throw new Error('MISSING notebook');
+		}
+
+		const all = ranges.map(range => document.notebookDocument.getCells(NotebookCellRange.to(range)));
+		obj.executeHandler(document.notebookDocument, flatten(all));
+	}
+
+	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void {
+		const obj = this._kernelData.get(handle);
+		if (!obj) {
+			// extension can dispose kernels in the meantime
+			return;
+		}
+		const document = this._extHostNotebook.lookupNotebookDocument(URI.revive(uri));
+		if (!document) {
+			throw new Error('MISSING notebook');
+		}
+		if (obj.interruptHandler) {
+			obj.interruptHandler(document.notebookDocument);
 		}
 	}
 }

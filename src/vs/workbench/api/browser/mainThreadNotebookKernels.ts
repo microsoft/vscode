@@ -6,7 +6,6 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel2, INotebookKernel2ChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -35,7 +34,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this.id = data.id;
 		this.selector = data.selector;
 		this.detail = data.extensionName;
-		this.implementsInterrupt = Boolean(data.interruptCommand);
+		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
 		this.description = data.description;
 		this.isPreferred = data.isPreferred;
@@ -85,7 +84,6 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	constructor(
 		extHostContext: IExtHostContext,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
 	}
@@ -103,13 +101,10 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				that._proxy.$acceptSelection(handle, value);
 			}
 			executeCells(uri: URI, ranges: ICellRange[]): void {
-				// todo@jrieken push down to INotebookKernel2?
-				if (data.executeCommand) {
-					that._commandService.executeCommand(data.executeCommand.id, uri, ranges);
-				}
+				that._proxy.$executeCells(handle, uri, ranges);
 			}
 			cancelCells(uri: URI, ranges: ICellRange[]): void {
-				// todo@jrieken
+				that._proxy.$cancelCells(handle, uri, ranges);
 			}
 		}(data);
 		const disposable = this._notebookKernelService.addKernel(kernel);

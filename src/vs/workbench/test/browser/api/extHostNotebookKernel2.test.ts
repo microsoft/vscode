@@ -5,9 +5,7 @@
 
 import * as assert from 'assert';
 import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { NullLogService } from 'vs/platform/log/common/log';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -43,14 +41,13 @@ suite('NotebookKernel', function () {
 
 		extHostNotebookKernels = new ExtHostNotebookKernels(
 			rpcProtocol,
-			new ExtHostCommands(rpcProtocol, new NullLogService()),
 			new class extends mock<ExtHostNotebookController>() { }
 		);
 	});
 
 	test('create/dispose kernel', async function () {
 
-		const kernel = extHostNotebookKernels.createKernel(nullExtensionDescription, 'foo', 'Foo', '*', { command: 'bar', title: 'Run Bar' });
+		const kernel = extHostNotebookKernels.createKernel(nullExtensionDescription, 'foo', 'Foo', '*', () => { });
 
 		assert.ok(kernel);
 		assert.strictEqual(kernel.id, 'foo');
@@ -73,7 +70,7 @@ suite('NotebookKernel', function () {
 
 	test('update kernel', async function () {
 
-		const kernel = extHostNotebookKernels.createKernel(nullExtensionDescription, 'foo', 'Foo', '*', { command: 'bar', title: 'Run Bar' });
+		const kernel = extHostNotebookKernels.createKernel(nullExtensionDescription, 'foo', 'Foo', '*', () => { });
 
 		await rpcProtocol.sync();
 		assert.ok(kernel);
