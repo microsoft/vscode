@@ -157,7 +157,7 @@ suite('vscode API - window', () => {
 			return;
 		}
 
-		if (process.env['BUILD_SOURCEVERSION']) {
+		if (process.env['BUILD_SOURCEVERSION'] || process.env['CI']) {
 			this.skip();
 			return;
 		}

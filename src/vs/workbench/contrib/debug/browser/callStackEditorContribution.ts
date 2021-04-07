@@ -75,10 +75,12 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, isFocuse
 			range: columnUntilEOLRange
 		});
 
-		result.push({
-			options: TOP_STACK_FRAME_INLINE_DECORATION,
-			range: columnUntilEOLRange
-		});
+		if (stackFrame.range.startColumn > 1) {
+			result.push({
+				options: TOP_STACK_FRAME_INLINE_DECORATION,
+				range: columnUntilEOLRange
+			});
+		}
 	} else {
 		if (isFocusedSession) {
 			result.push({

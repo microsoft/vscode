@@ -57,7 +57,7 @@ export class ModeServiceImpl extends Disposable implements IModeService {
 	private readonly _onDidCreateMode = this._register(new Emitter<IMode>());
 	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
-	protected readonly _onLanguagesMaybeChanged = this._register(new Emitter<void>());
+	protected readonly _onLanguagesMaybeChanged = this._register(new Emitter<void>({ leakWarningThreshold: 200 /* https://github.com/microsoft/vscode/issues/119968 */ }));
 	public readonly onLanguagesMaybeChanged: Event<void> = this._onLanguagesMaybeChanged.event;
 
 	constructor(warnOnOverwrite = false) {

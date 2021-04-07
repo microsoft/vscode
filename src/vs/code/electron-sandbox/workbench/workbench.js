@@ -70,13 +70,15 @@
 	//#region Helpers
 
 	/**
+	 * @typedef {import('../../../platform/windows/common/windows').INativeWindowConfiguration} INativeWindowConfiguration
+	 *
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],
-	 *     resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => unknown,
+	 *     resultCallback: (result, configuration: INativeWindowConfiguration) => unknown,
 	 *     options?: {
-	 *       configureDeveloperKeybindings?: (config: import('../../../platform/windows/common/windows').INativeWindowConfiguration & object) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
-	 * 	     canModifyDOM?: (config: import('../../../platform/windows/common/windows').INativeWindowConfiguration & object) => void,
+	 *       configureDeveloperKeybindings?: (config: INativeWindowConfiguration & object) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & object) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *       beforeRequire?: () => void
 	 *     }

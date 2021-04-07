@@ -181,6 +181,18 @@
 	flex-wrap: wrap-reverse;
 }
 
+.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-item {
+	margin-right: 0;
+}
+
+.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label {
+	margin-right: 4px;
+}
+
+.extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
+	border-radius: 0;
+}
+
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
 }

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { BrowserWindow, ipcMain, Event as ElectronEvent, MessagePortMain, IpcMainEvent, RenderProcessGoneDetails } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { Barrier } from 'vs/base/common/async';
@@ -190,7 +191,8 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			backupWorkspacesPath: this.environmentMainService.backupWorkspacesPath,
 			userEnv: this.userEnv,
 			args: this.environmentMainService.args,
-			logLevel: this.logService.getLevel()
+			logLevel: this.logService.getLevel(),
+			product
 		});
 
 		// Load with config

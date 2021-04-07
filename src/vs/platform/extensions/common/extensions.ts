@@ -158,8 +158,8 @@ export interface IExtensionContributions {
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { required: ExtensionWorkspaceTrustRequirement, description?: string };
+export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
+export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart' | 'onDemand', description: string };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -307,13 +307,13 @@ export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): 
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
 }
 
-export function getExtensionWorkspaceTrustRequirement(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequirement {
-	if (manifest.workspaceTrust?.required !== undefined) {
-		return manifest.workspaceTrust.required;
+export function getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType {
+	if (manifest.workspaceTrust?.request !== undefined) {
+		return manifest.workspaceTrust.request;
 	}
 
 	if (!manifest.main) {
-		return false;
+		return 'never';
 	}
 
 	return 'onStart';
