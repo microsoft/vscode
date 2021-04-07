@@ -100,9 +100,9 @@ suite('NotebookCell#Document', function () {
 
 	test('cell document is vscode.TextDocument', async function () {
 
-		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
+		assert.strictEqual(notebook.notebookDocument.cellCount, 2);
 
-		const [c1, c2] = notebook.notebookDocument.cells;
+		const [c1, c2] = notebook.notebookDocument.getCells();
 		const d1 = extHostDocuments.getDocument(c1.document.uri);
 
 		assert.ok(d1);
@@ -119,7 +119,7 @@ suite('NotebookCell#Document', function () {
 
 	test('cell document goes when notebook closes', async function () {
 		const cellUris: string[] = [];
-		for (let cell of notebook.notebookDocument.cells) {
+		for (let cell of notebook.notebookDocument.getCells()) {
 			assert.ok(extHostDocuments.getDocument(cell.document.uri));
 			cellUris.push(cell.document.uri.toString());
 		}
@@ -196,7 +196,7 @@ suite('NotebookCell#Document', function () {
 
 		const docs: vscode.TextDocument[] = [];
 		const addData: IModelAddedData[] = [];
-		for (let cell of notebook.notebookDocument.cells) {
+		for (let cell of notebook.notebookDocument.getCells()) {
 			const doc = extHostDocuments.getDocument(cell.document.uri);
 			assert.ok(doc);
 			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
@@ -218,14 +218,14 @@ suite('NotebookCell#Document', function () {
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: docs.map(d => d.uri) });
 
 		// notebook is still open -> cell documents stay open
-		for (let cell of notebook.notebookDocument.cells) {
+		for (let cell of notebook.notebookDocument.getCells()) {
 			assert.ok(extHostDocuments.getDocument(cell.document.uri));
 			assert.strictEqual(extHostDocuments.getDocument(cell.document.uri).isClosed, false);
 		}
 
 		// close notebook -> docs are closed
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
-		for (let cell of notebook.notebookDocument.cells) {
+		for (let cell of notebook.notebookDocument.getCells()) {
 			assert.throws(() => extHostDocuments.getDocument(cell.document.uri));
 		}
 		for (let doc of docs) {
@@ -235,8 +235,8 @@ suite('NotebookCell#Document', function () {
 
 	test('cell document goes when cell is removed', async function () {
 
-		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
-		const [cell1, cell2] = notebook.notebookDocument.cells;
+		assert.strictEqual(notebook.notebookDocument.cellCount, 2);
+		const [cell1, cell2] = notebook.notebookDocument.getCells();
 
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
 			versionId: 2,
@@ -248,7 +248,7 @@ suite('NotebookCell#Document', function () {
 			]
 		}, false);
 
-		assert.strictEqual(notebook.notebookDocument.cells.length, 1);
+		assert.strictEqual(notebook.notebookDocument.cellCount, 1);
 		assert.strictEqual(cell1.document.isClosed, true); // ref still alive!
 		assert.strictEqual(cell2.document.isClosed, false);
 
@@ -256,15 +256,15 @@ suite('NotebookCell#Document', function () {
 	});
 
 	test('cell document knows notebook', function () {
-		for (let cells of notebook.notebookDocument.cells) {
+		for (let cells of notebook.notebookDocument.getCells()) {
 			assert.strictEqual(cells.document.notebook === notebook.notebookDocument, true);
 		}
 	});
 
 	test('cell#index', function () {
 
-		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
-		const [first, second] = notebook.notebookDocument.cells;
+		assert.strictEqual(notebook.notebookDocument.cellCount, 2);
+		const [first, second] = notebook.notebookDocument.getCells();
 		assert.strictEqual(first.index, 0);
 		assert.strictEqual(second.index, 1);
 
@@ -277,7 +277,7 @@ suite('NotebookCell#Document', function () {
 			}]
 		}, false);
 
-		assert.strictEqual(notebook.notebookDocument.cells.length, 1);
+		assert.strictEqual(notebook.notebookDocument.cellCount, 1);
 		assert.strictEqual(second.index, 0);
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
@@ -304,7 +304,7 @@ suite('NotebookCell#Document', function () {
 			}]
 		}, false);
 
-		assert.strictEqual(notebook.notebookDocument.cells.length, 3);
+		assert.strictEqual(notebook.notebookDocument.cellCount, 3);
 		assert.strictEqual(second.index, 2);
 	});
 
@@ -313,7 +313,7 @@ suite('NotebookCell#Document', function () {
 		const p = Event.toPromise(extHostNotebooks.onDidChangeNotebookCells);
 
 		// DON'T call this, make sure the cell-documents have not been created yet
-		// assert.strictEqual(notebook.notebookDocument.cells.length, 2);
+		// assert.strictEqual(notebook.notebookDocument.cellCount, 2);
 
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
 			versionId: 100,
@@ -339,7 +339,7 @@ suite('NotebookCell#Document', function () {
 			}]
 		}, false);
 
-		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
+		assert.strictEqual(notebook.notebookDocument.cellCount, 2);
 
 		const event = await p;
 
@@ -391,7 +391,7 @@ suite('NotebookCell#Document', function () {
 
 	test('change cell language triggers onDidChange events', async function () {
 
-		const [first] = notebook.notebookDocument.cells;
+		const first = notebook.notebookDocument.cellAt(0);
 
 		assert.strictEqual(first.document.languageId, 'markdown');
 

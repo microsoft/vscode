@@ -26,8 +26,8 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
 	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;
 
-	private readonly _onDidChangeDirty = new Emitter<{ resource: URI, isDirty: boolean }>();
-	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }> = this._onDidChangeDirty.event;
+	private readonly _onDidChangeDirty = new Emitter<IResolvedNotebookEditorModel>();
+	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel> = this._onDidChangeDirty.event;
 
 	private readonly _dirtyStates = new ResourceMap<boolean>();
 
@@ -78,7 +78,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			result.onDidChangeDirty(() => {
 				const isDirty = result.isDirty();
 				this._dirtyStates.set(result.resource, isDirty);
-				this._onDidChangeDirty.fire({ resource: result.resource, isDirty });
+				this._onDidChangeDirty.fire(result);
 			}),
 		));
 		return result;
@@ -102,7 +102,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	private readonly _data: NotebookModelReferenceCollection;
 
 	readonly onDidSaveNotebook: Event<URI>;
-	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }>;
+	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,

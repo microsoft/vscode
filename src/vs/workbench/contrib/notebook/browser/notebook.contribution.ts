@@ -24,13 +24,13 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, EditorsAssociations, editorsAssociationsSettingId, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -694,11 +694,12 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	private readonly _dirtyListener: IDisposable;
 
 	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
 	) {
 
-		type E = { resource: URI, isDirty: boolean };
+		type E = IResolvedNotebookEditorModel;
 		this._dirtyListener = Event.debounce<E, E[]>(
 			this._notebookEditorModelService.onDidChangeDirty,
 			(last, current) => !last ? [current] : [...last, current],
@@ -710,13 +711,13 @@ class NotebookFileTracker implements IWorkbenchContribution {
 		this._dirtyListener.dispose();
 	}
 
-	private _openMissingDirtyNotebookEditors(inputs: { resource: URI, isDirty: boolean }[]): void {
-		const result: IResourceEditorInput[] = [];
-		for (let input of inputs) {
-			if (input.isDirty && !this._editorService.isOpen({ resource: input.resource })) {
+	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
+		const result: IEditorInputWithOptions[] = [];
+		for (let model of models) {
+			if (model.isDirty() && !this._editorService.isOpen({ resource: model.resource })) {
 				result.push({
-					resource: input.resource,
-					options: { inactive: true, preserveFocus: true, pinned: true }
+					editor: NotebookEditorInput.create(this._instantiationService, model.resource, model.viewType),
+					options: { inactive: true, preserveFocus: true, pinned: true, }
 				});
 			}
 		}

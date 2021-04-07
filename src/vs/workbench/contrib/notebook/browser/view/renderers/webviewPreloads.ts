@@ -156,6 +156,17 @@ function webviewPreloads() {
 				...options,
 			});
 		}
+
+		updateImmediately() {
+			if (!this.pending.size) {
+				return;
+			}
+
+			postNotebookMessage<IDimensionMessage>('dimension', {
+				updates: Array.from(this.pending.values())
+			});
+			this.pending.clear();
+		}
 	};
 
 	const resizeObserver = new class {
@@ -512,6 +523,7 @@ function webviewPreloads() {
 					}
 				}
 
+				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
 			case 'createMarkdownPreview':
