@@ -31,9 +31,8 @@
 	min-width: 24px;
 }
 
-.monaco-action-bar .action-item.disabled {
+.monaco-action-bar .eaction-item.disabled {
 	cursor: default;
-	min-width: 0;
 }
 
 .monaco-action-bar .action-item .icon,
