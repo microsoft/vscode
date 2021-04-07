@@ -38,10 +38,6 @@ class SplitPaneContainer extends Disposable {
 		this._splitView.layout(this.orientation === Orientation.HORIZONTAL ? this._width : this._height);
 	}
 
-	public get splitView(): SplitView {
-		return this._splitView;
-	}
-
 	private _createSplitView(): void {
 		this._splitView = new SplitView(this._container, { orientation: this.orientation });
 		this._splitViewDisposables.clear();
@@ -264,7 +260,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 		this._activeInstanceIndex = 0;
 		if (this._container) {
-			// this.attachToElement(this._container);
+			this.attachToElement(this._container);
 		}
 	}
 

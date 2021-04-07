@@ -40,13 +40,16 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalContainer = document.createElement('div');
 		this._terminalContainer.classList.add('terminal-outer-container');
 		this._terminalContainer.style.display = 'block';
+
+		terminalService.setContainers(parentElement, this._terminalContainer);
+
 		terminalService.onInstanceCreated(() => {
-			this._tabsWidget?.rerender();
+			this._tabsWidget!.rerender();
 		});
 		terminalService.onInstancesChanged(() => {
-			terminalService.setContainers(parentElement, this._terminalContainer);
-			this._tabsWidget?.rerender();
+			this._tabsWidget!.rerender();
 		});
+
 		this._terminalService = terminalService;
 
 		_configurationService.onDidChangeConfiguration(e => {
