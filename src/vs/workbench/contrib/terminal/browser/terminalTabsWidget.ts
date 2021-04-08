@@ -35,7 +35,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 	) {
 		super('TerminalTabsTree', container,
 			{
-				getHeight: () => 24,
+				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[new TerminalTabsRenderer()],
