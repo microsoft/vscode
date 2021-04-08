@@ -11,7 +11,6 @@
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
- *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
  *   onElectron?: boolean,
  *   useParentPostMessage: boolean,
  * }} WebviewHost
@@ -495,7 +494,10 @@
 				host.postMessage('no-csp-found');
 			} else {
 				try {
-					csp.setAttribute('content', host.rewriteCSP(csp.getAttribute('content'), data.endpoint));
+					// Attempt to rewrite CSPs that hardcode old-style resource endpoint
+					const endpointUrl = new URL(data.resourceEndpoint);
+					const newCsp = csp.getAttribute('content').replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
+					csp.setAttribute('content', newCsp);
 				} catch (e) {
 					console.error(`Could not rewrite csp: ${e}`);
 				}

@@ -110,10 +110,6 @@
 		useParentPostMessage: false,
 		onIframeLoaded: (/** @type {HTMLIFrameElement} */ frame) => {
 			unloadMonitor.onIframeLoaded(frame);
-		},
-		rewriteCSP: (csp, endpoint) => {
-			const endpointUrl = new URL(endpoint);
-			return csp.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
 		}
 	};
 
