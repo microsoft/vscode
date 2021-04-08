@@ -16,7 +16,7 @@ import { ITerminalInstance, ITerminalService, ITerminalTab } from 'vs/workbench/
 import { localize } from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Codicon } from 'vs/base/common/codicons';
+import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
 const $ = dom.$;
 
@@ -125,8 +125,10 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	templateId = 'terminal.tabs';
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
+		const labelElement = dom.append(container, $('.terminal-tabs-entry'));
 		return {
-			labelElement: dom.append(container, $('.terminal-tabs-entry')),
+			labelElement,
+			label: new IconLabel(labelElement, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true })
 		};
 	}
 
@@ -135,15 +137,15 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 		let item = node.element;
 		if ('terminalInstances' in item) {
 			if (item.terminalInstances.length === 1) {
-				label = item.terminalInstances[0].title;
+				const instance = item.terminalInstances[0];
+				label = `$(${instance.icon.id}) ${instance.title}`;
 			} else if (item.terminalInstances.length > 1) {
 				label = `Terminals (${item.terminalInstances.length})`;
 			}
 		} else {
-			label = item.title;
+			label = `$(${item.icon.id}) ${item.title}`;
 		}
-		template.labelElement.textContent = label;
-		template.labelElement.title = label;
+		template.label.setLabel(label);
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
@@ -152,7 +154,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 
 interface ITerminalTabEntryTemplate {
 	labelElement: HTMLElement;
-	icon?: Codicon;
+	label: IconLabel;
 }
 
 type ITabTreeNode = ITerminalTab | ITerminalInstance;
