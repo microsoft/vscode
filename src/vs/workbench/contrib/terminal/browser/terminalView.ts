@@ -28,7 +28,6 @@ import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/c
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { TabsView } from 'vs/workbench/contrib/terminal/browser/tabsView';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 
 export class TerminalViewPane extends ViewPane {
@@ -37,7 +36,7 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _tabsViewWrapper: HTMLElement | undefined;
 	private _terminalTabbedView!: TerminalTabbedView;
-	private _tabsView: TabsView | undefined;
+	public get terminalTabbedView(): TerminalTabbedView { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -72,7 +71,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._isWelcomeShowing = true;
 			this._onDidChangeViewWelcomeState.fire();
-			if (!this._tabsView && this._parentDomElement) {
+			if (!this._terminalTabbedView && this._parentDomElement) {
 				this._createTabsView();
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}

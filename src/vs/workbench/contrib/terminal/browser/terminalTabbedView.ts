@@ -7,7 +7,7 @@ import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/spl
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -21,8 +21,9 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalTabbedView extends Disposable {
@@ -40,6 +41,7 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalContainerIndex: number;
 
 	private _showTabs: boolean;
+	private _findWidgetVisible: IContextKey<boolean>;
 
 	private _height: number | undefined;
 
@@ -88,6 +90,8 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalContainerIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
 		this._menu = this._register(_menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
+
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(_contextKeyService);
 
 		terminalService.setContainers(parentElement, this._terminalContainer);
 
@@ -273,5 +277,55 @@ export class TerminalTabbedView extends Disposable {
 			getActionsContext: () => this._parentElement,
 			onHide: () => actionsDisposable.dispose()
 		});
+	}
+
+	public focusFindWidget() {
+		this._findWidgetVisible.set(true);
+		const activeInstance = this._terminalService.getActiveInstance();
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
+			this._findWidget!.reveal(activeInstance.selection);
+		} else {
+			this._findWidget!.reveal();
+		}
+	}
+
+	public hideFindWidget() {
+		this._findWidgetVisible.reset();
+		this.focus();
+		this._findWidget!.hide();
+	}
+
+	public showFindWidget() {
+		const activeInstance = this._terminalService.getActiveInstance();
+		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
+			this._findWidget!.show(activeInstance.selection);
+		} else {
+			this._findWidget!.show();
+		}
+	}
+
+	public getFindWidget(): TerminalFindWidget {
+		return this._findWidget!;
+	}
+	public focus() {
+		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
+			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+			// be focused. So wait for connection to finish, then focus.
+			const activeElement = document.activeElement;
+			this._register(this._terminalService.onDidChangeConnectionState(() => {
+				// Only focus the terminal if the activeElement has not changed since focus() was called
+				// TODO hack
+				if (document.activeElement === activeElement) {
+					this._focus();
+				}
+			}));
+
+			return;
+		}
+		this._focus();
+	}
+
+	private _focus() {
+		this._terminalService.getActiveInstance()?.focusWhenReady();
 	}
 }
