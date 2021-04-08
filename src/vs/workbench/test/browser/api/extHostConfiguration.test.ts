@@ -732,7 +732,7 @@ suite('ExtHostConfiguration', function () {
 
 	function toConfigurationModel(obj: any): ConfigurationModel {
 		const parser = new ConfigurationModelParser('test');
-		parser.parseContent(JSON.stringify(obj));
+		parser.parse(JSON.stringify(obj));
 		return parser.configurationModel;
 	}
 
