@@ -48,7 +48,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
-				// TODO: Add indent guides?
 				expandOnlyOnTwistieClick: true
 			},
 			contextKeyService,
@@ -76,7 +75,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 	}
 
 	private _render(): void {
-		// TODO: We don't want to be setting children to undefined - a terminal being killed should not remove focus in the tab view
 		this.setChildren(null, createTerminalTabsIterator(this._terminalService.terminalTabs));
 	}
 }
