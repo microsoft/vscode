@@ -20,6 +20,7 @@
 	display: flex;
 	margin-left: 4px;
 	flex: 1;
+	height: 24px;
 }
 
 .quick-input-left-action-bar.monaco-action-bar .actions-container {
@@ -35,12 +36,10 @@
 	display: flex;
 	margin-right: 4px;
 	flex: 1;
+	height: 24px;
 }
 
 .quick-input-titlebar .monaco-action-bar .action-label.codicon {
-	margin: 0;
-	width: 19px;
-	height: 100%;
 	background-position: center;
 	background-repeat: no-repeat;
 }
