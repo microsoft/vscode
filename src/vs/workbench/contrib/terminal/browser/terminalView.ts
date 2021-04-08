@@ -50,7 +50,7 @@ export class TerminalViewPane extends ViewPane {
 		@IContextMenuService _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService protected readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
@@ -78,7 +78,7 @@ export class TerminalViewPane extends ViewPane {
 		});
 	}
 
-	public renderBody(container: HTMLElement): void {
+	public override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._parentDomElement = container;
@@ -145,7 +145,7 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
 		this._bodyDimensions.width = width;
@@ -154,7 +154,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView.layout(width, height);
 	}
 
-	public getActionViewItem(action: Action): IActionViewItem | undefined {
+	public override getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		}
@@ -162,7 +162,7 @@ export class TerminalViewPane extends ViewPane {
 		return super.getActionViewItem(action);
 	}
 
-	public focus() {
+	public override focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
 			// be focused. So wait for connection to finish, then focus.
@@ -184,7 +184,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalService.getActiveInstance()?.focusWhenReady();
 	}
 
-	shouldShowWelcome(): boolean {
+	override shouldShowWelcome(): boolean {
 		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.terminalInstances.length === 0;
 		return this._isWelcomeShowing;
 	}
@@ -222,7 +222,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('switch-terminal');
 		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {

@@ -64,7 +64,7 @@ export class TestFileWorkingCopyModel extends Disposable implements IFileWorking
 		this.pushedStackElement = true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._onWillDispose.fire();
 
 		super.dispose();

@@ -221,7 +221,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (this.element) {
 			this.element.remove();
 		}

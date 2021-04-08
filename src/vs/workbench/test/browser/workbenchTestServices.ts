@@ -268,7 +268,7 @@ export class TestTextFileService extends BrowserTextFileService {
 	private writeError: FileOperationError | undefined = undefined;
 
 	constructor(
-		@IFileService protected fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,

@@ -44,7 +44,7 @@ export class NotebookEditor extends EditorPane {
 
 	// todo@rebornix is there a reason that `super.fireOnDidFocus` isn't used?
 	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
-	get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
+	override get onDidFocus(): Event<void> { return this._onDidFocusWidget.event; }
 
 	private readonly _onDidChangeModel = this._register(new Emitter<void>());
 	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
@@ -71,14 +71,14 @@ export class NotebookEditor extends EditorPane {
 	}
 
 	override get minimumWidth(): number { return 375; }
-	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
 	override set minimumWidth(value: number) { /*noop*/ }
-	set maximumWidth(value: number) { /*noop*/ }
+	override set maximumWidth(value: number) { /*noop*/ }
 
 	//#region Editor Core
-	get scopedContextKeyService(): IContextKeyService | undefined {
+	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return this._widget.value?.scopedContextKeyService;
 	}
 
@@ -94,11 +94,11 @@ export class NotebookEditor extends EditorPane {
 		return this._rootElement;
 	}
 
-	getControl(): NotebookEditorWidget | undefined {
+	override getControl(): NotebookEditorWidget | undefined {
 		return this._widget.value;
 	}
 
-	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
 			this._groupListener.clear();
@@ -119,19 +119,19 @@ export class NotebookEditor extends EditorPane {
 		}
 	}
 
-	focus() {
+	override focus() {
 		super.focus();
 		this._widget.value?.focus();
 	}
 
-	hasFocus(): boolean {
+	override hasFocus(): boolean {
 		const activeElement = document.activeElement;
 		const value = this._widget.value;
 
 		return !!value && (DOM.isAncestor(activeElement, value.getDomNode() || DOM.isAncestor(activeElement, value.getOverflowContainerDomNode())));
 	}
 
-	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		clearMarks(input.resource);
 		mark(input.resource, 'startTime');
 		const group = this.group!;
@@ -250,7 +250,7 @@ export class NotebookEditor extends EditorPane {
 		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		if (this._widget.value) {
 			this._saveEditorViewState(this.input);
 			this._widget.value.onWillHide();
@@ -258,14 +258,14 @@ export class NotebookEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	setOptions(options: EditorOptions | undefined): void {
+	override setOptions(options: EditorOptions | undefined): void {
 		if (options instanceof NotebookEditorOptions) {
 			this._widget.value?.setOptions(options);
 		}
 		super.setOptions(options);
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 		this._saveEditorViewState(this.input);
 		super.saveState();
 	}
@@ -327,7 +327,7 @@ export class NotebookEditor extends EditorPane {
 
 	//#endregion
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 	}
 

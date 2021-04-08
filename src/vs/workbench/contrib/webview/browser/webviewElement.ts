@@ -128,7 +128,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		}
 	}
 
-	public set html(value: string) {
+	public override set html(value: string) {
 		super.html = this.preprocessHtml(value);
 	}
 

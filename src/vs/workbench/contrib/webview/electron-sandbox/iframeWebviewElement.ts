@@ -60,14 +60,14 @@ export class ElectronIframeWebview extends IFrameWebview {
 		}));
 	}
 
-	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
+	protected override initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions) {
 		super.initElement(extension, options, {
 			platform: 'electron',
 			'vscode-resource-origin': this.webviewResourceEndpoint,
 		});
 	}
 
-	protected get webviewContentEndpoint(): string {
+	protected override get webviewContentEndpoint(): string {
 		const endpoint = this._environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
@@ -75,7 +75,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 		return endpoint;
 	}
 
-	protected get webviewResourceEndpoint(): string {
+	protected override get webviewResourceEndpoint(): string {
 		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
@@ -85,11 +85,11 @@ export class ElectronIframeWebview extends IFrameWebview {
 		};
 	}
 
-	protected async doPostMessage(channel: string, data?: any): Promise<void> {
+	protected override async doPostMessage(channel: string, data?: any): Promise<void> {
 		this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
 	}
 
-	protected preprocessHtml(value: string): string {
+	protected override preprocessHtml(value: string): string {
 		return rewriteVsCodeResourceUrls(this.id, value);
 	}
 }

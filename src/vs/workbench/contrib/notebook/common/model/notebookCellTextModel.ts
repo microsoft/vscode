@@ -202,7 +202,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		};
 	}
 
-	dispose() {
+	override dispose() {
 		// Manually release reference to previous text buffer to avoid large leaks
 		// in case someone leaks a CellTextModel reference
 		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);

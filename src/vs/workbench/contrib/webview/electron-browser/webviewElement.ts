@@ -186,7 +186,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		return element;
 	}
 
-	public set contentOptions(options: WebviewContentOptions) {
+	public override set contentOptions(options: WebviewContentOptions) {
 		this._myLogService.debug(`Webview(${this.id}): will set content options`);
 		super.contentOptions = options;
 	}
@@ -197,7 +197,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	protected readonly extraContentOptions = {};
 
-	public set html(value: string) {
+	public override  set html(value: string) {
 		this._myLogService.debug(`Webview(${this.id}): will set html`);
 
 		super.html = rewriteVsCodeResourceUrls(this.id, value);
@@ -266,7 +266,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		});
 	}
 
-	protected style(): void {
+	protected override style(): void {
 		super.style();
 		this.styledFindWidget();
 	}
@@ -345,15 +345,15 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this._webviewFindWidget?.find(previous);
 	}
 
-	public selectAll() {
+	public override selectAll() {
 		this.element?.selectAll();
 	}
 
-	public copy() {
+	public override copy() {
 		this.element?.copy();
 	}
 
-	public paste() {
+	public override paste() {
 		this.element?.paste();
 	}
 
