@@ -34,7 +34,7 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalTabTree: HTMLElement;
 	private _parentElement: HTMLElement;
 
-	private _tabsWidget: TerminalTabsWidget | undefined;
+	private _tabsWidget: TerminalTabsWidget;
 	private _findWidget: TerminalFindWidget;
 
 	private _tabTreeIndex: number;
@@ -101,7 +101,7 @@ export class TerminalTabbedView extends Disposable {
 				if (this._showTabs) {
 					this._splitView.addView({
 						element: this._terminalTabTree,
-						layout: width => this._tabsWidget!.layout(this._height, width),
+						layout: width => this._tabsWidget.layout(this._height, width),
 						minimumSize: 40,
 						maximumSize: Number.POSITIVE_INFINITY,
 						onDidChange: () => Disposable.None,
@@ -136,7 +136,7 @@ export class TerminalTabbedView extends Disposable {
 		if (this._showTabs) {
 			this._splitView.addView({
 				element: this._terminalTabTree,
-				layout: width => this._tabsWidget!.layout(this._height, width),
+				layout: width => this._tabsWidget.layout(this._height, width),
 				minimumSize: 40,
 				maximumSize: Number.POSITIVE_INFINITY,
 				onDidChange: () => Disposable.None,

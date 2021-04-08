@@ -14,11 +14,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ITerminalInstance, ITerminalService, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 
-const $ = DOM.$;
+const $ = dom.$;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 	private _terminalService: ITerminalService;
@@ -44,7 +44,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 				supportDynamicHeights: true,
 				identityProvider: new TerminalTabsIdentityProvider(),
 				accessibilityProvider: new TerminalTabsAccessibilityProvider(),
-				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
+				styleController: id => new DefaultStyleController(dom.createStyleSheet(container), id),
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
@@ -117,7 +117,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
 		return {
-			labelElement: DOM.append(container, $('.terminal-tabs-entry')),
+			labelElement: dom.append(container, $('.terminal-tabs-entry')),
 		};
 	}
 
