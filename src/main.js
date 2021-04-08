@@ -44,7 +44,9 @@ app.setPath('userData', userDataPath);
 const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Configure crash reporter
+perf.mark('code/willStartCrashReporter');
 configureCrashReporter();
+perf.mark('code/didStartCrashReporter');
 
 // Set logs path before app 'ready' event if running portable
 // to ensure that no 'logs' folder is created on disk at a

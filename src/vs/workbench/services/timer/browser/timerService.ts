@@ -43,7 +43,9 @@ export interface IMemoryInfo {
 		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedLoadMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedCrashReporter" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedMainServer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWindowCreate" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowLoad" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowLoadToRequire" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWaitForWindowConfig" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -180,12 +182,28 @@ export interface IStartupMetrics {
 		readonly ellapsedLoadMainBundle?: number;
 
 		/**
+		 * The time it took to start the crash reporter.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `willStartCrashReporter` and `didStartCrashReporter` performance marks.
+		 */
+		readonly ellapsedCrashReporter?: number;
+
+		/**
 		 * The time it took to create the main instance server.
 		 *
 		 * * Happens in the main-process
 		 * * Measured with the `willStartMainServer` and `didStartMainServer` performance marks.
 		 */
 		readonly ellapsedMainServer?: number;
+
+		/**
+		 * The time it took to create the window.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `willCreateWindow` and `didCreateWindow` performance marks.
+		 */
+		readonly ellapsedWindowCreate?: number;
 
 		/**
 		 * The time it took to tell electron to open/restore a renderer (browser window).
@@ -538,7 +556,9 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedAppReady: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/mainAppReady') : undefined,
 				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('code/willGenerateNls', 'code/didGenerateNls') : undefined,
 				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
+				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
 				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
+				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateWindow', 'code/didCreateWindow') : undefined,
 				ellapsedWindowLoad: initialStartup ? this._marks.getDuration('code/mainAppReady', 'code/willOpenNewWindow') : undefined,
 				ellapsedWindowLoadToRequire: this._marks.getDuration('code/willOpenNewWindow', 'code/willLoadWorkbenchMain'),
 				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),
