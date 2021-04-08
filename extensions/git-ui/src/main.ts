@@ -11,20 +11,21 @@ export async function deactivate(): Promise<any> {
 }
 
 export async function activate(context: ExtensionContext): Promise<void> {
-	context.subscriptions.push(commands.registerCommand('git.credential', async (data: any) => {
-		try {
-			const { stdout, stderr } = await exec(`git credential ${data.command}`, {
-				stdin: data.stdin,
-				env: Object.assign(process.env, { GIT_TERMINAL_PROMPT: '0' })
-			});
-			return { stdout, stderr, code: 0 };
-		} catch ({ stdout, stderr, error }) {
-			const code = error.code || 0;
-			if (stderr.indexOf('terminal prompts disabled') !== -1) {
-				stderr = '';
-			}
-			return { stdout, stderr, code };
-		}
+	context.subscriptions.push(commands.registerCommand('git.credential', async (_data: any) => {
+		return { stdout: '', stderr: '', code: 0 };
+		// try {
+		// 	const { stdout, stderr } = await exec(`git credential ${data.command}`, {
+		// 		stdin: data.stdin,
+		// 		env: Object.assign(process.env, { GIT_TERMINAL_PROMPT: '0' })
+		// 	});
+		// 	return { stdout, stderr, code: 0 };
+		// } catch ({ stdout, stderr, error }) {
+		// 	const code = error.code || 0;
+		// 	if (stderr.indexOf('terminal prompts disabled') !== -1) {
+		// 		stderr = '';
+		// 	}
+		// 	return { stdout, stderr, code };
+		// }
 	}));
 }
 
