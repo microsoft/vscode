@@ -60,6 +60,8 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { WorkspaceTrustService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
 
 class BrowserMain extends Disposable {
 
@@ -199,6 +201,10 @@ class BrowserMain extends Disposable {
 				return service;
 			})
 		]);
+
+		// Workspace Trust Service
+		const workspaceTrustService = new WorkspaceTrustService(storageService, uriIdentityService, configurationService, configurationService);
+		serviceCollection.set(IWorkspaceTrustService, workspaceTrustService);
 
 		// Request Service
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);

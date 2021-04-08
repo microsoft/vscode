@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustRequestOptions, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustStateChangeEvent, IWorkspaceTrustService, WorkspaceTrustRequestOptions, WorkspaceTrustState, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -47,7 +47,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
-		@IWorkspaceTrustService private readonly _workspaceTrustService: IWorkspaceTrustService
+		@IWorkspaceTrustService private readonly _workspaceTrustService: IWorkspaceTrustService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
@@ -209,7 +210,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- trust ---
 
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
-		return this._workspaceTrustService.requestWorkspaceTrust(options);
+		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
 	}
 
 	private getWorkspaceTrustState(): WorkspaceTrustState {

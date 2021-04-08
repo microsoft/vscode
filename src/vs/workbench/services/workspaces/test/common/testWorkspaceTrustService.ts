@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustRequestModel, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustRequestService, IWorkspaceTrustRequestModel } from 'vs/platform/workspace/common/workspaceTrust';
 import { WorkspaceTrustRequestModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 	_serviceBrand: undefined;
-
-	requestModel: IWorkspaceTrustRequestModel = new WorkspaceTrustRequestModel();
 
 	onDidChangeTrustState: WorkspaceTrustChangeEvent = Event.None;
 
@@ -18,9 +16,23 @@ export class TestWorkspaceTrustService implements IWorkspaceTrustService {
 		return WorkspaceTrustState.Trusted;
 	}
 
+	setWorkspaceTrustState(trustState: WorkspaceTrustState): void {
+		throw new Error('Method not implemented.');
+	}
+
 	isWorkspaceTrustEnabled(): boolean {
 		return true;
 	}
+
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
+		return Promise.resolve(WorkspaceTrustState.Trusted);
+	}
+}
+
+export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
+	_serviceBrand: undefined;
+
+	requestModel: IWorkspaceTrustRequestModel = new WorkspaceTrustRequestModel();
 
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
 		return Promise.resolve(WorkspaceTrustState.Trusted);

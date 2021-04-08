@@ -13,7 +13,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustService, IWorkspaceTrustRequestService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -43,7 +43,7 @@ const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, 
  * Trust Request UX Handler
  */
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
-	private readonly requestModel = this.workspaceTrustService.requestModel;
+	private readonly requestModel = this.workspaceTrustRequestService.requestModel;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private shouldShowManagementEditor = true;
 
@@ -56,6 +56,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -316,7 +317,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const dialogService = accessor.get(IDialogService);
-		const workspaceTrustService = accessor.get(IWorkspaceTrustService);
+		const workspaceTrustRequestService = accessor.get(IWorkspaceTrustRequestService);
 
 		const result = await dialogService.confirm({
 			message: localize('grantWorkspaceTrust', "Grant Workspace Trust"),
@@ -326,7 +327,7 @@ registerAction2(class extends Action2 {
 		});
 
 		if (result.confirmed) {
-			workspaceTrustService.requestModel.completeRequest(WorkspaceTrustState.Trusted);
+			workspaceTrustRequestService.requestModel.completeRequest(WorkspaceTrustState.Trusted);
 		}
 
 		return;
@@ -356,7 +357,7 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const dialogService = accessor.get(IDialogService);
-		const workspaceTrustService = accessor.get(IWorkspaceTrustService);
+		const workspaceTrustRequestService = accessor.get(IWorkspaceTrustRequestService);
 
 		const result = await dialogService.confirm({
 			message: localize('denyWorkspaceTrust', "Deny Workspace Trust"),
@@ -366,7 +367,7 @@ registerAction2(class extends Action2 {
 		});
 
 		if (result.confirmed) {
-			workspaceTrustService.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
+			workspaceTrustRequestService.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
 		}
 		return;
 	}

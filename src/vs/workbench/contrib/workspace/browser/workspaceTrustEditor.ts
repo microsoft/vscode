@@ -129,6 +129,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.render(model);
 
 		this.workspaceTrustEditorModel = model;
+
+		this.logInitialWorkspaceTrustInfo(model);
 	}
 
 	private registerListeners(model: WorkspaceTrustEditorModel): void {
@@ -419,6 +421,23 @@ export class WorkspaceTrustEditor extends EditorPane {
 				}
 			}
 		}
+	}
+
+	private logInitialWorkspaceTrustInfo(model: WorkspaceTrustEditorModel): void {
+		type WorkspaceTrustInfoEventClassification = {
+			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			untrustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+
+		type WorkspaceTrustInfoEvent = {
+			trustedFoldersCount: number,
+			untrustedFoldersCount: number
+		};
+
+		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
+			trustedFoldersCount: model.dataModel.getTrustStateInfo().uriTrustInfo.filter(item => item.trustState === WorkspaceTrustState.Trusted).length,
+			untrustedFoldersCount: model.dataModel.getTrustStateInfo().uriTrustInfo.filter(item => item.trustState === WorkspaceTrustState.Untrusted).length
+		});
 	}
 
 	private layoutParticipants: { layout: () => void; }[] = [];

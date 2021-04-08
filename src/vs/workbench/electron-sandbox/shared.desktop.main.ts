@@ -46,6 +46,8 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
+import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export const productService = { _serviceBrand: undefined, ...product };
 
@@ -233,7 +235,7 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		const payload = this.resolveWorkspaceInitializationPayload();
 
-		const services = await Promise.all([
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
@@ -262,6 +264,9 @@ export abstract class SharedDesktopMain extends Disposable {
 			})
 		]);
 
+		// Workspace Trust Service
+		const workspaceTrustService = new WorkspaceTrustService(storageService, uriIdentityService, configurationService, configurationService);
+		serviceCollection.set(IWorkspaceTrustService, workspaceTrustService);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -276,7 +281,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService: services[1] };
+		return { serviceCollection, logService, storageService };
 	}
 
 	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {

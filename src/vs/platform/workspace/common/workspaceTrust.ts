@@ -79,11 +79,18 @@ export const IWorkspaceTrustService = createDecorator<IWorkspaceTrustService>('w
 export interface IWorkspaceTrustService {
 	readonly _serviceBrand: undefined;
 
-	readonly requestModel: IWorkspaceTrustRequestModel;
-
 	onDidChangeTrustState: WorkspaceTrustChangeEvent;
 	getWorkspaceTrustState(): WorkspaceTrustState;
+	setWorkspaceTrustState(trustState: WorkspaceTrustState): void;
 	isWorkspaceTrustEnabled(): boolean;
+}
+
+export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
+
+export interface IWorkspaceTrustRequestService {
+	readonly _serviceBrand: undefined;
+	readonly requestModel: IWorkspaceTrustRequestModel;
+
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
 }
 
