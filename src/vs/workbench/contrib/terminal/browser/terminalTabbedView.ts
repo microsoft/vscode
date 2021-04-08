@@ -21,11 +21,12 @@ import { URI } from 'vs/base/common/uri';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IAction } from 'vs/base/common/actions';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalTabbedView extends Disposable {
@@ -53,6 +54,9 @@ export class TerminalTabbedView extends Disposable {
 	private _menu: IMenu;
 	private _tabsMenu: IMenu;
 
+	private _contextKeyService: IContextKeyService;
+	private _commandService: ICommandService;
+
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -62,9 +66,13 @@ export class TerminalTabbedView extends Disposable {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IMenuService commandService: ICommandService
 	) {
 		super();
+
+		this._contextKeyService = contextKeyService;
+		this._commandService = commandService;
 
 		this._parentElement = parentElement;
 
@@ -292,12 +300,20 @@ export class TerminalTabbedView extends Disposable {
 		});
 	}
 
-	private _openTabsContextMenu(event: MouseEvent): void {
+	private async _openTabsContextMenu(event: MouseEvent): Promise<void> {
 		const standardEvent = new StandardMouseEvent(event);
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this._tabsMenu, undefined, actions);
+
+		const profiles = await this._terminalService.getAvailableProfiles().filter(p => this._terminalService.configHelper.checkIsProcessLaunchSafe(undefined, p));
+		const tabsMenu = this._tabsMenu;
+		for (const p of profiles) {
+			const action = new MenuItemAction({ id: p.profileName, title: p.profileName }, undefined, undefined, this._contextKeyService, this._commandService);
+			tabsMenu.getActions().push([p.profileName, [action]]);
+		}
+
+		const actionsDisposable = createAndFillInContextMenuActions(tabsMenu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
