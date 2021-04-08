@@ -115,6 +115,14 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 				});
 			},
 			open: (editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
+				if (!editor.resource) {
+					return;
+				}
+
+				const selectedContribution = this.getContributionPoint(editor.resource, typeof options?.override === 'string' ? options.override : undefined);
+				if (!selectedContribution) {
+					return;
+				}
 				return { override: this.doHandleEditorOpening(editor, options, group) };
 			}
 		}));
@@ -212,7 +220,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 				}
 			}
 		}
-		return this.editorService.openEditor(input, options, group);
+		return group.openEditor(input, options);
 	}
 
 	// @ts-ignore
