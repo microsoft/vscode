@@ -62,6 +62,7 @@ import { WorkspaceTrustRequestOptions, WorkspaceTrustStateChangeEvent } from 'vs
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
+import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -1037,6 +1038,8 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
+	$setInputBoxFocus(sourceControlHandle: number): void;
+	$showValidationMessage(sourceControlHandle: number, message: string, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 }
 
