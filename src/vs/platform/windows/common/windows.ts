@@ -242,15 +242,21 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	execPath: string;
 	backupPath?: string;
 
+	homeDir: string;
+	tmpDir: string;
+	userDataDir: string;
+
 	partsSplashPath: string;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
+
 	fullscreen?: boolean;
 	maximized?: boolean;
 	accessibilitySupport?: boolean;
+
 	perfMarks: PerformanceMark[];
 
 	filesToWait?: IPathsToWaitFor;

@@ -7,7 +7,7 @@ import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbe
 import { INativeWindowConfiguration, IOSConfiguration } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AbstractNativeEnvironmentService, INativeEnvironmentPaths } from 'vs/platform/environment/common/environmentService';
+import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -108,9 +108,8 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	constructor(
 		readonly configuration: INativeWorkbenchConfiguration,
-		paths: INativeEnvironmentPaths,
 		productService: IProductService
 	) {
-		super(configuration, paths, productService);
+		super(configuration, { homeDir: configuration.homeDir, tmpDir: configuration.tmpDir, userDataDir: configuration.userDataDir }, productService);
 	}
 }
