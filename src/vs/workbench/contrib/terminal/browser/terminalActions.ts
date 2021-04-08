@@ -1288,6 +1288,13 @@ export function registerTerminalActions() {
 		},
 		group: ContextMenuGroup.Create
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.NEW,
+			title: localize('workbench.action.terminal.new.short', "New Terminal")
+		},
+		group: ContextMenuGroup.Create
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1365,6 +1372,13 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalService).showProfileQuickPick('setDefault');
 		}
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
+			title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
+		},
+		group: ContextMenuGroup.Create
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1379,7 +1393,13 @@ export function registerTerminalActions() {
 			await accessor.get(IPreferencesService).openSettings(false, '@feature:terminal');
 		}
 	});
-
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
+			title: localize(configureTerminalSettingsTitle, 'Configure Terminal Settings')
+		},
+		group: ContextMenuGroup.Create
+	});
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerAction2(class extends Action2 {

@@ -10,7 +10,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import * as nls from 'vs/nls';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -24,6 +25,7 @@ import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions'
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalTabbedView extends Disposable {
@@ -37,6 +39,8 @@ export class TerminalTabbedView extends Disposable {
 	private _tabsWidget: TerminalTabsWidget;
 	private _findWidget: TerminalFindWidget;
 
+	private _plusButton: HTMLElement | undefined;
+
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
 
@@ -47,6 +51,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _cancelContextMenu: boolean = false;
 	private _menu: IMenu;
+	private _tabsMenu: IMenu;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -81,6 +86,8 @@ export class TerminalTabbedView extends Disposable {
 
 		this._menu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 
+		this._tabsMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
+
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
@@ -96,8 +103,12 @@ export class TerminalTabbedView extends Disposable {
 						maximumSize: Number.POSITIVE_INFINITY,
 						onDidChange: () => Disposable.None,
 					}, Sizing.Distribute, this._tabTreeIndex);
+					this._createButton();
 				} else {
 					this._splitView.removeView(this._tabTreeIndex);
+					if (this._plusButton) {
+						this._terminalTabTree.removeChild(this._plusButton);
+					}
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
@@ -126,11 +137,12 @@ export class TerminalTabbedView extends Disposable {
 		if (this._showTabs) {
 			this._splitView.addView({
 				element: this._terminalTabTree,
-				layout: width => this._tabsWidget.layout(this._height, width),
+				layout: width => this._tabsWidget.layout(this._height ? this._height - this._terminalTabTree.clientHeight : undefined, width),
 				minimumSize: 40,
 				maximumSize: Number.POSITIVE_INFINITY,
 				onDidChange: () => Disposable.None,
 			}, Sizing.Distribute, this._tabTreeIndex);
+			this._createButton();
 		}
 		this._splitView.addView({
 			element: this._terminalContainer,
@@ -144,6 +156,18 @@ export class TerminalTabbedView extends Disposable {
 	layout(width: number, height: number): void {
 		this._splitView.layout(width);
 		this._height = height;
+	}
+
+	private _createButton(): void {
+		const button = dom.$(ThemeIcon.asCSSSelector(newTerminalIcon), { tabindex: 0, role: 'button', title: nls.localize('addTerminal', "Create Terminal") });
+		button.id = 'terminal-tabs-plus-button';
+
+		this._register(dom.addDisposableListener(button, dom.EventType.CLICK, async e => {
+			dom.EventHelper.stop(e);
+			await this._openTabsContextMenu(e);
+		}));
+		this._terminalTabTree.appendChild(button);
+		this._plusButton = button;
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
@@ -259,6 +283,21 @@ export class TerminalTabbedView extends Disposable {
 
 		const actions: IAction[] = [];
 		const actionsDisposable = createAndFillInContextMenuActions(this._menu, undefined, actions);
+
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			getActionsContext: () => this._parentElement,
+			onHide: () => actionsDisposable.dispose()
+		});
+	}
+
+	private _openTabsContextMenu(event: MouseEvent): void {
+		const standardEvent = new StandardMouseEvent(event);
+		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+
+		const actions: IAction[] = [];
+		const actionsDisposable = createAndFillInContextMenuActions(this._tabsMenu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,

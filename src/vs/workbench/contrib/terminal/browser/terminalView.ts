@@ -265,3 +265,5 @@ function getProfileSelectOptionItems(terminalService: ITerminalService): ISelect
 	const detectedProfiles = terminalService.getAvailableProfiles();
 	return detectedProfiles?.map((shell: { profileName: string; }) => ({ text: 'New ' + shell.profileName } as ISelectOptionItem)) || [];
 }
+
+
