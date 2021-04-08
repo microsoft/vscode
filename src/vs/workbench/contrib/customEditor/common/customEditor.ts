@@ -44,6 +44,7 @@ export interface ICustomEditorService {
 	openWith(resource: URI, customEditorViewType: string, options?: ITextEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
+	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined
 }
 
 export interface ICustomEditorModelManager {

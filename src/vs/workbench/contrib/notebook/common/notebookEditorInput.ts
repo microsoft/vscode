@@ -15,6 +15,7 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
+import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -159,6 +160,8 @@ export class NotebookEditorInput extends EditorInput {
 		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
+
+		mark(this.resource, 'extensionActivated');
 
 		if (!this._editorModelReference) {
 			this._editorModelReference = await this._notebookModelResolverService.resolve(this.resource, this.viewType);

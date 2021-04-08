@@ -10,12 +10,15 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
@@ -23,7 +26,7 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/t
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { WebviewIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-browser/webviewIgnoreMenuShortcutsManager';
-import { rewriteVsCodeResourceUrls, WebviewResourceRequestManager } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
+import { rewriteVsCodeResourceUrls } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
@@ -43,13 +46,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 
-	private readonly _resourceRequestManager: WebviewResourceRequestManager;
-
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
-
-	private _isWebviewReadyForMessages = false;
-	private readonly _pendingMessages: Array<{ channel: string, data: any }> = [];
 
 	constructor(
 		id: string,
@@ -64,8 +62,21 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
+		@IFileService fileService: IFileService,
+		@IRequestService requestService: IRequestService,
+		@ITunnelService tunnelService: ITunnelService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
-		super(id, options, contentOptions, extension, _webviewThemeDataProvider, notificationService, _myLogService, telemetryService, environmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, {
+			notificationService,
+			logService: _myLogService,
+			telemetryService,
+			environmentService,
+			fileService,
+			requestService,
+			tunnelService,
+			remoteAuthorityResolverService
+		});
 
 		/* __GDPR__
 			"webview.createWebview" : {
@@ -81,18 +92,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		});
 
 		this._myLogService.debug(`Webview(${this.id}): init`);
-
-		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options));
-		this._resourceRequestManager.ensureReady()
-			.then(() => {
-				this._isWebviewReadyForMessages = true;
-
-				while (this._pendingMessages.length) {
-					const { channel, data } = this._pendingMessages.shift()!;
-					this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
-					this.element?.send(channel, data);
-				}
-			});
 
 		this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
 			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
@@ -162,7 +161,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// and not the `vscode-file` URI because preload scripts are loaded
 		// via node.js from the main side and only allow `file:` protocol
 		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html?platform=electron`;
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-origin=${encodeURIComponent(this.webviewResourceEndpoint)}`;
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -189,16 +188,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	public set contentOptions(options: WebviewContentOptions) {
 		this._myLogService.debug(`Webview(${this.id}): will set content options`);
-		this._resourceRequestManager.update(options);
 		super.contentOptions = options;
 	}
 
-	public set localResourcesRoot(resources: URI[]) {
-		this._resourceRequestManager.update({
-			...this.contentOptions,
-			localResourceRoots: resources,
-		});
-		super.localResourcesRoot = resources;
+	private get webviewResourceEndpoint(): string {
+		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
 	protected readonly extraContentOptions = {};
@@ -221,12 +215,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	protected async doPostMessage(channel: string, data?: any): Promise<void> {
-		this._myLogService.debug(`Webview(${this.id}): will post message on '${channel}'`);
-		if (!this._isWebviewReadyForMessages) {
-			this._pendingMessages.push({ channel, data });
-			return;
-		}
-
 		this._myLogService.debug(`Webview(${this.id}): did post message on '${channel}'`);
 		this.element?.send(channel, data);
 	}

@@ -14,7 +14,7 @@ import { EDITOR_BOTTOM_PADDING, EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR } from '
 import { EditorTopPaddingChangeEvent, getEditorTopPadding, getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -138,7 +138,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbers',
-			title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -146,8 +146,11 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 				order: 0
 			}],
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			f1: false,
-			toggled: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off')
+			f1: true,
+			toggled: {
+				condition: ContextKeyExpr.notEquals('config.notebook.lineNumbers', 'off'),
+				title: { value: localize('notebook.showLineNumbers', "Show Notebook Line Numbers"), original: 'Show Notebook Line Numbers' },
+			}
 		});
 	}
 
@@ -160,13 +163,6 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 		} else {
 			configurationService.updateValue('notebook.lineNumbers', 'on');
 		}
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: 'notebook.toggleLineNumbers',
-		title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' }
 	}
 });
 

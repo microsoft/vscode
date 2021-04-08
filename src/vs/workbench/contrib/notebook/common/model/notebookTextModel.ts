@@ -10,13 +10,14 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { hash } from 'vs/base/common/hash';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModel } from 'vs/editor/common/model';
 
 
 class StackOperation implements IWorkspaceUndoRedoElement {
@@ -224,29 +225,30 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		cells: ICellDto2[],
 		metadata: NotebookDocumentMetadata,
 		options: TransientOptions,
-		@IUndoRedoService private _undoService: IUndoRedoService,
-		@ITextModelService private _textModelService: ITextModelService,
+		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IModelService _modelService: IModelService,
+		@IModeService private readonly _modeService: IModeService,
 	) {
 		super();
 		this.transientOptions = options;
 		this.metadata = metadata;
 		this._initialize(cells);
 
-		this._register(_modelService.onModelAdded(e => {
-			if (e.uri.scheme === Schemas.vscodeNotebookCell) {
-				const cellUri = CellUri.parse(e.uri);
+		const maybeUpdateCellTextModel = (textModel: ITextModel) => {
+			if (textModel.uri.scheme === Schemas.vscodeNotebookCell) {
+				const cellUri = CellUri.parse(textModel.uri);
 				if (cellUri && isEqual(cellUri.notebook, this.uri)) {
 					const cellIdx = this._getCellIndexByHandle(cellUri.handle);
 					if (cellIdx >= 0) {
 						const cell = this.cells[cellIdx];
 						if (cell) {
-							cell.textModel = e;
+							cell.textModel = textModel;
 						}
 					}
 				}
 			}
-		}));
+		};
+		this._register(_modelService.onModelAdded(e => maybeUpdateCellTextModel(e)));
 
 		this._eventEmitter = new DelayedEmitter(
 			this._onDidChangeContent,
@@ -271,7 +273,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._textModelService);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modeService);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -431,7 +433,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, this.transientOptions,
-				this._textModelService
+				this._modeService
 			);
 			const dirtyStateListener = cell.onDidChangeContent(() => {
 				this._increaseVersionId();

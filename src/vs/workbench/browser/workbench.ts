@@ -58,6 +58,9 @@ export class Workbench extends Layout {
 	) {
 		super(parent);
 
+		// Perf: measure workbench startup time
+		mark('code/willStartWorkbench');
+
 		this.registerErrorHandler(logService);
 	}
 
@@ -424,7 +427,7 @@ export class Workbench extends Layout {
 				this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
 			}, 2500);
 
-			// Telemetry: startup metrics
+			// Perf: signal workbench started
 			mark('code/didStartWorkbench');
 
 			// Perf reporting (devtools)

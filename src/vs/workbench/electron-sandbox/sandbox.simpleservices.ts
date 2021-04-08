@@ -33,12 +33,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 //#region Environment
-
-export const simpleHomeDir = URI.file(isWindows ? '\\sandbox-home-dir' : '/sandbox-home-dir');
-export const simpleTmpDir = URI.file(isWindows ? '\\sandbox-tmp-dir' : '/sandbox-tmp-dir');
-export const simpleUserDataDir = URI.file(isWindows ? '\\sandbox-user-data-dir' : '/sandbox-user-data-dir');
 
 //#region Workspace
 
@@ -53,21 +50,23 @@ class SimpleFileSystemProvider extends InMemoryFileSystemProvider { }
 
 export const simpleFileSystemProvider = new SimpleFileSystemProvider();
 
-simpleFileSystemProvider.mkdir(simpleHomeDir);
-simpleFileSystemProvider.mkdir(simpleTmpDir);
-simpleFileSystemProvider.mkdir(simpleUserDataDir);
-simpleFileSystemProvider.mkdir(joinPath(simpleUserDataDir, 'User'));
-simpleFileSystemProvider.writeFile(joinPath(simpleUserDataDir, 'User', 'settings.json'), VSBuffer.fromString(JSON.stringify({
-	'window.zoomLevel': 1,
-	'workbench.colorTheme': 'Default Light+',
+export async function initFileSystem(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService): Promise<void> {
+	await fileService.createFolder(environmentService.userHome);
+	await fileService.createFolder(environmentService.tmpDir);
 
-}, undefined, '\t')).buffer, { create: true, overwrite: true, unlock: false });
-simpleFileSystemProvider.writeFile(joinPath(simpleUserDataDir, 'User', 'keybindings.json'), VSBuffer.fromString(JSON.stringify([
-	{
-		'key': 'f12',
-		'command': 'workbench.action.toggleDevTools'
-	}
-], undefined, '\t')).buffer, { create: true, overwrite: true, unlock: false });
+	const userData = URI.file(environmentService.userDataPath);
+	await fileService.writeFile(joinPath(userData, 'User', 'settings.json'), VSBuffer.fromString(JSON.stringify({
+		'window.zoomLevel': 1,
+		'workbench.colorTheme': 'Default Light+',
+	}, undefined, '\t')));
+
+	await fileService.writeFile(joinPath(userData, 'User', 'keybindings.json'), VSBuffer.fromString(JSON.stringify([
+		{
+			'key': 'f12',
+			'command': 'workbench.action.toggleDevTools'
+		}
+	], undefined, '\t')));
+}
 
 function createWorkspaceFile(parent: string, name: string, content: string = ''): void {
 	simpleFileSystemProvider.writeFile(joinPath(simpleWorkspaceDir, parent, name), VSBuffer.fromString(content).buffer, { create: true, overwrite: true, unlock: false });

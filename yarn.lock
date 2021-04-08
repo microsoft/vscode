@@ -3048,10 +3048,10 @@ electron-to-chromium@^1.3.634:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.3.642.tgz#8b884f50296c2ae2a9997f024d0e3e57facc2b94"
   integrity sha512-cev+jOrz/Zm1i+Yh334Hed6lQVOkkemk2wRozfMF4MtTR7pxf3r3L5Rbd7uX1zMcEqVJ7alJBnJL7+JffkC6FQ==
 
-electron@11.4.1:
-  version "11.4.1"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-11.4.1.tgz#9598530756221c20d8efec7746dd449f3933ee60"
-  integrity sha512-FaH15/yN5vSkKk4mieXemEl1AdQ9P+tsBVsgS+uTVa1agnHDcxMxyoPmtme8NsyLCgobVWHIwNtKD1jSADmzXA==
+electron@11.4.2:
+  version "11.4.2"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-11.4.2.tgz#02005d9f5d77ea6485efeffdb5c5433c769ddda4"
+  integrity sha512-P0PRLH7cXp8ZdpA9yVPe7jRVM+QeiAtsadqmqS6XY3AYrsH+7bJnVrNuw6p/fcmp+b/UxWaCexobqQpyFJ5Qkw==
   dependencies:
     "@electron/get" "^1.0.1"
     "@types/node" "^12.0.12"
@@ -9648,10 +9648,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.3.0-dev.20210330:
-  version "4.3.0-dev.20210330"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210330.tgz#d8ac321a4083b30159b47c9aa21d9026d66bc3c5"
-  integrity sha512-QvcevtZWd2yflF5499EUAxao78bIHRzvzoZdPZKB0V+nh5RkTPQzrQXPxd76pv/cIaumqUhvlB+SEI8KB2COIw==
+typescript@^4.3.0-dev.20210407:
+  version "4.3.0-dev.20210407"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.3.0-dev.20210407.tgz#9a64dab0cd55c3baaee9a08d5eba5b6d2bee586c"
+  integrity sha512-zblU754+4x72OX0sWijDz/XmW6K4rgJ5DDYxLfrySU8QJWXR4i6VRgkBP03Jq1EjUfOR6cYsRXl5/wU0LNrhpA==
 
 typical@^4.0.0:
   version "4.0.0"

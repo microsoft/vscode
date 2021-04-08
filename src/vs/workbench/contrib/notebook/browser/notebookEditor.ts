@@ -28,6 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { NotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
+import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -131,7 +132,8 @@ export class NotebookEditor extends EditorPane {
 	}
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const startTime = Date.now();
+		clearMarks(input.resource);
+		mark(input.resource, 'startTime');
 		const group = this.group!;
 
 		this._saveEditorViewState(this.input);
@@ -154,9 +156,9 @@ export class NotebookEditor extends EditorPane {
 		// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
 		// so that others synchronously receive a notebook editor with the correct widget being set
 		await super.setInput(input, options, context, token);
-
 		const model = await input.resolve();
-		const inputResolveTime = Date.now() - startTime;
+		mark(input.resource, 'inputLoaded');
+
 		// Check for cancellation
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -179,6 +181,7 @@ export class NotebookEditor extends EditorPane {
 		}
 
 		await this._notebookService.resolveNotebookEditor(model.viewType, model.resource, this._widget.value!.getId());
+		mark(input.resource, 'webviewCommLoaded');
 
 		const viewState = this._loadNotebookEditorViewState(input);
 
@@ -191,29 +194,60 @@ export class NotebookEditor extends EditorPane {
 			containsGroup: (group) => this.group?.id === group.group.id
 		}));
 
+		mark(input.resource, 'editorLoaded');
+
 		type WorkbenchNotebookOpenClassification = {
 			scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 			ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 			viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			loadInput: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			loadEditor: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			extensionActivated: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			inputLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			webviewCommLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			customMarkdownLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			editorLoaded: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 		};
 
 		type WorkbenchNotebookOpenEvent = {
 			scheme: string;
 			ext: string;
 			viewType: string;
-			loadInput: number;
-			loadEditor: number;
+			extensionActivated: number;
+			inputLoaded: number;
+			webviewCommLoaded: number;
+			customMarkdownLoaded: number;
+			editorLoaded: number;
 		};
 
-		this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
-			scheme: model.notebook.uri.scheme,
-			ext: extname(model.notebook.uri),
-			viewType: model.notebook.viewType,
-			loadInput: inputResolveTime,
-			loadEditor: Date.now() - startTime,
-		});
+		const perfMarks = getAndClearMarks(input.resource);
+
+		if (perfMarks) {
+			const startTime = perfMarks['startTime'];
+			const extensionActivated = perfMarks['extensionActivated'];
+			const inputLoaded = perfMarks['inputLoaded'];
+			const webviewCommLoaded = perfMarks['webviewCommLoaded'];
+			const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
+			const editorLoaded = perfMarks['editorLoaded'];
+
+			if (
+				startTime !== undefined
+				&& extensionActivated !== undefined
+				&& inputLoaded !== undefined
+				&& webviewCommLoaded !== undefined
+				&& customMarkdownLoaded !== undefined
+				&& editorLoaded !== undefined
+			) {
+				this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
+					scheme: model.notebook.uri.scheme,
+					ext: extname(model.notebook.uri),
+					viewType: model.notebook.viewType,
+					extensionActivated: extensionActivated - startTime,
+					inputLoaded: inputLoaded - startTime,
+					webviewCommLoaded: webviewCommLoaded - startTime,
+					customMarkdownLoaded: customMarkdownLoaded - startTime,
+					editorLoaded: editorLoaded - startTime
+				});
+			}
+		}
 	}
 
 	clearInput(): void {

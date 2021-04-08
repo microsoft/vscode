@@ -239,7 +239,7 @@ export class IssueMainService implements ICommonIssueService {
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
 				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
-				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('issueReporter', "Issue Reporter"), data.zoomLevel);
+				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, data.styles.backgroundColor, localize('processExplorer', "Process Explorer"), data.zoomLevel);
 
 				// Store into config object URL
 				processExplorerWindowConfigUrl.update({
