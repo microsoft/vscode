@@ -16,7 +16,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 	private readonly _localStore = this._register(new DisposableStore());
 	private _cellStateListeners: IDisposable[] = [];
-	private _logging: boolean = false;
+	private _logging: boolean = true;
 
 	constructor(private readonly _notebookEditor: INotebookEditor) {
 		super();
@@ -42,9 +42,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 	private _log(cell: ICellViewModel, e: any) {
 		if (this._logging) {
 			const oldHeight = this._notebookEditor.getViewHeight(cell);
-			if (oldHeight !== cell.layoutInfo.totalHeight) {
-				console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`);
-			}
+			console.log(`cell#${cell.handle}`, e, `${oldHeight} -> ${cell.layoutInfo.totalHeight}`);
 		}
 	}
 
@@ -105,5 +103,29 @@ registerAction2(class extends Action2 {
 
 		const controller = editor.getContribution<TroubleshootController>(TroubleshootController.id);
 		controller?.toggleLogging();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'notebook.inspectLayout',
+			title: 'Inspect Notebook Layout',
+			category: CATEGORIES.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+
+		if (!editor || !editor.viewModel) {
+			return;
+		}
+
+		editor.viewModel.viewCells.forEach(cell => {
+			console.log(`cell#${cell.handle}`, cell.layoutInfo);
+		});
 	}
 });

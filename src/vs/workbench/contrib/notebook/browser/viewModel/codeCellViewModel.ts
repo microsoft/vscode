@@ -250,7 +250,20 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private estimateEditorHeight(lineHeight: number | undefined = 20): number {
-		return this.lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING;
+		let hasScrolling = false;
+		if (this.layoutInfo.fontInfo) {
+			for (let i = 0; i < this.lineCount; i++) {
+				const max = this.textBuffer.getLineLastNonWhitespaceColumn(i + 1);
+				const estimatedWidth = max * (this.layoutInfo.fontInfo.typicalHalfwidthCharacterWidth + this.layoutInfo.fontInfo.letterSpacing);
+				if (estimatedWidth > this.layoutInfo.editorWidth) {
+					hasScrolling = true;
+					break;
+				}
+			}
+		}
+
+		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
+		return this.lineCount * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING + verticalScrollbarHeight;
 	}
 
 	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number, outputShowMoreContainerHeight: number): number {
