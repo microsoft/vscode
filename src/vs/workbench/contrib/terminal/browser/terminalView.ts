@@ -35,7 +35,6 @@ export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
-	// private _findWidget: TerminalFindWidget;
 	private _tabsViewWrapper: HTMLElement | undefined;
 	private _terminalTabbedView!: TerminalTabbedView;
 	private _tabsView: TabsView | undefined;
@@ -86,17 +85,13 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
-		// this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
 		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
-		// this._parentDomElement.appendChild(
-		// this._parentDomElement.appendChild(this._findWidget.getDomNode()));
 
-		// this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
@@ -109,7 +104,6 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}));
-		// this._updateTheme();
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -125,7 +119,6 @@ export class TerminalViewPane extends ViewPane {
 					}
 				}
 
-				// this._updateTheme();
 				if (hadTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
 				} else {
