@@ -38,7 +38,7 @@ async function main() {
 			'Credits.rtf',
 			'CodeResources',
 			'fsevents.node',
-			'info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
+			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
 			'.npmrc'
 		],
 		outAppPath,
