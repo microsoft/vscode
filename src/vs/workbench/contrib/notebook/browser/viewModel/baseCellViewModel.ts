@@ -17,7 +17,7 @@ import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChang
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -124,7 +124,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		public id: string,
-		private readonly _configurationService: IConfigurationService
+		private readonly _configurationService: IConfigurationService,
+		private readonly _modelService: ITextModelService,
 	) {
 		super();
 
@@ -148,7 +149,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		return showCellStatusBar ? CELL_STATUSBAR_HEIGHT : 0;
 	}
 
-	// abstract resolveTextModel(): Promise<model.ITextModel>;
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
@@ -210,7 +210,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this.model.textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -436,7 +435,23 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.textBuffer;
 	}
 
-	abstract resolveTextModel(): Promise<model.ITextModel>;
+	/**
+	 * Text model is used for editing.
+	 */
+	async resolveTextModel(): Promise<model.ITextModel> {
+		if (!this._textModelRef || !this.textModel) {
+			this._textModelRef = await this._modelService.createModelReference(this.uri);
+			if (!this._textModelRef) {
+				throw new Error(`Cannot resolve text model for ${this.uri}`);
+			}
+
+			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+		}
+
+		return this.textModel!;
+	}
+
+	protected abstract onDidChangeTextModelContent(): void;
 
 	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
