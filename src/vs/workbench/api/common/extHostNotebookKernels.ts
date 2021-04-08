@@ -113,9 +113,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.supportsInterrupt = Boolean(value);
 				_update();
 			},
-			createNotebookCellExecutionTask(uri, index) {
-				return that._extHostNotebook.createNotebookCellExecution(uri, index, data.id)!;
-			},
 			dispose: () => {
 				isDisposed = true;
 				this._kernelData.delete(handle);
@@ -150,12 +147,15 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			const cells = document.notebookDocument.getCells(NotebookCellRange.to(range));
 			for (let cell of cells) {
 				const exec = this._extHostNotebook.createNotebookCellExecution(document.uri, cell.index, obj.id);
-				// todo@jrieken there should always be an exec-object
 				if (exec) {
 					execs.push(exec);
+				} else {
+					// todo@jrieken there should always be an exec-object
+					console.warn('could NOT create notebook cell execution task for: ' + cell.document.uri);
 				}
 			}
 		}
+
 		try {
 			obj.executeHandler(execs);
 		} catch (err) {

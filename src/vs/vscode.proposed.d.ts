@@ -1489,9 +1489,6 @@ declare module 'vscode' {
 		// optional kernel interrupt command
 		interruptHandler?: (notebook: NotebookDocument) => void
 
-		// // kernels (and _only_ they) can create executions
-		createNotebookCellExecutionTask(uri: Uri, index: number): NotebookCellExecutionTask;
-
 		// // kernels can establish IPC channels to (visible) notebook editors
 		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
 
