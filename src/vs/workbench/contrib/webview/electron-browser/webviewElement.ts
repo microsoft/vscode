@@ -26,7 +26,6 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/t
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { WebviewIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-browser/webviewIgnoreMenuShortcutsManager';
-import { rewriteVsCodeResourceUrls } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
@@ -191,17 +190,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		super.contentOptions = options;
 	}
 
-	private get webviewResourceEndpoint(): string {
+	protected override get webviewResourceEndpoint(): string {
 		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
 	protected readonly extraContentOptions = {};
-
-	public override  set html(value: string) {
-		this._myLogService.debug(`Webview(${this.id}): will set html`);
-
-		super.html = rewriteVsCodeResourceUrls(this.id, value);
-	}
 
 	public mountTo(parent: HTMLElement) {
 		if (!this.element) {

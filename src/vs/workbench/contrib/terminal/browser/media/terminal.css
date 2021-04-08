@@ -200,3 +200,7 @@
 #terminal-tabs-plus-button {
 	padding-left: 20px;
 }
+
+.monaco-workbench .tabs-widget .codicon {
+	vertical-align: text-bottom;
+}

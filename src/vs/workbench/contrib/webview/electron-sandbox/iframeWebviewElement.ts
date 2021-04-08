@@ -17,7 +17,6 @@ import { WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/bas
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { rewriteVsCodeResourceUrls } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -79,17 +78,8 @@ export class ElectronIframeWebview extends IFrameWebview {
 		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
-	protected override get extraContentOptions() {
-		return {
-			endpoint: this.webviewContentEndpoint,
-		};
-	}
-
 	protected override async doPostMessage(channel: string, data?: any): Promise<void> {
 		this.element?.contentWindow!.postMessage({ channel, args: data }, '*');
 	}
 
-	protected override preprocessHtml(value: string): string {
-		return rewriteVsCodeResourceUrls(this.id, value);
-	}
 }
