@@ -18,6 +18,10 @@ export function mark(resource: URI, name: PerfName): void {
 		perfMark[name] = Date.now();
 		perfMarks.set(key, perfMark);
 	} else {
+		if (perfMarks.get(key)![name]) {
+			console.error(`Skipping overwrite of notebook perf value: ${name}`);
+			return;
+		}
 		perfMarks.get(key)![name] = Date.now();
 	}
 }
