@@ -1108,9 +1108,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookCellExecution(uri, index, kernelId);
 			},
-			createNotebookKernel(id, label, selector, executeCommand) {
+			createNotebookKernel(options) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebookKernels.createKernel(extension, id, label, selector, executeCommand);
+				return extHostNotebookKernels.createKernel(extension, options);
 			}
 		};
 

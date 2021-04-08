@@ -7,7 +7,6 @@ import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as vscode from 'vscode';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -31,7 +30,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createKernel(extension: IExtensionDescription, id: string, label: string, selector: NotebookSelector, executeHandler: ExecuteHandler): vscode.NotebookKernel2 {
+	createKernel(extension: IExtensionDescription, options: vscode.NotebookKernelOptions): vscode.NotebookKernel2 {
 
 		const handle = this._handlePool++;
 		const that = this;
@@ -40,16 +39,16 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const commandDisposables = new DisposableStore();
 
 		const emitter = new Emitter<boolean>();
-		this._kernelData.set(handle, { id, executeHandler, selected: false, onDidChangeSelection: emitter });
+		this._kernelData.set(handle, { id: options.id, executeHandler: options.executeHandler, selected: false, onDidChangeSelection: emitter });
 
 		const data: INotebookKernelDto2 = {
-			id,
-			selector,
+			id: options.id,
+			selector: options.selector,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
-			label,
-			supportedLanguages: [],
-			supportsInterrupt: false
+			label: options.label,
+			supportedLanguages: options.supportedLanguages,
+			supportsInterrupt: Boolean(options.interruptHandler)
 		};
 		this._proxy.$addKernel(handle, data);
 
@@ -103,7 +102,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get executeHandler() {
-				return executeHandler;
+				return that._kernelData.get(handle)!.executeHandler;
 			},
 			get interruptHandler() {
 				return that._kernelData.get(handle)!.interruptHandler;

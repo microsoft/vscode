@@ -1470,9 +1470,13 @@ declare module 'vscode' {
 		// select notebook of a type and/or by file-pattern
 		readonly selector: NotebookSelector;
 
+		// selection is tricky/bogous because a kernel can be selected for
+		// different notebook documents. A handler-approach might be the better
+		// fit here, e.g:
+		// selectionHandler?: (notebook: NotebookDocument, selected: boolean) => void;
+
 		// is this kernel selected
 		readonly selected: boolean;
-
 		// fired when kernel is selected/unselected
 		readonly onDidChangeSelection: Event<boolean>;
 
@@ -1489,15 +1493,26 @@ declare module 'vscode' {
 		// optional kernel interrupt command
 		interruptHandler?: (notebook: NotebookDocument) => void
 
-		// // kernels can establish IPC channels to (visible) notebook editors
+		// kernels can establish IPC channels to (visible) notebook editors
 		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
 
 		// remove kernel
 		dispose(): void;
 	}
 
+	export interface NotebookKernelOptions {
+		id: string;
+		label: string;
+		description?: string;
+		selector: NotebookSelector;
+		supportedLanguages: string[];
+		hasExecutionOrder?: boolean;
+		executeHandler: (executions: NotebookCellExecutionTask[]) => void;
+		interruptHandler?: (notebook: NotebookDocument) => void
+	}
+
 	export namespace notebook {
-		export function createNotebookKernel(id: string, label: string, selector: NotebookSelector, executeHandler: (executions: NotebookCellExecutionTask[]) => void): NotebookKernel2;
+		export function createNotebookKernel(options: NotebookKernelOptions): NotebookKernel2;
 	}
 
 	//#endregion
