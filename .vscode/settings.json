@@ -84,6 +84,5 @@
 		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true,
 	},
-	"typescript.tsc.autoDetect": "off",
-	"notebook.experimental.useMarkdownRenderer": true
+	"typescript.tsc.autoDetect": "off"
 }
