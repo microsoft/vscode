@@ -149,7 +149,6 @@ export class TerminalTabbedView extends Disposable {
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None
 		}, Sizing.Distribute, this._terminalContainerIndex);
-
 	}
 
 	layout(width: number, height: number): void {
