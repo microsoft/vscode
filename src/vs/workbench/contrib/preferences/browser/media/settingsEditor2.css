@@ -51,12 +51,17 @@
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget {
-	margin: 4px 0px;
-	padding: 0px 8px;
-	border-radius: 2px;
+	display: flex;
+	align-items: center;
 	position: absolute;
-	right: 0px;
 	top: 0;
+	right: 0;
+	height: 100%;
+	width: 30px;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
+	padding: 2px;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
@@ -194,8 +199,6 @@
 .settings-editor > .settings-body .settings-tree-container .setting-toolbar-container > .monaco-toolbar .codicon {
 	opacity: 0;
 	transition: opacity .3s;
-	width: 22px;
-	height: 22px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
