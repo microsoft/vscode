@@ -13,7 +13,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 export class NotebookKernelService implements INotebookKernelService {
 
@@ -106,7 +105,7 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 						extensionLocation: kernel.localResourceRoot,
 						supportedLanguages: kernel.supportedLanguages,
 						implementsInterrupt: kernel.implementsInterrupt,
-						extension: nullExtensionDescription.identifier, // todo@jrieken
+						extension: kernel.extensionId,
 						async resolve() { },
 						async executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.executeCells(uri, ranges); },
 						async cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.cancelCells(uri, ranges); },

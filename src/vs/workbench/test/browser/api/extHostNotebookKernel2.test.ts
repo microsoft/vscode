@@ -10,6 +10,7 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 suite('NotebookKernel', function () {
 
@@ -59,7 +60,7 @@ suite('NotebookKernel', function () {
 
 		let [first] = kernelData.values();
 		assert.strictEqual(first.id, 'foo');
-		assert.strictEqual(first.extensionName, nullExtensionDescription.name);
+		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
 		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.selector, '*');
 

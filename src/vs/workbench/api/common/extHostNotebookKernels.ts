@@ -46,7 +46,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const data: INotebookKernelDto2 = {
 			id,
 			selector,
-			extensionName: extension.displayName ?? extension.name,
+			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label,
 			supportedLanguages: [],

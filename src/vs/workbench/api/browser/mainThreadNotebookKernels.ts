@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel2, INotebookKernel2ChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -19,11 +20,12 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 
 	readonly id: string;
 	readonly selector: NotebookSelector;
-	readonly detail: string;
+	readonly extensionId: ExtensionIdentifier;
 
 	implementsInterrupt: boolean;
 	label: string;
 	description?: string;
+	detail?: string;
 	isPreferred?: boolean;
 	supportedLanguages: string[];
 	hasExecutionOrder: boolean;
@@ -33,7 +35,8 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	constructor(data: INotebookKernelDto2) {
 		this.id = data.id;
 		this.selector = data.selector;
-		this.detail = data.extensionName;
+		this.extensionId = data.extensionId;
+
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
 		this.description = data.description;

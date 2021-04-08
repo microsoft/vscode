@@ -902,7 +902,7 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 export interface INotebookKernelDto2 {
 	id: string;
 	selector: NotebookSelector;
-	extensionName: string;
+	extensionId: ExtensionIdentifier;
 	extensionLocation: UriComponents;
 	label: string;
 	description?: string;

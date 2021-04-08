@@ -6,6 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICellRange, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
@@ -23,6 +24,7 @@ export interface INotebookKernel2 {
 
 	readonly id: string;
 	readonly selector: NotebookSelector
+	readonly extensionId: ExtensionIdentifier;
 
 	readonly onDidChange: Event<INotebookKernel2ChangeEvent>;
 
