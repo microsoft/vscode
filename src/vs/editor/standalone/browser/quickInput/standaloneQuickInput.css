@@ -21,3 +21,20 @@
 .hc-black .quick-input-widget .monaco-highlighted-label .highlight {
 	color: #F38518;
 }
+
+.monaco-keybinding > .monaco-keybinding-key {
+	background-color: rgba(221, 221, 221, 0.4);
+	border-bottom-color: rgba(187, 187, 187, 0.4);
+	border-color: rgba(204, 204, 204, 0.4);
+	box-shadow: inset 0 -1px 0 rgba(187, 187, 187, 0.4);
+	color: #555;
+}
+
+.hc-black .monaco-keybinding > .monaco-keybinding-key,
+.vs-dark .monaco-keybinding > .monaco-keybinding-key {
+	background-color: rgba(128, 128, 128, 0.17);
+	border-bottom-color: rgba(68, 68, 68, 0.6);
+	border-color: rgba(51, 51, 51, 0.6);
+	box-shadow: inset 0 -1px 0 rgba(68, 68, 68, 0.6);
+	color: #ccc;
+}

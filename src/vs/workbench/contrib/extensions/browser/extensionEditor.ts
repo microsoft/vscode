@@ -69,6 +69,7 @@ import { insane } from 'vs/base/common/insane/insane';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	return insane(documentContent, {
@@ -201,6 +202,7 @@ export class ExtensionEditor extends EditorPane {
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
+	private readonly keybindingLabelStylers = this.contentDisposables.add(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
 	private editorLoadComplete: boolean = false;
 
@@ -1427,9 +1429,12 @@ export class ExtensionEditor extends EditorPane {
 			return false;
 		}
 
+		this.keybindingLabelStylers.clear();
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding);
+			const kbl = new KeybindingLabel(element, OS);
+			kbl.set(keybinding);
+			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 

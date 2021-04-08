@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./keybindingLabel';
-import { equals, mixin } from 'vs/base/common/objects';
+import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IThemable } from 'vs/base/common/styler';
-import { Color, RGBA } from 'vs/base/common/color';
+import { Color } from 'vs/base/common/color';
 
 const $ = dom.$;
 
@@ -40,14 +40,6 @@ export interface IKeybindingLabelStyles {
 	keybindingLabelShadow?: Color;
 }
 
-const defaultOpts: Required<IKeybindingLabelStyles> = {
-	keybindingLabelBackground: new Color(new RGBA(221, 221, 221, 0.4)),
-	keybindingLabelForeground: Color.fromHex('#555555'),
-	keybindingLabelBorder: new Color(new RGBA(204, 204, 204, 0.4)),
-	keybindingLabelBottomBorder: new Color(new RGBA(187, 187, 187, 0.4)),
-	keybindingLabelShadow: new Color(new RGBA(187, 187, 187, 0.4))
-};
-
 export class KeybindingLabel implements IThemable {
 
 	private domNode: HTMLElement;
@@ -67,7 +59,6 @@ export class KeybindingLabel implements IThemable {
 
 	constructor(container: HTMLElement, private os: OperatingSystem, options?: KeybindingLabelOptions) {
 		this.options = options || Object.create(null);
-		mixin(this.options, defaultOpts, false);
 
 		this.labelBackground = this.options.keybindingLabelBackground;
 		this.labelForeground = this.options.keybindingLabelForeground;
@@ -171,20 +162,24 @@ export class KeybindingLabel implements IThemable {
 
 	private applyStyles() {
 		if (this.element) {
-			const background = this.labelBackground?.toString() ?? defaultOpts.keybindingLabelBackground.toString();
-			const foreground = this.labelForeground?.toString() ?? defaultOpts.keybindingLabelForeground.toString();
-			const border = this.labelBorder?.toString() ?? defaultOpts.keybindingLabelBorder.toString();
-			const bottomBorder = this.labelBottomBorder?.toString() ?? defaultOpts.keybindingLabelBottomBorder.toString();
-			const shadow = this.labelShadow?.toString() ?? defaultOpts.keybindingLabelShadow.toString();
-
 			for (const keyElement of this.keyElements) {
-				keyElement.style.backgroundColor = background;
-				keyElement.style.borderColor = border;
-				keyElement.style.borderBottomColor = bottomBorder;
-				keyElement.style.boxShadow = `inset 0 -1px 0 ${shadow}`;
+				if (this.labelBackground) {
+					keyElement.style.backgroundColor = this.labelBackground?.toString();
+				}
+				if (this.labelBorder) {
+					keyElement.style.borderColor = this.labelBorder.toString();
+				}
+				if (this.labelBottomBorder) {
+					keyElement.style.borderBottomColor = this.labelBottomBorder.toString();
+				}
+				if (this.labelShadow) {
+					keyElement.style.boxShadow = `inset 0 -1px 0 ${this.labelShadow}`;
+				}
 			}
 
-			this.element.style.color = foreground;
+			if (this.labelForeground) {
+				this.element.style.color = this.labelForeground.toString();
+			}
 		}
 	}
 

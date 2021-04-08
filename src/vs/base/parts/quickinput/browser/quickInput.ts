@@ -32,6 +32,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { isString } from 'vs/base/common/types';
+import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -57,6 +58,7 @@ export interface IQuickInputStyles {
 	countBadge: ICountBadgetyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
+	keybindingLabels: IKeybindingLabelStyles;
 	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
 }
 
@@ -1733,6 +1735,26 @@ export class QuickInputController extends Disposable {
 			if (this.styles.list.pickerGroupForeground) {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
+
+			content.push('.monaco-keybinding > .monaco-keybinding-key {');
+			if (this.styles.keybindingLabels.keybindingLabelBackground) {
+				content.push(`background-color: ${this.styles.keybindingLabels.keybindingLabelBackground};`);
+			}
+			if (this.styles.keybindingLabels.keybindingLabelBottomBorder) {
+				content.push(`border-bottom-color: ${this.styles.keybindingLabels.keybindingLabelBottomBorder};`);
+			}
+			if (this.styles.keybindingLabels.keybindingLabelBorder) {
+				// This is the only one that needs !important
+				content.push(`border-color: ${this.styles.keybindingLabels.keybindingLabelBorder} !important;`);
+			}
+			if (this.styles.keybindingLabels.keybindingLabelShadow) {
+				content.push(`box-shadow: inset 0 -1px 0 ${this.styles.keybindingLabels.keybindingLabelShadow};`);
+			}
+			if (this.styles.keybindingLabels.keybindingLabelForeground) {
+				content.push(`color: ${this.styles.keybindingLabels.keybindingLabelForeground};`);
+			}
+			content.push('}');
+
 			const newStyles = content.join('\n');
 			if (newStyles !== this.ui.styleSheet.textContent) {
 				this.ui.styleSheet.textContent = newStyles;
