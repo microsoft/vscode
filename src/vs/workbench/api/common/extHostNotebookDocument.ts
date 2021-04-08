@@ -160,7 +160,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		super();
 	}
 
-	dispose() {
+	override dispose() {
 		this._disposed = true;
 		super.dispose();
 		dispose(this._cellDisposableMapping.values());

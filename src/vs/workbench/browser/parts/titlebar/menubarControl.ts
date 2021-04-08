@@ -740,7 +740,7 @@ export class CustomMenubarControl extends MenubarControl {
 		};
 	}
 
-	protected onDidChangeWindowFocus(hasFocus: boolean): void {
+	protected override onDidChangeWindowFocus(hasFocus: boolean): void {
 		if (!this.visible) {
 			return;
 		}
@@ -759,7 +759,7 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
-	protected onUpdateStateChange(): void {
+	protected override onUpdateStateChange(): void {
 		if (!this.visible) {
 			return;
 		}
@@ -767,7 +767,7 @@ export class CustomMenubarControl extends MenubarControl {
 		super.onUpdateStateChange();
 	}
 
-	protected onDidChangeRecentlyOpened(): void {
+	protected override onDidChangeRecentlyOpened(): void {
 		if (!this.visible) {
 			return;
 		}
@@ -775,7 +775,7 @@ export class CustomMenubarControl extends MenubarControl {
 		super.onDidChangeRecentlyOpened();
 	}
 
-	protected onUpdateKeybindings(): void {
+	protected override onUpdateKeybindings(): void {
 		if (!this.visible) {
 			return;
 		}
@@ -783,7 +783,7 @@ export class CustomMenubarControl extends MenubarControl {
 		super.onUpdateKeybindings();
 	}
 
-	protected registerListeners(): void {
+	protected override registerListeners(): void {
 		super.registerListeners();
 
 		this._register(addDisposableListener(window, EventType.RESIZE, () => {

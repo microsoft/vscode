@@ -23,7 +23,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		super();
 	}
 
-	async readText(type?: string): Promise<string> {
+	async override readText(type?: string): Promise<string> {
 		if (type) {
 			return super.readText(type);
 		}

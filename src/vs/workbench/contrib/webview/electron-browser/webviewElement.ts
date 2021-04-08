@@ -357,19 +357,19 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this.element?.paste();
 	}
 
-	public cut() {
+	public override cut() {
 		this.element?.cut();
 	}
 
-	public undo() {
+	public override undo() {
 		this.element?.undo();
 	}
 
-	public redo() {
+	public override redo() {
 		this.element?.redo();
 	}
 
-	protected on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {
+	protected override on<T = unknown>(channel: WebviewMessageChannels | string, handler: (data: T) => void): IDisposable {
 		if (!this.element) {
 			throw new Error('Cannot add event listener. No webview element found.');
 		}

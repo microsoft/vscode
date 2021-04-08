@@ -69,7 +69,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		this._reset();
 	}
 
-	clear(): void {
+	override clear(): void {
 		this._reset();
 		super.clear();
 	}
@@ -336,7 +336,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 		};
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._editor.removeOverlayWidget(this);
 		super.dispose();
 	}

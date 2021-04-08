@@ -47,7 +47,7 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 		this._settingsModelParser.parse();
 	}
 
-	protected doParseRaw(raw: any): IConfigurationModel {
+	protected override doParseRaw(raw: any): IConfigurationModel {
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
 		this._settingsModelParser.parseRaw(raw['settings']);
 		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
@@ -74,7 +74,7 @@ export class StandaloneConfigurationModelParser extends ConfigurationModelParser
 		super(name);
 	}
 
-	protected doParseRaw(raw: any): IConfigurationModel {
+	protected override doParseRaw(raw: any): IConfigurationModel {
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const scopedContents = Object.create(null);
 		scopedContents[this.scope] = contents;
@@ -98,15 +98,15 @@ export class Configuration extends BaseConfiguration {
 		super(defaults, localUser, remoteUser, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
 
-	getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {
+	override getValue(key: string | undefined, overrides: IConfigurationOverrides = {}): any {
 		return super.getValue(key, overrides, this._workspace);
 	}
 
-	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): IConfigurationValue<C> {
+	override inspect<C>(key: string, overrides: IConfigurationOverrides = {}): IConfigurationValue<C> {
 		return super.inspect(key, overrides, this._workspace);
 	}
 
-	keys(): {
+	override keys(): {
 		default: string[];
 		user: string[];
 		workspace: string[];
@@ -115,7 +115,7 @@ export class Configuration extends BaseConfiguration {
 		return super.keys(this._workspace);
 	}
 
-	compareAndDeleteFolderConfiguration(folder: URI): IConfigurationChange {
+	override compareAndDeleteFolderConfiguration(folder: URI): IConfigurationChange {
 		if (this._workspace && this._workspace.folders.length > 0 && this._workspace.folders[0].uri.toString() === folder.toString()) {
 			// Do not remove workspace configuration
 			return { keys: [], overrides: [] };

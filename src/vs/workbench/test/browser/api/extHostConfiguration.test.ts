@@ -24,7 +24,7 @@ suite('ExtHostConfiguration', function () {
 
 	class RecordingShape extends mock<MainThreadConfigurationShape>() {
 		lastArgs!: [ConfigurationTarget, string, any];
-		$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
+		override $updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<void> {
 			this.lastArgs = [target, key, value];
 			return Promise.resolve(undefined);
 		}
@@ -657,7 +657,7 @@ suite('ExtHostConfiguration', function () {
 	test('update/error-state not OK', function () {
 
 		const shape = new class extends mock<MainThreadConfigurationShape>() {
-			$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<any> {
+			override $updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): Promise<any> {
 				return Promise.reject(new Error('Unknown Key')); // something !== OK
 			}
 		};

@@ -18,7 +18,7 @@ suite('Breadcrumb Model', function () {
 
 	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
 	const configService = new class extends TestConfigurationService {
-		getValue(...args: any[]) {
+		override getValue(...args: any[]) {
 			if (args[0] === 'breadcrumbs.filePath') {
 				return 'on';
 			}
@@ -27,7 +27,7 @@ suite('Breadcrumb Model', function () {
 			}
 			return super.getValue(...args);
 		}
-		updateValue() {
+		override updateValue() {
 			return Promise.resolve();
 		}
 	};

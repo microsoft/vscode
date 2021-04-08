@@ -410,7 +410,7 @@ class QuickInput extends Disposable implements IQuickInput {
 
 	readonly onDispose = this.onDisposeEmitter.event;
 
-	dispose(): void {
+	override dispose(): void {
 		this.hide();
 		this.onDisposeEmitter.fire();
 
@@ -694,7 +694,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 	}
 
-	show() {
+	override show() {
 		if (!this.visible) {
 			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
@@ -884,7 +884,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		});
 	}
 
-	protected update() {
+	protected override update() {
 		if (!this.visible) {
 			return;
 		}
@@ -1063,7 +1063,7 @@ class InputBox extends QuickInput implements IInputBox {
 
 	readonly onDidAccept = this.onDidAcceptEmitter.event;
 
-	show() {
+	override show() {
 		if (!this.visible) {
 			this.visibleDisposables.add(
 				this.ui.inputBox.onDidChange(value => {
@@ -1079,7 +1079,7 @@ class InputBox extends QuickInput implements IInputBox {
 		super.show();
 	}
 
-	protected update() {
+	protected override update() {
 		if (!this.visible) {
 			return;
 		}

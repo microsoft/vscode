@@ -98,7 +98,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 	}
 }

@@ -14,16 +14,16 @@ suite('URI Identity', function () {
 
 	class FakeFileService extends mock<IFileService>() {
 
-		onDidChangeFileSystemProviderCapabilities = Event.None;
-		onDidChangeFileSystemProviderRegistrations = Event.None;
+		override onDidChangeFileSystemProviderCapabilities = Event.None;
+		override onDidChangeFileSystemProviderRegistrations = Event.None;
 
 		constructor(readonly data: Map<string, FileSystemProviderCapabilities>) {
 			super();
 		}
-		canHandleResource(uri: URI) {
+		override canHandleResource(uri: URI) {
 			return this.data.has(uri.scheme);
 		}
-		hasCapability(uri: URI, flag: FileSystemProviderCapabilities): boolean {
+		override hasCapability(uri: URI, flag: FileSystemProviderCapabilities): boolean {
 			const mask = this.data.get(uri.scheme) ?? 0;
 			return Boolean(mask & flag);
 		}

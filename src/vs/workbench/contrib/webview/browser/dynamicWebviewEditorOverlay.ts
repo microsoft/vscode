@@ -65,7 +65,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public onDidDispose = this._onDidDispose.event;
 
-	dispose() {
+	override dispose() {
 		this._isDisposed = true;
 		this.container.remove();
 		this._onDidDispose.fire();

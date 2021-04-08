@@ -148,7 +148,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 	}
 
-	public dispose(immediate: boolean = false): void {
+	public override dispose(immediate: boolean = false): void {
 		this._isDisposed = true;
 		if (this._process) {
 			// If the process was still connected this dispose came from

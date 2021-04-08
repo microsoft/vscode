@@ -392,7 +392,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract getHeight(): IEditorGroupTitleHeight;
 
-	dispose(): void {
+	override dispose(): void {
 		dispose(this.breadcrumbsControl);
 		this.breadcrumbsControl = undefined;
 

@@ -43,7 +43,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
-	get scopedContextKeyService(): IContextKeyService | undefined {
+	override get scopedContextKeyService(): IContextKeyService | undefined {
 		const control = this.getControl();
 		if (!control) {
 			return undefined;
@@ -86,7 +86,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 	}
 
-	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
+	protected override onWillCloseEditorInGroup(editor: IEditorInput): void {
 
 		// React to editors closing to preserve or clear view state. This needs to happen
 		// in the onWillCloseEditor because at that time the editor has not yet
@@ -94,7 +94,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		this.doSaveOrClearTextDiffEditorViewState(editor);
 	}
 
-	getTitle(): string {
+	override getTitle(): string {
 		if (this.input) {
 			return this.input.getName();
 		}
@@ -102,11 +102,11 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return localize('textDiffEditor', "Text Diff Editor");
 	}
 
-	createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
+	override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IDiffEditor {
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -231,7 +231,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return false;
 	}
 
-	protected computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
+	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {
 		const editorConfiguration = super.computeConfiguration(configuration);
 
 		// Handle diff editor specially by merging in diffEditor configuration
@@ -252,7 +252,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return editorConfiguration;
 	}
 
-	protected getConfigurationOverrides(): ICodeEditorOptions {
+	protected override getConfigurationOverrides(): ICodeEditorOptions {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
 		options.readOnly = this.input instanceof DiffEditorInput && this.input.modifiedInput.isReadonly();
@@ -274,7 +274,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return (<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -296,15 +296,15 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return this.diffNavigator;
 	}
 
-	getControl(): IDiffEditor | undefined {
+	override getControl(): IDiffEditor | undefined {
 		return super.getControl() as IDiffEditor | undefined;
 	}
 
-	protected loadTextEditorViewState(resource: URI): IDiffEditorViewState {
+	protected override loadTextEditorViewState(resource: URI): IDiffEditorViewState {
 		return super.loadTextEditorViewState(resource) as IDiffEditorViewState;  // overridden for text diff editor support
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Update/clear editor view State
 		this.doSaveOrClearTextDiffEditorViewState(this.input);
@@ -333,7 +333,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 	}
 
-	protected retrieveTextEditorViewState(resource: URI): IDiffEditorViewState | null {
+	protected override retrieveTextEditorViewState(resource: URI): IDiffEditorViewState | null {
 		return this.retrieveTextDiffEditorViewState(resource); // overridden for text diff editor support
 	}
 

@@ -1000,7 +1000,7 @@ export class FileService extends Disposable implements IFileService {
 		].join();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.activeWatchers.forEach(watcher => dispose(watcher.disposable));

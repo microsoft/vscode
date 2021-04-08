@@ -48,7 +48,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		return ResourceEditorInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return this.name || super.getName();
 	}
 
@@ -60,7 +60,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		}
 	}
 
-	getDescription(): string | undefined {
+	override getDescription(): string | undefined {
 		return this.description;
 	}
 
@@ -84,7 +84,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		this.preferredMode = mode;
 	}
 
-	async resolve(): Promise<ITextEditorModel> {
+	async override resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
@@ -110,7 +110,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		return model;
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (otherInput === this) {
 			return true;
 		}
@@ -122,7 +122,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		return false;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (this.modelReference) {
 			this.modelReference.then(ref => ref.dispose());
 			this.modelReference = undefined;

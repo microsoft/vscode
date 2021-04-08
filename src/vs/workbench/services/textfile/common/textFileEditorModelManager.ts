@@ -479,7 +479,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.clear();

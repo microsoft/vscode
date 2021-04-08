@@ -58,7 +58,7 @@ function aLocalExtension(name: string = 'someext', manifest: any = {}, propertie
 }
 
 export class TestExperimentService extends ExperimentService {
-	public getExperiments(): Promise<any[]> {
+	public override getExperiments(): Promise<any[]> {
 		return Promise.resolve(experimentData.experiments);
 	}
 }

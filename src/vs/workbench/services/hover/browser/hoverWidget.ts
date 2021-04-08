@@ -204,7 +204,7 @@ export class HoverWidget extends Widget {
 		this.dispose();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
 			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);

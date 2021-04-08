@@ -94,14 +94,14 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	public shouldShowWelcome() {
+	public override shouldShowWelcome() {
 		return this.testService.providers === 0;
 	}
 
 	/**
 	 * @override
 	 */
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.container = dom.append(container, dom.$('.test-explorer'));
@@ -145,7 +145,7 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	public getActionViewItem(action: IAction): IActionViewItem | undefined {
+	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === Testing.FilterActionId) {
 			return this.instantiationService.createInstance(TestingExplorerFilter, action);
 		}
@@ -156,7 +156,7 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	public saveState() {
+	public override saveState() {
 		super.saveState();
 	}
 
@@ -181,7 +181,7 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.container.style.height = `${height}px`;
 		this.viewModel.layout(height, width);

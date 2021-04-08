@@ -1007,7 +1007,7 @@ export class NotebookCellStatusBarItemInternal extends Disposable {
 		this.update();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.hide();
 		this._isDisposed = true;
 		this._internalCommandRegistration.dispose();

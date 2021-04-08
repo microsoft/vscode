@@ -301,7 +301,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		super();
 	}
 
-	async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	async override runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1797,7 +1797,7 @@ class SCMInputWidget extends Disposable {
 		this.validationDisposable.dispose();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.input = undefined;
 		this.repositoryDisposables.dispose();
 		this.validationDisposable.dispose();
@@ -1847,7 +1847,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		// List
@@ -1969,7 +1969,7 @@ export class SCMViewPane extends ViewPane {
 		this.storageService.store(`scm.viewMode`, this._viewModel.mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
+	override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
 		if (height === undefined) {
 			return;
 		}
@@ -1986,7 +1986,7 @@ export class SCMViewPane extends ViewPane {
 		this.tree.layout(height, width);
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 
 		if (this.isExpanded()) {
@@ -2122,7 +2122,7 @@ export class SCMViewPane extends ViewPane {
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
 
-	shouldShowWelcome(): boolean {
+	override shouldShowWelcome(): boolean {
 		return this.scmService.repositories.length === 0;
 	}
 }

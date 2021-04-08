@@ -745,7 +745,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		this.templateData.bottomBorder.style.top = `${this.cell.layoutInfo.totalHeight - 32}px`;
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._outputEditor) {
 			this.cell.saveOutputEditorViewState(this._outputEditor.saveViewState());
 		}
@@ -807,7 +807,7 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		this._diagonalFill = this.templateData.diagonalFill;
 	}
 
-	buildBody() {
+	override buildBody() {
 		const body = this.templateData.body;
 		this._diffEditorContainer = this.templateData.diffEditorContainer;
 		body.classList.remove('left', 'right', 'full');
@@ -1101,7 +1101,7 @@ export class DeletedElement extends SingleSideDiffElement {
 		}
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._editor) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
@@ -1251,7 +1251,7 @@ export class InsertElement extends SingleSideDiffElement {
 		});
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._editor) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}
@@ -1598,7 +1598,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 		});
 	}
 
-	dispose() {
+	override dispose() {
 		if (this._editor) {
 			this.cell.saveSpirceEditorViewState(this._editor.saveViewState());
 		}

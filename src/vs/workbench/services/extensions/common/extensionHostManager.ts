@@ -85,7 +85,7 @@ export class ExtensionHostManager extends Disposable {
 		this._resolveAuthorityAttempt = 0;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._extensionHost) {
 			this._extensionHost.dispose();
 		}

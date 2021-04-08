@@ -129,7 +129,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
 	}
 
-	onClick(event: MouseEvent): void {
+	override onClick(event: MouseEvent): void {
 		event.preventDefault();
 		event.stopPropagation();
 
@@ -138,7 +138,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			.catch(err => this._notificationService.error(err));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('menu-entry');
 
@@ -176,13 +176,13 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}));
 	}
 
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	updateTooltip(): void {
+	override updateTooltip(): void {
 		if (this.label) {
 			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 			const keybindingLabel = keybinding && keybinding.getLabel();
@@ -204,7 +204,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 	}
 
-	updateClass(): void {
+	override updateClass(): void {
 		if (this.options.icon) {
 			if (this._commandAction !== this._action) {
 				if (this._action.alt) {
@@ -268,7 +268,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		});
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		if (this.element) {
 			container.classList.add('menu-entry');

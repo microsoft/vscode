@@ -1551,7 +1551,7 @@ var requirejs = (function() {
 		this._preloadsCache.clear();
 	}
 
-	dispose() {
+	override dispose() {
 		this._disposed = true;
 		this.webview?.dispose();
 		super.dispose();

@@ -77,7 +77,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 		}));
 	}
 
-	dispose() {
+	override dispose() {
 		dispose(this._cellStateListeners);
 		super.dispose();
 	}

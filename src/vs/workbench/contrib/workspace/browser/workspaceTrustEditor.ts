@@ -51,7 +51,7 @@ const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceT
 const unspecified = registerCodicon('workspace-unspecified-icon', Codicon.workspaceUnspecified);
 
 class WorkspaceTrustExtensionDelegate extends Delegate {
-	getHeight() { return super.getHeight() + 36; }
+	override getHeight() { return super.getHeight() + 36; }
 }
 
 export class WorkspaceTrustEditor extends EditorPane {
@@ -114,7 +114,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}));
 	}
 
-	async setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async override setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) { return; }

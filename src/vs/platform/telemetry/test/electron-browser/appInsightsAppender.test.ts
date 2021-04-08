@@ -7,8 +7,8 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { TelemetryClient, Contracts } from 'applicationinsights';
 
 class AppInsightsMock extends TelemetryClient {
-	public config: any;
-	public channel: any;
+	public override config: any;
+	public override channel: any;
 	public events: Contracts.EventTelemetry[] = [];
 	public IsTrackingPageView: boolean = false;
 	public exceptions: any[] = [];
@@ -17,11 +17,11 @@ class AppInsightsMock extends TelemetryClient {
 		super('testKey');
 	}
 
-	public trackEvent(event: any) {
+	public override trackEvent(event: any) {
 		this.events.push(event);
 	}
 
-	public flush(options: any): void {
+	public override flush(options: any): void {
 		// called on dispose
 	}
 }

@@ -281,7 +281,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onInstancesChanged.fire();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		if (this._container && this._tabElement) {
 			this._container.removeChild(this._tabElement);

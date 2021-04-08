@@ -98,7 +98,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}));
 	}
 
-	isResolved(): this is IResolvedNotebookEditorModel {
+	override isResolved(): this is IResolvedNotebookEditorModel {
 		return this.notebook !== undefined;
 	}
 
@@ -406,7 +406,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._workingCopyListeners.dispose();
 		this._workingCopy?.dispose();
 		this._onDidChangeDirty.dispose();
@@ -418,7 +418,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this._workingCopy?.model.notebookModel;
 	}
 
-	isResolved(): this is IResolvedNotebookEditorModel {
+	override isResolved(): this is IResolvedNotebookEditorModel {
 		return Boolean(this._workingCopy);
 	}
 

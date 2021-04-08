@@ -529,7 +529,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		await this._actionRunner.run(action, context);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		dispose(this.viewItems);
 		this.viewItems = [];
 

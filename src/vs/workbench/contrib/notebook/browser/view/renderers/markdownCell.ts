@@ -275,7 +275,7 @@ export class StatefulMarkdownCell extends Disposable {
 		updatePlaceholder();
 	}
 
-	dispose() {
+	override dispose() {
 		this.localDisposables.dispose();
 		this.viewCell.detachTextEditor();
 		super.dispose();

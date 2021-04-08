@@ -53,7 +53,7 @@ export class LogViewerInput extends ResourceEditorInput {
 		);
 	}
 
-	getTypeId(): string {
+	override getTypeId(): string {
 		return LogViewerInput.ID;
 	}
 }
@@ -74,7 +74,7 @@ export class LogViewer extends AbstractTextResourceEditor {
 		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
+	protected override getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.wordWrap = 'off'; // all log viewers do not wrap
 		options.folding = false;

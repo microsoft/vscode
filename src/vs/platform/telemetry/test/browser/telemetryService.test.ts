@@ -217,7 +217,7 @@ suite('TelemetryService', () => {
 			return Promise.all(this.promises);
 		}
 
-		publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
+		override publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
 			let p = super.publicLog(eventName, data, anonymizeFilePaths);
 			this.promises.push(p);
 			return p;
@@ -773,8 +773,8 @@ suite('TelemetryService', () => {
 		let service = new TelemetryService({
 			appender: testAppender
 		}, new class extends TestConfigurationService {
-			onDidChangeConfiguration = emitter.event;
-			getValue() {
+			override onDidChangeConfiguration = emitter.event;
+			override getValue() {
 				return {
 					enableTelemetry: enableTelemetry
 				} as any;

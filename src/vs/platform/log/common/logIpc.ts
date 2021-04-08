@@ -177,7 +177,7 @@ export class FollowerLogService extends LogService implements ILogService {
 		this._register(parent.onDidChangeLogLevel(level => logService.setLevel(level)));
 	}
 
-	setLevel(level: LogLevel): void {
+	override setLevel(level: LogLevel): void {
 		super.setLevel(level);
 
 		this.parent.setLevel(level);

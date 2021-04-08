@@ -41,7 +41,7 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 
 export class NodeTestBackupFileService extends NativeBackupFileService {
 
-	readonly fileService: IFileService;
+	override readonly fileService: IFileService;
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
@@ -73,7 +73,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	async override backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		const p = super.backup(resource, content, versionId, meta, token);
 		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
 
@@ -92,7 +92,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async discardBackup(resource: URI): Promise<void> {
+	async override discardBackup(resource: URI): Promise<void> {
 		await super.discardBackup(resource);
 		this.discardedBackups.push(resource);
 

@@ -122,7 +122,7 @@ export abstract class AbstractFileOutputChannelModel extends Disposable implemen
 	protected onUpdateModelCancelled() { }
 	protected updateModel() { }
 
-	dispose(): void {
+	override dispose(): void {
 		this._onDispose.fire();
 		super.dispose();
 	}
@@ -176,7 +176,7 @@ class OutputFileListener extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.unwatch();
 		super.dispose();
 	}
@@ -229,7 +229,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		return this.loadModelPromise;
 	}
 
-	clear(till?: number): void {
+	override clear(till?: number): void {
 		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
 		loadModelPromise.then(() => {
 			super.clear(till);
@@ -241,7 +241,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		throw new Error('Not supported');
 	}
 
-	protected updateModel(): void {
+	protected override updateModel(): void {
 		if (this.model) {
 			this.fileService.readFile(this.file, { position: this.endOffset })
 				.then(content => {
@@ -257,15 +257,15 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		}
 	}
 
-	protected onModelCreated(model: ITextModel): void {
+	protected override onModelCreated(model: ITextModel): void {
 		this.fileHandler.watch(this.etag);
 	}
 
-	protected onModelWillDispose(model: ITextModel | null): void {
+	protected override onModelWillDispose(model: ITextModel | null): void {
 		this.fileHandler.unwatch();
 	}
 
-	protected onUpdateModelCancelled(): void {
+	protected override onUpdateModelCancelled(): void {
 		this.updateInProgress = false;
 	}
 
@@ -273,7 +273,7 @@ class FileOutputChannelModel extends AbstractFileOutputChannelModel implements I
 		return VSBuffer.fromString(str).byteLength;
 	}
 
-	update(size?: number): void {
+	override update(size?: number): void {
 		if (this.model) {
 			if (!this.updateInProgress) {
 				this.updateInProgress = true;
@@ -368,7 +368,7 @@ export class BufferredOutputChannel extends Disposable implements IOutputChannel
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._onDispose.fire();
 		super.dispose();
 	}
