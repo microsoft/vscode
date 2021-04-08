@@ -16,7 +16,7 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 
 	private readonly _localStore = this._register(new DisposableStore());
 	private _cellStateListeners: IDisposable[] = [];
-	private _logging: boolean = true;
+	private _logging: boolean = false;
 
 	constructor(private readonly _notebookEditor: INotebookEditor) {
 		super();
