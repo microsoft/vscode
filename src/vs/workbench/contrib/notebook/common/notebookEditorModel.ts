@@ -539,9 +539,7 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 		this._notebookModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 	}
 
-	getAlternativeVersionId(): number {
-		return this._notebookModel.alternativeVersionId;
-	}
+	get versionId() { return this._notebookModel.alternativeVersionId; }
 
 	pushStackElement(): void {
 		this._notebookModel.pushStackElement(nls.localize('save', 'Save Notebook'), undefined, undefined);
