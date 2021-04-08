@@ -47,10 +47,10 @@ import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, IT
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { Color, RGBA } from 'vs/base/common/color';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { STATUS_BAR_HOST_NAME_BACKGROUND } from 'vs/workbench/common/theme';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
@@ -1533,10 +1533,10 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected)))
 }));
 
-export const portWithRunningProcessForeground = registerColor('portWithRunningProcess.foreground', {
-	light: new Color(new RGBA(54, 148, 50)),
-	dark: new Color(new RGBA(54, 148, 50)),
-	hc: new Color(new RGBA(54, 148, 50))
+export const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessforeground', {
+	light: STATUS_BAR_HOST_NAME_BACKGROUND,
+	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
+	hc: STATUS_BAR_HOST_NAME_BACKGROUND
 }, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 
 registerThemingParticipant((theme, collector) => {

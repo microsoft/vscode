@@ -9,7 +9,8 @@
 		"sideBarTitle.foreground": "#FFFFFF",
 		"selection.background": "#008000",
 		"editor.selectionBackground": "#FFFFFF",
-		"statusBarItem.remoteBackground": "#00000000"
+		"statusBarItem.remoteBackground": "#00000000",
+		"ports.iconRunningProcessforeground": "#FFFFFF",
 	},
 	"tokenColors": [
 		{
