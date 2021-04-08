@@ -442,8 +442,8 @@ export const content: GettingStartedContent = [
 				},
 				{
 					id: 'debugging',
-					title: localize('gettingStarted.debug.title', "Run, test & debug your code"),
-					description: localize('gettingStarted.debug.description', "Catch errors faster with an accelerated edit, build and debug loop."),
+					title: localize('gettingStarted.debug.title', "Watch your code in action"),
+					description: localize('gettingStarted.debug.description', "Accelerate your edit, build, test, and debug loop by setting up a launch configuration."),
 					when: 'workspaceFolderCount != 0',
 					button: {
 						title: localize('gettingStarted.debug.button', "Run your Project"),
@@ -516,7 +516,7 @@ export const content: GettingStartedContent = [
 					id: 'tasks',
 					title: localize('gettingStarted.tasks.title', "Automate your project tasks"),
 					when: 'workspaceFolderCount != 0',
-					description: localize('gettingStarted.tasks.description', "Configure your workflows as tasks and enjoy the fully integrated experience of running scripts and monitoring results."),
+					description: localize('gettingStarted.tasks.description', "Create tasks for your common workflows and enjoy the integrated experience of running scripts and automatically checking results."),
 					button: {
 						title: localize('gettingStarted.tasks.button', "Run Auto-detected Tasks"),
 						command: 'workbench.action.tasks.runTask'
@@ -533,7 +533,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'shortcuts',
 					title: localize('gettingStarted.shortcuts.title', "Customize your shortcuts"),
-					description: localize('gettingStarted.shortcuts.description', "Once you discovered your favorite commands, lookup and customize their keyboard shortcuts for instant access."),
+					description: localize('gettingStarted.shortcuts.description', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access."),
 					button: {
 						title: localize('gettingStarted.shortcuts.button', "Keyboard Shortcuts"),
 						command: 'workbench.action.openGlobalKeybindings'
