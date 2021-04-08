@@ -18,8 +18,8 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalTabTree: HTMLElement;
 	private _tabsWidget: TerminalTabsWidget | undefined;
 
-	private TAB_TREE_INDEX: number;
-	private TERMINAL_CONTAINER_INDEX: number;
+	private _tabTreeIndex: number;
+	private _terminalContainerIndex: number;
 
 	private _showTabs: boolean;
 
@@ -49,20 +49,31 @@ export class TerminalTabbedView extends Disposable {
 
 		this._showTabs = terminalService.configHelper.config.showTabs;
 
-		this.TAB_TREE_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-		this.TERMINAL_CONTAINER_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+		this._tabTreeIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+		this._terminalContainerIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
 		terminalService.setContainers(parentElement, this._terminalContainer);
 
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = terminalService.configHelper.config.showTabs;
-				this._updateVisibility();
+				if (this._showTabs) {
+					this._splitView.addView({
+						element: this._terminalTabTree,
+						layout: width => this._tabsWidget!.layout(this._height, width),
+						minimumSize: 40,
+						maximumSize: Number.POSITIVE_INFINITY,
+						onDidChange: () => Disposable.None,
+					}, Sizing.Distribute, this._tabTreeIndex);
+				} else {
+					this._splitView.removeView(this._tabTreeIndex);
+				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
-				this.TAB_TREE_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-				this.TERMINAL_CONTAINER_INDEX = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
-				// TODO: if showTabs
-				this._splitView.swapViews(0, 1);
+				this._tabTreeIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+				this._terminalContainerIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+				if (this._showTabs) {
+					this._splitView.swapViews(0, 1);
+				}
 			}
 		});
 
@@ -74,32 +85,23 @@ export class TerminalTabbedView extends Disposable {
 	private _setupSplitView(): void {
 		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 
-		this._splitView.addView({
-			element: this._terminalTabTree,
-			layout: width => this._tabsWidget!.layout(this._height, width),
-			minimumSize: 40,
-			maximumSize: Number.POSITIVE_INFINITY,
-			onDidChange: () => Disposable.None,
-		}, Sizing.Distribute, this.TAB_TREE_INDEX);
-
+		if (this._showTabs) {
+			this._splitView.addView({
+				element: this._terminalTabTree,
+				layout: width => this._tabsWidget!.layout(this._height, width),
+				minimumSize: 40,
+				maximumSize: Number.POSITIVE_INFINITY,
+				onDidChange: () => Disposable.None,
+			}, Sizing.Distribute, this._tabTreeIndex);
+		}
 		this._splitView.addView({
 			element: this._terminalContainer,
 			layout: width => this._terminalService.terminalTabs.forEach(tab => tab.layout(width, this._height || 0)),
 			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None
-		}, Sizing.Distribute, this.TERMINAL_CONTAINER_INDEX);
+		}, Sizing.Distribute, this._terminalContainerIndex);
 
-		this._updateVisibility();
-	}
-
-	private _updateVisibility() {
-		if (!this._splitView) {
-			return;
-		}
-		// TODO: Instead of always having tab tree there, addView/removeView depending on the setting
-		this._splitView.setViewVisible(this.TAB_TREE_INDEX, this._showTabs);
-		this._splitView.setViewVisible(this.TERMINAL_CONTAINER_INDEX, true);
 	}
 
 	layout(width: number, height: number): void {
