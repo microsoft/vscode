@@ -1484,7 +1484,7 @@ declare module 'vscode' {
 
 		// invoked when Run, Run All, Run Selections is triggered,
 		// command is invoked with [kernel, cells] as arguments
-		executeHandler: (notebook: NotebookDocument, cells: NotebookCell[]) => void
+		executeHandler: (executions: NotebookCellExecutionTask[]) => void;
 
 		// optional kernel interrupt command
 		interruptHandler?: (notebook: NotebookDocument) => void
@@ -1500,7 +1500,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		export function createNotebookKernel(id: string, label: string, selector: NotebookSelector, executeHandler: (notebook: NotebookDocument, cells: NotebookCell[]) => void): NotebookKernel2;
+		export function createNotebookKernel(id: string, label: string, selector: NotebookSelector, executeHandler: (executions: NotebookCellExecutionTask[]) => void): NotebookKernel2;
 	}
 
 	//#endregion

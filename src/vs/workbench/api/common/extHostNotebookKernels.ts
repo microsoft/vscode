@@ -13,16 +13,15 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellRange } from 'vs/workbench/api/common/extHostTypeConverters';
-import { flatten } from 'vs/base/common/arrays';
 
-type ExecuteHandler = (notebook: vscode.NotebookDocument, cells: vscode.NotebookCell[]) => void;
+type ExecuteHandler = (executions: vscode.NotebookCellExecutionTask[]) => void;
 type InterruptHandler = (notebook: vscode.NotebookDocument) => void;
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 
-	private readonly _kernelData = new Map<number, { executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, selected: boolean, emitter: Emitter<boolean> }>();
+	private readonly _kernelData = new Map<number, { id: string, executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, selected: boolean, onDidChangeSelection: Emitter<boolean> }>();
 	private _handlePool: number = 0;
 
 	constructor(
@@ -41,7 +40,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const commandDisposables = new DisposableStore();
 
 		const emitter = new Emitter<boolean>();
-		this._kernelData.set(handle, { executeHandler, selected: false, emitter });
+		this._kernelData.set(handle, { id, executeHandler, selected: false, onDidChangeSelection: emitter });
 
 		const data: INotebookKernelDto2 = {
 			id,
@@ -131,7 +130,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const obj = this._kernelData.get(handle);
 		if (obj) {
 			obj.selected = value;
-			obj.emitter.fire(value);
+			obj.onDidChangeSelection.fire(value);
 		}
 	}
 
@@ -146,8 +145,23 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			throw new Error('MISSING notebook');
 		}
 
-		const all = ranges.map(range => document.notebookDocument.getCells(NotebookCellRange.to(range)));
-		obj.executeHandler(document.notebookDocument, flatten(all));
+		const execs: vscode.NotebookCellExecutionTask[] = [];
+		for (let range of ranges) {
+			const cells = document.notebookDocument.getCells(NotebookCellRange.to(range));
+			for (let cell of cells) {
+				const exec = this._extHostNotebook.createNotebookCellExecution(document.uri, cell.index, obj.id);
+				// todo@jrieken there should always be an exec-object
+				if (exec) {
+					execs.push(exec);
+				}
+			}
+		}
+		try {
+			obj.executeHandler(execs);
+		} catch (err) {
+			//
+			console.error(err);
+		}
 	}
 
 	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void {
