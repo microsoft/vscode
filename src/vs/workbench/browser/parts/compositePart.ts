@@ -75,7 +75,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly storageService: IStorageService,
 		private readonly telemetryService: ITelemetryService,
 		protected readonly contextMenuService: IContextMenuService,
-		protected readonly layoutService: IWorkbenchLayoutService,
+		layoutService: IWorkbenchLayoutService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly instantiationService: IInstantiationService,
 		themeService: IThemeService,

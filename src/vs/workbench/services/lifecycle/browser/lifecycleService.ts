@@ -19,7 +19,7 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	private expectedUnload = false;
 
 	constructor(
-		@ILogService readonly logService: ILogService
+		@ILogService logService: ILogService
 	) {
 		super(logService);
 

@@ -73,7 +73,7 @@ export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
-		@IFileService protected fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -119,7 +119,7 @@ export class TestTextFileService extends NativeTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -144,7 +144,7 @@ export class TestTextFileService extends NativeTextFileService {
 export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
 
 	private _testEncoding: TestEncodingOracle | undefined;
-	get encoding(): TestEncodingOracle {
+	override get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}

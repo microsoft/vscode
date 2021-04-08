@@ -78,7 +78,7 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	 * - the user triggers undo to revert the changes
 	 * - at this point the `versionId` should match the one we had saved
 	 *
-	 * This requires the model to be aware of undo/redo operations. 
+	 * This requires the model to be aware of undo/redo operations.
 	 */
 	readonly versionId: unknown;
 
@@ -1210,7 +1210,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.disposed;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.logService.trace('[file working copy] dispose()', this.resource.toString(true));
 
 		// State

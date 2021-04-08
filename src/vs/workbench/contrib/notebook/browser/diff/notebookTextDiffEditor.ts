@@ -84,7 +84,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IThemeService readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,

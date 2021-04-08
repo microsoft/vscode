@@ -1328,7 +1328,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return segments;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.showTimeoutHandle) {

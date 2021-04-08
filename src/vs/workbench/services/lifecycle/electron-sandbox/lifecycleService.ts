@@ -33,7 +33,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IStorageService readonly storageService: IStorageService,
-		@ILogService readonly logService: ILogService
+		@ILogService logService: ILogService
 	) {
 		super(logService);
 

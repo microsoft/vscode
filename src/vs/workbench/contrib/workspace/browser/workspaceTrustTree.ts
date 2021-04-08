@@ -76,8 +76,8 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 	constructor(
 		container: HTMLElement,
 		@ILabelService protected readonly labelService: ILabelService,
-		@IThemeService protected readonly themeService: IThemeService,
-		@IContextViewService protected readonly contextViewService: IContextViewService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(container, themeService, contextViewService);
 	}
