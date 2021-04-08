@@ -235,7 +235,7 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 		}));
 	}
 
-	protected get filterGroups(): ISettingsGroup[] {
+	protected override get filterGroups(): ISettingsGroup[] {
 		// Don't filter "commonly used"
 		return this.settingsGroups.slice(1);
 	}
@@ -434,12 +434,12 @@ export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 		return this._configurationGroups;
 	}
 
-	protected parse(): void {
+	protected override parse(): void {
 		super.parse();
 		this._configurationGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => previousParents.length === 0);
 	}
 
-	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
+	protected override isSettingsProperty(property: string, previousParents: string[]): boolean {
 		return property === 'settings' && previousParents.length === 1;
 	}
 
@@ -740,7 +740,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.defaultSettings.getSettingsGroups();
 	}
 
-	protected get filterGroups(): ISettingsGroup[] {
+	protected override get filterGroups(): ISettingsGroup[] {
 		// Don't look at "commonly used" for filter
 		return this.settingsGroups.slice(1);
 	}
@@ -868,7 +868,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return [];
 	}
 
-	getPreference(key: string): ISetting | undefined {
+	override getPreference(key: string): ISetting | undefined {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -1043,7 +1043,7 @@ class RawSettingsContentBuilder extends SettingsContentBuilder {
 		super(0);
 	}
 
-	pushGroup(settingsGroups: ISettingsGroup): void {
+	override pushGroup(settingsGroups: ISettingsGroup): void {
 		this._pushGroup(settingsGroups, this.indent);
 	}
 

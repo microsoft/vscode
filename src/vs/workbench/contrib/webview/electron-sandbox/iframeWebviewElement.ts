@@ -79,7 +79,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
-	protected get extraContentOptions() {
+	protected override get extraContentOptions() {
 		return {
 			endpoint: this.webviewContentEndpoint,
 		};

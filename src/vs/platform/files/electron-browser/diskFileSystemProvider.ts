@@ -21,7 +21,7 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 		super(logService, options);
 	}
 
-	get capabilities(): FileSystemProviderCapabilities {
+	override get capabilities(): FileSystemProviderCapabilities {
 		if (!this._capabilities) {
 			this._capabilities = super.capabilities | FileSystemProviderCapabilities.Trash;
 		}
@@ -29,7 +29,7 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 		return this._capabilities;
 	}
 
-	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
+	protected async override doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
 		if (!opts.useTrash) {
 			return super.doDelete(filePath, opts);
 		}

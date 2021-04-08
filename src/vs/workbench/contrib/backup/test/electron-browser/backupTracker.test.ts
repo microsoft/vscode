@@ -63,11 +63,11 @@ flakySuite('BackupTracker (native)', function () {
 			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService, progressService);
 		}
 
-		protected getBackupScheduleDelay(): number {
+		protected override getBackupScheduleDelay(): number {
 			return 10; // Reduce timeout for tests
 		}
 
-		dispose() {
+		override dispose() {
 			super.dispose();
 
 			for (const [_, disposable] of this.pendingBackups) {

@@ -60,7 +60,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get execPath() { return this.configuration.execPath; }
 
 	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }

@@ -703,7 +703,7 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		return true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.clear();

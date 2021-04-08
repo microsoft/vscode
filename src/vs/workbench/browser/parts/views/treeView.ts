@@ -90,26 +90,26 @@ export class TreeViewPane extends ViewPane {
 		this.updateTreeVisibility();
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		this.treeView.focus();
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.renderTreeView(container);
 	}
 
-	shouldShowWelcome(): boolean {
+	override shouldShowWelcome(): boolean {
 		return ((this.treeView.dataProvider === undefined) || !!this.treeView.dataProvider.isTreeEmpty) && (this.treeView.message === undefined);
 	}
 
-	layoutBody(height: number, width: number): void {
+	override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.layoutTreeView(height, width);
 	}
 
-	getOptimalWidth(): number {
+	override getOptimalWidth(): number {
 		return this.treeView.getOptimalWidth();
 	}
 
@@ -1078,7 +1078,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		}));
 	}
 
-	async runAction(action: IAction, context: TreeViewItemHandleArg): Promise<void> {
+	async override runAction(action: IAction, context: TreeViewItemHandleArg): Promise<void> {
 		const selection = this.getSelectedResources();
 		let selectionHandleArgs: TreeViewItemHandleArg[] | undefined = undefined;
 		let actionInSelected: boolean = false;
@@ -1165,7 +1165,7 @@ export class CustomTreeView extends TreeView {
 		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService);
 	}
 
-	setVisibility(isVisible: boolean): void {
+	override setVisibility(isVisible: boolean): void {
 		super.setVisibility(isVisible);
 		if (this.visible) {
 			this.activate();

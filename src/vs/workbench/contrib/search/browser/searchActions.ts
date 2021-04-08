@@ -102,7 +102,7 @@ export class FocusNextInputAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	async override run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -127,7 +127,7 @@ export class FocusPreviousInputAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	async override run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -149,7 +149,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		return openSearchView(this.viewsService, false).then(openedView => {
 			if (openedView) {
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
@@ -226,7 +226,7 @@ export class CloseReplaceAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const searchView = getSearchView(this.viewsService);
 		if (searchView) {
 			searchView.searchAndReplaceWidget.toggleReplace(false);
@@ -253,7 +253,7 @@ export class ToggleSearchOnTypeAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const searchOnType = this.configurationService.getValue<boolean>(ToggleSearchOnTypeAction.searchOnTypeKey);
 		return this.configurationService.updateValue(ToggleSearchOnTypeAction.searchOnTypeKey, !searchOnType);
 	}
@@ -344,7 +344,7 @@ export class FocusNextSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	async override run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -370,7 +370,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	async override run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -452,7 +452,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		super('remove', RemoveAction.LABEL, ThemeIcon.asClassName(searchRemoveIcon));
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const currentFocusElement = this.viewer.getFocus()[0];
 		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
 			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
@@ -492,7 +492,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(ReplaceAllAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const tree = this.viewlet.getControl();
 		const nextFocusElement = this.getElementToFocusAfterRemoved(tree, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
@@ -516,7 +516,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceAllInFolderActionId, appendKeyBindingLabel(ReplaceAllInFolderAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceAllInFolderActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceAllIcon));
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		const nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
 		return this.folderMatch.replaceAll().then(() => {
 			if (nextFocusElement) {
@@ -543,7 +543,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceIcon));
 	}
 
-	async run(): Promise<any> {
+	async override run(): Promise<any> {
 		this.enabled = false;
 
 		await this.element.parent().replace(this.element);

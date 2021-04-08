@@ -311,7 +311,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		return true;
 	}
 
-	public dispose() {
+	public override dispose() {
 		// no-op
 	}
 

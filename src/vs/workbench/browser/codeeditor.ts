@@ -122,7 +122,7 @@ export class RangeHighlightDecorations extends Disposable {
 		return (isWholeLine ? RangeHighlightDecorations._WHOLE_LINE_RANGE_HIGHLIGHT : RangeHighlightDecorations._RANGE_HIGHLIGHT);
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		if (this.editor?.getModel()) {
@@ -201,7 +201,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		this.editor.addOverlayWidget(this);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.editor.removeOverlayWidget(this);
 
 		super.dispose();
@@ -292,7 +292,7 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 		this.openWorkspaceButton = undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposeOpenWorkspaceWidgetRenderer();
 
 		super.dispose();

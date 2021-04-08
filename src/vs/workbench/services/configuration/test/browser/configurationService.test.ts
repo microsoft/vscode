@@ -54,7 +54,7 @@ function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifie
 }
 
 class ConfigurationCache extends BrowserConfigurationCache {
-	needsCaching() { return false; }
+	override needsCaching() { return false; }
 }
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });

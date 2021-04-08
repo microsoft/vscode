@@ -321,7 +321,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
+	protected override prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		// Group active: show all actions

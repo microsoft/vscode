@@ -26,7 +26,7 @@ export class VerticalSeparator extends Action {
 }
 
 export class VerticalSeparatorViewItem extends BaseActionViewItem {
-	render(container: HTMLElement) {
+	override render(container: HTMLElement) {
 		container.classList.add('verticalSeparator');
 		// const iconContainer = DOM.append(container, $('.verticalSeparator'));
 		// DOM.addClasses(iconContainer, 'codicon', 'codicon-chrome-minimize');
@@ -89,7 +89,7 @@ export class CodiconActionViewItem extends MenuEntryActionViewItem {
 	) {
 		super(_action, keybindingService, notificationService);
 	}
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
 			DOM.reset(this.label, ...renderLabelWithIcons(this._commandAction.label ?? ''));
 		}

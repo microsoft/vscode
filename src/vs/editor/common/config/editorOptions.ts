@@ -906,7 +906,7 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): boolean {
+	public override validate(input: any): boolean {
 		return boolean(input, this.defaultValue);
 	}
 }
@@ -941,7 +941,7 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 		this.maximum = maximum;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
 }
@@ -980,7 +980,7 @@ class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, 
 		this.validationFn = validationFn;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return this.validationFn(EditorFloatOption.float(input, this.defaultValue));
 	}
 }
@@ -1002,7 +1002,7 @@ class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1,
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): string {
+	public override validate(input: any): string {
 		return EditorStringOption.string(input, this.defaultValue);
 	}
 }
@@ -1034,7 +1034,7 @@ class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends 
 		this._allowedValues = allowedValues;
 	}
 
-	public validate(input: any): V {
+	public override validate(input: any): V {
 		return stringSet<V>(input, this.defaultValue, this._allowedValues);
 	}
 }
@@ -1112,7 +1112,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 		return this.defaultValue;
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
 		if (value === AccessibilitySupport.Unknown) {
 			// The editor reads the `accessibilitySupport` from the environment
 			return env.accessibilitySupport;
@@ -1331,7 +1331,7 @@ class EditorEmptySelectionClipboard extends EditorBooleanOption<EditorOption.emp
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
 		return value && env.emptySelectionClipboard;
 	}
 }
@@ -1533,14 +1533,14 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		);
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		let r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		return EditorFloatOption.clamp(r, 6, 100);
 	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
 		// So take the result from env.fontInfo
 		return env.fontInfo.fontSize;
@@ -2470,7 +2470,7 @@ class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The lineHeight is computed from the fontSize if it is 0.
 		// Moreover, the final lineHeight respects the editor zoom level.
 		// So take the result from env.fontInfo
@@ -2766,7 +2766,7 @@ export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSug
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
 
-	public readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
 
 	constructor() {
 		const defaults: ValidQuickSuggestionsOptions = {

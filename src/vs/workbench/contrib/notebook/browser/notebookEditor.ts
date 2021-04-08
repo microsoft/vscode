@@ -70,11 +70,11 @@ export class NotebookEditor extends EditorPane {
 		return this._widget.value?.viewModel;
 	}
 
-	get minimumWidth(): number { return 375; }
+	override get minimumWidth(): number { return 375; }
 	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
-	set minimumWidth(value: number) { /*noop*/ }
+	override set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
 	//#region Editor Core

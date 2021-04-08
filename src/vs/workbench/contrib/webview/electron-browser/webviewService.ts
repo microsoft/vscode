@@ -21,7 +21,7 @@ export class ElectronWebviewService extends WebviewService {
 		super(instantiationService);
 	}
 
-	createWebviewElement(
+	override createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
@@ -33,7 +33,7 @@ export class ElectronWebviewService extends WebviewService {
 		return webview;
 	}
 
-	createWebviewOverlay(
+	override createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,

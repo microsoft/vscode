@@ -44,7 +44,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		};
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this._hoverListeners?.dispose();
 		this._hoverListeners = undefined;

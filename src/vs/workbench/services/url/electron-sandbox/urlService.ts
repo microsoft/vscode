@@ -37,7 +37,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		openerService.registerOpener(this);
 	}
 
-	create(options?: Partial<UriComponents>): URI {
+	override create(options?: Partial<UriComponents>): URI {
 		const uri = super.create(options);
 
 		let query = uri.query;
@@ -50,7 +50,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		return uri.with({ query });
 	}
 
-	async open(resource: URI | string, options?: IRelayOpenURLOptions): Promise<boolean> {
+	async override open(resource: URI | string, options?: IRelayOpenURLOptions): Promise<boolean> {
 
 		if (!matchesScheme(resource, this.productService.urlProtocol)) {
 			return false;

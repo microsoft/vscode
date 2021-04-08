@@ -41,7 +41,7 @@ suite('BackupTracker (browser)', function () {
 			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, logService);
 		}
 
-		protected getBackupScheduleDelay(): number {
+		protected override getBackupScheduleDelay(): number {
 			return 10; // Reduce timeout for tests
 		}
 	}
@@ -114,7 +114,7 @@ suite('BackupTracker (browser)', function () {
 				accessor.workingCopyService.registerWorkingCopy(this);
 			}
 
-			async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+			async override backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 				await timeout(this.backupDelay);
 
 				return {};

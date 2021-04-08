@@ -42,7 +42,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
-	async alwaysUnderlineAccessKeys(): Promise<boolean> {
+	async override alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
 			return false;
 		}
@@ -55,7 +55,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		return this.shouldAlwaysUnderlineAccessKeys;
 	}
 
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+	override setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
 		super.setAccessibilitySupport(accessibilitySupport);
 
 		if (!this.didSendTelemetry && accessibilitySupport === AccessibilitySupport.Enabled) {

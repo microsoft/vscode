@@ -417,7 +417,7 @@ export class Dialog extends Disposable {
 		this.applyStyles();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.modalElement) {

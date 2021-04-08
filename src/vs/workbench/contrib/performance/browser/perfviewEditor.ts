@@ -72,7 +72,7 @@ export class PerfviewInput extends ResourceEditorInput {
 		);
 	}
 
-	getTypeId(): string {
+	override getTypeId(): string {
 		return PerfviewInput.Id;
 	}
 }

@@ -39,7 +39,7 @@ export class EditorWalkThroughAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
+	public override run(): Promise<void> {
 		const input = this.instantiationService.createInstance(WalkThroughInput, inputOptions);
 		return this.editorService.openEditor(input, { pinned: true, override: EditorOverride.DISABLED })
 			.then(() => void (0));

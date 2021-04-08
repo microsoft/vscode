@@ -284,7 +284,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async override setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();
@@ -652,19 +652,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		return this._overflowContainer;
 	}
 
-	getControl(): NotebookEditorWidget | undefined {
+	override getControl(): NotebookEditorWidget | undefined {
 		return undefined;
 	}
 
-	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 	}
 
-	focus() {
+	override focus() {
 		super.focus();
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		super.clearInput();
 
 		this._modifiedResourceDisposableStore.clear();
@@ -772,7 +772,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._eventDispatcher?.emit([new NotebookDiffLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
-	dispose() {
+	override dispose() {
 		this._isDisposed = true;
 		super.dispose();
 	}

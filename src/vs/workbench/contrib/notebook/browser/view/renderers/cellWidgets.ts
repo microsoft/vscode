@@ -332,7 +332,7 @@ export class BrowserResizeObserver extends Disposable implements IResizeObserver
 		this.observer.unobserve(this.referenceDomElement!);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.observer.disconnect();
 		super.dispose();
 	}

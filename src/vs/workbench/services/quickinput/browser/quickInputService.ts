@@ -39,7 +39,7 @@ export class QuickInputService extends BaseQuickInputService {
 		this._register(this.onHide(() => this.inQuickInputContext.set(false)));
 	}
 
-	protected createController(): QuickInputController {
+	protected override createController(): QuickInputController {
 		return super.createController(this.layoutService, {
 			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,

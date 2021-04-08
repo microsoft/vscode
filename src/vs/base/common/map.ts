@@ -1028,7 +1028,7 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		this.checkTrim();
 	}
 
-	get(key: K, touch: Touch = Touch.AsNew): V | undefined {
+	override get(key: K, touch: Touch = Touch.AsNew): V | undefined {
 		return super.get(key, touch);
 	}
 
@@ -1036,7 +1036,7 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		return super.get(key, Touch.None);
 	}
 
-	set(key: K, value: V): this {
+	override set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
 		return this;

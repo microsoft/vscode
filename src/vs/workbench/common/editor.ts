@@ -614,7 +614,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this.disposed;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (!this.disposed) {
 			this.disposed = true;
 			this._onWillDispose.fire();
@@ -804,7 +804,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return SideBySideEditorInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		if (!this.name) {
 			return localize('sideBySideLabels', "{0} - {1}", this._secondary.getName(), this._primary.getName());
 		}
@@ -812,45 +812,45 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.name;
 	}
 
-	getDescription(): string | undefined {
+	override getDescription(): string | undefined {
 		return this.description;
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return this.primary.isReadonly();
 	}
 
-	isUntitled(): boolean {
+	override isUntitled(): boolean {
 		return this.primary.isUntitled();
 	}
 
-	isDirty(): boolean {
+	override isDirty(): boolean {
 		return this.primary.isDirty();
 	}
 
-	isSaving(): boolean {
+	override isSaving(): boolean {
 		return this.primary.isSaving();
 	}
 
-	save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this.primary.save(group, options);
 	}
 
-	saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	override saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		return this.primary.saveAs(group, options);
 	}
 
-	revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.primary.revert(group, options);
 	}
 
-	getTelemetryDescriptor(): { [key: string]: unknown } {
+	override getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.primary.getTelemetryDescriptor();
 
 		return Object.assign(descriptor, super.getTelemetryDescriptor());
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (otherInput === this) {
 			return true;
 		}
@@ -904,7 +904,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 	/**
 	 * Subclasses should implement to free resources that have been claimed through loading.
 	 */
-	dispose(): void {
+	override dispose(): void {
 		this.disposed = true;
 		this._onWillDispose.fire();
 
@@ -1122,7 +1122,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	/**
 	 * Overwrites option values from the provided bag.
 	 */
-	overwrite(options: ITextEditorOptions): TextEditorOptions {
+	override overwrite(options: ITextEditorOptions): TextEditorOptions {
 		super.overwrite(options);
 
 		if (options.selection) {
@@ -1245,7 +1245,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	run(action: IAction): Promise<void> {
+	override run(action: IAction): Promise<void> {
 		return super.run(action, this.context);
 	}
 }

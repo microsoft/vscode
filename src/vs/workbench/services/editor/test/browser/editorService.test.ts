@@ -383,7 +383,7 @@ suite('EditorService', () => {
 				super(id, undefined!, new TestThemeService(), new TestStorageService());
 			}
 
-			getId(): string {
+			override getId(): string {
 				return 'myEditor';
 			}
 

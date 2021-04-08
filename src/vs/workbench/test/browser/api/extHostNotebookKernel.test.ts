@@ -37,18 +37,18 @@ suite('NotebookKernel', function () {
 
 		rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
-			$registerCommand() { }
+			override $registerCommand() { }
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
-			async $registerNotebookProvider() { }
-			async $unregisterNotebookProvider() { }
-			async $registerNotebookKernelProvider() { }
-			async $unregisterNotebookKernelProvider() { }
+			async override $registerNotebookProvider() { }
+			async override $unregisterNotebookProvider() { }
+			async override $registerNotebookKernelProvider() { }
+			async override $unregisterNotebookKernelProvider() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
-			workspaceValue() {
+			override workspaceValue() {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
@@ -58,13 +58,13 @@ suite('NotebookKernel', function () {
 		});
 
 		const kernels = [new class extends mock<vscode.NotebookKernel>() {
-			id = 'first';
+			override id = 'first';
 		}, new class extends mock<vscode.NotebookKernel>() {
-			id = 'second';
+			override id = 'second';
 		}];
 
 		let kernelReg = extHostNotebooks.registerNotebookKernelProvider(nullExtensionDescription, { viewType: 'test' }, new class extends mock<vscode.NotebookKernelProvider>() {
-			async provideKernels() { return kernels; }
+			async override provideKernels() { return kernels; }
 		});
 
 		// init

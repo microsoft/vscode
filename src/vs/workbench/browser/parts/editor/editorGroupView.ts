@@ -298,7 +298,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupId = this._group.id;
 		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
 			ariaLabel: localize('ariaLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
-				async run(action: IAction) {
+				async override run(action: IAction) {
 					await action.run(groupId);
 				}
 			})
@@ -1690,7 +1690,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Themable
 
-	protected updateStyles(): void {
+	protected override updateStyles(): void {
 		const isEmpty = this.isEmpty;
 
 		// Container
@@ -1759,7 +1759,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#endregion
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposed = true;
 
 		this._onWillDispose.fire();

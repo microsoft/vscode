@@ -58,7 +58,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		this.actionItem = container;
 
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
@@ -123,7 +123,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		this.updateEnabled();
 	}
 
-	setActionContext(newContext: unknown): void {
+	override setActionContext(newContext: unknown): void {
 		super.setActionContext(newContext);
 
 		if (this.dropdownMenu) {
@@ -141,7 +141,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	protected updateEnabled(): void {
+	protected override updateEnabled(): void {
 		const disabled = !this.getAction().enabled;
 		this.actionItem?.classList.toggle('disabled', disabled);
 		this.element?.classList.toggle('disabled', disabled);
@@ -166,7 +166,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 		super(context, action, options);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		if (this.element) {
 			this.element.classList.add('action-dropdown-item');

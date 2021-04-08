@@ -269,7 +269,7 @@ export class WelcomePageAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
+	public override run(): Promise<void> {
 		return this.instantiationService.createInstance(WelcomePage)
 			.openEditor()
 			.then(() => undefined);

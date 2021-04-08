@@ -54,7 +54,7 @@ class OutlineItem extends BreadcrumbsItem {
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -114,7 +114,7 @@ class FileItem extends BreadcrumbsItem {
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 	}
 
