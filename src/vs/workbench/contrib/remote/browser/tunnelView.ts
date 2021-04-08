@@ -396,6 +396,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 
 	renderButton(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.container.style.paddingLeft = '7px';
+		templateData.container.style.height = '28px';
 		templateData.button = this._register(new Button(templateData.container));
 		templateData.button.label = element.label;
 		templateData.button.element.title = element.tooltip;
@@ -411,7 +412,8 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			{
 				title: element.markdownTooltip ?
 					{ markdown: element.markdownTooltip(this.configurationService), markdownNotSupportedFallback: element.tooltip }
-					: element.tooltip
+					: element.tooltip,
+				extraClasses: element.menuId === MenuId.TunnelLocalAddressInline ? ['ports-view-actionbar-cell-localaddress'] : undefined
 			});
 		templateData.actionBar.context = element.tunnel;
 		templateData.container.style.paddingLeft = '10px';

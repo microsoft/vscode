@@ -44,6 +44,10 @@
 	margin-top: -40px;
 }
 
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-localaddress:hover {
+	text-decoration: underline;
+}
+
 .ports-view .monaco-table-th {
 	padding-left: 10px;
 }
