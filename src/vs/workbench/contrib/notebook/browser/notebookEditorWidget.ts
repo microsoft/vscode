@@ -74,6 +74,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isWeb } from 'vs/base/common/platform';
+import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 
 const $ = DOM.$;
 
@@ -1229,6 +1230,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			this._list.attachViewModel(this.viewModel);
 		}
+
+		mark(textModel.uri, 'customMarkdownLoaded');
 
 		// model attached
 		this._localCellStateListeners = this.viewModel.viewCells.map(cell => cell.onDidChangeLayout(e => {
