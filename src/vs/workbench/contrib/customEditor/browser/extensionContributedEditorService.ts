@@ -123,7 +123,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 				if (!selectedContribution) {
 					return;
 				}
-				return { override: this.doHandleEditorOpening(editor, options, group) };
+				return { override: this.doHandleEditorOpening(editor, options, group, selectedContribution) };
 			}
 		}));
 	}
@@ -187,17 +187,12 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === userAssociation.viewType);
 	}
 
-	private async doHandleEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) {
-		if (!editor.resource) {
-			return;
-		}
+	private async doHandleEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, selectedContribution: ContributionPoint) {
 
-		const selectedContribution = this.getContributionPoint(editor.resource, typeof options?.override === 'string' ? options.override : undefined);
-		if (!selectedContribution) {
-			return;
-		}
+		// We only call this function from one place and there we do the check to ensure editor.resource is not undefined
+		const resource = editor.resource!;
 
-		const input = selectedContribution.createEditorInput(editor.resource, selectedContribution.editorInfo.id, group);
+		const input = selectedContribution.createEditorInput(resource, selectedContribution.editorInfo.id, group);
 
 		// If no activation option is provided, populate it.
 		if (options && typeof options.activation === 'undefined') {
@@ -205,7 +200,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		}
 
 		// If an existing editor for a resource exists within the group and we're reopening it, replace it.
-		const existing = firstOrDefault(this.editorService.findEditors(editor.resource, group));
+		const existing = firstOrDefault(this.editorService.findEditors(resource, group));
 		if (existing) {
 			if (!input.matches(existing)) {
 				await this.editorService.replaceEditors([{
