@@ -441,7 +441,7 @@
 			"name": "HC Search Editor context line override",
 			"scope": "meta.resultLinePrefix.contextLinePrefix.search",
 			"settings": {
-				"foreground": "#CBEDCB",
+				"foreground": "#CBEDCB"
 			}
 		}
 	],
