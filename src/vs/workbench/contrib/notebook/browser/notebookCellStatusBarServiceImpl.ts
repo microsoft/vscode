@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItem, INotebookCellStatusBarItemProvider, notebookDocumentFilterMatch } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -26,9 +28,36 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 		});
 	}
 
-	async getEntries(docUri: URI, index: number, viewType: string, token: CancellationToken): Promise<INotebookCellStatusBarItem[]> {
-		const providers = this._providers.filter(p => notebookDocumentFilterMatch(p.selector, viewType, docUri));
-		return flatten(await Promise.all(providers.map(provider => provider.provideCellStatusBarItems(docUri, index, token))));
+	subscribeToStatusBarUpdatesForCell(notebookViewModel: NotebookViewModel, cell: ICellViewModel): Event<INotebookCellStatusBarItem[]> {
+		const disposables = new DisposableStore();
+		const providerCancelToken = new CancellationTokenSource();
+		const emitter = new Emitter<INotebookCellStatusBarItem[]>({
+			onLastListenerRemove: () => disposables.dispose(),
+			onFirstListenerAdd: () => {
+				update();
+			}
+		});
+		disposables.add(emitter);
+		disposables.add(providerCancelToken);
+		disposables.add(cell.model.onDidChangeContent(() => update()));
+		disposables.add(cell.model.onDidChangeOutputs(() => update()));
+		disposables.add(cell.model.onDidChangeLanguage(() => update()));
+		disposables.add(cell.model.onDidChangeMetadata(() => update()));
+
+		const update = async () => {
+			const docUri = notebookViewModel.uri;
+			const viewType = notebookViewModel.viewType;
+			const providers = this.getProviders(docUri, viewType);
+			const cellIdx = notebookViewModel.getCellIndex(cell);
+			const results = flatten(await Promise.all(providers.map(p => p.provideCellStatusBarItems(docUri, cellIdx, providerCancelToken.token))));
+			emitter.fire(results);
+		};
+
+		return emitter.event;
+	}
+
+	private getProviders(docUri: URI, viewType: string): INotebookCellStatusBarItemProvider[] {
+		return this._providers.filter(p => notebookDocumentFilterMatch(p.selector, viewType, docUri));
 	}
 
 	readonly _serviceBrand: undefined;

@@ -59,8 +59,6 @@ export class CellEditorStatusBar extends Disposable {
 	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
 	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
 
-	private currentUpdateToken: CancellationTokenSource | undefined;
-
 	constructor(
 		container: HTMLElement,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -119,11 +117,6 @@ export class CellEditorStatusBar extends Disposable {
 	}
 
 	update(context: INotebookCellActionContext) {
-		if (this.currentUpdateToken) {
-			this.currentUpdateToken.cancel();
-			this.currentUpdateToken = undefined;
-		}
-
 		this.currentContext = context;
 		this.languageStatusBarItem.update(context.cell, context.notebookEditor);
 		this.updateStatusBarItems();
@@ -138,27 +131,25 @@ export class CellEditorStatusBar extends Disposable {
 			return;
 		}
 
-		this.currentUpdateToken = this._register(new CancellationTokenSource());
-
-		DOM.clearNode(this.leftContributedItemsContainer);
-		DOM.clearNode(this.rightContributedItemsContainer);
 		this.itemsDisposable.clear();
 
-		const vm = this.currentContext.notebookEditor.viewModel;
-		const docUri = vm.uri;
-		const cellIdx = vm.getCellIndex(this.currentContext.cell);
-		const items = await this.notebookCellStatusBarService.getEntries(docUri, cellIdx, vm.viewType, this.currentUpdateToken.token);
-		items.sort((itemA, itemB) => {
-			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
-		});
-		items.forEach(item => {
-			const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
-			if (item.alignment === CellStatusbarAlignment.Left) {
-				this.leftContributedItemsContainer.appendChild(itemView.container);
-			} else {
-				this.rightContributedItemsContainer.appendChild(itemView.container);
-			}
-		});
+		const evt = this.notebookCellStatusBarService.subscribeToStatusBarUpdatesForCell(this.currentContext.notebookEditor.viewModel, this.currentContext.cell);
+		this.itemsDisposable.add(evt((items: INotebookCellStatusBarItem[]) => {
+			DOM.clearNode(this.leftContributedItemsContainer);
+			DOM.clearNode(this.rightContributedItemsContainer);
+
+			items.sort((itemA, itemB) => {
+				return (itemB.priority ?? 0) - (itemA.priority ?? 0);
+			});
+			items.forEach(item => {
+				const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
+				if (item.alignment === CellStatusbarAlignment.Left) {
+					this.leftContributedItemsContainer.appendChild(itemView.container);
+				} else {
+					this.rightContributedItemsContainer.appendChild(itemView.container);
+				}
+			});
+		}));
 	}
 }
 

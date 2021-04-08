@@ -244,11 +244,11 @@ export class StatefulMarkdownCell extends Disposable {
 				// active cell and no run status
 				if (this.activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
-					const placeholder = getExecuteCellPlaceholder(this.viewCell);
-					if (!this.notebookCellStatusBarService.getEntries(this.viewCell.uri).find(entry => entry.text === placeholder.text && entry.command === placeholder.command)) {
-						this.activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(placeholder);
-						this._register(this.activeCellRunPlaceholder);
-					}
+					// const placeholder = getExecuteCellPlaceholder(this.viewCell);
+					// if (!this.notebookCellStatusBarService.getEntries(this.viewCell.uri).find(entry => entry.text === placeholder.text && entry.command === placeholder.command)) {
+					// 	this.activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(placeholder);
+					// 	this._register(this.activeCellRunPlaceholder);
+					// }
 				}
 
 				return;

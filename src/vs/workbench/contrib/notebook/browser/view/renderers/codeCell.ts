@@ -233,8 +233,8 @@ export class CodeCell extends Disposable {
 				// active cell and no run status
 				if (this._activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
-					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
-					this._register(this._activeCellRunPlaceholder);
+					// this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
+					// this._register(this._activeCellRunPlaceholder);
 				}
 
 				return;
