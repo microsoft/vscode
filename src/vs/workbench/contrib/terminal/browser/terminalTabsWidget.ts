@@ -20,7 +20,7 @@ import { Codicon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
 
-export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
+export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 	private _terminalService: ITerminalService;
 	constructor(
 		container: HTMLElement,
@@ -60,8 +60,8 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 		);
 		this.onDidChangeSelection(e => {
 			if (e.elements && e.elements[0]) {
-				if ('tab' in e.elements[0]) {
-					terminalService.setActiveTabByIndex(terminalService.terminalTabs.indexOf(e.elements[0].tab));
+				if ('terminalInstances' in e.elements[0]) {
+					terminalService.setActiveTabByIndex(terminalService.terminalTabs.indexOf(e.elements[0]));
 				} else {
 					e.elements[0].focus(true);
 				}
@@ -81,25 +81,31 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<TabTreeNode>  {
 	}
 }
 
-class TerminalTabsIdentityProvider implements IIdentityProvider<TabTreeNode> {
+class TerminalTabsIdentityProvider implements IIdentityProvider<ITabTreeNode> {
 	constructor() {
 	}
-	getId(element: TabTreeNode): { toString(): string; } {
-		if ('tab' in element) {
-			return element.tab.title;
+	getId(element: ITabTreeNode): { toString(): string; } {
+		if ('terminalInstances' in element) {
+			return element.title;
 		} else {
 			return element.instanceId;
 		}
 	}
 
 }
-class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<TabTreeNode> {
-	getAriaLabel(element: TabTreeNode) {
-		if ('tab' in element) {
-			return element.tab ? element.tab.terminalInstances.length > 1 ? `Terminals (${element.tab.terminalInstances.length})` : element.tab.terminalInstances[0].title : '';
+class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITabTreeNode> {
+	getAriaLabel(node: ITabTreeNode) {
+		let label = '';
+		if ('terminalInstances' in node) {
+			if (node.terminalInstances.length === 1) {
+				label = node.terminalInstances[0].title;
+			} else if (node.terminalInstances.length > 1) {
+				label = `Terminals (${node.terminalInstances.length})`;
+			}
 		} else {
-			return element.title;
+			label = node.title;
 		}
+		return label;
 	}
 
 	getWidgetAriaLabel() {
@@ -107,7 +113,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<Ta
 	}
 }
 
-class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITerminalTabEntryTemplate> {
+class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITerminalTabEntryTemplate> {
 
 	templateId = 'terminal.tabs';
 
@@ -117,24 +123,20 @@ class TerminalTabsRenderer implements ITreeRenderer<TabTreeNode, never, ITermina
 		};
 	}
 
-	renderElement(node: ITreeNode<TabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
+	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
-		let icon;
 		let item = node.element;
-		if ('children' in item) {
-			label = item
-				? item.children.length === 0
-					? 'Starting...'
-					: item?.children.length > 1
-						? `Terminals (${item.children.length})`
-						: item.children[0].title
-				: '';
+		if ('terminalInstances' in item) {
+			if (item.terminalInstances.length === 1) {
+				label = item.terminalInstances[0].title;
+			} else if (item.terminalInstances.length > 1) {
+				label = `Terminals (${item.terminalInstances.length})`;
+			}
 		} else {
 			label = item.title;
 		}
 		template.labelElement.textContent = label;
 		template.labelElement.title = label;
-		template.icon = icon;
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
@@ -146,46 +148,26 @@ interface ITerminalTabEntryTemplate {
 	icon?: Codicon;
 }
 
-type TabTreeNode = TabTreeElement | ITerminalInstance;
+type ITabTreeNode = ITerminalTab | ITerminalInstance;
 
-// TODO: Remove in favor of ITerminalTab
-class TabTreeElement {
-	private _tab: ITerminalTab;
-	private _children: ITerminalInstance[];
-	constructor(tab: ITerminalTab) {
-		this._tab = tab;
-		this._children = this._tab.terminalInstances;
-	}
-	get tab(): ITerminalTab {
-		return this._tab;
-	}
-	get children(): ITerminalInstance[] {
-		return this._children;
-	}
-	set children(newChildren: ITerminalInstance[]) {
-		this._children = newChildren;
-	}
-}
-
-function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement<TabTreeNode>> {
+function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement<ITabTreeNode>> {
 	const result = tabs.map(tab => {
 		const hasChildren = tab.terminalInstances.length > 1;
-		const elt = new TabTreeElement(tab);
 		return {
-			element: elt,
+			element: tab,
 			collapsed: false,
 			collapsible: hasChildren,
-			children: getChildren(elt)
+			children: getChildren(tab)
 		};
 	});
 	return result;
 }
 
-function getChildren(elt: TabTreeElement): Iterable<ITreeElement<ITerminalInstance>> | undefined {
-	if (elt.children.length > 1) {
-		return elt.children.map(child => {
+function getChildren(tab: ITerminalTab): Iterable<ITreeElement<ITerminalInstance>> | undefined {
+	if (tab.terminalInstances.length > 1) {
+		return tab.terminalInstances.map(instance => {
 			return {
-				element: child,
+				element: instance,
 				collapsed: true,
 				collapsible: false,
 			};
