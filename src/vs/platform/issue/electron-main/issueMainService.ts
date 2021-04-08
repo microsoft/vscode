@@ -11,7 +11,7 @@ import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display } from 'electron'
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { IDiagnosticsService, PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
+import { isMacintosh, IProcessEnvironment, browserCodeLoadingCacheStrategy } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
@@ -289,7 +289,7 @@ export class IssueMainService implements ICommonIssueService {
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
-				v8CacheOptions: 'bypassHeatCheck',
+				v8CacheOptions: browserCodeLoadingCacheStrategy,
 				enableWebSQL: false,
 				enableRemoteModule: false,
 				spellcheck: false,

@@ -66,7 +66,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			withNullAsUndefined(options.cwd),
 			withNullAsUndefined(options.env),
 			withNullAsUndefined(options.icon),
-			withNullAsUndefined(options.initialText),
+			withNullAsUndefined(options.message),
 			/*options.waitOnExit*/ undefined,
 			withNullAsUndefined(options.strictEnv),
 			withNullAsUndefined(options.hideFromUser),

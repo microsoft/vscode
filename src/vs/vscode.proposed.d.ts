@@ -816,11 +816,11 @@ declare module 'vscode' {
 
 	export interface TerminalOptions {
 		/**
-		 * Initial text to write to the terminal, note that this is not sent to the process but
-		 * rather written directly to the terminal. This supports escape sequences such a setting
-		 * text style.
+		 * A message to write to the terminal on first launch, note that this is not sent to the
+		 * process but, rather written directly to the terminal. This supports escape sequences such
+		 * a setting text style.
 		 */
-		readonly initialText?: string;
+		readonly message?: string;
 	}
 
 	//#endregion
@@ -2941,11 +2941,11 @@ declare module 'vscode' {
 
 	export interface PortAttributesProvider {
 		/**
-		 * Provides attributes for the given ports. For ports that your extension doesn't know about, simply don't include
-		 * them in the returned array. For example, if `providePortAttributes` is called with ports [3000, 4000] but your
-		 * extension doesn't know anything about those ports you can return an empty array.
+		 * Provides attributes for the given port. For ports that your extension doesn't know about, simply
+		 * return undefined. For example, if `providePortAttributes` is called with ports 3000 but your
+		 * extension doesn't know anything about 3000 you should return undefined.
 		 */
-		providePortAttributes(ports: number[], pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes[]>;
+		providePortAttributes(port: number, pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes>;
 	}
 
 	export namespace workspace {
@@ -2956,11 +2956,12 @@ declare module 'vscode' {
 		 * ignored, since they don't need to be user facing.
 		 *
 		 * @param portSelector If registerPortAttributesProvider is called after you start your process then you may already
-		 * know the range of ports or the pid of your process.
+		 * know the range of ports or the pid of your process. All properties of a the portSelector must be true for your
+		 * provider to get called.
 		 * The `portRange` is start inclusive and end exclusive.
 		 * @param provider The PortAttributesProvider
 		 */
-		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number] }, provider: PortAttributesProvider): Disposable;
+		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: PortAttributesProvider): Disposable;
 	}
 	//#endregion
 }

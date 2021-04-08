@@ -30,7 +30,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { attachButtonStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
@@ -46,6 +46,8 @@ import { isWeb } from 'vs/base/common/platform';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { Color, RGBA } from 'vs/base/common/color';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
@@ -730,6 +732,7 @@ export class TunnelPanel extends ViewPane {
 			if (((lastPortCount === 0) || (newPortCount === 0)) && (lastPortCount !== newPortCount)) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
+			lastPortCount = newPortCount;
 			rerender();
 		}));
 
@@ -1463,3 +1466,17 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 		ContextKeyExpr.or(WebContextKey.negate(), TunnelPrivacyContextKey.isEqualTo(TunnelPrivacy.Public)),
 		ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected)))
 }));
+
+export const portWithRunningProcessForeground = registerColor('portWithRunningProcess.foreground', {
+	light: new Color(new RGBA(54, 148, 50)),
+	dark: new Color(new RGBA(54, 148, 50)),
+	hc: new Color(new RGBA(54, 148, 50))
+}, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
+
+registerThemingParticipant((theme, collector) => {
+	const portWithRunningProcessColor = theme.getColor(portWithRunningProcessForeground);
+	if (portWithRunningProcessColor) {
+		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(forwardedPortWithProcessIcon)} { color: ${portWithRunningProcessColor} ; }`);
+	}
+
+});

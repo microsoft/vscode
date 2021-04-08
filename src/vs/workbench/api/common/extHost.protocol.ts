@@ -1118,6 +1118,7 @@ export enum CandidatePortSource {
 export interface PortAttributesProviderSelector {
 	pid?: number;
 	portRange?: [number, number];
+	commandMatcher?: RegExp;
 }
 
 export interface MainThreadTunnelServiceShape extends IDisposable {

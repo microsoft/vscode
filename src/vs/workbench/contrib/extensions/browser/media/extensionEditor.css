@@ -154,6 +154,12 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item {
 	margin-right: 0;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.disabled {
+	min-width: 0;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.manage) {

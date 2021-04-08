@@ -43,18 +43,18 @@ class CheckoutItem implements QuickPickItem {
 
 class CheckoutTagItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
 	}
 }
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}

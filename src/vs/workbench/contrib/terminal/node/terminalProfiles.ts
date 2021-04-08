@@ -14,6 +14,7 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostD
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
+import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
@@ -113,7 +114,7 @@ async function transformToTerminalProfiles(entries: IterableIterator<[string, IT
 		for (let i = 0; i < paths.length; i++) {
 			paths[i] = await variableResolver?.resolveAsync(workspaceFolder, paths[i]) || paths[i];
 		}
-		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.overrideName, profile.isAutoDetected, logService);
+		const validatedProfile = await validateProfilePaths(profileName, paths, fsProvider, args, profile.env, profile.overrideName, profile.isAutoDetected, logService);
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
@@ -258,16 +259,16 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: ITerminalProf
 	}
 }
 
-async function validateProfilePaths(profileName: string, potentialPaths: string[], fsProvider: IFsProvider, args?: string[] | string, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
+async function validateProfilePaths(profileName: string, potentialPaths: string[], fsProvider: IFsProvider, args?: string[] | string, env?: ITerminalEnvironment, overrideName?: boolean, isAutoDetected?: boolean, logService?: ILogService): Promise<ITerminalProfile | undefined> {
 	if (potentialPaths.length === 0) {
 		return Promise.resolve(undefined);
 	}
 	const path = potentialPaths.shift()!;
 	if (path === '') {
-		return validateProfilePaths(profileName, potentialPaths, fsProvider, args, overrideName, isAutoDetected);
+		return validateProfilePaths(profileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
 	}
 
-	const profile = { profileName, path, args, overrideName, isAutoDetected };
+	const profile: ITerminalProfile = { profileName, path, args, env, overrideName, isAutoDetected };
 
 	// For non-absolute paths, check if it's available on $PATH
 	if (basename(path) === path) {
@@ -285,7 +286,7 @@ async function validateProfilePaths(profileName: string, potentialPaths: string[
 		return profile;
 	}
 
-	return validateProfilePaths(profileName, potentialPaths, fsProvider, args, overrideName, isAutoDetected);
+	return validateProfilePaths(profileName, potentialPaths, fsProvider, args, env, overrideName, isAutoDetected);
 }
 
 export interface IFsProvider {

@@ -35,6 +35,14 @@ const terminalProfileSchema: IJSONSchema = {
 		icon: {
 			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 			type: 'string'
+		},
+		env: {
+			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+			type: 'object',
+			additionalProperties: {
+				type: ['string', 'null']
+			},
+			default: {}
 		}
 	}
 };
@@ -153,6 +161,14 @@ export const terminalConfiguration: IConfigurationNode = {
 							icon: {
 								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 								type: 'string'
+							},
+							env: {
+								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+								type: 'object',
+								additionalProperties: {
+									type: ['string', 'null']
+								},
+								default: {}
 							}
 						}
 					},

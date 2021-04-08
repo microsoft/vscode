@@ -80,7 +80,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			const portRange = selector.portRange;
 			const portInRange = portRange ? ports.some(port => portRange[0] <= port && port < portRange[1]) : true;
 			const pidMatches = !selector.pid || (selector.pid === pid);
-			return portInRange || pidMatches;
+			const commandMatches = !selector.commandMatcher || (commandLine && (commandLine.match(selector.commandMatcher)));
+			return portInRange && pidMatches && commandMatches;
 		}).map(entry => entry[0]);
 
 		if (appropriateHandles.length === 0) {

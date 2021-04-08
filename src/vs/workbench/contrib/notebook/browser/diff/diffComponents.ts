@@ -1004,7 +1004,7 @@ export class DeletedElement extends SingleSideDiffElement {
 			}
 		}));
 
-		originalCell.textModel.resolveTextModelRef().then(ref => {
+		this.textModelService.createModelReference(originalCell.uri).then(ref => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -1157,7 +1157,7 @@ export class InsertElement extends SingleSideDiffElement {
 			}
 		}));
 
-		modifiedCell.textModel.resolveTextModelRef().then(ref => {
+		this.textModelService.createModelReference(modifiedCell.uri).then(ref => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -1525,8 +1525,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		const originalCell = this.cell.original!;
 		const modifiedCell = this.cell.modified!;
 
-		const originalRef = await originalCell.textModel.resolveTextModelRef();
-		const modifiedRef = await modifiedCell.textModel.resolveTextModelRef();
+		const originalRef = await this.textModelService.createModelReference(originalCell.uri);
+		const modifiedRef = await this.textModelService.createModelReference(modifiedCell.uri);
 
 		if (this._isDisposed) {
 			return;

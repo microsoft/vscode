@@ -22,9 +22,9 @@ jobs:
           echo "::set-output name=should_run::${{ !contains(fromJson('["admin", "write"]'), fromJson(steps.get_permissions.outputs.data).permission) }}"
       - name: Get file changes
         uses: trilom/file-changes-action@ce38c8ce2459ca3c303415eec8cb0409857b4272
-        if: ${{ steps.control.outputs.should_run == "true" }}
+        if: ${{ steps.control.outputs.should_run == 'true' }}
       - name: Check for yarn.lock changes
-        if: ${{ steps.control.outputs.should_run == "true" }}
+        if: ${{ steps.control.outputs.should_run == 'true' }}
         run: |
           cat $HOME/files.json | jq -e 'any(test("yarn\\.lock$")) | not' \
             || (echo "Changes to yarn.lock files aren't allowed in PRs." && exit 1)

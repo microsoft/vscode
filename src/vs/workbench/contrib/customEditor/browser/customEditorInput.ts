@@ -90,7 +90,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public supportsSplitEditor() {
-		return true;
+		return !!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument;
 	}
 
 	getName(): string {
