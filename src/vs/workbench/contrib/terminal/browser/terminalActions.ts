@@ -148,7 +148,8 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, args: ITerminalProfile) {
-			await accessor.get(ITerminalService).createTerminal(args);
+			const instance = await accessor.get(ITerminalService).createTerminal(args);
+			accessor.get(ITerminalService).setActiveInstance(instance);
 		}
 	});
 	registerAction2(class extends Action2 {

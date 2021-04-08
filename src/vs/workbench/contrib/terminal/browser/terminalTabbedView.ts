@@ -67,7 +67,7 @@ export class TerminalTabbedView extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
-		@IMenuService commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
 		super();
 
