@@ -17,7 +17,7 @@ class DesktopMain extends SharedDesktopMain {
 		super({ ...configuration, workspace: { id: configuration.workspace?.id ?? '4064f6ec-cb38-4ad0-af64-ee6467e63c82', uri: simpleWorkspaceDir } });
 	}
 
-	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): void {
+	protected registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<void> {
 
 		// Local Files
 		fileService.registerProvider(Schemas.file, simpleFileSystemProvider);
@@ -26,7 +26,7 @@ class DesktopMain extends SharedDesktopMain {
 		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, simpleFileSystemProvider, Schemas.userData, logService));
 
 		// Init our in-memory file system
-		initFileSystem(environmentService, fileService);
+		return initFileSystem(environmentService, fileService);
 	}
 }
 

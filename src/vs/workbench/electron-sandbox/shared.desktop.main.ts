@@ -130,7 +130,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	protected abstract registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void;
+	protected abstract registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void | Promise<void>;
 	protected joinOpen(instantiationService: IInstantiationService): void { }
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
@@ -203,7 +203,10 @@ export abstract class SharedDesktopMain extends Disposable {
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		this.registerFileSystemProviders(this.environmentService, fileService, logService, nativeHostService);
+		const result = this.registerFileSystemProviders(this.environmentService, fileService, logService, nativeHostService);
+		if (result instanceof Promise) {
+			await result;
+		}
 
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
