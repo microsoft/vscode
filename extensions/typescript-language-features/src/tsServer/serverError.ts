@@ -39,15 +39,13 @@ export class TypeScriptServerError extends Error {
 			"TypeScriptRequestErrorProperties" : {
 				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"serverid" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"sanitizedstack" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"badclient" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"sanitizedstack" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
 		return {
 			command: this.serverCommand,
 			serverid: this.serverId,
 			sanitizedstack: this.sanitizedStack || '',
-			badclient: /\bBADCLIENT\b/.test(this.stack || ''),
 		} as const;
 	}
 
