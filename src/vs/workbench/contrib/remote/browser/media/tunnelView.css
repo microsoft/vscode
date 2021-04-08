@@ -31,6 +31,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	flex-wrap: nowrap;
+	height: 22px;
 }
 
 .ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox {

@@ -39,15 +39,18 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openBrowserIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
+import { copyAddressIcon, forwardedPortWithoutProcessIcon, forwardedPortWithProcessIcon, forwardPortIcon, labelPortIcon, openPreviewIcon, portsViewIcon, privatePortIcon, publicPortIcon, stopForwardIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
 import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
 
@@ -216,7 +219,39 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 		if (row instanceof TunnelItem) {
 			tooltip = row.tooltipPostfix;
 		}
-		return { label, menuId: MenuId.TunnelLocalAddressInline, tunnel: row, editId: TunnelEditId.LocalPort, tooltip };
+		return {
+			label,
+			menuId: MenuId.TunnelLocalAddressInline,
+			tunnel: row,
+			editId: TunnelEditId.LocalPort,
+			tooltip,
+			markdownTooltip: label ? LocalAddressColumn.getHoverText(label) : undefined
+		};
+	}
+
+	private static getHoverText(localAddress: string) {
+		return function (configurationService: IConfigurationService) {
+			const editorConf = configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+
+			let clickLabel = '';
+			if (editorConf.multiCursorModifier === 'ctrlCmd') {
+				if (isMacintosh) {
+					clickLabel = nls.localize('portsLink.followLinkAlt.mac', "option + click");
+				} else {
+					clickLabel = nls.localize('portsLink.followLinkAlt', "alt + click");
+				}
+			} else {
+				if (isMacintosh) {
+					clickLabel = nls.localize('portsLink.followLinkCmd', "cmd + click");
+				} else {
+					clickLabel = nls.localize('portsLink.followLinkCtrl', "ctrl + click");
+				}
+			}
+
+			const markdown = new MarkdownString('', true);
+			const uri = localAddress.startsWith('http') ? localAddress : `http://${localAddress}`;
+			return markdown.appendMarkdown(`[Follow link](${uri}) (${clickLabel})`);
+		};
 	}
 }
 
@@ -283,6 +318,7 @@ interface ActionBarCell {
 	label: string;
 	icon?: ThemeIcon;
 	tooltip: string;
+	markdownTooltip?: (configurationService: IConfigurationService) => IMarkdownString;
 	menuId?: MenuId;
 	tunnel: ITunnelItem;
 	editId: TunnelEditId;
@@ -300,7 +336,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService private readonly hoverService: IHoverService
 	) { super(); }
 
 	set actionRunner(actionRunner: ActionRunner) {
@@ -310,7 +348,16 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 	renderTemplate(container: HTMLElement): IActionBarTemplateData {
 		const cell = dom.append(container, dom.$('.ports-view-actionbar-cell'));
 		const icon = dom.append(cell, dom.$('.ports-view-actionbar-cell-icon'));
-		const label = new IconLabel(cell, { supportHighlights: true });
+		const label = new IconLabel(cell,
+			{
+				supportHighlights: true,
+				hoverDelegate: {
+					showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
+						return this.hoverService.showHover(options);
+					},
+					delay: <number>this.configurationService.getValue('workbench.hover.delay')
+				}
+			});
 		const actionsContainer = dom.append(cell, dom.$('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
@@ -360,7 +407,12 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 
 	renderActionBarItem(element: ActionBarCell, templateData: IActionBarTemplateData): void {
 		templateData.label.element.style.display = 'flex';
-		templateData.label.setLabel(element.label, undefined, { title: element.tooltip });
+		templateData.label.setLabel(element.label, undefined,
+			{
+				title: element.markdownTooltip ?
+					{ markdown: element.markdownTooltip(this.configurationService), markdownNotSupportedFallback: element.tooltip }
+					: element.tooltip
+			});
 		templateData.actionBar.context = element.tunnel;
 		templateData.container.style.paddingLeft = '10px';
 		const context: [string, any][] =
@@ -641,7 +693,8 @@ export class TunnelPanel extends ViewPane {
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
-		@IContextViewService private readonly contextViewService: IContextViewService
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.tunnelTypeContext = TunnelTypeContextKey.bindTo(contextKeyService);
@@ -680,7 +733,8 @@ export class TunnelPanel extends ViewPane {
 		widgetContainer.classList.add('file-icon-themable-tree', 'show-file-icons');
 
 		const actionBarRenderer = new ActionBarRenderer(this.instantiationService, this.contextKeyService,
-			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService);
+			this.menuService, this.contextViewService, this.themeService, this.remoteExplorerService, this.commandService,
+			this.configurationService, this.hoverService);
 		const columns = [new IconColumn(), new PortColumn(), new LocalAddressColumn(), new RunningProcessColumn()];
 		if (this.tunnelService.canMakePublic) {
 			columns.push(new PrivacyColumn());
@@ -710,7 +764,7 @@ export class TunnelPanel extends ViewPane {
 					},
 					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
 				},
-				openOnSingleClick: false
+				openOnSingleClick: true
 			}
 		) as WorkbenchTable<ITunnelItem>;
 
@@ -737,8 +791,27 @@ export class TunnelPanel extends ViewPane {
 		}));
 
 		this._register(this.table.onDidOpen(e => {
-			if (e.element && (e.element.tunnelType === TunnelType.Forwarded)) {
+			if (!e.element || (e.element.tunnelType !== TunnelType.Forwarded)) {
+				return;
+			}
+			if (e.browserEvent?.type === 'dblclick') {
 				this.commandService.executeCommand(LabelTunnelAction.ID);
+			} else if (e.browserEvent instanceof MouseEvent) {
+				const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+
+				let modifierKey = false;
+				if (editorConf.multiCursorModifier === 'ctrlCmd') {
+					modifierKey = e.browserEvent.altKey;
+				} else {
+					if (isMacintosh) {
+						modifierKey = e.browserEvent.metaKey;
+					} else {
+						modifierKey = e.browserEvent.ctrlKey;
+					}
+				}
+				if (modifierKey) {
+					this.commandService.executeCommand(OpenPortInBrowserAction.ID, e.element);
+				}
 			}
 		}));
 
@@ -1448,15 +1521,6 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 	order: 1,
-	command: {
-		id: OpenPortInBrowserAction.ID,
-		title: OpenPortInBrowserAction.LABEL,
-		icon: openBrowserIcon
-	},
-	when: ContextKeyExpr.or(TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded), TunnelTypeContextKey.isEqualTo(TunnelType.Detected))
-}));
-MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
-	order: 2,
 	command: {
 		id: OpenPortInPreviewAction.ID,
 		title: OpenPortInPreviewAction.LABEL,
