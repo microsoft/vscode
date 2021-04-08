@@ -215,8 +215,8 @@ export const content: GettingStartedContent = [
 				},
 				{
 					id: 'keymaps',
-					title: localize('gettingStarted.keymaps.title', "Switch between editors"),
-					description: localize('gettingStarted.keymaps.description', "Keymap extensions bring your favorite keyboard shortcuts from other editors to VS Code."),
+					title: localize('gettingStarted.keymaps.title', "Switch from other editors"),
+					description: localize('gettingStarted.keymaps.description', "Bring your favorite keyboard shortcuts from other editors into VS Code with keymaps."),
 					button: {
 						title: localize('gettingStarted.keymaps.button', "Browse Keymap Extensions"),
 						command: 'workbench.extensions.action.showRecommendedKeymapExtensions',
@@ -409,9 +409,9 @@ export const content: GettingStartedContent = [
 				{
 					id: 'playground',
 					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
-					description: localize('gettingStarted.playground.description', "Want to code faster and smarter? Practice powerful code editing feature without creating files or a project."),
+					description: localize('gettingStarted.playground.description', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground."),
 					button: {
-						title: localize('gettingStarted.playground.button', "Interactive Playground"),
+						title: localize('gettingStarted.playground.button', "Open Interactive Playground"),
 						command: 'workbench.action.showInteractivePlayground'
 					},
 					doneOn: { commandExecuted: 'workbench.action.showInteractivePlayground' },
@@ -426,7 +426,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'splitview',
 					title: localize('gettingStarted.splitview.title', "Side by side editing"),
-					description: localize('gettingStarted.splitview.description', "Make the most of your screen estate by opening files side by side vertically and horizontally."),
+					description: localize('gettingStarted.splitview.description', "Make the most of your screen estate by opening files side by side, vertically and horizontally."),
 					button: {
 						title: localize('gettingStarted.splitview.button', "Split Editor"),
 						command: 'workbench.action.splitEditor'
@@ -461,7 +461,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'scmClone',
 					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scmSetup.description', "Set up your project to use Git and GitHub integration right inside your editor."),
+					description: localize('gettingStarted.scmSetup.description', "Set up the built-in version control for your project to track your changes and collaborate with others."),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount == 0',
 					button: {
 						title: localize('gettingStarted.scmClone.button', "Clone Repository"),
@@ -479,7 +479,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'scmSetup',
 					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scmSetup.description', "Set up your project to use Git and GitHub integration right inside your editor."),
+					description: localize('gettingStarted.scmSetup.description', "Set up the built-in version control for your project to track your changes and collaborate with others."),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount == 0',
 					button: {
 						title: localize('gettingStarted.scmSetup.button', "Initialize Git Repository"),
@@ -497,7 +497,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'scm',
 					title: localize('gettingStarted.scm.title', "Track your code with Git"),
-					description: localize('gettingStarted.scm.description', "Manage common Git and GitHub tasks right inside your editor."),
+					description: localize('gettingStarted.scm.description', "No more looking up Git commands! Git and GitHub workflows are seamlessly integrated."),
 					when: 'config.git.enabled && !git.missing && workspaceFolderCount != 0 && gitOpenRepositoryCount != 0 && activeViewlet != \'workbench.view.scm\'',
 					button: {
 						title: localize('gettingStarted.scm.button', "Open Source Control"),
@@ -532,7 +532,7 @@ export const content: GettingStartedContent = [
 				},
 				{
 					id: 'shortcuts',
-					title: localize('gettingStarted.shortcuts.title', "Assign some hot keys"),
+					title: localize('gettingStarted.shortcuts.title', "Customize your shortcuts"),
 					description: localize('gettingStarted.shortcuts.description', "Once you discovered your favorite commands, lookup and customize their keyboard shortcuts for instant access."),
 					button: {
 						title: localize('gettingStarted.shortcuts.button', "Keyboard Shortcuts"),
