@@ -309,8 +309,8 @@ export class TerminalTabbedView extends Disposable {
 		const profiles = await this._terminalService.getAvailableProfiles().filter(p => this._terminalService.configHelper.checkIsProcessLaunchSafe(undefined, p));
 		const tabsMenu = this._tabsMenu;
 		for (const p of profiles) {
-			const action = new MenuItemAction({ id: p.profileName, title: p.profileName }, undefined, undefined, this._contextKeyService, this._commandService);
-			tabsMenu.getActions().push([p.profileName, [action]]);
+			const action = new MenuItemAction({ id: 'workbench.action.terminal.newFromProfile', title: p.profileName }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
+			actions.push(action);
 		}
 
 		const actionsDisposable = createAndFillInContextMenuActions(tabsMenu, undefined, actions);
