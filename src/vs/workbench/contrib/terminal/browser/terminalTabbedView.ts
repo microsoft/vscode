@@ -45,31 +45,21 @@ export class TerminalTabbedView extends Disposable {
 
 	private _height: number | undefined;
 
-	private _instantiationService: IInstantiationService;
-	private _terminalService: ITerminalService;
-	private _themeService: IThemeService;
-	private _contextMenuService: IContextMenuService;
-
 	private _cancelContextMenu: boolean = false;
 	private _menu: IMenu;
 
 	constructor(
 		parentElement: HTMLElement,
-		@ITerminalService terminalService: ITerminalService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IContextKeyService contextMenuService: IContextMenuService,
-		@IMenuService _menuService: IMenuService
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService
 	) {
 		super();
-
-		this._instantiationService = instantiationService;
-		this._terminalService = terminalService;
-		this._themeService = themeService;
-		this._contextMenuService = contextMenuService;
 
 		this._parentElement = parentElement;
 
@@ -84,20 +74,20 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalContainer.classList.add('terminal-outer-container');
 		this._terminalContainer.style.display = 'block';
 
-		this._showTabs = terminalService.configHelper.config.showTabs;
+		this._showTabs = this._terminalService.configHelper.config.showTabs;
 
-		this._tabTreeIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-		this._terminalContainerIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+		this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+		this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
-		this._menu = this._register(_menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
+		this._menu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(_contextKeyService);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 
-		terminalService.setContainers(parentElement, this._terminalContainer);
+		this._terminalService.setContainers(parentElement, this._terminalContainer);
 
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
-				this._showTabs = terminalService.configHelper.config.showTabs;
+				this._showTabs = this._terminalService.configHelper.config.showTabs;
 				if (this._showTabs) {
 					this._splitView.addView({
 						element: this._terminalTabTree,
@@ -110,15 +100,15 @@ export class TerminalTabbedView extends Disposable {
 					this._splitView.removeView(this._tabTreeIndex);
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
-				this._tabTreeIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
-				this._terminalContainerIndex = terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
+				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
+				this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 				if (this._showTabs) {
 					this._splitView.swapViews(0, 1);
 				}
 			}
 		});
 
-		this._register(themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._updateTheme();
 
 		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
