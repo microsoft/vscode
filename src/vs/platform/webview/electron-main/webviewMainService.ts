@@ -6,8 +6,7 @@
 import { session, WebContents, webContents } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
-import { IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { IWebviewManagerService, webviewPartitionId, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 

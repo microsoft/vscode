@@ -17,8 +17,6 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 
 export class LinuxUpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,

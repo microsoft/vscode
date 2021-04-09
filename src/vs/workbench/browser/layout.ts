@@ -313,7 +313,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onDidColorThemeChange(theme => this.updateStyles()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
 
 		// Window focus changes
 		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
@@ -581,7 +581,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const { views } = defaultLayout;
 		if (views?.length) {
-			this.state.views.defaults = views.map(v => v.id);
+			this.state.views.defaults = views.map(view => view.id);
 		}
 	}
 
@@ -598,7 +598,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Files to diff is exclusive
 			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
-				if (filesToDiff?.length === 2) {
+				if (filesToDiff.length === 2) {
 					return [{
 						leftResource: filesToDiff[0].resource,
 						rightResource: filesToDiff[1].resource,
@@ -614,8 +614,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Empty workbench
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
-			if (this.editorGroupService.willRestoreEditors) {
-				return []; // do not open any empty untitled file if we restored editors from previous session
+			if (this.editorGroupService.hasRestorableState) {
+				return []; // do not open any empty untitled file if we restored groups/editors from previous session
 			}
 
 			return this.backupFileService.hasBackups().then(hasBackups => {
@@ -634,6 +634,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get openedDefaultEditors() { return this._openedDefaultEditors; }
 
 	private getInitialFilesToOpen(): { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; } | undefined {
+
+		// Check for editors from `defaultLayout` options first
 		const defaultLayout = this.environmentService.options?.defaultLayout;
 		if (defaultLayout?.editors?.length && (defaultLayout.force || this.storageService.isNew(StorageScope.WORKSPACE))) {
 			this._openedDefaultEditors = true;
@@ -645,6 +647,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			};
 		}
 
+		// Then check for files to open, create or diff from main side
 		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
 		if (filesToOpenOrCreate || filesToDiff) {
 			return { filesToOpenOrCreate, filesToDiff };
@@ -1034,9 +1037,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (config.silentNotifications) {
 				this.notificationService.setFilter(NotificationsFilter.ERROR);
 			}
-			this.state.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(c => {
+			this.state.zenMode.transitionDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 				const silentNotificationsKey = 'zenMode.silentNotifications';
-				if (c.affectsConfiguration(silentNotificationsKey)) {
+				if (e.affectsConfiguration(silentNotificationsKey)) {
 					const filter = this.configurationService.getValue(silentNotificationsKey) ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
 					this.notificationService.setFilter(filter);
 				}

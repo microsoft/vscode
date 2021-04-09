@@ -201,9 +201,33 @@ export interface IStartupMetrics {
 		 * The time it took to create the window.
 		 *
 		 * * Happens in the main-process
-		 * * Measured with the `willCreateWindow` and `didCreateWindow` performance marks.
+		 * * Measured with the `willCreateCodeWindow` and `didCreateCodeWindow` performance marks.
 		 */
 		readonly ellapsedWindowCreate?: number;
+
+		/**
+		 * The time it took to create the electron browser window.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `willCreateCodeBrowserWindow` and `didCreateCodeBrowserWindow` performance marks.
+		 */
+		readonly ellapsedBrowserWindowCreate?: number;
+
+		/**
+		 * The time it took to restore and validate window state.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `willRestoreCodeWindowState` and `didRestoreCodeWindowState` performance marks.
+		 */
+		readonly ellapsedWindowRestoreState?: number;
+
+		/**
+		 * The time it took to maximize/show the window.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `willMaximizeCodeWindow` and `didMaximizeCodeWindow` performance marks.
+		 */
+		readonly ellapsedWindowMaximize?: number;
 
 		/**
 		 * The time it took to tell electron to open/restore a renderer (browser window).
@@ -558,7 +582,10 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
 				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
 				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
-				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateWindow', 'code/didCreateWindow') : undefined,
+				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeWindow', 'code/didCreateCodeWindow') : undefined,
+				ellapsedWindowRestoreState: initialStartup ? this._marks.getDuration('code/willRestoreCodeWindowState', 'code/didRestoreCodeWindowState') : undefined,
+				ellapsedBrowserWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeBrowserWindow', 'code/didCreateCodeBrowserWindow') : undefined,
+				ellapsedWindowMaximize: initialStartup ? this._marks.getDuration('code/willMaximizeCodeWindow', 'code/didMaximizeCodeWindow') : undefined,
 				ellapsedWindowLoad: initialStartup ? this._marks.getDuration('code/mainAppReady', 'code/willOpenNewWindow') : undefined,
 				ellapsedWindowLoadToRequire: this._marks.getDuration('code/willOpenNewWindow', 'code/willLoadWorkbenchMain'),
 				ellapsedRequire: this._marks.getDuration('code/willLoadWorkbenchMain', 'code/didLoadWorkbenchMain'),

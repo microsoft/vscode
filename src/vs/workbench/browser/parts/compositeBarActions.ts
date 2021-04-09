@@ -132,7 +132,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	protected container!: HTMLElement;
 	protected label!: HTMLElement;
 	protected badge!: HTMLElement;
-	protected options!: IActivityActionViewItemOptions;
+	protected override readonly options: IActivityActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -144,6 +144,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		@IThemeService protected readonly themeService: IThemeService
 	) {
 		super(null, action, options);
+
+		this.options = options;
 
 		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));

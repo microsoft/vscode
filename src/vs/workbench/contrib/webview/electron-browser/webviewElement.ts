@@ -5,7 +5,6 @@
 
 import { FindInPageOptions, WebviewTag } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -20,7 +19,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
+import { webviewPartitionId } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -44,9 +43,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
-
-	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
-	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
 
 	constructor(
 		id: string,
@@ -168,7 +164,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// Wait the end of the ctor when all listeners have been hooked up.
 		const element = document.createElement('webview');
 
-		this._elementFocusImpl = element.focus.bind(element);
 		element.focus = () => {
 			this.doFocus();
 		};
@@ -183,6 +178,10 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.style.outline = '0';
 
 		return element;
+	}
+
+	protected elementFocusImpl() {
+		this.element?.focus();
 	}
 
 	public override set contentOptions(options: WebviewContentOptions) {
@@ -212,53 +211,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		this.element?.send(channel, data);
 	}
 
-	public focus(): void {
-		this.doFocus();
-
-		// Handle focus change programmatically (do not rely on event from <webview>)
-		this.handleFocusChange(true);
-	}
-
-	private doFocus() {
-		if (!this.element) {
-			return;
-		}
-
-		// Clear the existing focus first if not already on the webview.
-		// This is required because the next part where we set the focus is async.
-		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
-			// Don't blur if on the webview because this will also happen async and may unset the focus
-			// after the focus trigger fires below.
-			document.activeElement.blur();
-		}
-
-		// Workaround for https://github.com/microsoft/vscode/issues/75209
-		// Electron's webview.focus is async so for a sequence of actions such as:
-		//
-		// 1. Open webview
-		// 1. Show quick pick from command palette
-		//
-		// We end up focusing the webview after showing the quick pick, which causes
-		// the quick pick to instantly dismiss.
-		//
-		// Workaround this by debouncing the focus and making sure we are not focused on an input
-		// when we try to re-focus.
-		this._focusDelayer.trigger(async () => {
-			if (!this.isFocused || !this.element) {
-				return;
-			}
-			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
-				return;
-			}
-			try {
-				this._elementFocusImpl();
-			} catch {
-				// noop
-			}
-			this._send('focus');
-		});
-	}
-
 	protected override style(): void {
 		super.style();
 		this.styledFindWidget();
@@ -283,8 +235,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		const findOptions: FindInPageOptions = {
 			forward: options.forward,
 			findNext: true,
-			matchCase: options.matchCase,
-			medialCapitalAsWordStart: options.medialCapitalAsWordStart
+			matchCase: options.matchCase
 		};
 
 		this._findStarted = true;

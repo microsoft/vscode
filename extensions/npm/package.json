@@ -42,6 +42,10 @@
     "workspaceContains:package.json",
     "onView:npm"
   ],
+  "workspaceTrust": {
+    "request": "onDemand",
+    "description": "This extension calls the `tasks.executeTask()` API, which requires trust to run."
+  },
   "contributes": {
     "languages": [
       {

@@ -229,7 +229,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		namedVariables: number | undefined,
 		indexedVariables: number | undefined,
 		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
-		public type: string | undefined = undefined,
+		type: string | undefined = undefined,
 		public variableMenuContext: string | undefined = undefined,
 		public available = true,
 		startOfVariables = 0,
@@ -237,6 +237,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 	) {
 		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value || '';
+		this.type = type;
 	}
 
 	async setVariable(value: string): Promise<any> {

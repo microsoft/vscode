@@ -26,8 +26,6 @@ type AccessibilityMetricsClassification = {
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private didSendTelemetry = false;
 	private shouldAlwaysUnderlineAccessKeys: boolean | undefined = undefined;
 

@@ -284,8 +284,6 @@ export class TestServiceAccessor {
 
 export class TestNativePathService extends TestPathService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor() {
 		super(URI.file(homedir()));
 	}

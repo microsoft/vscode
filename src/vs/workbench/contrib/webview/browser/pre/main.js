@@ -58,7 +58,9 @@
 
 	const vscodePostMessageFuncName = '__vscode_post_message__';
 
-	const defaultCssRules = `
+	const defaultStyles = document.createElement('style');
+	defaultStyles.id = '_defaultStyles';
+	defaultStyles.textContent = `
 	html {
 		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
 	}
@@ -195,11 +197,23 @@
 		// state
 		let firstLoad = true;
 		let loadTimeout;
+		let styleVersion = 0;
+
 		/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
 		let pendingMessages = [];
 
 		const initData = {
+			/** @type {number | undefined} */
 			initialScrollProgress: undefined,
+
+			/** @type {{ [key: string]: string }} */
+			styles: undefined,
+
+			/** @type {string | undefined} */
+			activeTheme: undefined,
+
+			/** @type {string | undefined} */
+			themeName: undefined,
 		};
 
 		function fatalError(/** @type {string} */ message) {
@@ -209,10 +223,6 @@
 
 		/** @type {Promise<void>} */
 		const workerReady = new Promise(async (resolveWorkerReady) => {
-			// if (onElectron) {
-			// 	return resolveWorkerReady();
-			// }
-
 			if (!areServiceWorkersEnabled()) {
 				fatalError('Service Workers are not enabled in browser. Webviews will not work.');
 				return resolveWorkerReady();
@@ -247,19 +257,24 @@
 					resolveWorkerReady();
 				});
 
-			const forwardFromHostToWorker = (channel) => {
-				host.onMessage(channel, (_event, data) => {
-					navigator.serviceWorker.ready.then(registration => {
-						registration.active.postMessage({ channel, data });
-					});
+			host.onMessage('did-load-resource', (_event, data) => {
+				navigator.serviceWorker.ready.then(registration => {
+					registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 				});
-			};
-			forwardFromHostToWorker('did-load-resource');
-			forwardFromHostToWorker('did-load-localhost');
+			});
+
+			host.onMessage('did-load-localhost', (_event, data) => {
+				navigator.serviceWorker.ready.then(registration => {
+					registration.active.postMessage({ channel: 'did-load-localhost', data });
+				});
+			});
 
 			navigator.serviceWorker.addEventListener('message', event => {
-				if (['load-resource', 'load-localhost'].includes(event.data.channel)) {
-					host.postMessage(event.data.channel, event.data);
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						host.postMessage(event.data.channel, event.data);
+						return;
 				}
 			});
 		});
@@ -472,7 +487,7 @@
 				}
 			});
 
-			// apply default script
+			// Inject default script
 			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.id = '_vscodeApiScript';
@@ -480,11 +495,8 @@
 				newDocument.head.prepend(defaultScript);
 			}
 
-			// apply default styles
-			const defaultStyles = newDocument.createElement('style');
-			defaultStyles.id = '_defaultStyles';
-			defaultStyles.textContent = defaultCssRules;
-			newDocument.head.prepend(defaultStyles);
+			// Inject default styles
+			newDocument.head.prepend(defaultStyles.cloneNode(true));
 
 			applyStyles(newDocument, newDocument.body);
 
@@ -516,6 +528,8 @@
 			}
 
 			host.onMessage('styles', (_event, data) => {
+				++styleVersion;
+
 				initData.styles = data.styles;
 				initData.activeTheme = data.activeTheme;
 				initData.themeName = data.themeName;
@@ -559,6 +573,8 @@
 
 				const options = data.options;
 				const newDocument = toContentHtml(data);
+
+				const initialStyleVersion = styleVersion;
 
 				const frame = getActiveFrame();
 				const wasFirstLoad = firstLoad;
@@ -617,7 +633,7 @@
 						contentDocument.close();
 						hookupOnLoadHandlers(newFrame);
 
-						if (contentDocument) {
+						if (initialStyleVersion !== styleVersion) {
 							applyStyles(contentDocument, contentDocument.body);
 						}
 					}, 0);
@@ -663,7 +679,9 @@
 							document.body.removeChild(oldActiveFrame);
 						}
 						// Styles may have changed since we created the element. Make sure we re-style
-						applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
+						if (initialStyleVersion !== styleVersion) {
+							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
+						}
 						newFrame.setAttribute('id', 'active-frame');
 						newFrame.style.visibility = 'visible';
 						if (host.focusIframeOnCreate) {

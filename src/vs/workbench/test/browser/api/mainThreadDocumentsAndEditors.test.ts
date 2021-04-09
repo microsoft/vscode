@@ -86,7 +86,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			editorGroupService,
 			null!,
 			new class extends mock<IPanelService>() implements IPanelService {
-				declare readonly _serviceBrand: undefined;
 				override onDidPanelOpen = Event.None;
 				override onDidPanelClose = Event.None;
 				override getActivePanel() {

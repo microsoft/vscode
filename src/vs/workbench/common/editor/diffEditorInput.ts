@@ -26,8 +26,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	private cachedModel: DiffEditorModel | undefined = undefined;
 
 	constructor(
-		protected name: string | undefined,
-		protected description: string | undefined,
+		name: string | undefined,
+		description: string | undefined,
 		public readonly originalInput: EditorInput,
 		public readonly modifiedInput: EditorInput,
 		private readonly forceOpenAsBinary: boolean | undefined,

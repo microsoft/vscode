@@ -77,28 +77,41 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 
 		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		logService.trace('getUnixShellEnvironment#env', env);
-		logService.trace('getUnixShellEnvironment#spawn', command);
 
 		const systemShellUnix = await getSystemShell(platform, env);
 		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
-		const child = spawn(systemShellUnix, ['-ilc', command], {
+		const args = ['-ilc', command];
+		logService.trace('getUnixShellEnvironment#spawn', systemShellUnix, args);
+		const child = spawn(systemShellUnix, args, {
 			detached: true,
-			stdio: ['ignore', 'pipe', process.stderr],
+			stdio: ['ignore', 'pipe', 'pipe'],
 			env
 		});
 
+		child.on('error', err => {
+			logService.error('getUnixShellEnvironment#errorChildProcess', toErrorMessage(err));
+			resolve({});
+		});
+
 		const buffers: Buffer[] = [];
-		child.on('error', () => resolve({}));
 		child.stdout.on('data', b => buffers.push(b));
 
-		child.on('close', code => {
-			if (code !== 0) {
-				return reject(new Error('Failed to get environment'));
-			}
+		const stderr: Buffer[] = [];
+		child.stderr.on('data', b => stderr.push(b));
 
+		child.on('close', (code, signal) => {
 			const raw = Buffer.concat(buffers).toString('utf8');
 			logService.trace('getUnixShellEnvironment#raw', raw);
+
+			const stderrStr = Buffer.concat(stderr).toString('utf8');
+			if (stderrStr.trim()) {
+				logService.trace('getUnixShellEnvironment#stderr', stderrStr);
+			}
+
+			if (code || signal) {
+				return reject(new Error(`Failed to get environment (code ${code}, signal ${signal})`));
+			}
 
 			const match = regex.exec(raw);
 			const rawStripped = match ? match[1] : '{}';
@@ -124,7 +137,7 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 				logService.trace('getUnixShellEnvironment#result', env);
 				resolve(env);
 			} catch (err) {
-				logService.error('getUnixShellEnvironment#error', err);
+				logService.error('getUnixShellEnvironment#errorCaught', toErrorMessage(err));
 				reject(err);
 			}
 		});

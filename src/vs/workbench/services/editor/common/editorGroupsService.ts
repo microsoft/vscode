@@ -199,9 +199,10 @@ export interface IEditorGroupsService {
 	readonly whenRestored: Promise<void>;
 
 	/**
-	 * Find out if the editor group service has editors to restore from a previous session.
+	 * Find out if the editor group service has UI state to restore
+	 * from a previous session.
 	 */
-	readonly willRestoreEditors: boolean;
+	readonly hasRestorableState: boolean;
 
 	/**
 	 * Get all groups that are currently visible in the editor area.

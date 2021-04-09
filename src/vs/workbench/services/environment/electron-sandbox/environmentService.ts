@@ -73,7 +73,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get webviewResourceRoot(): string {
-		// On desktop, this endpoint is only used for the service worker to identify resouce loads and
+		// On desktop, this endpoint is only used for the service worker to identify resource loads and
 		// should never actually be requested.
 		//
 		// Required due to https://github.com/electron/electron/issues/28528
@@ -81,7 +81,10 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	}
 
 	@memoize
-	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
+	get webviewCspSource(): string {
+		const uri = URI.parse(this.webviewResourceRoot.replace('{{uuid}}', '*'));
+		return `${uri.scheme}://${uri.authority}`;
+	}
 
 	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }

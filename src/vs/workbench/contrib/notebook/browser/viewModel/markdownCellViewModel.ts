@@ -90,8 +90,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
 	}
 
-	public get version(): number {
-		return this.textModel?.getVersionId() ?? 0;
+	public get contentHash(): number {
+		return this.model.getHashValue();
 	}
 
 	constructor(

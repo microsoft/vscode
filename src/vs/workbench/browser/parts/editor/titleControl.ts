@@ -386,8 +386,6 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
 
-	abstract updateStyles(): void;
-
 	abstract layout(dimensions: ITitleControlDimensions): Dimension;
 
 	abstract getHeight(): IEditorGroupTitleHeight;

@@ -15,14 +15,14 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { createEditorPart, InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
-import { BrowserBackupTracker } from 'vs/workbench/contrib/backup/browser/backupTracker';
+import { BackupRestorer } from 'vs/workbench/services/backup/common/backupRestorer';
+import { BrowserBackupTracker } from 'vs/workbench/services/backup/browser/backupTracker';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('BackupRestorer', () => {
 
 	class TestBackupRestorer extends BackupRestorer {
-		async override doRestoreBackups(): Promise<URI[] | undefined> {
+		async override doRestoreBackups(): Promise<void> {
 			return super.doRestoreBackups();
 		}
 	}
