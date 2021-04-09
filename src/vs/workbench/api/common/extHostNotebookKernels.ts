@@ -72,8 +72,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
-			get selected() { return that._kernelData.get(handle)?.selected ?? false; },
-			onDidChangeSelection: emitter.event,
+			// get selected() { return that._kernelData.get(handle)?.selected ?? false; },
+			// onDidChangeSelection: emitter.event,
 			get label() {
 				return data.label;
 			},

@@ -1472,10 +1472,13 @@ declare module 'vscode' {
 		// fit here, e.g:
 		// selectionHandler?: (notebook: NotebookDocument, selected: boolean) => void;
 
-		// is this kernel selected
-		readonly selected: boolean;
-		// fired when kernel is selected/unselected
-		readonly onDidChangeSelection: Event<boolean>;
+		// // is this kernel selected
+		// readonly selected: boolean;
+		// // fired when kernel is selected/unselected
+		// readonly onDidChangeSelection: Event<boolean>;
+
+		// kernels can establish IPC channels to (visible) notebook editors
+		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
 
 		// UI properties (get/set)
 		label: string;
@@ -1489,9 +1492,6 @@ declare module 'vscode' {
 
 		// optional kernel interrupt command
 		interruptHandler?: (notebook: NotebookDocument) => void
-
-		// kernels can establish IPC channels to (visible) notebook editors
-		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
 
 		// remove kernel
 		dispose(): void;
