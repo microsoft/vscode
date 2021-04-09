@@ -115,9 +115,6 @@ import 'vs/workbench/contrib/output/common/outputChannelModelService';
 // Explorer
 import 'vs/workbench/contrib/files/browser/files.web.contribution';
 
-// Backup
-import 'vs/workbench/contrib/backup/browser/backup.web.contribution';
-
 // Preferences
 import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 

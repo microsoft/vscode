@@ -12,7 +12,7 @@ import { rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hashPath } from 'vs/workbench/services/backup/common/backupFileService';
-import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
+import { NativeBackupTracker } from 'vs/workbench/services/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -30,7 +30,7 @@ import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/workb
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
+import { BackupTracker } from 'vs/workbench/services/backup/common/backupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
