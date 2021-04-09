@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType } from 'vs/base/browser/dom';
-import { Button, ButtonBar } from 'vs/base/browser/ui/button/button';
+import { $, append, clearNode, Dimension, EventHelper } from 'vs/base/browser/dom';
+import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Action } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Iterable } from 'vs/base/common/iterator';
 import { splitName } from 'vs/base/common/labels';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILink, parseLinkedText } from 'vs/base/common/linkedText';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Schemas } from 'vs/base/common/network';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
@@ -28,20 +27,18 @@ import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notificat
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
-import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
+import { getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
-import { trustedForegroundColor, trustEditorTileBackgroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
+import { trustedForegroundColor, untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 import { IWorkspaceTrustSettingChangeEvent, WorkspaceTrustSettingArrayRenderer, WorkspaceTrustTree, WorkspaceTrustTreeModel } from 'vs/workbench/contrib/workspace/browser/workspaceTrustTree';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustEditorModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -53,10 +50,6 @@ const unspecified = registerCodicon('workspace-unspecified-icon', Codicon.worksp
 const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
 const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
 
-class WorkspaceTrustExtensionDelegate extends Delegate {
-	override getHeight() { return super.getHeight() + 36; }
-}
-
 export class WorkspaceTrustEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.workspaceTrust';
 	private rootElement!: HTMLElement;
@@ -67,16 +60,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private headerTitleIcon!: HTMLElement;
 	private headerTitleText!: HTMLElement;
 	private headerDescription!: HTMLElement;
-	private headerButtons!: HTMLElement;
 
 	private bodyScrollBar!: DomScrollableElement;
 
 	// Affected Features Section
 	private affectedFeaturesContainer!: HTMLElement;
-	private coreFeaturesContainer!: HTMLElement;
-	private extensionsContainer!: HTMLElement;
-	private onDemandExtensionsContainer!: HTMLElement;
-	private onStartExtensionsContainer!: HTMLElement;
 
 	// Settings Section
 	private configurationContainer!: HTMLElement;
@@ -252,9 +240,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.headerTitleIcon = append(this.headerTitleContainer, $('.workspace-trust-title-icon'));
 		this.headerTitleText = append(this.headerTitleContainer, $('.workspace-trust-title-text'));
 		this.headerDescription = append(this.headerContainer, $('.workspace-trust-description'));
-
-		const buttonsRow = append(this.headerContainer, $('.workspace-trust-buttons-row'));
-		this.headerButtons = append(buttonsRow, $('.workspace-trust-buttons'));
 	}
 
 	private createConfigurationElement(parent: HTMLElement): void {
@@ -426,14 +411,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
-	private createCoreFeatureElement(parent: HTMLElement, headerText: string, descriptionText: string): void {
-		const container = append(this.coreFeaturesContainer, $('.workspace-trust-core-feature'));
-		const header = append(container, $('.workspace-trust-subsection-title'));
-		header.innerText = headerText;
-		const description = append(container, $('.workspace-trust-subsection-description'));
-		description.innerText = descriptionText;
-	}
-
 	private onDidChangeSetting(change: IWorkspaceTrustSettingChangeEvent) {
 		const applyChangesWithPrompt = async (showPrompt: boolean, applyChanges: () => void) => {
 			if (showPrompt) {
@@ -482,15 +459,3 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.bodyScrollBar.scanDomNode();
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const tileBackgroundColor = theme.getColor(trustEditorTileBackgroundColor);
-	if (tileBackgroundColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container  { background: ${tileBackgroundColor}; }`);
-	}
-
-	const border = theme.getColor(contrastBorder);
-	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .workspace-trust-editor .extension-container { border: 1px solid ${border}; }`);
-	}
-});

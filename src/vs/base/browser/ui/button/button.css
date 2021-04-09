@@ -22,8 +22,9 @@
 	text-decoration: none !important;
 }
 
+.monaco-button.disabled:focus,
 .monaco-button.disabled {
-	opacity: 0.4;
+	opacity: 0.4 !important;
 	cursor: default;
 }
 
