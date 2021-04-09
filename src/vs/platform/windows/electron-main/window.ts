@@ -195,13 +195,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 						// Sandbox
 						{
-							sandbox: true
+							sandbox: true,
+							contextIsolation: true
 						} :
 
 						// No Sandbox
 						{
-							nodeIntegration: true,
-							contextIsolation: false
+							nodeIntegration: true
 						}
 				}
 			};
