@@ -370,7 +370,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
+	readonly markdownPreviewMapping = new Map<string, { contentHash: number, visible: boolean }>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -1149,7 +1149,7 @@ var requirejs = (function() {
 		});
 	}
 
-	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
+	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentHash: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1160,7 +1160,7 @@ var requirejs = (function() {
 		}
 
 		const initialTop = cellTop;
-		this.markdownPreviewMapping.set(cellId, { version: contentVersion, visible: true });
+		this.markdownPreviewMapping.set(cellId, { contentHash, visible: true });
 
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
@@ -1171,13 +1171,13 @@ var requirejs = (function() {
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
+	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentHash: number) {
 		if (this._disposed) {
 			return;
 		}
 
 		if (!this.markdownPreviewMapping.has(cellId)) {
-			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentVersion);
+			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentHash);
 		}
 
 		const entry = this.markdownPreviewMapping.get(cellId);
@@ -1186,19 +1186,19 @@ var requirejs = (function() {
 			return;
 		}
 
-		if (entry.version !== contentVersion || !entry.visible) {
+		if (entry.contentHash !== contentHash || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkdownPreview',
 				id: cellId,
 				handle: cellHandle,
 				// If the content has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
-				content: entry.version === contentVersion ? undefined : content,
+				content: entry.contentHash === contentHash ? undefined : content,
 				top: cellTop
 			});
 		}
 
-		entry.version = contentVersion;
+		entry.contentHash = contentHash;
 		entry.visible = true;
 	}
 
@@ -1298,7 +1298,7 @@ var requirejs = (function() {
 		});
 
 		for (const cell of cells) {
-			this.markdownPreviewMapping.set(cell.cellId, { version: 0, visible: false });
+			this.markdownPreviewMapping.set(cell.cellId, { contentHash: 0, visible: false });
 		}
 
 		this._sendMessageToWebview({
