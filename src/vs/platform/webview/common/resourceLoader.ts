@@ -176,39 +176,13 @@ function getResourceToLoad(
 	requestUri: URI,
 	roots: ReadonlyArray<URI>
 ): URI | undefined {
-	const normalizedPath = normalizeRequestPath(requestUri);
-
 	for (const root of roots) {
-		if (containsResource(root, normalizedPath)) {
-			return normalizedPath;
+		if (containsResource(root, requestUri)) {
+			return requestUri;
 		}
 	}
 
 	return undefined;
-}
-
-function normalizeRequestPath(requestUri: URI) {
-	if (requestUri.scheme === Schemas.vscodeWebviewResource) {
-		// The `vscode-webview-resource` scheme has the following format:
-		//
-		// vscode-webview-resource://id/scheme//authority?/path
-		//
-
-		// Encode requestUri.path so that URI.parse can properly parse special characters like '#', '?', etc.
-		const resourceUri = URI.parse(encodeURIComponent(requestUri.path).replace(/%2F/gi, '/').replace(/^\/([a-z0-9\-]+)(\/{1,2})/i, (_: string, scheme: string, sep: string) => {
-			if (sep.length === 1) {
-				return `${scheme}:///`; // Add empty authority.
-			} else {
-				return `${scheme}://`; // Url has own authority.
-			}
-		}));
-		return resourceUri.with({
-			query: requestUri.query,
-			fragment: requestUri.fragment
-		});
-	} else {
-		return requestUri;
-	}
 }
 
 function containsResource(root: URI, resource: URI): boolean {
