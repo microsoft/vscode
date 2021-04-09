@@ -1716,17 +1716,17 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookEditor {
-		/**
-		 * Active kernel used in the editor
-		 */
+
 		// todo@API unsure about that
 		// kernel, kernel selection, kernel provider
+		/** @deprecated kernels are private object*/
 		readonly kernel?: NotebookKernel;
 	}
 
 	export namespace notebook {
+		/** @deprecated */
 		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
-
+		/** @deprecated use createNotebookKernel */
 		export function registerNotebookKernelProvider(selector: NotebookDocumentFilter, provider: NotebookKernelProvider): Disposable;
 	}
 
