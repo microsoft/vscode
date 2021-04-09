@@ -27,6 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 const FIND_FOCUS_CLASS = 'find-focused';
 
 export class TerminalTabbedView extends Disposable {
@@ -306,7 +307,7 @@ export class TerminalTabbedView extends Disposable {
 		const profiles = await this._terminalService.getAvailableProfiles().filter(p => this._terminalService.configHelper.checkIsProcessLaunchSafe(undefined, p));
 		const tabsMenu = this._tabsMenu;
 		for (const p of profiles) {
-			const action = new MenuItemAction({ id: 'workbench.action.terminal.newFromProfile', title: p.profileName }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
+			const action = new MenuItemAction({ id: 'workbench.action.terminal.newFromProfile', title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
 			actions.push(action);
 		}
 

@@ -48,6 +48,12 @@ const enum ContextMenuGroup {
 	Kill = '4_kill'
 }
 
+export const enum ContextMenuTabsGroup {
+	Default = '1_create_default',
+	Profile = '2_create_profile',
+	Configure = '3_configure'
+}
+
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
 		case 'workspaceRoot':
@@ -1318,7 +1324,7 @@ export function registerTerminalActions() {
 			id: TERMINAL_COMMAND_ID.NEW,
 			title: localize('workbench.action.terminal.new.short', "New Terminal")
 		},
-		group: ContextMenuGroup.Create
+		group: ContextMenuTabsGroup.Default
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1402,7 +1408,7 @@ export function registerTerminalActions() {
 			id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
 			title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
 		},
-		group: ContextMenuGroup.Create
+		group: ContextMenuTabsGroup.Configure
 	});
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1423,7 +1429,7 @@ export function registerTerminalActions() {
 			id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
 			title: localize(configureTerminalSettingsTitle, 'Configure Terminal Settings')
 		},
-		group: ContextMenuGroup.Create
+		group: ContextMenuTabsGroup.Configure
 	});
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
