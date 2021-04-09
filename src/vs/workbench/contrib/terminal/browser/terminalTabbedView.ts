@@ -61,8 +61,6 @@ export class TerminalTabbedView extends Disposable {
 	private _tabsMenu: IMenu;
 
 	private _contextKeyService: IContextKeyService;
-	private _commandService: ICommandService;
-	private _storageService: IStorageService;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -74,14 +72,12 @@ export class TerminalTabbedView extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
-		@ICommandService commandService: ICommandService,
-		@IStorageService storageService: IStorageService
+		@ICommandService private readonly _commandService: ICommandService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
 		this._contextKeyService = contextKeyService;
-		this._commandService = commandService;
-		this._storageService = storageService;
 
 		this._parentElement = parentElement;
 
