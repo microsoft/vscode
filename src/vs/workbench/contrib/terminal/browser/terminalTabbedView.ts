@@ -143,7 +143,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getLastWidgetWidth(): number {
 		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
-		return storedValue && parseInt(storedValue) ? parseInt(storedValue) : 0;
+		return storedValue && parseInt(storedValue) ? parseInt(storedValue) : MIN_TABS_WIDGET_WIDTH;
 	}
 
 	private _setLastWidgetWidth(): void {
@@ -183,7 +183,9 @@ export class TerminalTabbedView extends Disposable {
 		this._height = height;
 		this._width = width;
 		this._splitView.layout(width);
-		this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
+		if (this._showTabs) {
+			this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
+		}
 	}
 
 	private _createButton(): void {
