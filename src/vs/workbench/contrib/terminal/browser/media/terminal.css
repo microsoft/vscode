@@ -204,3 +204,7 @@
 .monaco-workbench .tabs-widget .codicon {
 	vertical-align: text-bottom;
 }
+
+.monaco-tl-twistie {
+	display: none !important;
+}

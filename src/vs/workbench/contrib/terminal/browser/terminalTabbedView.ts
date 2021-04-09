@@ -28,7 +28,11 @@ import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/t
 import { newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+
 const FIND_FOCUS_CLASS = 'find-focused';
+const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
+const MIN_TABS_WIDGET_WIDTH = 60;
 
 export class TerminalTabbedView extends Disposable {
 
@@ -50,6 +54,7 @@ export class TerminalTabbedView extends Disposable {
 	private _findWidgetVisible: IContextKey<boolean>;
 
 	private _height: number | undefined;
+	private _width: number | undefined;
 
 	private _cancelContextMenu: boolean = false;
 	private _menu: IMenu;
@@ -57,6 +62,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _contextKeyService: IContextKeyService;
 	private _commandService: ICommandService;
+	private _storageService: IStorageService;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -68,12 +74,14 @@ export class TerminalTabbedView extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
+		@IStorageService storageService: IStorageService
 	) {
 		super();
 
 		this._contextKeyService = contextKeyService;
 		this._commandService = commandService;
+		this._storageService = storageService;
 
 		this._parentElement = parentElement;
 
@@ -128,13 +136,25 @@ export class TerminalTabbedView extends Disposable {
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
-		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
+		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
 
 		this._setupSplitView();
 	}
 
+	private _getLastWidgetWidth(): number {
+		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
+		return storedValue && parseInt(storedValue) ? parseInt(storedValue) : 0;
+	}
+
+	private _setLastWidgetWidth(): void {
+		if (this._width && this._splitView.getViewSize(this._tabTreeIndex) > 0) {
+			this._storageService.store(TABS_WIDGET_WIDTH_KEY, (this._splitView.getViewSize(this._tabTreeIndex)), StorageScope.WORKSPACE, StorageTarget.USER);
+		}
+	}
+
 	private _setupSplitView(): void {
 		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
+		this._register(this._splitView.onDidSashChange(() => this._setLastWidgetWidth()));
 
 		if (this._showTabs) {
 			this._addTabTree();
@@ -160,8 +180,10 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	layout(width: number, height: number): void {
-		this._splitView.layout(width);
 		this._height = height;
+		this._width = width;
+		this._splitView.layout(width);
+		this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 	}
 
 	private _createButton(): void {
