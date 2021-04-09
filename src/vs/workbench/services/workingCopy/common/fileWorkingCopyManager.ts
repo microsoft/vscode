@@ -101,6 +101,8 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * copy may chose to return an existing file working copy with different casing
 	 * to respect file systems that are case insensitive.
 	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 *
 	 * @param source the source resource to save as
 	 * @param target the optional target resource to save to. if not defined, the user
 	 * will be asked for input
@@ -114,9 +116,6 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * Waits for the file working copy to be ready to be disposed. There may be
 	 * conditions under which the file working copy cannot be disposed, e.g. when
 	 * it is dirty. Once the promise is settled, it is safe to dispose.
-	 *
-	 * TODO@bpasero this is a bit fishy, should this not be inside the working copy
-	 * itself?
 	 */
 	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true>;
 }
