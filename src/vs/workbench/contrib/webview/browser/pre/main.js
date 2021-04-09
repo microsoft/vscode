@@ -195,6 +195,8 @@
 		// state
 		let firstLoad = true;
 		let loadTimeout;
+		let styleVersion = 0;
+
 		/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
 		let pendingMessages = [];
 
@@ -531,6 +533,8 @@
 			}
 
 			host.onMessage('styles', (_event, data) => {
+				++styleVersion;
+
 				initData.styles = data.styles;
 				initData.activeTheme = data.activeTheme;
 				initData.themeName = data.themeName;
@@ -574,6 +578,8 @@
 
 				const options = data.options;
 				const newDocument = toContentHtml(data);
+
+				const initialStyleVersion = styleVersion;
 
 				const frame = getActiveFrame();
 				const wasFirstLoad = firstLoad;
@@ -632,7 +638,7 @@
 						contentDocument.close();
 						hookupOnLoadHandlers(newFrame);
 
-						if (contentDocument) {
+						if (initialStyleVersion !== styleVersion) {
 							applyStyles(contentDocument, contentDocument.body);
 						}
 					}, 0);
@@ -678,7 +684,9 @@
 							document.body.removeChild(oldActiveFrame);
 						}
 						// Styles may have changed since we created the element. Make sure we re-style
-						applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
+						if (initialStyleVersion !== styleVersion) {
+							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
+						}
 						newFrame.setAttribute('id', 'active-frame');
 						newFrame.style.visibility = 'visible';
 						if (host.focusIframeOnCreate) {
