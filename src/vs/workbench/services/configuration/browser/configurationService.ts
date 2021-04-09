@@ -32,6 +32,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 
 class Workspace extends BaseWorkspace {
 	initialized: boolean = false;
@@ -57,6 +58,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private readonly logService: ILogService;
 	private readonly fileService: IFileService;
 	private readonly uriIdentityService: IUriIdentityService;
+	private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService;
 
 	protected readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -84,6 +86,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		fileService: IFileService,
 		remoteAgentService: IRemoteAgentService,
 		uriIdentityService: IUriIdentityService,
+		workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		logService: ILogService,
 	) {
 		super();
@@ -101,6 +104,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		this.configurationCache = configurationCache;
 		this.fileService = fileService;
 		this.uriIdentityService = uriIdentityService;
+		this.workspaceTrustStorageService = workspaceTrustStorageService;
 		this.logService = logService;
 		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
@@ -126,6 +130,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}));
 
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
+
+		this._register(this.workspaceTrustStorageService.onDidStorageChange(() => { console.log('Workspace trust storage changed'); }));
 
 		this.workspaceEditingQueue = new Queue<void>();
 	}

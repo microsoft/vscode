@@ -13,7 +13,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustService, IWorkspaceTrustRequestService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -55,7 +55,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -157,7 +157,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		}));
 
-		this._register(this.workspaceTrustService.onDidChangeTrustState(async (trustState) => {
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustState(async (trustState) => {
 			type WorkspaceTrustStateChangedEvent = {
 				workspaceId: string,
 				previousState: WorkspaceTrustState,
@@ -205,24 +205,24 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
-		if (this.workspaceTrustService.isWorkspaceTrustEnabled()) {
-			const entry = this.getStatusbarEntry(this.workspaceTrustService.getWorkspaceTrustState());
+		if (this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+			const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.getWorkspaceTrustState());
 			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, WorkspaceTrustStatusbarItem.ID, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
-			this._register(this.workspaceTrustService.onDidChangeTrustState(trustState => this.updateStatusbarEntry(trustState)));
+			this._register(this.workspaceTrustManagementService.onDidChangeTrustState(trustState => this.updateStatusbarEntry(trustState)));
 			this._register(this.contextKeyService.onDidChangeContext((contextChange) => {
 				if (contextChange.affectsSome(this.contextKeys)) {
-					this.updateVisibility(this.workspaceTrustService.getWorkspaceTrustState());
+					this.updateVisibility(this.workspaceTrustManagementService.getWorkspaceTrustState());
 				}
 			}));
 
-			this.updateVisibility(this.workspaceTrustService.getWorkspaceTrustState());
+			this.updateVisibility(this.workspaceTrustManagementService.getWorkspaceTrustState());
 		}
 	}
 

@@ -4,10 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustRequestService, IWorkspaceTrustRequestModel } from 'vs/platform/workspace/common/workspaceTrust';
+import { URI } from 'vs/base/common/uri';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustRequestService, IWorkspaceTrustRequestModel, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { WorkspaceTrustRequestModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
-export class TestWorkspaceTrustService implements IWorkspaceTrustService {
+export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageService {
+	_serviceBrand: undefined;
+
+	onDidStorageChange: Event<void> = Event.None;
+
+	setFoldersTrustState(folder: URI[], trustState: WorkspaceTrustState): void {
+		throw new Error('Method not implemented.');
+	}
+
+	getFoldersTrustState(folder: URI[]): WorkspaceTrustState {
+		throw new Error('Method not implemented.');
+	}
+
+	setTrustedFolders(folders: URI[]): void {
+		throw new Error('Method not implemented.');
+	}
+
+	setUntrustedFolders(folders: URI[]): void {
+		throw new Error('Method not implemented.');
+	}
+
+	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo {
+		throw new Error('Method not implemented.');
+	}
+
+	getTrustStateInfo(): IWorkspaceTrustStateInfo {
+		throw new Error('Method not implemented.');
+	}
+}
+
+export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
 	onDidChangeTrustState: WorkspaceTrustChangeEvent = Event.None;

@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IWorkspaceTrustService, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { getWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
-import { WorkspaceTrustService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Workspaces', () => {
@@ -23,10 +23,10 @@ suite('Workspaces', () => {
 });
 
 suite('Workspace Trust', () => {
-	let workspaceTrustService: IWorkspaceTrustService;
+	let workspaceTrustService: IWorkspaceTrustManagementService;
 	setup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
-		workspaceTrustService = instantiationService.createInstance(WorkspaceTrustService);
+		workspaceTrustService = instantiationService.createInstance(WorkspaceTrustManagementService);
 	});
 
 	teardown(() => {

@@ -46,8 +46,8 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
-import { WorkspaceTrustService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustStorageService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export const productService = { _serviceBrand: undefined, ...product };
 
@@ -233,20 +233,9 @@ export abstract class SharedDesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
+		// Storage Service, Keyboard Layout Services
 		const payload = this.resolveWorkspaceInitializationPayload();
-
-		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
-
-				// Workspace
-				serviceCollection.set(IWorkspaceContextService, service);
-
-				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service);
-
-				return service;
-			}),
-
+		const [storageService] = await Promise.all([
 			this.createStorageService(payload, mainProcessService).then(service => {
 
 				// Storage
@@ -264,9 +253,22 @@ export abstract class SharedDesktopMain extends Disposable {
 			})
 		]);
 
-		// Workspace Trust Service
-		const workspaceTrustService = new WorkspaceTrustService(storageService, uriIdentityService, configurationService, configurationService);
-		serviceCollection.set(IWorkspaceTrustService, workspaceTrustService);
+		// Workspace Trust Storage Service
+		const workspaceTrustStorageService = new WorkspaceTrustStorageService(storageService, uriIdentityService);
+		serviceCollection.set(IWorkspaceTrustStorageService, workspaceTrustStorageService);
+
+		// Configuration, Workspace Services
+		await this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, workspaceTrustStorageService, logService).then(service => {
+
+			// Workspace
+			serviceCollection.set(IWorkspaceContextService, service);
+
+			// Configuration
+			serviceCollection.set(IWorkbenchConfigurationService, service);
+
+			return service;
+		});
+
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -304,8 +306,8 @@ export abstract class SharedDesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(this.environmentService.userDataPath), fileService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, workspaceTrustStorageService: IWorkspaceTrustStorageService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(this.environmentService.userDataPath), fileService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, workspaceTrustStorageService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

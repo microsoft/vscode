@@ -40,6 +40,7 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { TestWorkspaceTrustStorageService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -91,7 +92,7 @@ suite('ConfigurationEditingService', () => {
 		disposables.add(fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService))));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new NullLogService()));
+		workspaceService = disposables.add(new WorkspaceService({ configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, new UriIdentityService(fileService), new TestWorkspaceTrustStorageService(), new NullLogService()));
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
 		await workspaceService.initialize(getSingleFolderWorkspaceIdentifier(workspaceFolder));

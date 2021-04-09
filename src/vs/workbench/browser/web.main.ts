@@ -60,8 +60,8 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { BrowserWindow } from 'vs/workbench/browser/window';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { WorkspaceTrustService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustStorageService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 
 class BrowserMain extends Disposable {
 
@@ -180,31 +180,28 @@ class BrowserMain extends Disposable {
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
-		// Long running services (workspace, config, storage)
-		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+		// Storage Service
+		const storageService = await this.createStorageService(payload, environmentService, fileService, logService).then(service => {
+			serviceCollection.set(IStorageService, service);
 
-				// Workspace
-				serviceCollection.set(IWorkspaceContextService, service);
+			return service;
+		});
 
-				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service);
+		// Workspace Trust Storage Service
+		const workspaceTrustStorageService = new WorkspaceTrustStorageService(storageService, uriIdentityService);
+		serviceCollection.set(IWorkspaceTrustStorageService, workspaceTrustStorageService);
 
-				return service;
-			}),
+		// Workspace, Configuration Services
+		const configurationService = await this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, workspaceTrustStorageService, logService).then(service => {
 
-			this.createStorageService(payload, environmentService, fileService, logService).then(service => {
+			// Workspace
+			serviceCollection.set(IWorkspaceContextService, service);
 
-				// Storage
-				serviceCollection.set(IStorageService, service);
+			// Configuration
+			serviceCollection.set(IWorkbenchConfigurationService, service);
 
-				return service;
-			})
-		]);
-
-		// Workspace Trust Service
-		const workspaceTrustService = new WorkspaceTrustService(storageService, uriIdentityService, configurationService, configurationService);
-		serviceCollection.set(IWorkspaceTrustService, workspaceTrustService);
+			return service;
+		});
 
 		// Request Service
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
@@ -322,8 +319,8 @@ class BrowserMain extends Disposable {
 		}
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, workspaceTrustStorageService: IWorkspaceTrustStorageService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache: new ConfigurationCache() }, environmentService, fileService, remoteAgentService, uriIdentityService, workspaceTrustStorageService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

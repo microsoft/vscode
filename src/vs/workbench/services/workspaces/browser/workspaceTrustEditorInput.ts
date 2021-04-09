@@ -6,9 +6,9 @@
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { WorkspaceTrustEditorModel, WorkspaceTrustService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WorkspaceTrustEditorModel, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 export class WorkspaceTrustEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.workspaceTrust';
@@ -19,7 +19,7 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 	});
 
 	constructor(
-		@IWorkspaceTrustService private readonly workspaceTrustService: WorkspaceTrustService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: WorkspaceTrustManagementService
 	) {
 		super();
 	}
@@ -37,6 +37,6 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 	}
 
 	async resolve(): Promise<WorkspaceTrustEditorModel> {
-		return this.workspaceTrustService.workspaceTrustEditorModel;
+		return this.workspaceTrustManagementService.workspaceTrustEditorModel;
 	}
 }

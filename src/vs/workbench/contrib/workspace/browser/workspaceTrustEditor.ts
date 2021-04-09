@@ -132,7 +132,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private registerListeners(model: WorkspaceTrustEditorModel): void {
-		this._register(model.dataModel.onDidChangeTrustState(() => {
+		this._register(model.workspaceTrustManagementService.onDidChangeTrustState(() => {
 			this.render(model);
 		}));
 
@@ -194,13 +194,16 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = true;
 		this.rerenderDisposables.clear();
 
+
 		// Header Section
-		this.headerTitleText.innerText = this.getHeaderTitleText(model.currentWorkspaceTrustState);
+		const trustState = model.workspaceTrustManagementService.getWorkspaceTrustState();
+
+		this.headerTitleText.innerText = this.getHeaderTitleText(trustState);
 		this.headerTitleIcon.className = 'workspace-trust-title-icon';
-		this.headerTitleIcon.classList.add(...this.getHeaderTitleIconClassNames(model.currentWorkspaceTrustState));
+		this.headerTitleIcon.classList.add(...this.getHeaderTitleIconClassNames(trustState));
 		this.headerDescription.innerText = '';
 
-		const linkedText = parseLinkedText(this.getHeaderDescriptionText(model.currentWorkspaceTrustState));
+		const linkedText = parseLinkedText(this.getHeaderDescriptionText(trustState));
 		const p = append(this.headerDescription, $('p'));
 		for (const node of linkedText.nodes) {
 			if (typeof node === 'string') {
@@ -213,7 +216,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			}
 		}
 
-		this.headerContainer.className = this.getHeaderContainerClass(model.currentWorkspaceTrustState);
+		this.headerContainer.className = this.getHeaderContainerClass(trustState);
 
 		// Buttons
 		clearNode(this.headerButtons);
@@ -260,9 +263,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 					}
 				}
 
-				(uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri)).forEach(uri => {
-					this.workspaceTrustEditorModel.dataModel.setFolderTrustState(uri, state);
-				});
+				this.workspaceTrustEditorModel.workspaceTrustStorageService.setFoldersTrustState(uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri), state);
 			};
 
 
@@ -288,9 +289,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 					});
 				}
 			}
-
-			createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), model.currentWorkspaceTrustState !== WorkspaceTrustState.Trusted);
-			createButton(new Action('workspace.trust.button.deny', localize('doNotTrustButton', "Don't Trust"), undefined, model.currentWorkspaceTrustState !== WorkspaceTrustState.Untrusted, async () => { setTrustState(WorkspaceTrustState.Untrusted); }));
+			const trustState = model.workspaceTrustManagementService.getWorkspaceTrustState();
+			createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), trustState !== WorkspaceTrustState.Trusted);
+			createButton(new Action('workspace.trust.button.deny', localize('doNotTrustButton', "Don't Trust"), undefined, trustState !== WorkspaceTrustState.Untrusted, async () => { setTrustState(WorkspaceTrustState.Untrusted); }));
 		}
 
 		// Features List
@@ -310,7 +311,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			onDemandExtensions);
 
 		// Configuration Tree
-		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
+		this.workspaceTrustSettingsTreeModel.update(model.workspaceTrustStorageService.getTrustStateInfo());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 
 		this.bodyScrollBar.scanDomNode();
@@ -411,11 +412,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		if (this.workspaceTrustEditorModel) {
 			if (isArray(change.value)) {
 				if (change.key === 'trustedFolders') {
-					applyChangesWithPrompt(change.type === 'changed' || change.type === 'removed', () => this.workspaceTrustEditorModel.dataModel.setTrustedFolders(change.value!));
+					applyChangesWithPrompt(change.type === 'changed' || change.type === 'removed', () => this.workspaceTrustEditorModel.workspaceTrustStorageService.setTrustedFolders(change.value!));
 				}
 
 				if (change.key === 'untrustedFolders') {
-					applyChangesWithPrompt(change.type === 'changed' || change.type === 'added', () => this.workspaceTrustEditorModel.dataModel.setUntrustedFolders(change.value!));
+					applyChangesWithPrompt(change.type === 'changed' || change.type === 'added', () => this.workspaceTrustEditorModel.workspaceTrustStorageService.setUntrustedFolders(change.value!));
 				}
 			}
 		}

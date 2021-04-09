@@ -15,7 +15,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceTrustRequestService, IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequestService, IWorkspaceTrustManagementService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
@@ -26,11 +26,11 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
 		@IStorageService storageService: IStorageService,
-		@IWorkspaceTrustService workspaceTrustService: IWorkspaceTrustService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService) {
 		super();
 		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		const isWorkspaceTrusted = workspaceTrustService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted;
+		const isWorkspaceTrusted = workspaceTrustManagementService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted;
 		this.tryRunTasks(isFolderAutomaticAllowed && isWorkspaceTrusted);
 	}
 
