@@ -247,14 +247,6 @@
 					resolveWorkerReady();
 				});
 
-			const forwardFromHostToWorker = (channel) => {
-				host.onMessage(channel, (_event, data) => {
-					navigator.serviceWorker.ready.then(registration => {
-						registration.active.postMessage({ channel, data });
-					});
-				});
-			};
-
 			host.onMessage('did-load-resource', (_event, data) => {
 				navigator.serviceWorker.ready.then(registration => {
 					registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
