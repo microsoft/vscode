@@ -199,7 +199,17 @@
 		let pendingMessages = [];
 
 		const initData = {
+			/** @type {number | undefined} */
 			initialScrollProgress: undefined,
+
+			/** @type {{ [key: string]: string }} */
+			styles: undefined,
+
+			/** @type {string | undefined} */
+			activeTheme: undefined,
+
+			/** @type {string | undefined} */
+			themeName: undefined,
 		};
 
 		function fatalError(/** @type {string} */ message) {
