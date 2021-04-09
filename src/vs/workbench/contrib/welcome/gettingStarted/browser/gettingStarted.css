@@ -136,7 +136,7 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column > div:first-child {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .categories-column > div {
 	margin-bottom: 32px;
 }
 
