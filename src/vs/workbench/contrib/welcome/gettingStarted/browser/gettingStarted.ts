@@ -7,7 +7,7 @@ import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { EditorOptions, IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -246,7 +246,7 @@ export class GettingStartedPage extends EditorPane {
 								const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
 								if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
 								this.setHiddenCategories([...this.getHiddenCategories().add(argument)]);
-								element.parentElement?.remove();
+								this.gettingStartedList?.rerender();
 								break;
 							}
 							case 'selectTask': {
@@ -451,15 +451,15 @@ export class GettingStartedPage extends EditorPane {
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
 		const layoutLists = () => {
-			console.log('layinout!');
-
 			if (gettingStartedList.itemCount) {
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, gettingStartedList.getDomElement());
+				recentList.setLimit(5);
 			}
 			else {
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
+				recentList.setLimit(10);
 			}
 		};
 
@@ -536,6 +536,7 @@ export class GettingStartedPage extends EditorPane {
 			link.title = fullPath;
 			link.setAttribute('aria-label', localize('welcomePage.openFolderWithPath', "Open folder {0} with path {1}", name, parentPath));
 			link.addEventListener('click', e => {
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined });
 				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
 				e.preventDefault();
 				e.stopPropagation();
@@ -557,7 +558,14 @@ export class GettingStartedPage extends EditorPane {
 		const recentlyOpenedList = this.recentlyOpenedList = new GettingStartedIndexList(
 			localize('recent', "Recent"),
 			'recently-opened',
+			5,
 			$('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'),
+			$('.more', {},
+				$('button.button-link',
+					{
+						'x-dispatch': 'showMoreRecents',
+						title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
+					}, 'More...')),
 			renderRecent);
 
 		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
@@ -565,22 +573,9 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened.then(({ workspaces }) => {
 			// Filter out the current workspace
 			workspaces = workspaces.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri));
-			if (!workspaces.length) { recentlyOpenedList.setEntries([]); }
-			const updateEntries = () => {
-				recentlyOpenedList.setEntries(workspaces.slice(0, 5));
-				if (workspaces.length > 5) {
-					recentlyOpenedList.addItem(
-						$('.more', {},
-							$('button.button-link',
-								{
-									'x-dispatch': 'showMoreRecents',
-									title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
-								}, 'More...')));
-				}
-			};
-
+			const updateEntries = () => { recentlyOpenedList.setEntries(workspaces); };
 			updateEntries();
-			this._register(this.labelService.onDidChangeFormatters(() => updateEntries()));
+			recentlyOpenedList.register(this.labelService.onDidChangeFormatters(() => updateEntries()));
 		}).catch(onUnexpectedError);
 
 		return recentlyOpenedList;
@@ -605,6 +600,8 @@ export class GettingStartedPage extends EditorPane {
 		const startList = this.startList = new GettingStartedIndexList(
 			localize('start', "Start"),
 			'recently-opened',
+			10,
+			undefined,
 			undefined,
 			renderStartEntry);
 
@@ -614,9 +611,10 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private buildGettingStartedWalkthroughsList(): GettingStartedIndexList<IGettingStartedCategory> {
-		const hiddenCategories = this.getHiddenCategories();
 
 		const renderGetttingStaredWalkthrough = (category: IGettingStartedCategory) => {
+			const hiddenCategories = this.getHiddenCategories();
+
 			if (category.content.type !== 'items' || hiddenCategories.has(category.id)) {
 				return undefined;
 			}
@@ -643,10 +641,15 @@ export class GettingStartedPage extends EditorPane {
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
 			localize('gettingStarted', "Getting Stared"),
 			'getting-started',
+			10,
+			undefined,
 			undefined,
 			renderGetttingStaredWalkthrough);
 
-		gettingStartedList.onDidChange(() => this.registerDispatchListeners());
+		gettingStartedList.onDidChange(() => {
+			this.registerDispatchListeners();
+			this.updateCategoryProgress();
+		});
 		gettingStartedList.setEntries(this.gettingStartedCategories);
 
 		return gettingStartedList;
@@ -661,7 +664,7 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpenedList?.layout(size);
 
 		this.container.classList[size.height <= 600 ? 'add' : 'remove']('height-constrained');
-		this.container.classList[size.width <= 500 ? 'add' : 'remove']('width-constrained');
+		this.container.classList[size.width <= 400 ? 'add' : 'remove']('width-constrained');
 
 		if (this.selectedTaskElement) {
 			this.selectedTaskElement.style.height = ``; // unset or the scrollHeight will just be the old height
@@ -934,8 +937,14 @@ class GettingStartedIndexList<T> extends Disposable {
 		this._register(this.onDidChangeEntries(listener));
 	}
 
+	register(d: IDisposable) { this._register(d); }
+
 	setLimit(limit: number) {
 		this.limit = limit;
+		this.setEntries(this.entries);
+	}
+
+	rerender() {
 		this.setEntries(this.entries);
 	}
 
@@ -946,23 +955,25 @@ class GettingStartedIndexList<T> extends Disposable {
 			this.list.removeChild(this.list.firstChild);
 		}
 
-		if (entries.length === 0 && this.empty) {
-			this.list.appendChild(this.empty);
-		}
 
 		for (const entry of entries) {
 			const rendered = this.renderElement(entry);
-			if (rendered) {
-				this.itemCount++;
-				this.list.appendChild(rendered);
-			}
-			if (this.itemCount >= this.limit) {
+			if (!rendered) { continue; }
+			this.itemCount++;
+			if (this.itemCount > this.limit) {
 				if (this.more) {
 					this.list.appendChild(this.more);
 				}
 				break;
+			} else {
+				this.list.appendChild(rendered);
 			}
 		}
+
+		if (this.itemCount === 0 && this.empty) {
+			this.list.appendChild(this.empty);
+		}
+
 		this._onDidChangeEntries.fire();
 	}
 }
