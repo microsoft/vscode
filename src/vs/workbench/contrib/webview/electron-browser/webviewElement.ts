@@ -20,7 +20,7 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
+import { webviewPartitionId } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';

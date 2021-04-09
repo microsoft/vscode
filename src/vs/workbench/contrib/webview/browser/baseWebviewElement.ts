@@ -19,8 +19,8 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { loadLocalResource, readFileStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
+import { loadLocalResource, readFileStream, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';

@@ -7,7 +7,7 @@ import { protocol, session } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
+import { webviewPartitionId } from 'vs/platform/webview/common/webviewManagerService';
 
 
 export class WebviewProtocolProvider extends Disposable {

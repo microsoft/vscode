@@ -16,9 +16,6 @@ import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthority
 import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
 
-
-export const webviewPartitionId = 'webview';
-
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied, NotModified }
 
