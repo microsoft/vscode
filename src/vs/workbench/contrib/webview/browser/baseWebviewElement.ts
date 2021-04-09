@@ -5,7 +5,7 @@
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -87,6 +87,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected content: WebviewContent;
 
 	private readonly _portMappingManager: WebviewPortMappingManager;
+
+	private readonly _resourceLoadingCts = this._register(new CancellationTokenSource());
 
 	private readonly _fileService: IFileService;
 	private readonly _logService: ILogService;
@@ -227,6 +229,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._element = undefined;
 
 		this._onDidDispose.fire();
+
+		this._resourceLoadingCts.dispose(true);
 
 		super.dispose();
 	}
@@ -470,7 +474,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 				extensionLocation: this.extension?.location,
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
-			}, this._fileService, this._requestService, this._logService, CancellationToken.None); // TODO: cancellation
+			}, this._fileService, this._requestService, this._logService, this._resourceLoadingCts.token);
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success:
