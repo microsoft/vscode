@@ -517,7 +517,7 @@ export function createWebviewManager(host) {
 		return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
 	}
 
-	document.addEventListener('DOMContentLoaded', () => {
+	onDomReady(() => {
 		const idMatch = document.location.search.match(/\bid=([\w-]+)/);
 		const ID = idMatch ? idMatch[1] : undefined;
 		if (!document.body) {
@@ -780,6 +780,17 @@ export function createWebviewManager(host) {
 		// signal ready
 		host.postMessage('webview-ready', {});
 	});
+}
+
+/**
+ * @param {() => void} callback
+ */
+function onDomReady(callback) {
+	if (document.readyState === 'interactive' || document.readyState === 'complete') {
+		callback();
+	} else {
+		document.addEventListener('DOMContentLoaded', callback);
+	}
 }
 
 function areServiceWorkersEnabled() {
