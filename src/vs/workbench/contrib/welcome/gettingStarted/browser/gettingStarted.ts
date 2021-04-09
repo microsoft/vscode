@@ -71,6 +71,8 @@ export class GettingStartedPage extends EditorPane {
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
 
+	private categoriesScrollbar: DomScrollableElement | undefined;
+
 	private detailsScrollbar: DomScrollableElement | undefined;
 	private detailImageScrollbar: DomScrollableElement | undefined;
 	private buildSlideThrottle: Throttler = new Throttler();
@@ -408,12 +410,15 @@ export class GettingStartedPage extends EditorPane {
 			);
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
-		const gettingStartedPage = $('.gettingStarted', {}, this.categoriesSlide, this.tasksSlide);
+		this.categoriesScrollbar = new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable' });
 
-		if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
-		this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));
-		this.tasksSlide.appendChild(this.detailImageScrollbar.getDomNode());
-		this.detailImageScrollbar.scanDomNode();
+		const gettingStartedPage = $('.gettingStarted', {}, this.categoriesScrollbar.getDomNode(), this.tasksSlide);
+		this.categoriesScrollbar.scanDomNode();
+
+		// if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
+		// this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));
+		// this.tasksSlide.appendChild(this.detailImageScrollbar.getDomNode());
+		// this.detailImageScrollbar.scanDomNode();
 
 		this.container.appendChild(gettingStartedPage);
 		parent.appendChild(this.container);
@@ -657,8 +662,10 @@ export class GettingStartedPage extends EditorPane {
 
 	layout(size: Dimension) {
 
+		this.categoriesScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
 		this.detailImageScrollbar?.scanDomNode();
+
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
