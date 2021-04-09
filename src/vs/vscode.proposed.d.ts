@@ -1498,7 +1498,7 @@ declare module 'vscode' {
 
 		// invoked when Run, Run All, Run Selections is triggered,
 		// command is invoked with [kernel, cells] as arguments
-		executeHandler: (executions: NotebookCellExecutionTask[]) => void;
+		readonly executeHandler: (executions: NotebookCellExecutionTask[]) => void;
 
 		// optional kernel interrupt command
 		interruptHandler?: (notebook: NotebookDocument) => void
