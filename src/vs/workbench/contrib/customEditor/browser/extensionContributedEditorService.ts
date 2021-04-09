@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { firstOrDefault, insert } from 'vs/base/common/arrays';
+import { distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -17,7 +17,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
 import { EditorOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 
@@ -31,6 +31,10 @@ type ExtensionContributedEditorChoiceEntry = {
 	choice: ExtensionContributedEditorChoice;
 };
 
+interface IContributedEditorInput extends IEditorInput {
+	viewType?: string;
+}
+
 interface ContributionPoint {
 	scheme: string | undefined,
 	globPattern: string, priority: number,
@@ -40,7 +44,7 @@ interface ContributionPoint {
 }
 
 export type ContributionPointOptions = {
-	singlePerGroup?: boolean;
+	singlePerGroup?: boolean | (() => boolean);
 	singlePerResource?: boolean | (() => boolean);
 };
 
@@ -96,6 +100,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 	private readonly extensionContributedEditors: IExtensionContributedEditorHandler[] = [];
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -119,10 +124,21 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 					return;
 				}
 
-				const selectedContribution = this.getContributionPoint(editor.resource, typeof options?.override === 'string' ? options.override : undefined);
+				let override = typeof options?.override === 'string' ? options.override : undefined;
+
+				// If the editor passed in already has a type and the user didn't explicitly override the editor choice, use the editor type.
+				override = override ?? (editor as IContributedEditorInput).viewType;
+
+				const selectedContribution = this.getContributionPoint(editor.resource, override);
 				if (!selectedContribution) {
 					return;
 				}
+
+				// If it's the currently active editor we shouldn't do anything
+				if (selectedContribution.editorInfo.active(editor)) {
+					return;
+				}
+
 				return { override: this.doHandleEditorOpening(editor, options, group, selectedContribution) };
 			}
 		}));
@@ -199,6 +215,22 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
 		}
 
+		// If the editor states it can only be opened once per resource we must close all existing ones first
+		const singleEditorPerResource = typeof selectedContribution.options.singlePerResource === 'function' ? selectedContribution.options.singlePerResource() : selectedContribution.options.singlePerResource;
+		if (singleEditorPerResource) {
+			this.closeExistingEditorsForResource(resource, selectedContribution.editorInfo.id, group);
+		}
+
+
+		// Check to see if there already an editor for the resource in the group.
+		// If there is, we want to open that instead of creating a new editor.
+		// This ensures that we preserve whatever type of editor was previously being used
+		// when the user switches back to it.
+		// const strictMatchEditorInput = group.editors.find(e => e === editor && !this._fileEditorInputFactory.isFileEditorInput(e));
+		// if (strictMatchEditorInput) {
+		// 	return;
+		// }
+
 		// If an existing editor for a resource exists within the group and we're reopening it, replace it.
 		const existing = firstOrDefault(this.editorService.findEditors(resource, group));
 		if (existing) {
@@ -216,6 +248,56 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			}
 		}
 		return group.openEditor(input, options);
+	}
+
+	private closeExistingEditorsForResource(
+		resource: URI,
+		viewType: string,
+		targetGroup: IEditorGroup,
+	): void {
+		const editorInfoForResource = this.findExistingEditorsForResource(resource, viewType);
+		if (!editorInfoForResource.length) {
+			return;
+		}
+
+		const editorToUse = editorInfoForResource[0];
+
+		// Replace all other editors
+		for (const { editor, group } of editorInfoForResource) {
+			if (editor !== editorToUse.editor) {
+				group.closeEditor(editor);
+			}
+		}
+
+		if (targetGroup.id !== editorToUse.group.id) {
+			editorToUse.group.closeEditor(editorToUse.editor);
+		}
+		return;
+	}
+
+	/**
+	 * Given a resource and a viewType, returns all editors open for that resouce and viewType.
+	 * @param resource The resource specified
+	 * @param viewType The viewtype
+	 * @returns A list of editors
+	 */
+	private findExistingEditorsForResource(
+		resource: URI,
+		viewType: string,
+	): Array<{ editor: IEditorInput, group: IEditorGroup }> {
+		const out: Array<{ editor: IEditorInput, group: IEditorGroup }> = [];
+		const orderedGroups = distinct([
+			...this.editorGroupService.groups,
+		]);
+
+		for (const group of orderedGroups) {
+			for (const editor of group.editors) {
+				if (isEqual(editor.resource, resource) && (editor as IContributedEditorInput).viewType === viewType) {
+					out.push({ editor, group });
+				}
+			}
+		}
+		return out;
 	}
 
 	// @ts-ignore
