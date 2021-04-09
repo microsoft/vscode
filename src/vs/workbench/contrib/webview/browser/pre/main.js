@@ -254,12 +254,25 @@
 					});
 				});
 			};
-			forwardFromHostToWorker('did-load-resource');
-			forwardFromHostToWorker('did-load-localhost');
+
+			host.onMessage('did-load-resource', (_event, data) => {
+				navigator.serviceWorker.ready.then(registration => {
+					registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+				});
+			});
+
+			host.onMessage('did-load-localhost', (_event, data) => {
+				navigator.serviceWorker.ready.then(registration => {
+					registration.active.postMessage({ channel: 'did-load-localhost', data });
+				});
+			});
 
 			navigator.serviceWorker.addEventListener('message', event => {
-				if (['load-resource', 'load-localhost'].includes(event.data.channel)) {
-					host.postMessage(event.data.channel, event.data);
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						host.postMessage(event.data.channel, event.data);
+						return;
 				}
 			});
 		});
