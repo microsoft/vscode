@@ -54,6 +54,7 @@ export type ContributedEditorInfo = {
 	instanceOf: (editorInput: IEditorInput) => boolean;
 	label: string;
 	detail: string;
+	priority: 'default' | 'builtin' | 'option';
 };
 
 export interface IExtensionContributedEditorService {
