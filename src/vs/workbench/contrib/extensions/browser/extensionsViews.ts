@@ -37,7 +37,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, getExtensionWorkspaceTrustRequestType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
@@ -392,6 +392,10 @@ export class ExtensionsListView extends ViewPane {
 			extensions = this.filterEnabledExtensions(local, runningExtensions, query, options);
 		}
 
+		else if (/@trustRequired/i.test(value)) {
+			extensions = this.filterTrustRequiredExtensions(local, query, options);
+		}
+
 		return { extensions, canIncludeInstalledExtensions };
 	}
 
@@ -541,6 +545,21 @@ export class ExtensionsListView extends ViewPane {
 
 		return this.sortExtensions(result, options);
 	}
+
+	private filterTrustRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, categories } = this.parseCategories(query.value);
+
+		value = value.replace(/@trustRequired/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local
+			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+			.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never'
+				&& (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1)
+				&& (!categories.length || categories.some(category => !!extension.local && extension.local.manifest.categories!.some(c => c.toLowerCase() === category))));
+
+		return this.sortExtensions(result, options);
+	}
+
 
 	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
 		const oldExtensions = [...extensions];
@@ -928,7 +947,8 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isDisabledExtensionsQuery(query)
 			|| this.isBuiltInExtensionsQuery(query)
 			|| this.isSearchBuiltInExtensionsQuery(query)
-			|| this.isBuiltInGroupExtensionsQuery(query);
+			|| this.isBuiltInGroupExtensionsQuery(query)
+			|| this.isTrustRequiredExtensionsQuery(query);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -941,6 +961,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isBuiltInGroupExtensionsQuery(query: string): boolean {
 		return /^\s*@builtin:.+$/i.test(query.trim());
+	}
+
+	static isTrustRequiredExtensionsQuery(query: string): boolean {
+		return /@trustRequired/i.test(query);
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
