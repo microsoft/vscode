@@ -58,7 +58,7 @@ export interface IQuickInputStyles {
 	countBadge: ICountBadgetyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
-	keybindingLabels: IKeybindingLabelStyles;
+	keybindingLabel: IKeybindingLabelStyles;
 	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
 }
 
@@ -1736,24 +1736,26 @@ export class QuickInputController extends Disposable {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
 
-			content.push('.monaco-keybinding > .monaco-keybinding-key {');
-			if (this.styles.keybindingLabels.keybindingLabelBackground) {
-				content.push(`background-color: ${this.styles.keybindingLabels.keybindingLabelBackground};`);
+			if (Object.values(this.styles.keybindingLabel).some(value => value instanceof Color)) {
+				content.push('.quick-input-list .monaco-keybinding > .monaco-keybinding-key {');
+				if (this.styles.keybindingLabel.keybindingLabelBackground) {
+					content.push(`background-color: ${this.styles.keybindingLabel.keybindingLabelBackground};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelBorder) {
+					// Order matters here. `border-color` must come before `border-bottom-color`.
+					content.push(`border-color: ${this.styles.keybindingLabel.keybindingLabelBorder};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelBottomBorder) {
+					content.push(`border-bottom-color: ${this.styles.keybindingLabel.keybindingLabelBottomBorder};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelShadow) {
+					content.push(`box-shadow: inset 0 -1px 0 ${this.styles.keybindingLabel.keybindingLabelShadow};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelForeground) {
+					content.push(`color: ${this.styles.keybindingLabel.keybindingLabelForeground};`);
+				}
+				content.push('}');
 			}
-			// The borders are the only ones that need important. Order matters here. Border must come before bottom border.
-			if (this.styles.keybindingLabels.keybindingLabelBorder) {
-				content.push(`border-color: ${this.styles.keybindingLabels.keybindingLabelBorder};`);
-			}
-			if (this.styles.keybindingLabels.keybindingLabelBottomBorder) {
-				content.push(`border-bottom-color: ${this.styles.keybindingLabels.keybindingLabelBottomBorder};`);
-			}
-			if (this.styles.keybindingLabels.keybindingLabelShadow) {
-				content.push(`box-shadow: inset 0 -1px 0 ${this.styles.keybindingLabels.keybindingLabelShadow};`);
-			}
-			if (this.styles.keybindingLabels.keybindingLabelForeground) {
-				content.push(`color: ${this.styles.keybindingLabels.keybindingLabelForeground};`);
-			}
-			content.push('}');
 
 			const newStyles = content.join('\n');
 			if (newStyles !== this.ui.styleSheet.textContent) {

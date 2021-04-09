@@ -209,7 +209,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			progressBar: computeStyles(this.theme, {
 				progressBarBackground
 			}),
-			keybindingLabels: computeStyles(this.theme, {
+			keybindingLabel: computeStyles(this.theme, {
 				keybindingLabelBackground,
 				keybindingLabelForeground,
 				keybindingLabelBorder,
