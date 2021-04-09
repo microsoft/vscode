@@ -247,8 +247,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				}
 			}
 
-			// Create the browser window.
+			// Create the browser window
+			mark('code/willCreateCodeBrowserWindow');
 			this._win = new BrowserWindow(options);
+			mark('code/didCreateCodeBrowserWindow');
+
 			this._id = this._win.id;
 
 			// Open devtools if instructed from command line args
@@ -280,6 +283,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			if (isFullscreenOrMaximized) {
+				mark('code/willMaximizeCodeWindow');
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
@@ -289,6 +293,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				if (!this._win.isVisible()) {
 					this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 				}
+				mark('code/didMaximizeCodeWindow');
 			}
 
 			this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
@@ -915,6 +920,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
+		mark('code/willRestoreCodeWindowState');
+
 		let hasMultipleDisplays = false;
 		if (state) {
 			try {
@@ -926,6 +933,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
+
+		mark('code/didRestoreCodeWindowState');
 
 		return [state || defaultWindowState(), hasMultipleDisplays];
 	}
