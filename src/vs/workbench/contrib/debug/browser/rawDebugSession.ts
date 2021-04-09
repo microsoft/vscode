@@ -273,8 +273,9 @@ export class RawDebugSession implements IDisposable {
 	/**
 	 * Terminate the debuggee and shutdown the adapter
 	 */
-	disconnect(restart = false): Promise<any> {
-		return this.shutdown(undefined, restart);
+	disconnect(args: DebugProtocol.DisconnectArguments): Promise<any> {
+		const terminateDebuggee = this.capabilities.supportTerminateDebuggee ? args.terminateDebuggee : undefined;
+		return this.shutdown(undefined, args.restart, terminateDebuggee);
 	}
 
 	//---- DAP requests
@@ -297,7 +298,7 @@ export class RawDebugSession implements IDisposable {
 				this.terminated = true;
 				return this.send('terminate', { restart }, undefined, 2000);
 			}
-			return this.disconnect(restart);
+			return this.disconnect({ terminateDebuggee: true, restart });
 		}
 		return Promise.reject(new Error('terminated not supported'));
 	}
@@ -504,12 +505,13 @@ export class RawDebugSession implements IDisposable {
 
 	//---- private
 
-	private async shutdown(error?: Error, restart = false): Promise<any> {
+	private async shutdown(error?: Error, restart = false, terminateDebuggee: boolean | undefined = undefined): Promise<any> {
 		if (!this.inShutdown) {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
 				try {
-					await this.send('disconnect', { restart }, undefined, 2000);
+					const args = typeof terminateDebuggee === 'boolean' ? { restart, terminateDebuggee } : { restart };
+					this.send('disconnect', args, undefined, 2000);
 				} catch (e) {
 					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {
