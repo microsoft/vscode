@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -160,7 +160,8 @@ export class TerminalTabbedView extends Disposable {
 			layout: width => this._terminalService.terminalTabs.forEach(tab => tab.layout(width, this._height || 0)),
 			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
-			onDidChange: () => Disposable.None
+			onDidChange: () => Disposable.None,
+			priority: LayoutPriority.High
 		}, Sizing.Distribute, this._terminalContainerIndex);
 	}
 
@@ -171,6 +172,7 @@ export class TerminalTabbedView extends Disposable {
 			minimumSize: 40,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
+			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
 		this._createButton();
 	}

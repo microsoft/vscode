@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { FileWorkingCopy, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, IFileWorkingCopySaveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { FileWorkingCopy, FileWorkingCopyState, IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, IFileWorkingCopySaveOptions } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
@@ -101,6 +101,8 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * copy may chose to return an existing file working copy with different casing
 	 * to respect file systems that are case insensitive.
 	 *
+	 * Note: Callers must `dispose` the working copy when no longer needed.
+	 *
 	 * @param source the source resource to save as
 	 * @param target the optional target resource to save to. if not defined, the user
 	 * will be asked for input
@@ -114,9 +116,6 @@ export interface IFileWorkingCopyManager<T extends IFileWorkingCopyModel> extend
 	 * Waits for the file working copy to be ready to be disposed. There may be
 	 * conditions under which the file working copy cannot be disposed, e.g. when
 	 * it is dirty. Once the promise is settled, it is safe to dispose.
-	 *
-	 * TODO@bpasero this is a bit fishy, should this not be inside the working copy
-	 * itself?
 	 */
 	canDispose(workingCopy: IFileWorkingCopy<T>): true | Promise<true>;
 }
@@ -226,7 +225,19 @@ export class FileWorkingCopyManager<T extends IFileWorkingCopyModel> extends Dis
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
+		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
 		this.lifecycleService.onDidShutdown(() => this.dispose());
+	}
+
+	private async onWillShutdown(): Promise<void> {
+		let fileWorkingCopies: IFileWorkingCopy<T>[];
+
+		// As long as file working copies are pending to be saved, we prolong the shutdown
+		// until that has happened to ensure we are not shutting down in the middle of
+		// writing to the working copy (https://github.com/microsoft/vscode/issues/116600).
+		while ((fileWorkingCopies = this.workingCopies.filter(workingCopy => workingCopy.hasState(FileWorkingCopyState.PENDING_SAVE))).length > 0) {
+			await Promises.settled(fileWorkingCopies.map(workingCopy => workingCopy.joinState(FileWorkingCopyState.PENDING_SAVE)));
+		}
 	}
 
 	//#region Resolve from file changes

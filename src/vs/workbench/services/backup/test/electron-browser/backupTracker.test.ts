@@ -26,7 +26,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -35,7 +35,7 @@ import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -73,16 +73,6 @@ flakySuite('BackupTracker (native)', function () {
 			for (const [_, disposable] of this.pendingBackups) {
 				disposable.dispose();
 			}
-		}
-	}
-
-	class BeforeShutdownEventImpl implements BeforeShutdownEvent {
-
-		value: boolean | Promise<boolean> | undefined;
-		reason = ShutdownReason.CLOSE;
-
-		veto(value: boolean | Promise<boolean>): void {
-			this.value = value;
 		}
 	}
 
@@ -192,8 +182,8 @@ flakySuite('BackupTracker (native)', function () {
 		const resource = toResource.call(this, '/path/index.txt');
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 
-		const event = new BeforeShutdownEventImpl();
-		accessor.lifecycleService.fireWillShutdown(event);
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
 
 		const veto = await event.value;
 		assert.ok(!veto);
@@ -216,8 +206,8 @@ flakySuite('BackupTracker (native)', function () {
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
-		const event = new BeforeShutdownEventImpl();
-		accessor.lifecycleService.fireWillShutdown(event);
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
 
 		const veto = await event.value;
 		assert.ok(veto);
@@ -237,8 +227,8 @@ flakySuite('BackupTracker (native)', function () {
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
-		const event = new BeforeShutdownEventImpl();
-		accessor.lifecycleService.fireWillShutdown(event);
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
 
 		const veto = await event.value;
 		assert.ok(!veto);
@@ -262,8 +252,8 @@ flakySuite('BackupTracker (native)', function () {
 		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		const event = new BeforeShutdownEventImpl();
-		accessor.lifecycleService.fireWillShutdown(event);
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
 
 		const veto = await event.value;
 		assert.ok(!veto);
@@ -286,8 +276,8 @@ flakySuite('BackupTracker (native)', function () {
 		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		const event = new BeforeShutdownEventImpl();
-		accessor.lifecycleService.fireWillShutdown(event);
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
 
 		const veto = await event.value;
 		assert.ok(!veto);
@@ -427,9 +417,9 @@ flakySuite('BackupTracker (native)', function () {
 			model?.textEditorModel?.setValue('foo');
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
 
-			const event = new BeforeShutdownEventImpl();
+			const event = new TestBeforeShutdownEvent();
 			event.reason = shutdownReason;
-			accessor.lifecycleService.fireWillShutdown(event);
+			accessor.lifecycleService.fireBeforeShutdown(event);
 
 			const veto = await event.value;
 			assert.strictEqual(accessor.backupFileService.discardedBackups.length, 0); // When hot exit is set, backups should never be cleaned since the confirm result is cancel
