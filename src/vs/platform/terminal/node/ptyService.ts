@@ -89,7 +89,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService, shellLaunchConfig.icon,);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -217,7 +217,8 @@ export class PtyService extends Disposable implements IPtyService {
 			workspaceId: persistentProcess.workspaceId,
 			workspaceName: persistentProcess.workspaceName,
 			cwd,
-			isOrphan
+			isOrphan,
+			icon: persistentProcess.icon
 		};
 	}
 
@@ -267,6 +268,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	get pid(): number { return this._pid; }
 	get title(): string { return this._terminalProcess.currentTitle; }
+	get icon(): string | undefined { return this._icon; }
 
 	constructor(
 		private _persistentProcessId: number,
@@ -275,7 +277,8 @@ export class PersistentTerminalProcess extends Disposable {
 		public readonly workspaceName: string,
 		public readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _icon?: string
 	) {
 		super();
 		this._recorder = new TerminalRecorder(cols, rows);

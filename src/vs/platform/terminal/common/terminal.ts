@@ -44,6 +44,7 @@ export interface IPtyHostAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
+	icon?: string;
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
@@ -251,7 +252,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
