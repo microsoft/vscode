@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -46,17 +47,25 @@ export interface IConfigurationCache {
 
 }
 
+export type UntrustedSettings = {
+	userLocal?: ReadonlyArray<string>;
+	userRemote?: ReadonlyArray<string>;
+	workspace?: ReadonlyArray<string>;
+	workspaceFolder?: ResourceMap<ReadonlyArray<string>>;
+	all?: ReadonlyArray<string>;
+};
+
 export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
-	 * List of unsafe workspace settings found in current workspace
+	 * List of untrusted settings
 	 */
-	readonly unSafeWorkspaceSettings: ReadonlyArray<string>;
+	readonly unTrustedSettings: UntrustedSettings;
 
 	/**
-	 * Event that triggers when the list of unsafe workspace settings changes
+	 * Event that triggers when the list of untrusted settings changes
 	 */
-	readonly onDidChangeUnsafeWorkspaceSettings: Event<ReadonlyArray<string>>;
+	readonly onDidChangeUntrustdSettings: Event<UntrustedSettings>;
 
 	/**
 	 * A promise that resolves when the remote configuration is loaded in a remote window.

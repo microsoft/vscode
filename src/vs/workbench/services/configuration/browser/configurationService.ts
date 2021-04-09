@@ -14,7 +14,7 @@ import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, I
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, UntrustedSettings } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceInitializationPayload, IEmptyWorkspaceIdentifier, useSlashForPath, getStoredWorkspaceFolder, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
@@ -72,12 +72,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState> = this._register(new Emitter<WorkbenchState>());
 	public readonly onDidChangeWorkbenchState: Event<WorkbenchState> = this._onDidChangeWorkbenchState.event;
 
-	private readonly _onDidChangeUnsafeWorkspaceSettings = this._register(new Emitter<ReadonlyArray<string>>());
-	public readonly onDidChangeUnsafeWorkspaceSettings = this._onDidChangeUnsafeWorkspaceSettings.event;
+	private readonly _onDidChangeUntrustedSettings = this._register(new Emitter<UntrustedSettings>());
+	public readonly onDidChangeUntrustdSettings = this._onDidChangeUntrustedSettings.event;
 
 	private workspaceTrustState: WorkspaceTrustState = WorkspaceTrustState.Trusted;
-	private _unSafeWorkspaceSettings: string[] = [];
-	get unSafeWorkspaceSettings() { return this._unSafeWorkspaceSettings; }
+	private _unTrustedSettings: UntrustedSettings = {};
+	get unTrustedSettings() { return this._unTrustedSettings; }
 
 	private readonly configurationRegistry: IConfigurationRegistry;
 
@@ -420,7 +420,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			} else {
 				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.updateWorkspaceTrustState(this.workspaceTrustState));
 			}
-			const keys = this.updateUnsafeWorkpsaceSettings();
+			const keys = this.updateUntrustedSettings();
 			if (keys.length) {
 				this.triggerConfigurationChange({ keys, overrides: [] }, { data, workspace: this.workspace }, ConfigurationTarget.WORKSPACE);
 			}
@@ -610,7 +610,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.initialized = true;
 		}
 
-		this.updateUnsafeWorkpsaceSettings();
+		this.updateUntrustedSettings();
 	}
 
 	private getWorkspaceConfigurationModel(folderConfigurations: ConfigurationModel[]): ConfigurationModel {
@@ -649,7 +649,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				}
 			}
 			this.triggerConfigurationChange(change, { data: previousData, workspace: this.workspace }, ConfigurationTarget.DEFAULT);
-			this.updateUnsafeWorkpsaceSettings();
+			this.updateUntrustedSettings();
 		}
 	}
 
@@ -687,22 +687,51 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private updateUnsafeWorkpsaceSettings(): string[] {
-		let unsafeWorkspaceSettings = [];
-		if (this.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			unsafeWorkspaceSettings.push(...this.workspaceConfiguration.getExcludedUnsafeSettings());
+	private updateUntrustedSettings(): string[] {
+		let all: string[] = [];
+		const changed: string[] = [];
+		const userLocal = this.localUserConfiguration.getUntrustedSettings().sort((a, b) => a.localeCompare(b));
+		const userLocalDelta = delta(userLocal, this._unTrustedSettings.userLocal || [], (a, b) => a.localeCompare(b));
+		changed.push(...userLocalDelta.added, ...userLocalDelta.removed);
+		all.push(...userLocal);
+
+		const userRemote = (this.remoteUserConfiguration?.getUntrustedSettings() || []).sort((a, b) => a.localeCompare(b));
+		const userRemoteDelta = delta(userRemote, this._unTrustedSettings.userRemote || [], (a, b) => a.localeCompare(b));
+		changed.push(...userRemoteDelta.added, ...userRemoteDelta.removed);
+		all.push(...userRemote);
+
+		const workspaceFolderMap = new ResourceMap<ReadonlyArray<string>>();
+		for (const workspaceFolder of this.workspace.folders) {
+			const cachedFolderConfig = this.cachedFolderConfigs.get(workspaceFolder.uri);
+			const folderUntrustedSettings = (cachedFolderConfig?.getUntrustedSettings() || []).sort((a, b) => a.localeCompare(b));
+			if (folderUntrustedSettings.length) {
+				workspaceFolderMap.set(workspaceFolder.uri, folderUntrustedSettings);
+			}
+			const previous = this._unTrustedSettings.workspaceFolder?.get(workspaceFolder.uri) || [];
+			const workspaceFolderDelta = delta(folderUntrustedSettings, previous, (a, b) => a.localeCompare(b));
+			changed.push(...workspaceFolderDelta.added, ...workspaceFolderDelta.removed);
+			all.push(...folderUntrustedSettings);
 		}
-		for (const folderConfig of this.cachedFolderConfigs.values()) {
-			unsafeWorkspaceSettings.push(...folderConfig.getExcludedUnsafeSettings());
-		}
-		unsafeWorkspaceSettings = distinct(unsafeWorkspaceSettings).sort((a, b) => a.localeCompare(b));
-		const { removed, added } = delta(unsafeWorkspaceSettings, this._unSafeWorkspaceSettings, (a, b) => a.localeCompare(b));
-		const changed = [...removed, ...added];
+
+		const workspace = this.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.workspaceConfiguration.getUntrustedSettings().sort((a, b) => a.localeCompare(b))
+			: this.workspace.folders[0] ? (workspaceFolderMap.get(this.workspace.folders[0].uri) || []) : [];
+		const workspaceDelta = delta(workspace, this._unTrustedSettings.workspace || [], (a, b) => a.localeCompare(b));
+		changed.push(...workspaceDelta.added, ...workspaceDelta.removed);
+		all.push(...workspace);
+
 		if (changed.length) {
-			this._unSafeWorkspaceSettings = unsafeWorkspaceSettings;
-			this._onDidChangeUnsafeWorkspaceSettings.fire(this.unSafeWorkspaceSettings);
+			all = distinct(all).sort((a, b) => a.localeCompare(b));
+			this._unTrustedSettings = {
+				userLocal: userLocal.length ? userLocal : undefined,
+				userRemote: userRemote.length ? userRemote : undefined,
+				workspace: workspace.length ? workspace : undefined,
+				workspaceFolder: workspaceFolderMap.size ? workspaceFolderMap : undefined,
+				all: all.length ? all : undefined
+			};
+			this._onDidChangeUntrustedSettings.fire(this.unTrustedSettings);
 		}
-		return changed;
+
+		return distinct(changed);
 	}
 
 	private async updateWorkspaceConfiguration(workspaceFolders: WorkspaceFolder[], configuration: ConfigurationModel): Promise<void> {
@@ -717,7 +746,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		} else {
 			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
 		}
-		this.updateUnsafeWorkpsaceSettings();
+		this.updateUntrustedSettings();
 	}
 
 	private async onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder): Promise<void> {
@@ -730,7 +759,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		} else {
 			this.triggerConfigurationChange(folderConfiguraitonChange, previous, ConfigurationTarget.WORKSPACE_FOLDER);
 		}
-		this.updateUnsafeWorkpsaceSettings();
+		this.updateUntrustedSettings();
 	}
 
 	private async onFoldersChanged(): Promise<IConfigurationChange> {

@@ -25,7 +25,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
-function hasToExcludeUnsafeConfigurations(workspaceTrustState: WorkspaceTrustState): boolean {
+function isUntrusted(workspaceTrustState: WorkspaceTrustState): boolean {
 	return workspaceTrustState !== WorkspaceTrustState.Trusted;
 }
 
@@ -49,7 +49,7 @@ export class UserConfiguration extends Disposable {
 		private readonly logService: ILogService,
 	) {
 		super();
-		this.configurationParseOptions = { scopes, excludeUnsafeConfigurations: false };
+		this.configurationParseOptions = { scopes, isUntrusted: false };
 		this.userConfiguration.value = new UserSettings(this.userSettingsResource, scopes, uriIdentityService.extUri, this.fileService);
 		this._register(this.userConfiguration.value.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
@@ -80,6 +80,10 @@ export class UserConfiguration extends Disposable {
 
 	reparse(): ConfigurationModel {
 		return this.userConfiguration.value!.reparse(this.configurationParseOptions);
+	}
+
+	getUntrustedSettings(): string[] {
+		return this.userConfiguration.value!.getUntrustedSettings();
 	}
 }
 
@@ -175,8 +179,8 @@ class FileServiceBasedConfiguration extends Disposable {
 		return this._cache;
 	}
 
-	getExcludedUnsafeSettings(): string[] {
-		return this._folderSettingsModelParser.excludedUnsafeConfigurations;
+	getUntrustedSettings(): string[] {
+		return this._folderSettingsModelParser.untrustedConfigurations;
 	}
 
 	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
@@ -229,10 +233,10 @@ export class RemoteUserConfiguration extends Disposable {
 	) {
 		super();
 		this._fileService = fileService;
-		this._userConfiguration = this._cachedConfiguration = new CachedRemoteUserConfiguration(remoteAuthority, configurationCache, REMOTE_MACHINE_SCOPES);
+		this._userConfiguration = this._cachedConfiguration = new CachedRemoteUserConfiguration(remoteAuthority, configurationCache, { scopes: REMOTE_MACHINE_SCOPES });
 		remoteAgentService.getEnvironment().then(async environment => {
 			if (environment) {
-				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, REMOTE_MACHINE_SCOPES, this._fileService, uriIdentityService));
+				const userConfiguration = this._register(new FileServiceBasedRemoteUserConfiguration(environment.settingsPath, { scopes: REMOTE_MACHINE_SCOPES }, this._fileService, uriIdentityService));
 				this._register(userConfiguration.onDidChangeConfiguration(configurationModel => this.onDidUserConfigurationChange(configurationModel)));
 				this._userConfigurationInitializationPromise = userConfiguration.initialize();
 				const configurationModel = await this._userConfigurationInitializationPromise;
@@ -265,7 +269,11 @@ export class RemoteUserConfiguration extends Disposable {
 	}
 
 	reparse(): ConfigurationModel {
-		return this._userConfiguration.reparse();
+		return this._userConfiguration.reparse({ scopes: REMOTE_MACHINE_SCOPES });
+	}
+
+	getUntrustedSettings(): string[] {
+		return this._userConfiguration.getUntrustedSettings();
 	}
 
 	private onDidUserConfigurationChange(configurationModel: ConfigurationModel): void {
@@ -292,7 +300,7 @@ export class RemoteUserConfiguration extends Disposable {
 class FileServiceBasedRemoteUserConfiguration extends Disposable {
 
 	private readonly parser: ConfigurationModelParser;
-	private readonly parseOptions: ConfigurationParseOptions;
+	private parseOptions: ConfigurationParseOptions;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
@@ -302,14 +310,14 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 
 	constructor(
 		private readonly configurationResource: URI,
-		scopes: ConfigurationScope[] | undefined,
+		configurationParseOptions: ConfigurationParseOptions,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
 		this.parser = new ConfigurationModelParser(this.configurationResource.toString());
-		this.parseOptions = { scopes };
+		this.parseOptions = configurationParseOptions;
 		this._register(fileService.onDidFilesChange(e => this.handleFileEvents(e)));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reload().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 		this._register(toDisposable(() => {
@@ -358,9 +366,14 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 		}
 	}
 
-	reparse(): ConfigurationModel {
+	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
+		this.parseOptions = configurationParseOptions;
 		this.parser.reparse(this.parseOptions);
 		return this.parser.configurationModel;
+	}
+
+	getUntrustedSettings(): string[] {
+		return this.parser.untrustedConfigurations;
 	}
 
 	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
@@ -398,18 +411,18 @@ class CachedRemoteUserConfiguration extends Disposable {
 
 	private readonly key: ConfigurationKey;
 	private readonly parser: ConfigurationModelParser;
-	private readonly parseOptions: ConfigurationParseOptions;
+	private parseOptions: ConfigurationParseOptions;
 	private configurationModel: ConfigurationModel;
 
 	constructor(
 		remoteAuthority: string,
 		private readonly configurationCache: IConfigurationCache,
-		scopes: ConfigurationScope[],
+		configurationParseOptions: ConfigurationParseOptions,
 	) {
 		super();
 		this.key = { type: 'user', key: remoteAuthority };
 		this.parser = new ConfigurationModelParser('CachedRemoteUserConfiguration');
-		this.parseOptions = { scopes };
+		this.parseOptions = configurationParseOptions;
 		this.configurationModel = new ConfigurationModel();
 	}
 
@@ -421,10 +434,15 @@ class CachedRemoteUserConfiguration extends Disposable {
 		return this.reload();
 	}
 
-	reparse(): ConfigurationModel {
+	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
+		this.parseOptions = configurationParseOptions;
 		this.parser.reparse(this.parseOptions);
 		this.configurationModel = this.parser.configurationModel;
 		return this.configurationModel;
+	}
+
+	getUntrustedSettings(): string[] {
+		return this.parser.untrustedConfigurations;
 	}
 
 	async reload(): Promise<ConfigurationModel> {
@@ -487,7 +505,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 	async reload(): Promise<void> {
 		if (this._workspaceIdentifier) {
-			await this._workspaceConfiguration.load(this._workspaceIdentifier, { scopes: WORKSPACE_SCOPES, excludeUnsafeConfigurations: this.hasToExcludeUnsafeConfigurations() });
+			await this._workspaceConfiguration.load(this._workspaceIdentifier, { scopes: WORKSPACE_SCOPES, isUntrusted: this.isUntrusted() });
 		}
 	}
 
@@ -513,19 +531,19 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	reparseWorkspaceSettings(): ConfigurationModel {
-		this._workspaceConfiguration.reparseWorkspaceSettings({ scopes: WORKSPACE_SCOPES, excludeUnsafeConfigurations: this.hasToExcludeUnsafeConfigurations() });
+		this._workspaceConfiguration.reparseWorkspaceSettings({ scopes: WORKSPACE_SCOPES, isUntrusted: this.isUntrusted() });
 		return this.getConfiguration();
 	}
 
-	getExcludedUnsafeSettings(): string[] {
-		return this._workspaceConfiguration.getExcludedUnsafeSettings();
+	getUntrustedSettings(): string[] {
+		return this._workspaceConfiguration.getUntrustedSettings();
 	}
 
 	private async waitAndInitialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		await whenProviderRegistered(workspaceIdentifier.configPath, this._fileService);
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
 			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._fileService));
-			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier, { scopes: WORKSPACE_SCOPES, excludeUnsafeConfigurations: this.hasToExcludeUnsafeConfigurations() });
+			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier, { scopes: WORKSPACE_SCOPES, isUntrusted: this.isUntrusted() });
 			this.doInitialize(fileServiceBasedWorkspaceConfiguration);
 			this.onDidWorkspaceConfigurationChange(false);
 		}
@@ -538,8 +556,8 @@ export class WorkspaceConfiguration extends Disposable {
 		this._initialized = true;
 	}
 
-	private hasToExcludeUnsafeConfigurations(): boolean | undefined {
-		return this._workspaceTrustState !== null ? hasToExcludeUnsafeConfigurations(this._workspaceTrustState) : undefined;
+	private isUntrusted(): boolean | undefined {
+		return this._workspaceTrustState !== null ? isUntrusted(this._workspaceTrustState) : undefined;
 	}
 
 	private async onDidWorkspaceConfigurationChange(reload: boolean): Promise<void> {
@@ -627,8 +645,8 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		return this.getWorkspaceSettings();
 	}
 
-	getExcludedUnsafeSettings(): string[] {
-		return this.workspaceConfigurationModelParser.excludedUnsafeConfigurations;
+	getUntrustedSettings(): string[] {
+		return this.workspaceConfigurationModelParser.getUntrustedWorkspaceSettings();
 	}
 
 	private consolidate(): void {
@@ -698,8 +716,8 @@ class CachedWorkspaceConfiguration {
 		return this.getWorkspaceSettings();
 	}
 
-	getExcludedUnsafeSettings(): string[] {
-		return this.workspaceConfigurationModelParser.excludedUnsafeConfigurations;
+	getUntrustedSettings(): string[] {
+		return this.workspaceConfigurationModelParser.getUntrustedWorkspaceSettings();
 	}
 
 	private consolidate(): void {
@@ -787,8 +805,8 @@ class CachedFolderConfiguration {
 		}
 	}
 
-	getExcludedUnsafeSettings(): string[] {
-		return this._folderSettingsModelParser.excludedUnsafeConfigurations;
+	getUntrustedSettings(): string[] {
+		return this._folderSettingsModelParser.untrustedConfigurations;
 	}
 
 	reparse(configurationParseOptions: ConfigurationParseOptions): ConfigurationModel {
@@ -831,7 +849,7 @@ export class FolderConfiguration extends Disposable {
 
 		this.scopes = WorkbenchState.WORKSPACE === this.workbenchState ? FOLDER_SCOPES : WORKSPACE_SCOPES;
 		this.configurationFolder = uriIdentityService.extUri.joinPath(workspaceFolder.uri, configFolderRelativePath);
-		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, { scopes: this.scopes, excludeUnsafeConfigurations: this.hasToExcludeUnsafeConfigurations() }, configurationCache);
+		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, { scopes: this.scopes, isUntrusted: this.isUntrusted() }, configurationCache);
 		if (this.configurationCache.needsCaching(workspaceFolder.uri)) {
 			this.folderConfiguration = this.cachedFolderConfiguration;
 			whenProviderRegistered(workspaceFolder.uri, fileService)
@@ -856,17 +874,17 @@ export class FolderConfiguration extends Disposable {
 	}
 
 	reparse(): ConfigurationModel {
-		const configurationModel = this.folderConfiguration.reparse({ scopes: this.scopes, excludeUnsafeConfigurations: this.hasToExcludeUnsafeConfigurations() });
+		const configurationModel = this.folderConfiguration.reparse({ scopes: this.scopes, isUntrusted: this.isUntrusted() });
 		this.updateCache();
 		return configurationModel;
 	}
 
-	getExcludedUnsafeSettings(): string[] {
-		return this.folderConfiguration.getExcludedUnsafeSettings();
+	getUntrustedSettings(): string[] {
+		return this.folderConfiguration.getUntrustedSettings();
 	}
 
-	private hasToExcludeUnsafeConfigurations(): boolean {
-		return hasToExcludeUnsafeConfigurations(this.workspaceTrustState);
+	private isUntrusted(): boolean {
+		return isUntrusted(this.workspaceTrustState);
 	}
 
 	private onDidFolderConfigurationChange(): void {
@@ -877,7 +895,7 @@ export class FolderConfiguration extends Disposable {
 	private createFileServiceBasedConfiguration(fileService: IFileService, uriIdentityService: IUriIdentityService, logService: ILogService) {
 		const settingsResource = uriIdentityService.extUri.joinPath(this.configurationFolder, `${FOLDER_SETTINGS_NAME}.json`);
 		const standAloneConfigurationResources: [string, URI][] = [TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY].map(name => ([name, uriIdentityService.extUri.joinPath(this.configurationFolder, `${name}.json`)]));
-		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResource, standAloneConfigurationResources, { scopes: this.scopes, excludeUnsafeConfigurations: this.hasToExcludeUnsafeConfigurations() }, fileService, uriIdentityService, logService);
+		return new FileServiceBasedConfiguration(this.configurationFolder.toString(), settingsResource, standAloneConfigurationResources, { scopes: this.scopes, isUntrusted: this.isUntrusted() }, fileService, uriIdentityService, logService);
 	}
 
 	private async updateCache(): Promise<void> {
