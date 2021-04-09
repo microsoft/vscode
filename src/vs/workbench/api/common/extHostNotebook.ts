@@ -5,11 +5,11 @@
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarEntryDto, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, INotebookKernelInfoDto2, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, INotebookKernelInfoDto2, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -18,7 +18,7 @@ import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import { CellEditType, ICellRange, INotebookExclusiveDocumentFilter, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
@@ -28,6 +28,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hash } from 'vs/base/common/hash';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { Cache } from 'vs/workbench/api/common/cache';
 
 class ExtHostWebviewCommWrapper extends Disposable {
 	private readonly _onDidReceiveDocumentMessage = new Emitter<any>();
@@ -266,6 +267,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	private _activeExecutions = new ResourceMap<NotebookCellExecutionTask>();
 
+	private _statusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
+
 	constructor(
 		mainContext: IMainContext,
 		commands: ExtHostCommands,
@@ -492,7 +495,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	async $provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarEntryDto[] | undefined> {
+	async $provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined> {
 		const provider = this._notebookStatusBarItemProviders.get(handle);
 		const revivedUri = URI.revive(uri);
 		const document = this._documents.get(revivedUri);
@@ -506,7 +509,21 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		const result = await provider.provideCellStatusBarItems(cell.cell, token);
-		return (result && result.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter))) ?? undefined;
+		if (!result) {
+			return undefined;
+		}
+
+		const disposables = new DisposableStore();
+		const cacheId = this._statusBarCache.add([disposables]);
+		const items = (result && result.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables))) ?? undefined;
+		return {
+			cacheId,
+			items
+		};
+	}
+
+	$releaseNotebookCellStatusBarItems(cacheId: number): void {
+		this._statusBarCache.delete(cacheId);
 	}
 
 	async $resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void> {
@@ -1009,7 +1026,7 @@ class NotebookCellExecutionTask extends Disposable {
 
 		this._executionOrder = _cell.internalMetadata.executionOrder;
 		this.mixinMetadata({
-			runState: vscode.NotebookCellExecutionState.Pending,
+			runState: extHostTypes.NotebookCellExecutionState.Pending,
 			lastRunDuration: null,
 			executionOrder: null
 		});
@@ -1072,7 +1089,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: vscode.NotebookCellExecutionState.Executing,
+					runState: extHostTypes.NotebookCellExecutionState.Executing,
 					runStartTime: context?.startTime
 				});
 			},
@@ -1086,7 +1103,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: vscode.NotebookCellExecutionState.Idle,
+					runState: extHostTypes.NotebookCellExecutionState.Idle,
 					lastRunSuccess: result?.success ?? null,
 					lastRunDuration: result?.duration ?? null,
 				});

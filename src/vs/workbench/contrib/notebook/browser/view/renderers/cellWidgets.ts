@@ -27,8 +27,6 @@ import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/b
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-
 
 const $ = DOM.$;
 
@@ -133,23 +131,32 @@ export class CellEditorStatusBar extends Disposable {
 
 		this.itemsDisposable.clear();
 
-		const evt = this.notebookCellStatusBarService.subscribeToStatusBarUpdatesForCell(this.currentContext.notebookEditor.viewModel, this.currentContext.cell);
+		const cellIndex = this.currentContext.notebookEditor.viewModel.getCellIndex(this.currentContext.cell);
+		const evt = this.notebookCellStatusBarService.subscribeToStatusBarUpdatesForCell(this.currentContext.notebookEditor.viewModel.uri, cellIndex);
+		// this.currentContext.notebookEditor.onDidChangeCellStatusBarItems
+		// this.notebookCellStatusBarService.onDidChangeStatusBarItems(cell => {
+		// 	// if (cell. === this.currentContext.cell.handle .uri.toString()) {
+		// 	// }
+		// 	if (my cell) {
+		// 	// do the thing
+		// }
+	// });
 		this.itemsDisposable.add(evt((items: INotebookCellStatusBarItem[]) => {
-			DOM.clearNode(this.leftContributedItemsContainer);
-			DOM.clearNode(this.rightContributedItemsContainer);
+		DOM.clearNode(this.leftContributedItemsContainer);
+		DOM.clearNode(this.rightContributedItemsContainer);
 
-			items.sort((itemA, itemB) => {
-				return (itemB.priority ?? 0) - (itemA.priority ?? 0);
-			});
-			items.forEach(item => {
-				const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
-				if (item.alignment === CellStatusbarAlignment.Left) {
-					this.leftContributedItemsContainer.appendChild(itemView.container);
-				} else {
-					this.rightContributedItemsContainer.appendChild(itemView.container);
-				}
-			});
-		}));
+		items.sort((itemA, itemB) => {
+			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
+		});
+		items.forEach(item => {
+			const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
+			if (item.alignment === CellStatusbarAlignment.Left) {
+				this.leftContributedItemsContainer.appendChild(itemView.container);
+			} else {
+				this.rightContributedItemsContainer.appendChild(itemView.container);
+			}
+		});
+	}));
 	}
 }
 

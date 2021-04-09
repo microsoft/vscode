@@ -206,8 +206,15 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		const that = this;
 		const provider: INotebookCellStatusBarItemProvider = {
 			async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken) {
-				const items = await that._proxy.$provideNotebookCellStatusBarItems(handle, uri, index, token);
-				return items ?? [];
+				const result = await that._proxy.$provideNotebookCellStatusBarItems(handle, uri, index, token);
+				return {
+					items: result?.items ?? [],
+					dispose() {
+						if (result) {
+							that._proxy.$releaseNotebookCellStatusBarItems(result.cacheId);
+						}
+					}
+				};
 			},
 			selector: documentFilter
 		};

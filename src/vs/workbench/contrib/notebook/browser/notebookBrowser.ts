@@ -350,6 +350,11 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	cursorNavigationMode: boolean;
 
+	// or add/remove by id
+	setStatusBarItems(cell: handle, ownerId: string, items: Array);
+	getStatusBarItems(cell: handle);
+	onDidChangeCellStatusBarItems: Event<URI>;
+
 	/**
 	 * Notebook view model attached to the current editor
 	 */

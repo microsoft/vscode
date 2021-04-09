@@ -5,20 +5,19 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ClickTargetType, getExecuteCellPlaceholder } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
+import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItem, INotebookCellStatusBarItemProvider, INotebookDocumentFilter, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Event, URI } from 'vs/workbench/workbench.web.api';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
 export class CodeCell extends Disposable {
@@ -373,17 +372,5 @@ export class CodeCell extends Disposable {
 		this.templateData.focusIndicatorLeft.style.height = 'initial';
 
 		super.dispose();
-	}
-}
-
-class CellStatusbarPlaceholderProvider implements INotebookCellStatusBarItemProvider {
-	readonly selector: INotebookDocumentFilter = {
-		viewType: '*'
-	};
-
-	onDidChangeStatusBarItems?: Event<void> | undefined;
-
-	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItem[]> {
-		throw new Error('Method not implemented.');
 	}
 }
