@@ -212,12 +212,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
-		const onDemandExtensions = await this.getExtensionsByTrustRequestType(installedExtensions, 'onDemand');
-		const onStartExtensions = await this.getExtensionsByTrustRequestType(installedExtensions, 'onStart');
+		const onDemandExtensionCount = this.getExtensionCountByTrustRequestType(installedExtensions, 'onDemand');
+		const onStartExtensionCount = this.getExtensionCountByTrustRequestType(installedExtensions, 'onStart');
 
-		const numExtensions = onDemandExtensions.length + onStartExtensions.length;
-
-		this.renderAffectedFeatures(model, numExtensions);
+		this.renderAffectedFeatures(model, onDemandExtensionCount + onStartExtensionCount);
 
 		// Configuration Tree
 		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
@@ -227,11 +225,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = false;
 	}
 
-	private async getExtensionsByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): Promise<IExtension[]> {
+	private getExtensionCountByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): number {
 		const filtered = extensions.filter(ext => getExtensionWorkspaceTrustRequestType(ext.local.manifest) === trustRequestType);
-		const ids = filtered.map(ext => ext.identifier.id);
+		const set = new Set<string>();
+		for (const ext of filtered) {
+			set.add(ext.identifier.id);
+		}
 
-		return getExtensions(ids, this.extensionWorkbenchService);
+		return set.size;
 	}
 
 	private createHeaderElement(parent: HTMLElement): void {

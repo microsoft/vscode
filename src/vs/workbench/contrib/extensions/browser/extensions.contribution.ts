@@ -837,7 +837,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: 'workbench.extensions.action.listTrustRequiredExtensions',
 			title: { value: localize('showTrustRequiredExtensions', "Show Extensions Requiring Trust"), original: 'Show Extensions Requiring Trust' },
 			category: ExtensionsLocalizedLabel,
-			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@trustRequired '))
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@trustRequired'))
 		});
 
 		this.registerExtensionAction({

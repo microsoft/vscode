@@ -547,15 +547,29 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterTrustRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+		let value = query.value;
+		const onStartOnly = /@trustRequired:onStart/i.test(value);
+		if (onStartOnly) {
+			value = value.replace(/@trustRequired:onStart/g, '');
+		}
+		const onDemandOnly = /@trustRequired:onDemand/i.test(value);
+		if (onDemandOnly) {
+			value = value.replace(/@trustRequired:onDemand/g, '');
+		}
 
 		value = value.replace(/@trustRequired/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		const result = local
-			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-			.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never'
-				&& (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => !!extension.local && extension.local.manifest.categories!.some(c => c.toLowerCase() === category))));
+		const result = local.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never' && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+
+		if (onStartOnly) {
+			const onStartExtensions = result.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onStart');
+			return this.sortExtensions(onStartExtensions, options);
+		}
+
+		if (onDemandOnly) {
+			const onDemandExtensions = result.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onDemand');
+			return this.sortExtensions(onDemandExtensions, options);
+		}
 
 		return this.sortExtensions(result, options);
 	}
@@ -948,7 +962,8 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isBuiltInExtensionsQuery(query)
 			|| this.isSearchBuiltInExtensionsQuery(query)
 			|| this.isBuiltInGroupExtensionsQuery(query)
-			|| this.isTrustRequiredExtensionsQuery(query);
+			|| this.isTrustRequiredExtensionsQuery(query)
+			|| this.isTrustRequiredGroupExtensionsQuery(query);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -964,7 +979,11 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	static isTrustRequiredExtensionsQuery(query: string): boolean {
-		return /@trustRequired/i.test(query);
+		return /^\s*@trustRequired$/i.test(query.trim());
+	}
+
+	static isTrustRequiredGroupExtensionsQuery(query: string): boolean {
+		return /^\s*@trustRequired:.+$/i.test(query.trim());
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -1059,6 +1078,18 @@ export class BuiltInThemesExtensionsView extends ExtensionsListView {
 export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView {
 	async override show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
+	}
+}
+
+export class TrustRequiredOnStartExtensionsView extends ExtensionsListView {
+	async override show(query: string): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onStart');
+	}
+}
+
+export class TrustRequiredOnDemandExtensionsView extends ExtensionsListView {
+	async override show(query: string): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onDemand');
 	}
 }
 
