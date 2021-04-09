@@ -44,11 +44,13 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	override get minimumHeight(): number { return isMacintosh ? this.getMacTitlebarSize() / getZoomFactor() : super.minimumHeight; }
 	override get maximumHeight(): number { return this.minimumHeight; }
 
+	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
+
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
-		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -62,6 +64,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+
+		this.environmentService = environmentService;
 	}
 
 	private onUpdateAppIconDragBehavior(): void {

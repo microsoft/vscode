@@ -25,7 +25,7 @@ class DesktopMain extends SharedDesktopMain {
 		gracefulify(fs);
 	}
 
-	protected joinOpen(instantiationService: IInstantiationService): void {
+	protected override joinOpen(instantiationService: IInstantiationService): void {
 
 		// Driver
 		if (this.configuration.driver) {

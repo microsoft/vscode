@@ -12,7 +12,6 @@ import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-san
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService extends WebviewService {
-	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,

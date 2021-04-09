@@ -115,8 +115,6 @@ export class LoggerChannel implements IServerChannel {
 
 export class LoggerChannelClient extends AbstractLoggerService implements ILoggerService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(logLevel: LogLevel, onDidChangeLogLevel: Event<LogLevel>, private readonly channel: IChannel) {
 		super(logLevel, onDidChangeLogLevel);
 	}
@@ -170,7 +168,6 @@ class Logger extends AbstractMessageLogger {
 }
 
 export class FollowerLogService extends LogService implements ILogService {
-	declare readonly _serviceBrand: undefined;
 
 	constructor(private parent: LogLevelChannelClient, logService: ILogService) {
 		super(logService);

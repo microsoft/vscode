@@ -49,8 +49,6 @@ function getUpdateType(): UpdateType {
 
 export class Win32UpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private availableUpdate: IAvailableUpdate | undefined;
 
 	@memoize

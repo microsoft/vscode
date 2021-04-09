@@ -29,7 +29,7 @@ function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData,
 	const result = new ExtHostWorkspace(
 		new ExtHostRpcService(mainContext),
 		new class extends mock<IExtHostInitDataService>() { workspace = data; },
-		new class extends mock<IExtHostFileSystemInfo>() { getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
+		new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } },
 		logService,
 	);
 	result.$initializeWorkspace(data, WorkspaceTrustState.Trusted);

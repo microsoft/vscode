@@ -13,8 +13,6 @@ import { addDisposableListener } from 'vs/base/browser/dom';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private beforeUnloadDisposable: IDisposable | undefined = undefined;
 	private expectedUnload = false;
 

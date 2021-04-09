@@ -34,8 +34,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService contextService: WorkspaceService,

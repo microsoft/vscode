@@ -19,8 +19,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private readonly disposables = new DisposableStore();
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }

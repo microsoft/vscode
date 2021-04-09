@@ -134,8 +134,6 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 export class SnapUpdateService extends AbstractUpdateService2 {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(
 		private snap: string,
 		private snapRevision: string,

@@ -33,13 +33,15 @@ import { Promises } from 'vs/base/common/async';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
+	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
+
 	constructor(
 		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
-		@INativeWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -54,6 +56,8 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@ILogService logService: ILogService
 	) {
 		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService);
+
+		this.environmentService = environmentService;
 	}
 
 	protected override registerListeners(): void {

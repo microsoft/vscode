@@ -42,16 +42,19 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
+	protected override readonly options: IDropdownMenuActionViewItemOptions;
+
 	constructor(
 		action: IAction,
 		menuActionsOrProvider: readonly IAction[] | IActionProvider,
 		contextMenuProvider: IContextMenuProvider,
-		protected options: IDropdownMenuActionViewItemOptions = {}
+		options: IDropdownMenuActionViewItemOptions = Object.create(null)
 	) {
 		super(null, action, options);
 
 		this.menuActionsOrProvider = menuActionsOrProvider;
 		this.contextMenuProvider = contextMenuProvider;
+		this.options = options;
 
 		if (this.options.actionRunner) {
 			this.actionRunner = this.options.actionRunner;
