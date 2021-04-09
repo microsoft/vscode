@@ -246,6 +246,13 @@ export interface IFocusOutputMessage {
 	cellId: string;
 }
 
+export interface IAckOutputHeightMessage {
+	type: 'ack-dimension',
+	cellId: string;
+	outputId: string;
+	height: number;
+}
+
 export interface IPreloadResource {
 	originalUri: string;
 	uri: string;
@@ -336,6 +343,7 @@ export type FromWebviewMessage =
 export type ToWebviewMessage =
 	| IClearMessage
 	| IFocusOutputMessage
+	| IAckOutputHeightMessage
 	| ICreationRequestMessage
 	| IViewScrollTopRequestMessage
 	| IScrollRequestMessage
@@ -580,11 +588,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					</style>
 				</template>
 				<style>
+					#container .cell_container {
+						width: 100%;
+					}
+
 					#container .output_container {
 						width: 100%;
 					}
 
-					#container > div > div.output {
+					#container > div > div > div.output {
 						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
 						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
@@ -860,6 +872,7 @@ var requirejs = (function() {
 								if (resolvedResult) {
 									const { cellInfo, output } = resolvedResult;
 									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo.cellId, update.id, height);
 								}
 							} else {
 								this.notebookEditor.updateMarkdownCellHeight(update.id, height, !!update.init);
@@ -1147,6 +1160,15 @@ var requirejs = (function() {
 		}
 
 		return true;
+	}
+
+	ackHeight(cellId: string, id: string, height: number): void {
+		this._sendMessageToWebview({
+			type: 'ack-dimension',
+			cellId: cellId,
+			outputId: id,
+			height: height
+		});
 	}
 
 	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
