@@ -1388,8 +1388,12 @@ export class QuickInputController extends Disposable {
 						const index = input.items.indexOf(event.item);
 						if (index !== -1) {
 							const items = input.items.slice();
-							items.splice(index, 1);
+							const removed = items.splice(index, 1);
+							const activeItems = input.activeItems.filter((ai) => ai !== removed[0]);
 							input.items = items;
+							if (activeItems) {
+								input.activeItems = activeItems;
+							}
 						}
 					}
 				})),
