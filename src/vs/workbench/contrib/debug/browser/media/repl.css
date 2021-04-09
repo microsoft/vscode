@@ -126,10 +126,20 @@
 /**
  * Alternate code-font-# classes, note the font-family stacks here are somewhat arbitrary but will resolve to different 'standard' css fonts
  * or are font-family stacks found other places in within VSCode.
+ * The goal with this font support is to give the developer additional options to log messages to the
+ * debug console in a easily distinguishable way - for example multi-threaded log files with multiple threads
+ * writing to the debug console.  In this context the important thing is having *different* fonts, not
+ * the particular font face that is acutally used.
+ * The ECMA-48 spec calls font 1 through 9 'first alternative font'..'ninth alternative font',
+ * so choosing arbitrary (but *alternative*) fonts keeps with the spirit of the specification and
+ * gives the developer options within the debug console for more flexible logging.
+ * (the one (partial) 'exception' to this reasoning is the code-font-10 which the ANSI SGR/ECMA-48 spec
+ * specifically say should be a 'blackletter' font (ECMA-48 says 'Fraktur (Gothic)), so attempt is
+ * made to resolve to resolve to a font of that type)
  * code-font-10 is called the 'blackletter' font within ANSI SGR docs so attempt is made to resolve a blackletter font on users system.
  * ('F25 BlackletterTypewriter' is monospaced Blackletter font used or recommended by other terminal emulators (ie. mintty, etc.)
- * None of these fonts are required and all font-family stacks will resolve to some font.
- * User can change the fonts used by these classes custom css using a extension such as Customize UI/Monkey Patch
+ * None of these fonts are required and all font-family stacks will resolve to some 'alternative' font
+ * on all platforms.
  */
 .monaco-workbench .repl .repl-tree .output.expression .code-font-1 { font-family: Verdana,Arial,sans-serif; }
 .monaco-workbench .repl .repl-tree .output.expression .code-font-2 { font-family: Georgia,'Times New Roman',serif; }
