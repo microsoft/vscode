@@ -50,7 +50,6 @@ export async function loadLocalResource(
 		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
-		rewriteUri?: (uri: URI) => URI,
 	},
 	fileService: IFileService,
 	requestService: IRequestService,
@@ -59,7 +58,7 @@ export async function loadLocalResource(
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	let resourceToLoad = getResourceToLoad(requestUri, options.roots);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -68,11 +67,6 @@ export async function loadLocalResource(
 	}
 
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
-
-	// Perform extra normalization if needed
-	if (options.rewriteUri) {
-		resourceToLoad = options.rewriteUri(resourceToLoad);
-	}
 
 	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
 		const headers: IHeaders = {};
@@ -122,15 +116,31 @@ export async function loadLocalResource(
 
 function getResourceToLoad(
 	requestUri: URI,
-	roots: ReadonlyArray<URI>
+	roots: ReadonlyArray<URI>,
+	extensionLocation: URI | undefined,
 ): URI | undefined {
 	for (const root of roots) {
 		if (containsResource(root, requestUri)) {
-			return requestUri;
+			return normalizeResourcePath(requestUri, extensionLocation);
 		}
 	}
 
 	return undefined;
+}
+
+function normalizeResourcePath(resource: URI, extensionLocation: URI | undefined): URI {
+	// If we are loading a file resource from a webview created by a remote extension, rewrite the uri to go remote
+	if (resource.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote) {
+		return URI.from({
+			scheme: Schemas.vscodeRemote,
+			authority: extensionLocation.authority,
+			path: '/vscode-resource',
+			query: JSON.stringify({
+				requestResourcePath: resource.path
+			})
+		});
+	}
+	return resource;
 }
 
 function containsResource(root: URI, resource: URI): boolean {

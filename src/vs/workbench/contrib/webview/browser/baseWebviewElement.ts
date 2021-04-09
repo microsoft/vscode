@@ -8,7 +8,6 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -466,32 +465,12 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		try {
 			const remoteAuthority = this._environmentService.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
-			const extensionLocation = this.extension?.location;
-
-			// If we are loading a file resource from a remote extension, rewrite the uri to go remote
-			let rewriteUri: undefined | ((uri: URI) => URI);
-			if (extensionLocation?.scheme === Schemas.vscodeRemote) {
-				rewriteUri = (uri) => {
-					if (uri.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote) {
-						return URI.from({
-							scheme: Schemas.vscodeRemote,
-							authority: extensionLocation.authority,
-							path: '/vscode-resource',
-							query: JSON.stringify({
-								requestResourcePath: uri.path
-							})
-						});
-					}
-					return uri;
-				};
-			}
 
 			const result = await loadLocalResource(uri, ifNoneMatch, {
-				extensionLocation: extensionLocation,
+				extensionLocation: this.extension?.location,
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
-				rewriteUri,
-			}, this._fileService, this._requestService, this._logService, CancellationToken.None);
+			}, this._fileService, this._requestService, this._logService, CancellationToken.None); // TODO: cancellation
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success:
