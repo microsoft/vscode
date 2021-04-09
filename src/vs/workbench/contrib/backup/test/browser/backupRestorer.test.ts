@@ -22,7 +22,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 suite('BackupRestorer', () => {
 
 	class TestBackupRestorer extends BackupRestorer {
-		async override doRestoreBackups(): Promise<URI[] | undefined> {
+		async override doRestoreBackups(): Promise<void> {
 			return super.doRestoreBackups();
 		}
 	}

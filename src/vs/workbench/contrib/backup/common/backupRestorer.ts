@@ -41,46 +41,49 @@ export class BackupRestorer implements IWorkbenchContribution {
 		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.doRestoreBackups());
 	}
 
-	protected async doRestoreBackups(): Promise<URI[] | undefined> {
+	protected async doRestoreBackups(): Promise<void> {
 
-		// Find all files and untitled with backups
+		// Resolve all backup resources that exist for this window
 		const backups = await this.backupFileService.getBackups();
-		const unresolvedBackups = await this.doResolveOpenedBackups(backups);
 
-		// Some failed to restore or were not opened at all so we open and resolve them manually
+		// Trigger `resolve` in each opened editor that can be found
+		// for the given resource and keep track of backups that are
+		// not opened.
+		const unresolvedBackups = await this.resolveOpenedBackupEditors(backups);
+
+		// For remaining unresolved backups, explicitly open an editor
 		if (unresolvedBackups.length > 0) {
 			try {
-				await this.doOpenEditors(unresolvedBackups);
+				await this.openEditors(unresolvedBackups);
 			} catch (error) {
 				this.logService.error(error);
 			}
 
-			return this.doResolveOpenedBackups(unresolvedBackups);
+			// Finally trigger `resolve` in the newly opened editors
+			await this.resolveOpenedBackupEditors(unresolvedBackups);
 		}
-
-		return undefined;
 	}
 
-	private async doResolveOpenedBackups(backups: URI[]): Promise<URI[]> {
+	private async resolveOpenedBackupEditors(resources: URI[]): Promise<URI[]> {
 		const unresolvedBackups: URI[] = [];
 
-		await Promises.settled(backups.map(async backup => {
-			const openedEditor = this.findEditorByResource(backup);
+		await Promises.settled(resources.map(async resource => {
+			const openedEditor = this.findOpenedEditorByResource(resource);
 			if (openedEditor) {
 				try {
-					await openedEditor.resolve(); // trigger load
+					await openedEditor.resolve();
 				} catch (error) {
-					unresolvedBackups.push(backup); // ignore error and remember as unresolved
+					unresolvedBackups.push(resource); // ignore error and remember as unresolved
 				}
 			} else {
-				unresolvedBackups.push(backup);
+				unresolvedBackups.push(resource);
 			}
 		}));
 
 		return unresolvedBackups;
 	}
 
-	private findEditorByResource(resource: URI): IEditorInput | undefined {
+	private findOpenedEditorByResource(resource: URI): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
 			const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
 			if (customFactory?.canResolveBackup(editor, resource) || isEqual(editor.resource, resource)) {
@@ -91,32 +94,35 @@ export class BackupRestorer implements IWorkbenchContribution {
 		return undefined;
 	}
 
-	private async doOpenEditors(resources: URI[]): Promise<void> {
+	private async openEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
-		const inputs = await Promises.settled(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
+		const editors = await Promises.settled(resources.map((resource, index) => this.resolveEditor(resource, index, hasOpenedEditors)));
 
-		// Open all remaining backups as editors and resolve them to load their backups
-		await this.editorService.openEditors(inputs);
+		await this.editorService.openEditors(editors);
 	}
 
-	private async resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
+	private async resolveEditor(resource: URI, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
+
+		// Set editor as `inatice` if we have other editors
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
-		// this is a (weak) strategy to find out if the untitled input had
+		// This is a (weak) strategy to find out if the untitled input had
 		// an associated file path or not by just looking at the path. and
 		// if so, we must ensure to restore the local resource it had.
 		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.path)) {
 			return { resource: toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
 		}
 
-		// handle custom editors by asking the custom editor input factory
+		// Handle custom editors by asking the custom editor input factory
 		// to create the input.
 		const customFactory = this.editorInputFactories.getCustomEditorInputFactory(resource.scheme);
 		if (customFactory) {
 			const editor = await customFactory.createCustomEditorInput(resource, this.instantiationService);
+
 			return { editor, options };
 		}
 
+		// Finally return with a simple resource based input
 		return { resource, options };
 	}
 }
