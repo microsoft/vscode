@@ -223,10 +223,6 @@
 
 		/** @type {Promise<void>} */
 		const workerReady = new Promise(async (resolveWorkerReady) => {
-			// if (onElectron) {
-			// 	return resolveWorkerReady();
-			// }
-
 			if (!areServiceWorkersEnabled()) {
 				fatalError('Service Workers are not enabled in browser. Webviews will not work.');
 				return resolveWorkerReady();
