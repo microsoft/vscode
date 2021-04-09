@@ -103,7 +103,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private async resolveEditor(resource: URI, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
 
-		// Set editor as `inatice` if we have other editors
+		// Set editor as `inactive` if we have other editors
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
 		// This is a (weak) strategy to find out if the untitled input had
