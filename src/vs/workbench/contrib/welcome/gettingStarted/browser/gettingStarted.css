@@ -55,9 +55,14 @@
 	font-weight: 200;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .categories-left > div:first-child,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .categories-right > div:first-child {
+	margin-bottom: 32px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer h2 {
 	font-weight: 200;
-	margin-top: 17px;
+	margin-top: 0;
 	margin-bottom: 5px;
 	font-size: 1.5em;
 	line-height: initial;
@@ -104,6 +109,7 @@
 	display: flex;
 	justify-content: center;
 	flex-direction: column;
+	margin-bottom: 32px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlide.categories .header {
@@ -196,11 +202,12 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category {
-	width: 92%;
+	width: 100%;
+	max-width: 320px;
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
-	margin: 8px;
+	margin: 8px 8px 12px;
 	padding: 6px 12px 6px;
 	left: 1px;
 	text-align: left;

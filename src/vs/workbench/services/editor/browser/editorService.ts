@@ -1414,7 +1414,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		// Dispose remaining watchers if any

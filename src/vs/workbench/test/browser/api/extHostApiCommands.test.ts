@@ -90,14 +90,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
 		services.set(IExtensionService, new class extends mock<IExtensionService>() {
-			async activateByEvent() {
+			async override activateByEvent() {
 
 			}
 
 		});
 		services.set(ICommandService, new SyncDescriptor(class extends mock<ICommandService>() {
 
-			executeCommand(id: string, ...args: any): any {
+			override executeCommand(id: string, ...args: any): any {
 				const command = CommandsRegistry.getCommands().get(id);
 				if (!command) {
 					return Promise.reject(new Error(id + ' NOT known'));
@@ -108,17 +108,17 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 		services.set(IMarkerService, new MarkerService());
 		services.set(IModelService, new class extends mock<IModelService>() {
-			getModel() { return model; }
+			override getModel() { return model; }
 		});
 		services.set(ITextModelService, new class extends mock<ITextModelService>() {
-			async createModelReference() {
+			async override createModelReference() {
 				return new ImmortalReference<IResolvedTextEditorModel>(new class extends mock<IResolvedTextEditorModel>() {
-					textEditorModel = model;
+					override textEditorModel = model;
 				});
 			}
 		});
 		services.set(IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
-			async computeMoreMinimalEdits(_uri: any, edits: any) {
+			async override computeMoreMinimalEdits(_uri: any, edits: any) {
 				return edits || undefined;
 			}
 		});

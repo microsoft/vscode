@@ -72,7 +72,7 @@ export class HideOrShowTestAction extends Action {
 	/**
 	 * @override
 	 */
-	public run() {
+	public override run() {
 		this.testService.setTestExcluded(this.testId);
 		return Promise.resolve();
 	}
@@ -95,7 +95,7 @@ export class DebugAction extends Action {
 	/**
 	 * @override
 	 */
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [...this.tests],
 			debug: true,
@@ -120,7 +120,7 @@ export class RunAction extends Action {
 	/**
 	 * @override
 	 */
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		return this.testService.runTests({
 			tests: [...this.tests],
 			debug: false,
@@ -520,7 +520,7 @@ export class EditFocusedTest extends ViewAction<TestingExplorerView> {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
+	public async override run(accessor: ServicesAccessor, test?: ITestItem, preserveFocus?: boolean) {
 		if (test) {
 			await this.runForTest(accessor, test, preserveFocus);
 		} else {

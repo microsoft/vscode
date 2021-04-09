@@ -16,9 +16,6 @@ import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthority
 import { IRequestService } from 'vs/platform/request/common/request';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
 
-
-export const webviewPartitionId = 'webview';
-
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied, NotModified }
 
@@ -46,53 +43,6 @@ export namespace WebviewResourceResponse {
 	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied | NotModified;
 }
 
-export namespace WebviewFileReadResponse {
-	export enum Type { Success, NotModified }
-
-	export class StreamSuccess {
-		readonly type = Type.Success;
-
-		constructor(
-			public readonly stream: VSBufferReadableStream,
-			public readonly etag: string | undefined
-		) { }
-	}
-
-	export const NotModified = { type: Type.NotModified } as const;
-
-	export type Response = StreamSuccess | typeof NotModified;
-}
-
-/**
- * Wraps a call to `IFileService.readFileStream` and converts the result to a `WebviewFileReadResponse.Response`
- */
-export async function readFileStream(
-	fileService: IFileService,
-	resource: URI,
-	etag: string | undefined,
-): Promise<WebviewFileReadResponse.Response> {
-	try {
-		const result = await fileService.readFileStream(resource, { etag });
-		return new WebviewFileReadResponse.StreamSuccess(result.value, result.etag);
-	} catch (e) {
-		if (e instanceof FileOperationError) {
-			const result = e.fileOperationResult;
-
-			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-				return WebviewFileReadResponse.NotModified;
-			}
-		}
-
-		// Otherwise the error is unexpected. Re-throw and let caller handle it
-		throw e;
-	}
-}
-
-export interface WebviewResourceFileReader {
-	readFileStream(resource: URI, etag: string | undefined): Promise<WebviewFileReadResponse.Response>;
-}
-
 export async function loadLocalResource(
 	requestUri: URI,
 	ifNoneMatch: string | undefined,
@@ -100,16 +50,15 @@ export async function loadLocalResource(
 		extensionLocation: URI | undefined;
 		roots: ReadonlyArray<URI>;
 		remoteConnectionData?: IRemoteConnectionData | null;
-		rewriteUri?: (uri: URI) => URI,
 	},
-	fileReader: WebviewResourceFileReader,
+	fileService: IFileService,
 	requestService: IRequestService,
 	logService: ILogService,
 	token: CancellationToken,
 ): Promise<WebviewResourceResponse.StreamResponse> {
 	logService.debug(`loadLocalResource - being. requestUri=${requestUri}`);
 
-	let resourceToLoad = getResourceToLoad(requestUri, options.roots);
+	const resourceToLoad = getResourceToLoad(requestUri, options.roots, options.extensionLocation);
 
 	logService.debug(`loadLocalResource - found resource to load. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
 
@@ -118,11 +67,6 @@ export async function loadLocalResource(
 	}
 
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
-
-	// Perform extra normalization if needed
-	if (options.rewriteUri) {
-		resourceToLoad = options.rewriteUri(resourceToLoad);
-	}
 
 	if (resourceToLoad.scheme === Schemas.http || resourceToLoad.scheme === Schemas.https) {
 		const headers: IHeaders = {};
@@ -150,21 +94,19 @@ export async function loadLocalResource(
 	}
 
 	try {
-		const contents = await fileReader.readFileStream(resourceToLoad, ifNoneMatch);
-		logService.debug(`loadLocalResource - Loaded using fileReader. requestUri=${requestUri}`);
-
-		switch (contents.type) {
-			case WebviewFileReadResponse.Type.Success:
-				return new WebviewResourceResponse.StreamSuccess(contents.stream, contents.etag, mime);
-
-			case WebviewFileReadResponse.Type.NotModified:
-				return new WebviewResourceResponse.NotModified(mime);
-
-			default:
-				logService.error(`loadLocalResource - Unknown file read response`);
-				return WebviewResourceResponse.Failed;
-		}
+		const result = await fileService.readFileStream(resourceToLoad, { etag: ifNoneMatch });
+		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, mime);
 	} catch (err) {
+		if (err instanceof FileOperationError) {
+			const result = err.fileOperationResult;
+
+			// NotModified status is expected and can be handled gracefully
+			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+				return new WebviewResourceResponse.NotModified(mime);
+			}
+		}
+
+		// Otherwise the error is unexpected.
 		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
 		console.log(err);
 
@@ -174,41 +116,31 @@ export async function loadLocalResource(
 
 function getResourceToLoad(
 	requestUri: URI,
-	roots: ReadonlyArray<URI>
+	roots: ReadonlyArray<URI>,
+	extensionLocation: URI | undefined,
 ): URI | undefined {
-	const normalizedPath = normalizeRequestPath(requestUri);
-
 	for (const root of roots) {
-		if (containsResource(root, normalizedPath)) {
-			return normalizedPath;
+		if (containsResource(root, requestUri)) {
+			return normalizeResourcePath(requestUri, extensionLocation);
 		}
 	}
 
 	return undefined;
 }
 
-function normalizeRequestPath(requestUri: URI) {
-	if (requestUri.scheme === Schemas.vscodeWebviewResource) {
-		// The `vscode-webview-resource` scheme has the following format:
-		//
-		// vscode-webview-resource://id/scheme//authority?/path
-		//
-
-		// Encode requestUri.path so that URI.parse can properly parse special characters like '#', '?', etc.
-		const resourceUri = URI.parse(encodeURIComponent(requestUri.path).replace(/%2F/gi, '/').replace(/^\/([a-z0-9\-]+)(\/{1,2})/i, (_: string, scheme: string, sep: string) => {
-			if (sep.length === 1) {
-				return `${scheme}:///`; // Add empty authority.
-			} else {
-				return `${scheme}://`; // Url has own authority.
-			}
-		}));
-		return resourceUri.with({
-			query: requestUri.query,
-			fragment: requestUri.fragment
+function normalizeResourcePath(resource: URI, extensionLocation: URI | undefined): URI {
+	// If we are loading a file resource from a webview created by a remote extension, rewrite the uri to go remote
+	if (resource.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote) {
+		return URI.from({
+			scheme: Schemas.vscodeRemote,
+			authority: extensionLocation.authority,
+			path: '/vscode-resource',
+			query: JSON.stringify({
+				requestResourcePath: resource.path
+			})
 		});
-	} else {
-		return requestUri;
 	}
+	return resource;
 }
 
 function containsResource(root: URI, resource: URI): boolean {

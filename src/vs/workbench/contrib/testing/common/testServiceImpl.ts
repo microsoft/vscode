@@ -456,7 +456,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * Applies the diff to the collection.
 	 */
-	public apply(diff: TestsDiff) {
+	public override apply(diff: TestsDiff) {
 		let prevBusy = this.busyProviderCount;
 		let prevPendingRoots = this.pendingRootCount;
 		super.apply(diff);
@@ -495,7 +495,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * @override
 	 */
-	protected retireTest(testId: string) {
+	protected override retireTest(testId: string) {
 		this.retireTestEmitter.fire(testId);
 	}
 

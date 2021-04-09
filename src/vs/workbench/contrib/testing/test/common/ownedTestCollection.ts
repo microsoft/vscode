@@ -28,7 +28,7 @@ export class TestOwnedTestCollection extends OwnedTestCollection {
 		return Iterable.first(this.testIdsToInternal.values())!;
 	}
 
-	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
+	public override createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
 		return new TestSingleUseCollection(this.createIdMap(0), publishDiff);
 	}
 }

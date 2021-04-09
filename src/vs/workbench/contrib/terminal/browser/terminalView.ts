@@ -3,21 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
-import * as platform from 'vs/base/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { configureTerminalSettingsTitle, selectDefaultProfileTitle, switchTerminalActionViewItemSeparator } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -26,27 +20,23 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-
-const FIND_FOCUS_CLASS = 'find-focused';
+import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 
 export class TerminalViewPane extends ViewPane {
-	private _menu: IMenu;
 	private _actions: IAction[] | undefined;
-	private _cancelContextMenu: boolean = false;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
-	private _terminalContainer: HTMLElement | undefined;
-	private _findWidget: TerminalFindWidget | undefined;
+	private _tabsViewWrapper: HTMLElement | undefined;
+	private _terminalTabbedView!: TerminalTabbedView;
+	public get terminalTabbedView(): TerminalTabbedView { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -57,17 +47,16 @@ export class TerminalViewPane extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextMenuService _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IThemeService protected readonly themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
-		this._menu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 		this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
@@ -82,36 +71,26 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._isWelcomeShowing = true;
 			this._onDidChangeViewWelcomeState.fire();
-			if (this._terminalContainer) {
-				this._terminalContainer.style.display = 'block';
-				this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
+			if (!this._terminalTabbedView && this._parentDomElement) {
+				this._createTabsView();
+				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		});
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	public override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
 
-		this._terminalContainer = document.createElement('div');
-		this._terminalContainer.classList.add('terminal-outer-container');
-		this._terminalContainer.style.display = this.shouldShowWelcome() ? 'none' : 'block';
-
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
-		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer!.classList.add(FIND_FOCUS_CLASS));
+		if (!this.shouldShowWelcome()) {
+			this._createTabsView();
+		}
 
 		this._parentDomElement.appendChild(this._fontStyleElement);
-		this._parentDomElement.appendChild(this._terminalContainer);
-		this._parentDomElement.appendChild(this._findWidget.getDomNode());
 
-		this._attachEventListeners(this._parentDomElement, this._terminalContainer);
-
-		this._terminalService.setContainers(container, this._terminalContainer);
-
-		this._register(this.themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
 				const configHelper = this._terminalService.configHelper;
@@ -124,7 +103,6 @@ export class TerminalViewPane extends ViewPane {
 				}
 			}
 		}));
-		this._updateTheme();
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -140,7 +118,6 @@ export class TerminalViewPane extends ViewPane {
 					}
 				}
 
-				this._updateTheme();
 				if (hadTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
 				} else {
@@ -155,20 +132,29 @@ export class TerminalViewPane extends ViewPane {
 				});
 			}
 		}));
-
-		// Force another layout (first is setContainers) since config has changed
-		this.layoutBody(this._terminalContainer.offsetHeight, this._terminalContainer.offsetWidth);
+		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	private _createTabsView(): void {
+		if (!this._parentDomElement) {
+			return;
+		}
+		this._tabsViewWrapper = document.createElement('div');
+		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
+		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
+		this._parentDomElement.append(this._tabsViewWrapper);
+	}
+
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
-		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
+
+		this._terminalTabbedView.layout(width, height);
 	}
 
-	public getActionViewItem(action: Action): IActionViewItem | undefined {
+	public override getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === TERMINAL_COMMAND_ID.SWITCH_TERMINAL) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		}
@@ -176,7 +162,7 @@ export class TerminalViewPane extends ViewPane {
 		return super.getActionViewItem(action);
 	}
 
-	public focus() {
+	public override focus() {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
 			// be focused. So wait for connection to finish, then focus.
@@ -198,156 +184,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalService.getActiveInstance()?.focusWhenReady();
 	}
 
-	public focusFindWidget() {
-		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget!.reveal(activeInstance.selection);
-		} else {
-			this._findWidget!.reveal();
-		}
-	}
-
-	public hideFindWidget() {
-		this._findWidget!.hide();
-	}
-
-	public showFindWidget() {
-		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget!.show(activeInstance.selection);
-		} else {
-			this._findWidget!.show();
-		}
-	}
-
-	public getFindWidget(): TerminalFindWidget {
-		return this._findWidget!;
-	}
-
-	private _attachEventListeners(parentDomElement: HTMLElement, terminalContainer: HTMLElement): void {
-		this._register(dom.addDisposableListener(parentDomElement, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalService.terminalInstances.length === 0) {
-				return;
-			}
-
-			if (event.which === 2 && platform.isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				const terminal = this._terminalService.getActiveInstance();
-				if (terminal) {
-					terminal.focus();
-				}
-			} else if (event.which === 3) {
-				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalService.getActiveInstance();
-					if (!terminal) {
-						return;
-					}
-
-					// copyPaste: Shift+right click should open context menu
-					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						this._openContextMenu(event);
-						return;
-					}
-
-					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
-						await terminal.copySelection();
-						terminal.clearSelection();
-					} else {
-						if (BrowserFeatures.clipboard.readText) {
-							terminal.paste();
-						} else {
-							this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${platform.isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
-						}
-					}
-					// Clear selection after all click event bubbling is finished on Mac to prevent
-					// right-click selecting a word which is seemed cannot be disabled. There is a
-					// flicker when pasting but this appears to give the best experience if the
-					// setting is enabled.
-					if (platform.isMacintosh) {
-						setTimeout(() => {
-							terminal.clearSelection();
-						}, 0);
-					}
-					this._cancelContextMenu = true;
-				}
-			}
-		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
-			if (!this._cancelContextMenu) {
-				this._openContextMenu(event);
-			}
-			event.preventDefault();
-			event.stopImmediatePropagation();
-			this._cancelContextMenu = false;
-		}));
-		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
-			terminalContainer.classList.toggle('alt-active', !!event.altKey);
-		}));
-		this._register(dom.addDisposableListener(document, 'keyup', (event: KeyboardEvent) => {
-			terminalContainer.classList.toggle('alt-active', !!event.altKey);
-		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'keyup', (event: KeyboardEvent) => {
-			if (event.keyCode === 27) {
-				// Keep terminal open on escape
-				event.stopPropagation();
-			}
-		}));
-		this._register(dom.addDisposableListener(parentDomElement, dom.EventType.DROP, async (e: DragEvent) => {
-			if (e.target === this._parentDomElement || dom.isAncestor(e.target as HTMLElement, parentDomElement)) {
-				if (!e.dataTransfer) {
-					return;
-				}
-
-				// Check if files were dragged from the tree explorer
-				let path: string | undefined;
-				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				if (resources) {
-					path = URI.parse(JSON.parse(resources)[0]).fsPath;
-				} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
-					// Check if the file was dragged from the filesystem
-					path = URI.file(e.dataTransfer.files[0].path).fsPath;
-				}
-
-				if (!path) {
-					return;
-				}
-
-				const terminal = this._terminalService.getActiveInstance();
-				if (terminal) {
-					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType);
-					terminal.sendText(preparedPath, false);
-					terminal.focus();
-				}
-			}
-		}));
-	}
-
-	private _openContextMenu(event: MouseEvent): void {
-		const standardEvent = new StandardMouseEvent(event);
-		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this._menu, undefined, actions);
-
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			getActionsContext: () => this._parentDomElement,
-			onHide: () => actionsDisposable.dispose()
-		});
-	}
-
-	private _updateTheme(theme?: IColorTheme): void {
-		if (!theme) {
-			theme = this.themeService.getColorTheme();
-		}
-
-		this._findWidget?.updateTheme(theme);
-	}
-
-	shouldShowWelcome(): boolean {
+	override shouldShowWelcome(): boolean {
 		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.terminalInstances.length === 0;
 		return this._isWelcomeShowing;
 	}
@@ -385,7 +222,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('switch-terminal');
 		this._register(attachStylerCallback(this._themeService, { selectBorder }, colors => {

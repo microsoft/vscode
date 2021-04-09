@@ -24,11 +24,11 @@ import { Schemas } from 'vs/base/common/network';
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
-	getTypeId(): string {
+	override getTypeId(): string {
 		return PreferencesEditorInput.ID;
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	override getTitle(verbosity: Verbosity): string {
 		return this.primary.getTitle(verbosity);
 	}
 }
@@ -48,11 +48,11 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, textModelResolverService, textFileService, editorService, editorGroupService, fileService, labelService, filesConfigurationService);
 	}
 
-	getTypeId(): string {
+	override getTypeId(): string {
 		return DefaultPreferencesEditorInput.ID;
 	}
 
-	matches(other: unknown): boolean {
+	override matches(other: unknown): boolean {
 		if (other instanceof DefaultPreferencesEditorInput) {
 			return true;
 		}
@@ -88,19 +88,19 @@ export class KeybindingsEditorInput extends EditorInput {
 		return KeybindingsEditorInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
-	async resolve(): Promise<KeybindingsEditorModel> {
+	async override resolve(): Promise<KeybindingsEditorModel> {
 		return this.keybindingsModel;
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		return otherInput instanceof KeybindingsEditorInput;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.keybindingsModel.dispose();
 
 		super.dispose();
@@ -125,7 +125,7 @@ export class SettingsEditor2Input extends EditorInput {
 		this._settingsModel = _preferencesService.createSettings2EditorModel();
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		return otherInput instanceof SettingsEditor2Input;
 	}
 
@@ -133,15 +133,15 @@ export class SettingsEditor2Input extends EditorInput {
 		return SettingsEditor2Input.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return nls.localize('settingsEditor2InputName', "Settings");
 	}
 
-	async resolve(): Promise<Settings2EditorModel> {
+	async override resolve(): Promise<Settings2EditorModel> {
 		return this._settingsModel;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._settingsModel.dispose();
 
 		super.dispose();

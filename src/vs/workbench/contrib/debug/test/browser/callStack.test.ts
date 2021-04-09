@@ -45,7 +45,7 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 	let firstStackFrame: StackFrame;
 	let secondStackFrame: StackFrame;
 	const thread = new class extends Thread {
-		public getCallStack(): StackFrame[] {
+		public override getCallStack(): StackFrame[] {
 			return [firstStackFrame, secondStackFrame];
 		}
 	}(session, 'mockthread', 1);
@@ -375,7 +375,7 @@ suite('Debug - CallStack', () => {
 
 		// Add the threads
 		const session = new class extends DebugSession {
-			get state(): State {
+			override get state(): State {
 				return State.Stopped;
 			}
 		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService, undefined!);

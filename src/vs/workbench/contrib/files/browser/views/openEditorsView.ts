@@ -192,7 +192,7 @@ export class OpenEditorsView extends ViewPane {
 		}));
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
+	protected override renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.title);
 
 		const count = dom.append(container, $('.count'));
@@ -214,7 +214,7 @@ export class OpenEditorsView extends ViewPane {
 		this.updateDirtyIndicator();
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		container.classList.add('open-editors');
@@ -309,7 +309,7 @@ export class OpenEditorsView extends ViewPane {
 		}));
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		this.list.domFocus();
 	}
@@ -318,7 +318,7 @@ export class OpenEditorsView extends ViewPane {
 		return this.list;
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
@@ -467,7 +467,7 @@ export class OpenEditorsView extends ViewPane {
 		this.structuralRefreshDelay = delay;
 	}
 
-	getOptimalWidth(): number {
+	override getOptimalWidth(): number {
 		let parentNode = this.list.getHTMLElement();
 		let childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
@@ -492,7 +492,7 @@ interface IEditorGroupTemplateData {
 class OpenEditorActionRunner extends ActionRunner {
 	public editor: OpenEditor | undefined;
 
-	async run(action: IAction): Promise<void> {
+	async override run(action: IAction): Promise<void> {
 		if (!this.editor) {
 			return;
 		}

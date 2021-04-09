@@ -19,11 +19,11 @@ suite('NotebookProviderInfoStore', function () {
 
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
-				get() { return ''; }
-				store() { }
+				override get() { return ''; }
+				override store() { }
 			},
 			new class extends mock<IExtensionService>() {
-				onDidRegisterExtensions = Event.None;
+				override onDidRegisterExtensions = Event.None;
 			}
 		);
 

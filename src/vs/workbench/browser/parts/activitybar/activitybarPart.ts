@@ -447,7 +447,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.registerKeyboardNavigationListeners();
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		this.content = document.createElement('div');
@@ -765,7 +765,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.compositeBar.focus();
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
@@ -790,7 +790,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		};
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			return;
 		}

@@ -232,7 +232,7 @@ class WorkbenchExtensionsInitializer extends ExtensionsInitializer {
 		super(extensionManagementService, galleryService, extensionEnablementService, storageService, ignoredExtensionsManagementService, fileService, environmentService, logService);
 	}
 
-	protected async initializeRemoteExtensions(remoteExtensions: ISyncExtension[]): Promise<ILocalExtension[]> {
+	protected async override initializeRemoteExtensions(remoteExtensions: ISyncExtension[]): Promise<ILocalExtension[]> {
 		const newlyEnabledExtensions = (await super.initializeRemoteExtensions(remoteExtensions));
 		const canEnabledExtensions = newlyEnabledExtensions.filter(e => this.extensionService.canAddExtension(toExtensionDescription(e)));
 		if (!(await this.areExtensionsRunning(canEnabledExtensions))) {

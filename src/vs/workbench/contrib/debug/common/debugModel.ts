@@ -208,7 +208,7 @@ export class Expression extends ExpressionContainer implements IExpression {
 		this.available = await this.evaluateExpression(this.name, session, stackFrame, context);
 	}
 
-	toString(): string {
+	override toString(): string {
 		return `${this.name}\n${this.value}`;
 	}
 }
@@ -258,7 +258,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	toString(): string {
+	override toString(): string {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
 	}
 
@@ -287,7 +287,7 @@ export class Scope extends ExpressionContainer implements IScope {
 		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${index}`, namedVariables, indexedVariables);
 	}
 
-	toString(): string {
+	override toString(): string {
 		return this.name;
 	}
 
@@ -310,7 +310,7 @@ export class ErrorScope extends Scope {
 		super(stackFrame, index, message, 0, false);
 	}
 
-	toString(): string {
+	override toString(): string {
 		return this.name;
 	}
 }
@@ -700,7 +700,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return this.verified && this.data && typeof this.data.line === 'number' ? this.data.line : this._lineNumber;
 	}
 
-	get verified(): boolean {
+	override get verified(): boolean {
 		if (this.data) {
 			return this.data.verified && !this.textFileService.isDirty(this._uri);
 		}
@@ -716,7 +716,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return this.verified && this.data && typeof this.data.column === 'number' ? this.data.column : this._column;
 	}
 
-	get message(): string | undefined {
+	override get message(): string | undefined {
 		if (this.textFileService.isDirty(this.uri)) {
 			return nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.");
 		}
@@ -761,14 +761,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 
-	setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
+	override setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
 		super.setSessionData(sessionId, data);
 		if (!this._adapterData) {
 			this._adapterData = this.adapterData;
 		}
 	}
 
-	toJSON(): any {
+	override toJSON(): any {
 		const result = super.toJSON();
 		result.uri = this._uri;
 		result.lineNumber = this._lineNumber;
@@ -778,7 +778,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return result;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
 	}
 
@@ -814,7 +814,7 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
 
-	toJSON(): any {
+	override toJSON(): any {
 		const result = super.toJSON();
 		result.name = this.name;
 
@@ -829,7 +829,7 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 		return this.data.supportsFunctionBreakpoints;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return this.name;
 	}
 }
@@ -851,7 +851,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
 
-	toJSON(): any {
+	override toJSON(): any {
 		const result = super.toJSON();
 		result.description = this.description;
 		result.dataId = this.dataId;
@@ -868,7 +868,7 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		return this.data.supportsDataBreakpoints;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return this.description;
 	}
 }
@@ -898,7 +898,7 @@ export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpo
 		return result;
 	}
 
-	toString(): string {
+	override toString(): string {
 		return this.label;
 	}
 }

@@ -152,7 +152,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		return result.id;
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 		for (const subscription of this.testSubscriptions.values()) {
 			subscription.dispose();

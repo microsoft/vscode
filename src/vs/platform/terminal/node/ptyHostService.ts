@@ -137,7 +137,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return [client, proxy];
 	}
 
-	dispose() {
+	override dispose() {
 		this._isDisposed = true;
 		super.dispose();
 	}

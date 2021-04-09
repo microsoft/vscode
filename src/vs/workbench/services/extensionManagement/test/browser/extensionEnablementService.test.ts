@@ -66,7 +66,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
 			instantiationService.get(IHostService),
-			new class extends mock<IExtensionBisectService>() { isDisabledByBisect() { return false; } },
+			new class extends mock<IExtensionBisectService>() { override isDisabledByBisect() { return false; } },
 			instantiationService.get(IWorkspaceTrustService) || instantiationService.stub(IWorkspaceTrustService, new TestWorkspaceTrustService())
 		);
 	}

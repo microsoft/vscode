@@ -57,6 +57,7 @@
 	z-index: 1;
 	display: flex;
 	overflow: hidden;
+	width: 48px;
 	height: 48px;
 	margin-right: 0;
 	box-sizing: border-box;

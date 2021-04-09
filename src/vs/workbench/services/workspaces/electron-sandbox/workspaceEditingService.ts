@@ -34,8 +34,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService contextService: WorkspaceService,
@@ -49,9 +47,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
-		@INativeWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IDialogService protected dialogService: IDialogService,
+		@IDialogService dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService hostService: IHostService,
@@ -139,7 +137,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 	}
 
-	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {
+	async override isValidTargetWorkspacePath(path: URI): Promise<boolean> {
 		const windows = await this.nativeHostService.getWindows();
 
 		// Prevent overwriting a workspace that is currently opened in another window

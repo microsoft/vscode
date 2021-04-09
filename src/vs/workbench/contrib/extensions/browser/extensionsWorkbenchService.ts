@@ -1333,7 +1333,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionIdentifierWithVersion(local.identifier, local.version).key() === extensionId));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.syncDelayer.cancel();
 	}

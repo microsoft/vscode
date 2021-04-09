@@ -88,7 +88,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		}
 	}
 
-	protected registerListeners(): void {
+	protected override registerListeners(): void {
 		super.registerListeners();
 
 		// Attach to model that matches our resource once created
@@ -131,7 +131,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return FILE_EDITOR_INPUT_ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return this.preferredName || this.decorateLabel(super.getName());
 	}
 
@@ -155,7 +155,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.preferredName;
 	}
 
-	getDescription(verbosity?: Verbosity): string | undefined {
+	override getDescription(verbosity?: Verbosity): string | undefined {
 		return this.preferredDescription || super.getDescription(verbosity);
 	}
 
@@ -175,7 +175,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.preferredDescription;
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	override getTitle(verbosity: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.decorateLabel(super.getName());
@@ -241,11 +241,11 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.forceOpenAs = ForceOpenAs.Binary;
 	}
 
-	isDirty(): boolean {
+	override isDirty(): boolean {
 		return !!(this.model?.isDirty());
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		if (this.model) {
 			return this.model.isReadonly();
 		}
@@ -253,7 +253,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return super.isReadonly();
 	}
 
-	isSaving(): boolean {
+	override isSaving(): boolean {
 		if (this.model?.hasState(TextFileEditorModelState.SAVED) || this.model?.hasState(TextFileEditorModelState.CONFLICT) || this.model?.hasState(TextFileEditorModelState.ERROR)) {
 			return false; // require the model to be dirty and not in conflict or error state
 		}
@@ -266,11 +266,11 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return super.isSaving();
 	}
 
-	getPreferredEditorId(candidates: string[]): string {
+	override getPreferredEditorId(candidates: string[]): string {
 		return this.forceOpenAs === ForceOpenAs.Binary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
 	}
 
-	resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
+	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
 
 		// Resolve as binary
 		if (this.forceOpenAs === ForceOpenAs.Binary) {
@@ -338,7 +338,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return !!this.model;
 	}
 
-	rename(group: GroupIdentifier, target: URI): IMoveResult {
+	override rename(group: GroupIdentifier, target: URI): IMoveResult {
 		return {
 			editor: {
 				resource: target,
@@ -362,7 +362,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return undefined;
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (otherInput === this) {
 			return true;
 		}
@@ -374,7 +374,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return false;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 
 		// Model
 		this.model = undefined;

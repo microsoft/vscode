@@ -625,19 +625,19 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.setSelection(indices);
 	}
 
-	focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
+	override focusNext(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusNext(() => {
 			super.focusNext(n, loop, browserEvent, filter);
 		});
 	}
 
-	focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
+	override focusPrevious(n: number | undefined, loop: boolean | undefined, browserEvent?: UIEvent, filter?: (element: CellViewModel) => boolean): void {
 		this._focusNextPreviousDelegate.onFocusPrevious(() => {
 			super.focusPrevious(n, loop, browserEvent, filter);
 		});
 	}
 
-	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
+	override setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
 		if (ignoreTextModelUpdate) {
 			super.setFocus(indexes, browserEvent);
 			return;
@@ -665,7 +665,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.setFocus(indexes, browserEvent);
 	}
 
-	setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
+	override setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
 		if (ignoreTextModelUpdate) {
 			super.setSelection(indexes, browserEvent);
 			return;
@@ -867,7 +867,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	// override
-	domFocus() {
+	override domFocus() {
 		const focused = this.getFocusedElements()[0];
 		const focusedDomElement = focused && this.domElementOfElement(focused);
 
@@ -1128,7 +1128,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 
-	style(styles: IListStyles) {
+	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
 		if (!this.styleElement) {
 			this.styleElement = DOM.createStyleSheet(this.view.domNode);
@@ -1251,7 +1251,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return this.view.renderHeight;
 	}
 
-	layout(height?: number, width?: number): void {
+	override layout(height?: number, width?: number): void {
 		this._isInLayout = true;
 		super.layout(height, width);
 		if (this.renderHeight === 0) {
@@ -1262,7 +1262,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._isInLayout = false;
 	}
 
-	dispose() {
+	override dispose() {
 		this._isDisposed = true;
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();

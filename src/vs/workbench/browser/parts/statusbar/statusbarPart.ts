@@ -360,7 +360,7 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 		this.checked = !model.isHidden(id);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		if (this.model.isHidden(this.id)) {
 			this.model.show(this.id);
 		} else {
@@ -375,7 +375,7 @@ class HideStatusbarEntryAction extends Action {
 		super(id, localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.model.hide(this.id);
 	}
 }
@@ -517,7 +517,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		// Track focus within container
@@ -658,7 +658,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return actions;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
@@ -704,7 +704,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
 	}
@@ -736,7 +736,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 		}
 	}
 
-	set text(text: string) {
+	override set text(text: string) {
 
 		// Progress: insert progress codicon as first element as needed
 		// but keep it stable so that the animation does not reset
@@ -940,7 +940,7 @@ class StatusbarEntryItem extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		dispose(this.foregroundListener);

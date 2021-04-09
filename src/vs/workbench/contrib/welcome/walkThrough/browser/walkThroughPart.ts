@@ -226,7 +226,7 @@ export class WalkThroughPart extends EditorPane {
 		}
 	}
 
-	focus(): void {
+	override focus(): void {
 		let active = document.activeElement;
 		while (active && active !== this.content) {
 			active = active.parentElement;
@@ -267,7 +267,7 @@ export class WalkThroughPart extends EditorPane {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	setInput(input: WalkThroughInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: WalkThroughInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -499,7 +499,7 @@ export class WalkThroughPart extends EditorPane {
 		}
 	}
 
-	public clearInput(): void {
+	public override clearInput(): void {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -507,7 +507,7 @@ export class WalkThroughPart extends EditorPane {
 		super.clearInput();
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -515,7 +515,7 @@ export class WalkThroughPart extends EditorPane {
 		super.saveState();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.editorFocus.reset();
 		this.contentDisposables = dispose(this.contentDisposables);
 		this.disposables.dispose();

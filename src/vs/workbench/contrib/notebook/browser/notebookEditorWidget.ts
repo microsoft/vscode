@@ -21,7 +21,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import 'vs/css!./media/notebook';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -75,6 +75,7 @@ import { ITASExperimentService } from 'vs/workbench/services/experiment/common/e
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isWeb } from 'vs/base/common/platform';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
+import { readFontInfo } from 'vs/editor/browser/config/configuration';
 
 const $ = DOM.$;
 
@@ -216,7 +217,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _localCellStateListeners: IDisposable[] = [];
-	private _fontInfo: BareFontInfo | undefined;
+	private _fontInfo: FontInfo | undefined;
 	private _dimension: DOM.Dimension | null = null;
 	private _shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
 
@@ -527,7 +528,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this._fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio());
+		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 	}
 
 	private _createBody(parent: HTMLElement): void {
@@ -2169,7 +2170,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop, cell.version);
+		await this._webview.showMarkdownPreview(cell.id, cell.handle, cell.getText(), cellTop, cell.contentHash);
 	}
 
 	async unhideMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {

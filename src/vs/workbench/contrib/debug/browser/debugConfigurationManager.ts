@@ -685,7 +685,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 		return nls.localize('user settings', "user settings");
 	}
 
-	get hidden(): boolean {
+	override get hidden(): boolean {
 		return true;
 	}
 

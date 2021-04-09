@@ -22,7 +22,7 @@ export class GettingStartedInput extends EditorInput {
 		return GettingStartedInput.ID;
 	}
 
-	matches(other: unknown) {
+	override matches(other: unknown) {
 		if (other instanceof GettingStartedInput) {
 			return other.selectedCategory === this.selectedCategory;
 		}
@@ -37,7 +37,7 @@ export class GettingStartedInput extends EditorInput {
 		this.selectedTask = options.selectedTask;
 	}
 
-	getName() {
+	override getName() {
 		return localize('gettingStarted', "Getting Started");
 	}
 

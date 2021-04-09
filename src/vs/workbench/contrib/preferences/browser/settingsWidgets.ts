@@ -623,17 +623,17 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 }
 
 export class ExcludeSettingWidget extends ListSettingWidget {
-	protected getContainerClasses() {
+	protected override getContainerClasses() {
 		return ['setting-list-exclude-widget'];
 	}
 
-	protected getLocalizedRowTitle({ value, sibling }: IListDataItem): string {
+	protected override getLocalizedRowTitle({ value, sibling }: IListDataItem): string {
 		return isUndefinedOrNull(sibling)
 			? localize('excludePatternHintLabel', "Exclude files matching `{0}`", value)
 			: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", value, sibling);
 	}
 
-	protected getLocalizedStrings() {
+	protected override getLocalizedStrings() {
 		return {
 			deleteActionTooltip: localize('removeExcludeItem', "Remove Exclude Item"),
 			editActionTooltip: localize('editExcludeItem', "Edit Exclude Item"),
@@ -703,7 +703,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 	private keySuggester: IObjectKeySuggester = () => undefined;
 	private valueSuggester: IObjectValueSuggester = () => undefined;
 
-	setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
+	override setValue(listData: IObjectDataItem[], options?: IObjectSetValueOptions): void {
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
 		this.keySuggester = options?.keySuggester ?? this.keySuggester;
 		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
@@ -721,7 +721,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return item.key.data === '' && item.value.data === '';
 	}
 
-	protected isAddButtonVisible(): boolean {
+	protected override isAddButtonVisible(): boolean {
 		return this.showAddButton;
 	}
 
@@ -769,7 +769,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		return actions;
 	}
 
-	protected renderHeader() {
+	protected override renderHeader() {
 		const header = $('.setting-list-row-header');
 		const keyHeader = DOM.append(header, $('.setting-list-object-key'));
 		const valueHeader = DOM.append(header, $('.setting-list-object-value'));

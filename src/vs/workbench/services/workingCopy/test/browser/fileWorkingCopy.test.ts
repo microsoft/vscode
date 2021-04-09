@@ -51,16 +51,12 @@ export class TestFileWorkingCopyModel extends Disposable implements IFileWorking
 	private doUpdate(newContents: string): void {
 		this.contents = newContents;
 
-		this.alternateVersionId++;
+		this.versionId++;
 
 		this._onDidChangeContent.fire({ isRedoing: false, isUndoing: false });
 	}
 
-	alternateVersionId = 0;
-
-	getAlternativeVersionId(): number {
-		return this.alternateVersionId;
-	}
+	versionId = 0;
 
 	pushedStackElement = false;
 
@@ -68,7 +64,7 @@ export class TestFileWorkingCopyModel extends Disposable implements IFileWorking
 		this.pushedStackElement = true;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._onWillDispose.fire();
 
 		super.dispose();
@@ -194,7 +190,7 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDirty(), true);
 
 		// Simulate an undo that goes back to the last (saved) version ID
-		workingCopy.model!.alternateVersionId--;
+		workingCopy.model!.versionId--;
 
 		workingCopy.model?.fireContentChangeEvent({ isRedoing: false, isUndoing: true });
 		assert.strictEqual(workingCopy.isDirty(), false);

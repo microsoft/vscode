@@ -650,7 +650,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return position;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._onDispose.fire();
 		super.dispose();
 	}

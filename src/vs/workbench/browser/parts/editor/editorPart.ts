@@ -801,14 +801,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	readonly snap = true;
 
-	get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
+	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	private get gridSeparatorBorder(): Color {
 		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		const container = assertIsDefined(this.container);
 		container.style.backgroundColor = this.getColor(editorBackground) || '';
 
@@ -817,7 +817,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget.styles(separatorBorderStyle);
 	}
 
-	createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
+	override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
 
 		// Container
 		this.element = parent;
@@ -1068,7 +1068,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
@@ -1087,7 +1087,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this._onDidLayout.fire(dimension);
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Persist grid UI state
 		if (this.gridWidget) {
@@ -1123,7 +1123,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		};
 	}
 
-	dispose(): void {
+	override dispose(): void {
 
 		// Forward to all groups
 		this.groupViews.forEach(group => group.dispose());

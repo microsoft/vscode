@@ -21,9 +21,6 @@
 			ipcRenderer.on(channel, handler);
 		},
 		focusIframeOnCreate: true,
-		rewriteCSP: (csp) => {
-			return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
-		},
 		isInDevelopmentMode: false
 	};
 

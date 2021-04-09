@@ -162,7 +162,7 @@
 	min-width: 0;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.manage) {
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
 	margin-top: 0px; /* overrides from extension actions */
 	border-radius: 0;
 	padding-top: 0;

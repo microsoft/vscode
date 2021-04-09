@@ -270,7 +270,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		});
 	}
 
-	show(initialInput?: string): void {
+	override show(initialInput?: string): void {
 		super.show(initialInput);
 		this._findInput.select();
 
@@ -312,7 +312,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		}
 	}
 
-	hide() {
+	override hide() {
 		super.hide();
 		this.set([], false);
 
@@ -341,7 +341,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		this._findMatches = [];
 	}
 
-	dispose() {
+	override dispose() {
 		this._notebookEditor?.removeClassName(FIND_SHOW_TRANSITION);
 		this._notebookEditor?.removeClassName(FIND_HIDE_TRANSITION);
 		super.dispose();
