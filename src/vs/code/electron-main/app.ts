@@ -226,17 +226,18 @@ export class CodeApplication extends Disposable {
 				this.nativeHostMainService?.openExternal(undefined, url);
 			});
 
-			const webviewFrameUrl = 'about:blank?webviewFrame';
+			const isUrlFromWebview = (requestingUrl: string) =>
+				requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
 
 			session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
-				if (details.requestingUrl === webviewFrameUrl) {
+				if (isUrlFromWebview(details.requestingUrl)) {
 					return callback(permission === 'clipboard-read');
 				}
 				return callback(false);
 			});
 
 			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
-				if (details.requestingUrl === webviewFrameUrl) {
+				if (isUrlFromWebview(details.requestingUrl)) {
 					return permission === 'clipboard-read';
 				}
 				return false;
