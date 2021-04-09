@@ -669,6 +669,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
+
+		if (this._editors.has(editorId)) {
+			throw new Error(`editor with id ALREADY EXSIST: ${editorId}`);
+		}
+
 		const revivedUri = document.uri;
 		let webComm = this._webviewComm.get(editorId);
 
@@ -686,13 +691,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
 		);
 
-
-		this._editors.get(editorId)?.editor.dispose();
 		this._editors.set(editorId, { editor });
 	}
 
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void {
-		let editorChanged = false;
 
 		if (delta.removedDocuments) {
 			for (const uri of delta.removedDocuments) {
@@ -708,9 +710,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 				for (const e of this._editors.values()) {
 					if (e.editor.notebookData.uri.toString() === revivedUri.toString()) {
-						e.editor.dispose();
 						this._editors.delete(e.editor.id);
-						editorChanged = true;
 					}
 				}
 			}
@@ -782,7 +782,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 				if (document) {
 					this._createExtHostEditor(document, editorModelData.id, editorModelData);
-					editorChanged = true;
 				}
 			}
 		}
@@ -794,7 +793,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				const editor = this._editors.get(editorid);
 
 				if (editor) {
-					editorChanged = true;
 					this._editors.delete(editorid);
 
 					if (this._activeNotebookEditor?.id === editor.editor.id) {
@@ -804,12 +802,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					removedEditors.push(editor);
 				}
 			}
-		}
-
-		if (editorChanged) {
-			removedEditors.forEach(e => {
-				e.editor.dispose();
-			});
 		}
 
 		if (delta.visibleEditors) {
