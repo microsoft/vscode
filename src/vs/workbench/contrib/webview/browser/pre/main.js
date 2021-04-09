@@ -58,7 +58,9 @@
 
 	const vscodePostMessageFuncName = '__vscode_post_message__';
 
-	const defaultCssRules = `
+	const defaultStyles = document.createElement('style');
+	defaultStyles.id = '_defaultStyles';
+	defaultStyles.textContent = `
 	html {
 		scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
 	}
@@ -489,7 +491,7 @@
 				}
 			});
 
-			// apply default script
+			// Inject default script
 			if (options.allowScripts) {
 				const defaultScript = newDocument.createElement('script');
 				defaultScript.id = '_vscodeApiScript';
@@ -497,11 +499,8 @@
 				newDocument.head.prepend(defaultScript);
 			}
 
-			// apply default styles
-			const defaultStyles = newDocument.createElement('style');
-			defaultStyles.id = '_defaultStyles';
-			defaultStyles.textContent = defaultCssRules;
-			newDocument.head.prepend(defaultStyles);
+			// Inject default styles
+			newDocument.head.prepend(defaultStyles.cloneNode(true));
 
 			applyStyles(newDocument, newDocument.body);
 
