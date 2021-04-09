@@ -21,6 +21,9 @@ const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 	navigator.userAgent.indexOf('CriOS') === -1 &&
 	navigator.userAgent.indexOf('FxiOS') === -1;
 
+const searchParams = new URL(location.toString()).searchParams;
+const ID = searchParams.get('id');
+
 /**
  * Use polling to track focus of main webview and iframes within the webview
  *
@@ -518,8 +521,6 @@ export function createWebviewManager(host) {
 	}
 
 	onDomReady(() => {
-		const idMatch = document.location.search.match(/\bid=([\w-]+)/);
-		const ID = idMatch ? idMatch[1] : undefined;
 		if (!document.body) {
 			return;
 		}
