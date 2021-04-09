@@ -24,7 +24,7 @@ import { IAction } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -329,7 +329,7 @@ export class TerminalTabbedView extends Disposable {
 		const profiles = await this._terminalService.getAvailableProfiles().filter(p => this._terminalService.configHelper.checkIsProcessLaunchSafe(undefined, p));
 		const tabsMenu = this._tabsMenu;
 		for (const p of profiles) {
-			const action = new MenuItemAction({ id: 'workbench.action.terminal.newFromProfile', title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
+			const action = new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
 			actions.push(action);
 		}
 

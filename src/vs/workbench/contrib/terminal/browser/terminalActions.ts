@@ -141,24 +141,11 @@ export function registerTerminalActions() {
 				id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
 				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
 				f1: true,
-				category
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).showProfileQuickPick('createInstance');
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TERMINAL_COMMAND_ID.NEW_FROM_PROFILE,
-				title: { value: localize('workbench.action.terminal.newFromProfile', "Create New Integrated Terminal (From Profile)"), original: 'Create New Integrated Terminal (From Profile)' },
-				f1: true,
 				category,
 				description: {
-					description: 'workbench.action.terminal.newFromProfile',
+					description: 'workbench.action.terminal.newWithProfile',
 					args: [{
-						name: 'args',
+						name: 'profile',
 						schema: {
 							type: 'object'
 						}
@@ -166,13 +153,18 @@ export function registerTerminalActions() {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, args: ITerminalProfile) {
+		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
-			const instance = await terminalService.createTerminal(args);
-			terminalService.setActiveInstance(instance);
-			return terminalService.showPanel(true);
+			if (profile) {
+				const instance = await terminalService.createTerminal(profile);
+				terminalService.setActiveInstance(instance);
+				return terminalService.showPanel(true);
+			} else {
+				await terminalService.showProfileQuickPick('createInstance');
+			}
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
