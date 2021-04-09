@@ -68,19 +68,37 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 		});
 
 		this._terminalService = terminalService;
+
 		terminalService.onInstancesChanged(() => this._render());
 		terminalService.onInstanceTitleChanged(() => this._render());
 		terminalService.onActiveTabChanged(() => {
 			const selection = this.getSelection();
-			const selectedTab = selection[0] as ITerminalTab;
+			const selectedTab = selection[0];
 			const activeTab = terminalService.getActiveTab();
-			if (activeTab && terminalService.terminalTabs.indexOf(selectedTab) !== terminalService.activeTabIndex) {
-				this.setFocus([activeTab]);
-				this.setSelection([activeTab]);
+			if (!activeTab ||
+				!selectedTab ||
+				!('terminalInstances' in selectedTab) ||
+				terminalService.terminalTabs.indexOf(selectedTab) === terminalService.activeTabIndex) {
+				return;
 			}
+			this.setFocus([activeTab]);
+			this.setSelection([activeTab]);
 		});
 
-		this._render();
+		this.onDidChangeSelection(selection => {
+			const instance = selection.elements[0];
+			if (!instance ||
+				!('instanceId' in instance)) {
+				return;
+			}
+			const selectedTab = terminalService.getTabForInstance(instance);
+			if (!selectedTab ||
+				terminalService.terminalTabs.indexOf(selectedTab) === terminalService.activeTabIndex) {
+				return;
+			}
+			this.setFocus([selectedTab]);
+			this.setSelection([selectedTab]);
+		});
 	}
 
 	private _render(): void {

@@ -236,7 +236,7 @@ export class TerminalService implements ITerminalService {
 						if (!terminalInstance) {
 							// create tab and terminal
 							terminalInstance = this.createTerminal({ attachPersistentProcess: terminalLayout.terminal! });
-							tab = this._getTabForInstance(terminalInstance);
+							tab = this.getTabForInstance(terminalInstance);
 							if (tabLayout.isActive) {
 								activeTab = tab;
 							}
@@ -650,7 +650,7 @@ export class TerminalService implements ITerminalService {
 	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
 	public splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null
 	public splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}): ITerminalInstance | null {
-		const tab = this._getTabForInstance(instanceToSplit);
+		const tab = this.getTabForInstance(instanceToSplit);
 		if (!tab) {
 			return null;
 		}
@@ -715,7 +715,7 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
+	public getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
 		return this._terminalTabs.find(tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
