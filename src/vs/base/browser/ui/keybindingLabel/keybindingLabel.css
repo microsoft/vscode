@@ -11,7 +11,8 @@
 
 .monaco-keybinding > .monaco-keybinding-key {
 	display: inline-block;
-	border: solid 1px;
+	border-style: solid;
+	border-width: 1px;
 	border-radius: 3px;
 	vertical-align: middle;
 	font-size: 11px;
@@ -25,11 +26,6 @@
 
 .monaco-keybinding > .monaco-keybinding-key:last-child {
 	margin-right: 0;
-}
-
-.hc-black .monaco-keybinding > .monaco-keybinding-key,
-.vs-dark .monaco-keybinding > .monaco-keybinding-key {
-	border: solid 1px;
 }
 
 .monaco-keybinding > .monaco-keybinding-key-separator {

@@ -1740,12 +1740,12 @@ export class QuickInputController extends Disposable {
 			if (this.styles.keybindingLabels.keybindingLabelBackground) {
 				content.push(`background-color: ${this.styles.keybindingLabels.keybindingLabelBackground};`);
 			}
+			// The borders are the only ones that need important. Order matters here. Border must come before bottom border.
+			if (this.styles.keybindingLabels.keybindingLabelBorder) {
+				content.push(`border-color: ${this.styles.keybindingLabels.keybindingLabelBorder};`);
+			}
 			if (this.styles.keybindingLabels.keybindingLabelBottomBorder) {
 				content.push(`border-bottom-color: ${this.styles.keybindingLabels.keybindingLabelBottomBorder};`);
-			}
-			if (this.styles.keybindingLabels.keybindingLabelBorder) {
-				// This is the only one that needs !important
-				content.push(`border-color: ${this.styles.keybindingLabels.keybindingLabelBorder} !important;`);
 			}
 			if (this.styles.keybindingLabels.keybindingLabelShadow) {
 				content.push(`box-shadow: inset 0 -1px 0 ${this.styles.keybindingLabels.keybindingLabelShadow};`);
