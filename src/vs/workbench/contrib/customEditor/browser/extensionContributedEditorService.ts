@@ -20,6 +20,7 @@ import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/custo
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
+import { ContributedEditorPriority } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 
 enum ExtensionContributedEditorChoice {
 	DEFAULT = 1,
@@ -54,7 +55,7 @@ export type ContributedEditorInfo = {
 	instanceOf: (editorInput: IEditorInput) => boolean;
 	label: string;
 	detail: string;
-	priority: 'default' | 'builtin' | 'option';
+	priority: ContributedEditorPriority;
 };
 
 export interface IExtensionContributedEditorService {
