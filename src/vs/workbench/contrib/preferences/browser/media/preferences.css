@@ -59,10 +59,6 @@
 	display: flex;
 }
 
-.settings-tabs-widget > .monaco-action-bar .actions-container {
-	justify-content: flex-start;
-}
-
 .default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
 .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 3px 0px;

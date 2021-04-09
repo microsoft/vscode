@@ -23,10 +23,6 @@
 	height: 24px;
 }
 
-.quick-input-left-action-bar.monaco-action-bar .actions-container {
-	justify-content: flex-start;
-}
-
 .quick-input-title {
 	padding: 3px 0px;
 	text-align: center;

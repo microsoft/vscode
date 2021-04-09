@@ -46,6 +46,10 @@
 	border-right-width: 0; /* no border when editor area is hiden */
 }
 
+.monaco-workbench .part.panel > .composite.title > .title-actions .monaco-action-bar .actions-container {
+	justify-content: flex-end;
+}
+
 .monaco-workbench .part.panel > .composite.title > .title-actions .monaco-action-bar .action-item {
 	margin-right: 4px;
 }
