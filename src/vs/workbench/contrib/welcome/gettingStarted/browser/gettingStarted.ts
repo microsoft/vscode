@@ -71,10 +71,11 @@ export class GettingStartedPage extends EditorPane {
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
 
-	private categoriesScrollbar: DomScrollableElement | undefined;
+	private categoriesPageScrollbar: DomScrollableElement | undefined;
+	private detailsPageScrollbar: DomScrollableElement | undefined;
 
 	private detailsScrollbar: DomScrollableElement | undefined;
-	private detailImageScrollbar: DomScrollableElement | undefined;
+
 	private buildSlideThrottle: Throttler = new Throttler();
 
 	private container: HTMLElement;
@@ -376,11 +377,11 @@ export class GettingStartedPage extends EditorPane {
 		}
 		setTimeout(() => {
 			// rescan after animation finishes
+			this.detailsPageScrollbar?.scanDomNode();
 			this.detailsScrollbar?.scanDomNode();
-			this.detailImageScrollbar?.scanDomNode();
 		}, 100);
+		this.detailsPageScrollbar?.scanDomNode();
 		this.detailsScrollbar?.scanDomNode();
-		this.detailImageScrollbar?.scanDomNode();
 	}
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
@@ -389,6 +390,16 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	createEditor(parent: HTMLElement) {
+		if (this.detailsPageScrollbar) { this.detailsPageScrollbar.dispose(); }
+		if (this.categoriesPageScrollbar) { this.categoriesPageScrollbar.dispose(); }
+
+
+
+		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
+
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), localize('more', "More"));
+		this.tasksSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
+
 		const tasksContent =
 			$('.gettingStartedDetailsContent', {},
 				$('.gap'),
@@ -403,24 +414,18 @@ export class GettingStartedPage extends EditorPane {
 				$('.gap')
 			);
 
-		this.tasksSlide =
-			$('.gettingStartedSlideDetails.gettingStartedSlide', {},
-				$('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), localize('more', "More")),
-				tasksContent
-			);
+		this.detailsPageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));
+		this.categoriesPageScrollbar = this._register(new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable' }));
 
-		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
-		this.categoriesScrollbar = new DomScrollableElement(this.categoriesSlide, { className: 'full-height-scrollable' });
+		this.tasksSlide.appendChild(this.detailsPageScrollbar.getDomNode());
 
-		const gettingStartedPage = $('.gettingStarted', {}, this.categoriesScrollbar.getDomNode(), this.tasksSlide);
-		this.categoriesScrollbar.scanDomNode();
-
-		// if (this.detailImageScrollbar) { this.detailImageScrollbar.dispose(); }
-		// this.detailImageScrollbar = this._register(new DomScrollableElement(tasksContent, { className: 'full-height-scrollable' }));
-		// this.tasksSlide.appendChild(this.detailImageScrollbar.getDomNode());
-		// this.detailImageScrollbar.scanDomNode();
-
+		const gettingStartedPage = $('.gettingStarted', {}, this.categoriesPageScrollbar.getDomNode(), this.tasksSlide);
 		this.container.appendChild(gettingStartedPage);
+
+		this.categoriesPageScrollbar.scanDomNode();
+		this.detailsPageScrollbar.scanDomNode();
+
+
 		parent.appendChild(this.container);
 	}
 
@@ -472,6 +477,8 @@ export class GettingStartedPage extends EditorPane {
 		layoutLists();
 
 		reset(this.categoriesSlide, $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,));
+		this.categoriesPageScrollbar?.scanDomNode();
+
 		this.updateCategoryProgress();
 		this.registerDispatchListeners();
 
@@ -662,9 +669,10 @@ export class GettingStartedPage extends EditorPane {
 
 	layout(size: Dimension) {
 
-		this.categoriesScrollbar?.scanDomNode();
+		this.categoriesPageScrollbar?.scanDomNode();
+		this.detailsPageScrollbar?.scanDomNode();
+
 		this.detailsScrollbar?.scanDomNode();
-		this.detailImageScrollbar?.scanDomNode();
 
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
@@ -798,6 +806,8 @@ export class GettingStartedPage extends EditorPane {
 		const toExpand = category.content.items.find(item => !item.done) ?? category.content.items[0];
 		this.selectTask(selectedItem ?? toExpand.id, false);
 		this.detailsScrollbar.scanDomNode();
+		this.detailsPageScrollbar?.scanDomNode();
+
 		this.registerDispatchListeners();
 	}
 

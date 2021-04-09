@@ -74,11 +74,15 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide {
 	width: 100%;
 	height: 100%;
-	padding: 12px;
+	padding: 0;
 	position: absolute;
 	box-sizing: border-box;
 	left: 0;
 	top: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories {
+	padding: 12px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.animationReady .gettingStartedSlide {
