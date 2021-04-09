@@ -205,6 +205,6 @@
 	vertical-align: text-bottom;
 }
 
-.monaco-tl-twistie {
+.tabs-widget > .monaco-tl-twistie {
 	display: none !important;
 }
