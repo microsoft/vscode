@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
 import { MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
@@ -93,9 +92,6 @@ export class ExtHostNotebookEditor {
 	private _kernel?: vscode.NotebookKernel;
 
 	private readonly _hasDecorationsForKey = new Set<string>();
-	private readonly _onDidDispose = new Emitter<void>();
-	readonly onDidDispose: Event<void> = this._onDidDispose.event;
-
 
 	private _editor?: vscode.NotebookEditor;
 
@@ -110,11 +106,6 @@ export class ExtHostNotebookEditor {
 		this._selections = selections;
 		this._visibleRanges = visibleRanges;
 		this._viewColumn = viewColumn;
-	}
-
-	dispose() {
-		this._onDidDispose.fire();
-		this._onDidDispose.dispose();
 	}
 
 	get editor(): vscode.NotebookEditor {
@@ -143,9 +134,6 @@ export class ExtHostNotebookEditor {
 				},
 				get viewColumn() {
 					return that._viewColumn;
-				},
-				get onDidDispose() {
-					return that.onDidDispose;
 				},
 				edit(callback) {
 					const edit = new NotebookEditorCellEditBuilder(this.document.version);
