@@ -1,8 +1,7 @@
 pool:
   vmImage: "Ubuntu-16.04"
 
-trigger:
-- main
+trigger: none
 pr: none
 
 steps:
