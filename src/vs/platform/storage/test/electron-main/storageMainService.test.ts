@@ -26,7 +26,7 @@ suite('StorageMainService', function () {
 
 	class TestStorageMainService extends StorageMainService {
 
-		protected getStorageOptions(): IStorageMainOptions {
+		protected override getStorageOptions(): IStorageMainOptions {
 			return {
 				useInMemoryStorage: true
 			};

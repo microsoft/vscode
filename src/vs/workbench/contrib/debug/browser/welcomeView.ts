@@ -100,7 +100,7 @@ export class WelcomeView extends ViewPane {
 		debugKeybindingLabel = debugKeybinding ? ` (${debugKeybinding.getLabel()})` : '';
 	}
 
-	shouldShowWelcome(): boolean {
+	override shouldShowWelcome(): boolean {
 		return true;
 	}
 }

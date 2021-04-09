@@ -298,7 +298,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.disposables.add(this.navigator);
 	}
 
-	updateOptions(options: IWorkbenchListOptionsUpdate): void {
+	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -315,7 +315,7 @@ export class WorkbenchList<T> extends List<T> {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._styler?.dispose();
 		super.dispose();
 	}
@@ -410,7 +410,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.disposables.add(this.navigator);
 	}
 
-	updateOptions(options: IWorkbenchListOptionsUpdate): void {
+	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -427,7 +427,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._styler?.dispose();
 		this.disposables.dispose();
 		super.dispose();
@@ -547,7 +547,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.disposables.add(this.navigator);
 	}
 
-	updateOptions(options: IWorkbenchTableOptionsUpdate): void {
+	override updateOptions(options: IWorkbenchTableOptionsUpdate): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -564,7 +564,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		return this._useAltAsMultipleSelectionModifier;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._styler?.dispose();
 		this.disposables.dispose();
 		super.dispose();
@@ -829,7 +829,7 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		this.disposables.add(this.internals);
 	}
 
-	updateOptions(options: IWorkbenchCompressibleObjectTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchCompressibleObjectTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -875,7 +875,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 		this.disposables.add(this.internals);
 	}
 
-	updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {
@@ -921,7 +921,7 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 		this.disposables.add(this.internals);
 	}
 
-	updateOptions(options: IWorkbenchAsyncDataTreeOptionsUpdate = {}): void {
+	override updateOptions(options: IWorkbenchAsyncDataTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
 		if (options.overrideStyles) {

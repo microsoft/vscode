@@ -55,7 +55,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		super(webviewWorkbenchService);
 	}
 
-	public serialize(input: CustomEditorInput): string | undefined {
+	public override serialize(input: CustomEditorInput): string | undefined {
 		const dirty = input.isDirty();
 		const data: SerializedCustomEditor = {
 			...this.toJson(input),
@@ -71,7 +71,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		}
 	}
 
-	protected fromJson(data: SerializedCustomEditor): DeserializedCustomEditor {
+	protected override fromJson(data: SerializedCustomEditor): DeserializedCustomEditor {
 		return {
 			...super.fromJson(data),
 			editorResource: URI.from(data.editorResource),
@@ -79,7 +79,7 @@ export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 		};
 	}
 
-	public deserialize(
+	public override deserialize(
 		_instantiationService: IInstantiationService,
 		serializedEditorInput: string
 	): CustomEditorInput {

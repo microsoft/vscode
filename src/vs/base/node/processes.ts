@@ -379,7 +379,7 @@ export class LineProcess extends AbstractProcess<LineData> {
 		this.stderrLineDecoder = stderrLineDecoder;
 	}
 
-	protected handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
+	protected override handleClose(data: any, cc: ValueCallback<SuccessData>, pp: ProgressCallback<LineData>, ee: ErrorCallback): void {
 		const stdoutLine = this.stdoutLineDecoder ? this.stdoutLineDecoder.end() : null;
 		if (stdoutLine) {
 			pp({ line: stdoutLine, source: Source.stdout });

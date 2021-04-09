@@ -28,7 +28,7 @@ import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/w
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
-	get activeTextEditorControl(): any {
+	override get activeTextEditorControl(): any {
 		return {
 			getEditorType() {
 				return EditorType.ICodeEditor;
@@ -38,7 +38,7 @@ class TestEditorServiceWithActiveEditor extends TestEditorService {
 			}
 		};
 	}
-	get activeEditor(): any {
+	override get activeEditor(): any {
 		return {
 			get resource(): any {
 				return uri.parse('file:///VSCode/workspaceLocation/file');
@@ -676,7 +676,7 @@ class MockLabelService implements ILabelService {
 }
 
 class MockInputsConfigurationService extends TestConfigurationService {
-	public getValue(arg1?: any, arg2?: any): any {
+	public override getValue(arg1?: any, arg2?: any): any {
 		let configuration;
 		if (arg1 === 'tasks') {
 			configuration = {

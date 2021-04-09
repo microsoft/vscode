@@ -142,7 +142,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCountNow();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		// First remove listeners, as disposing the lines might end up sending
 		// model decoration changed events ... and we no longer care about them ...
 		super.dispose();

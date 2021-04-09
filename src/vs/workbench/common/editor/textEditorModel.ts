@@ -167,11 +167,11 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		return this.textEditorModel.createSnapshot(true /* preserve BOM */);
 	}
 
-	isResolved(): this is IResolvedTextEditorModel {
+	override isResolved(): this is IResolvedTextEditorModel {
 		return !!this.textEditorModelHandle;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise
 
 		if (this.textEditorModelHandle && this.createdEditorModel) {

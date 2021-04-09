@@ -123,6 +123,7 @@
 .testing-filter-action-bar {
 	flex-shrink: 0;
 	margin: 4px 12px;
+	height: auto;
 }
 
 .testing-filter-action-item {

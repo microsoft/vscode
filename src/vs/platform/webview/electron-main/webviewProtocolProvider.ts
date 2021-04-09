@@ -7,7 +7,7 @@ import { protocol, session } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
+import { webviewPartitionId } from 'vs/platform/webview/common/webviewManagerService';
 
 
 export class WebviewProtocolProvider extends Disposable {
@@ -41,8 +41,8 @@ export class WebviewProtocolProvider extends Disposable {
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
 			if (typeof entry === 'string') {
 				const relativeResourcePath = uri.path.startsWith('/electron-browser')
-					? `vs/workbench/contrib/webview/electron-browser/pre/${entry} `
-					: `vs/workbench/contrib/webview/browser/pre/${entry} `;
+					? `vs/workbench/contrib/webview/electron-browser/pre/${entry}`
+					: `vs/workbench/contrib/webview/browser/pre/${entry}`;
 
 				const url = FileAccess.asFileUri(relativeResourcePath, require);
 				return callback(decodeURIComponent(url.fsPath));

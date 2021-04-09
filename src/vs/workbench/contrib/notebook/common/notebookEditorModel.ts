@@ -98,7 +98,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}));
 	}
 
-	isResolved(): this is IResolvedNotebookEditorModel {
+	override isResolved(): this is IResolvedNotebookEditorModel {
 		return this.notebook !== undefined;
 	}
 
@@ -406,7 +406,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		super();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._workingCopyListeners.dispose();
 		this._workingCopy?.dispose();
 		this._onDidChangeDirty.dispose();
@@ -418,7 +418,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this._workingCopy?.model.notebookModel;
 	}
 
-	isResolved(): this is IResolvedNotebookEditorModel {
+	override isResolved(): this is IResolvedNotebookEditorModel {
 		return Boolean(this._workingCopy);
 	}
 
@@ -539,9 +539,7 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 		this._notebookModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 	}
 
-	getAlternativeVersionId(): number {
-		return this._notebookModel.alternativeVersionId;
-	}
+	get versionId() { return this._notebookModel.alternativeVersionId; }
 
 	pushStackElement(): void {
 		this._notebookModel.pushStackElement(nls.localize('save', 'Save Notebook'), undefined, undefined);

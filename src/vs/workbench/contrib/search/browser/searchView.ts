@@ -158,7 +158,7 @@ export class SearchView extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ISearchWorkbenchService private readonly searchWorkbenchService: ISearchWorkbenchService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -255,7 +255,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	renderBody(parent: HTMLElement): void {
+	override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, dom.$('.search-view'));
 
@@ -890,7 +890,7 @@ export class SearchView extends ViewPane {
 		this.tree.domFocus();
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		if (this.lastFocusState === 'input' || !this.hasSearchResults()) {
 			const updatedText = this.searchConfig.seedOnFocus ? this.updateTextFromSelection({ allowSearchOnType: false }) : false;
@@ -1045,7 +1045,7 @@ export class SearchView extends ViewPane {
 		this.tree.layout(); // The tree will measure its container
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.size = new dom.Dimension(width, height);
 		this.reLayout();
@@ -1798,7 +1798,7 @@ export class SearchView extends ViewPane {
 		this.inputPatternIncludes.clearHistory();
 	}
 
-	public saveState(): void {
+	public override saveState(): void {
 		const isRegex = this.searchWidget.searchInput.getRegex();
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1868,7 +1868,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.isDisposed = true;
 		this.saveState();
 		super.dispose();

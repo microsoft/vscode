@@ -34,7 +34,7 @@ export class HierarchicalByNameElement extends HierarchicalElement {
 	public readonly isTestRoot = !this.actualParent;
 	public readonly actualChildren = new Set<HierarchicalByNameElement>();
 
-	public get expandable() {
+	public override get expandable() {
 		return TestItemExpandState.NotExpandable;
 	}
 
@@ -68,7 +68,7 @@ export class HierarchicalByNameElement extends HierarchicalElement {
 	/**
 	 * @override
 	 */
-	public update(patch: ITestItemUpdate) {
+	public override update(patch: ITestItemUpdate) {
 		super.update(patch);
 
 		if (patch.item?.runnable !== undefined) {
@@ -136,7 +136,7 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	/**
 	 * @override
 	 */
-	protected createItem(item: InternalTestItem, folder: IWorkspaceFolder): HierarchicalElement {
+	protected override createItem(item: InternalTestItem, folder: IWorkspaceFolder): HierarchicalElement {
 		const parent = this.getOrCreateFolderElement(folder);
 		const actualParent = item.parent ? this.items.get(item.parent) as HierarchicalByNameElement : undefined;
 		for (const testRoot of parent.children) {
@@ -151,7 +151,7 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	/**
 	 * @override
 	 */
-	protected unstoreItem(item: HierarchicalElement) {
+	protected override unstoreItem(item: HierarchicalElement) {
 		const treeChildren = super.unstoreItem(item);
 		if (item instanceof HierarchicalByNameElement) {
 			item.remove();
@@ -164,7 +164,7 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	/**
 	 * @override
 	 */
-	protected getRevealDepth(element: HierarchicalElement) {
+	protected override getRevealDepth(element: HierarchicalElement) {
 		return element.depth === 1 ? Infinity : undefined;
 	}
 }

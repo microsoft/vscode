@@ -93,6 +93,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
  * even if the user starts many instances (e.g. from the command line).
  */
 export class CodeApplication extends Disposable {
+
 	private windowsMainService: IWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 

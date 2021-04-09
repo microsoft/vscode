@@ -177,7 +177,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private _hasModeSetExplicitly: boolean = false;
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
-	setMode(mode: string): void {
+	override setMode(mode: string): void {
 
 		// Remember that an explicit mode was set
 		this._hasModeSetExplicitly = true;
@@ -199,7 +199,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-	getMode(): string | undefined {
+	override getMode(): string | undefined {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getModeId();
 		}
@@ -233,7 +233,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return false;
 	}
 
@@ -272,7 +272,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
 
-	async resolve(): Promise<void> {
+	async override resolve(): Promise<void> {
 
 		// Check for backups
 		const backup = await this.backupFileService.resolve(this.resource);

@@ -39,7 +39,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 
-	public hide() {
+	public override hide() {
 		super.hide();
 		const instance = this._terminalService.getActiveInstance();
 		if (instance) {

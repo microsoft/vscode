@@ -379,7 +379,7 @@ registerEditorAction(class GoToDeclarationAction extends DeclarationAction {
 		});
 	}
 
-	protected _getNoResultFoundMessage(info: IWordAtPosition | null): string {
+	protected override _getNoResultFoundMessage(info: IWordAtPosition | null): string {
 		return info && info.word
 			? nls.localize('decl.noResultWord', "No declaration found for '{0}'", info.word)
 			: nls.localize('decl.generic.noResults', "No declaration found");
@@ -744,7 +744,7 @@ CommandsRegistry.registerCommand({
 
 			return editor.invokeWithinContext(accessor => {
 				const command = new class extends GenericGoToLocationAction {
-					_getNoResultFoundMessage(info: IWordAtPosition | null) {
+					override _getNoResultFoundMessage(info: IWordAtPosition | null) {
 						return noResultsMessage || super._getNoResultFoundMessage(info);
 					}
 				}({

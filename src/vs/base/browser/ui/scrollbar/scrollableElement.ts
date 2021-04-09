@@ -239,7 +239,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._revealOnScroll = true;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._mouseWheelToDispose = dispose(this._mouseWheelToDispose);
 		super.dispose();
 	}

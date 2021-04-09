@@ -33,7 +33,7 @@ class TestEditor extends EditorPane {
 		super('TestEditor', NullTelemetryService, NullThemeService, new TestStorageService());
 	}
 
-	getId(): string { return 'testEditor'; }
+	override getId(): string { return 'testEditor'; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -44,7 +44,7 @@ export class OtherTestEditor extends EditorPane {
 		super('testOtherEditor', NullTelemetryService, NullThemeService, new TestStorageService());
 	}
 
-	getId(): string { return 'testOtherEditor'; }
+	override getId(): string { return 'testOtherEditor'; }
 
 	layout(): void { }
 	createEditor(): any { }
@@ -69,7 +69,7 @@ class TestInput extends EditorInput {
 
 	readonly resource = undefined;
 
-	getPreferredEditorId(ids: string[]) {
+	override getPreferredEditorId(ids: string[]) {
 		return ids[1];
 	}
 
@@ -77,7 +77,7 @@ class TestInput extends EditorInput {
 		return '';
 	}
 
-	resolve(): any {
+	override resolve(): any {
 		return null;
 	}
 }
@@ -90,7 +90,7 @@ class OtherTestInput extends EditorInput {
 		return '';
 	}
 
-	resolve(): any {
+	override resolve(): any {
 		return null;
 	}
 }
@@ -305,9 +305,9 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			async resolve(): Promise<IEditorModel | null> { return null; }
+			async override resolve(): Promise<IEditorModel | null> { return null; }
 
-			matches(other: TestEditorInput): boolean {
+			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
 			}
 		}
@@ -343,9 +343,9 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			async resolve(): Promise<IEditorModel | null> { return null; }
+			async override resolve(): Promise<IEditorModel | null> { return null; }
 
-			matches(other: TestEditorInput): boolean {
+			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
 			}
 		}

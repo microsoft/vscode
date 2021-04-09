@@ -40,7 +40,7 @@ const lastPromptedMediumImpExeTimeStorageKey = 'extensionTips/lastPromptedMedium
 
 export class ExtensionTipsService extends BaseExtensionTipsService {
 
-	_serviceBrand: any;
+	override _serviceBrand: any;
 
 	private readonly highImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
 	private readonly mediumImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
@@ -101,13 +101,13 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		});
 	}
 
-	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+	async override getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		const highImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.highImportanceExecutableTips);
 		const mediumImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.mediumImportanceExecutableTips);
 		return [...highImportanceExeTips, ...mediumImportanceExeTips];
 	}
 
-	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+	override getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		return this.getValidExecutableBasedExtensionTips(this.allOtherExecutableTips);
 	}
 

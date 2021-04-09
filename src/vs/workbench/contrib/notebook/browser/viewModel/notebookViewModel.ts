@@ -1139,7 +1139,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook === notebook;
 	}
 
-	dispose() {
+	override dispose() {
 		this._localStore.clear();
 		this._viewCells.forEach(cell => {
 			cell.dispose();

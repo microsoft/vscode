@@ -7,6 +7,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
+export const webviewPartitionId = 'webview';
+
 export interface WebviewWebContentsId {
 	readonly webContentsId: number;
 }

@@ -335,7 +335,7 @@ export class CellOutputElement extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	dispose() {
+	override dispose() {
 		this.viewCell.updateOutputMinHeight(0);
 
 		if (this._outputHeightTimer) {
@@ -600,7 +600,7 @@ export class CellOutputContainer extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	dispose() {
+	override dispose() {
 		this.viewCell.updateOutputMinHeight(0);
 
 		if (this._outputHeightTimer) {

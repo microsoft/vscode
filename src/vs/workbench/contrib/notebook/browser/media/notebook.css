@@ -695,6 +695,7 @@
 	display: inline-flex;
 	padding: 0px 4px;
 	border-radius: 0;
+	align-items: center;
 }
 
 .monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label .codicon,

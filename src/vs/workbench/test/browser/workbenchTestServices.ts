@@ -148,14 +148,14 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 
 export class TestTextResourceEditor extends TextResourceEditor {
 
-	protected createEditorControl(parent: HTMLElement, configuration: any): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
 		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 }
 
 export class TestTextFileEditor extends TextFileEditor {
 
-	protected createEditorControl(parent: HTMLElement, configuration: any): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
 		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 }
@@ -268,7 +268,7 @@ export class TestTextFileService extends BrowserTextFileService {
 	private writeError: FileOperationError | undefined = undefined;
 
 	constructor(
-		@IFileService protected fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -312,7 +312,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.readStreamError = error;
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	async override readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.readStreamError) {
 			const error = this.readStreamError;
 			this.readStreamError = undefined;
@@ -337,7 +337,7 @@ export class TestTextFileService extends BrowserTextFileService {
 		this.writeError = error;
 	}
 
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+	async override write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 		if (this.writeError) {
 			const error = this.writeError;
 			this.writeError = undefined;
@@ -352,7 +352,7 @@ export class TestTextFileService extends BrowserTextFileService {
 export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserTextFileService {
 
 	private _testEncoding: TestEncodingOracle | undefined;
-	get encoding(): TestEncodingOracle {
+	override get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}
@@ -363,7 +363,7 @@ export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserText
 
 export class TestEncodingOracle extends EncodingOracle {
 
-	protected get encodingOverrides(): IEncodingOverride[] {
+	protected override get encodingOverrides(): IEncodingOverride[] {
 		return [
 			{ extension: 'utf16le', encoding: UTF16le },
 			{ extension: 'utf16be', encoding: UTF16be },
@@ -371,7 +371,7 @@ export class TestEncodingOracle extends EncodingOracle {
 		];
 	}
 
-	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
+	protected override set encodingOverrides(overrides: IEncodingOverride[]) { }
 }
 
 class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService {
@@ -970,7 +970,7 @@ export class TestBackupFileService extends InMemoryBackupFileService {
 
 export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 
-	readonly fileService: IFileService;
+	override readonly fileService: IFileService;
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
@@ -1000,7 +1000,7 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	async override backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		await super.backup(resource, content, versionId, meta, token);
 
 		while (this.backupResourceJoiners.length) {
@@ -1008,7 +1008,7 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 		}
 	}
 
-	async discardBackup(resource: URI): Promise<void> {
+	async override discardBackup(resource: URI): Promise<void> {
 		await super.discardBackup(resource);
 		this.discardedBackups.push(resource);
 
@@ -1122,7 +1122,7 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 }
 
 export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider implements IFileSystemProviderWithFileReadStreamCapability {
-	readonly capabilities: FileSystemProviderCapabilities =
+	override readonly capabilities: FileSystemProviderCapabilities =
 		FileSystemProviderCapabilities.FileReadWrite
 		| FileSystemProviderCapabilities.PathCaseSensitive
 		| FileSystemProviderCapabilities.FileReadStream;
@@ -1188,14 +1188,14 @@ export class TestHostService implements IHostService {
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
 
-	onFilesConfigurationChange(configuration: any): void {
+	override onFilesConfigurationChange(configuration: any): void {
 		super.onFilesConfigurationChange(configuration);
 	}
 }
 
 export class TestReadonlyTextFileEditorModel extends TextFileEditorModel {
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return true;
 	}
 }
@@ -1210,7 +1210,7 @@ export class TestEditorInput extends EditorInput {
 		return this.typeId;
 	}
 
-	resolve(): Promise<IEditorModel | null> {
+	override resolve(): Promise<IEditorModel | null> {
 		return Promise.resolve(null);
 	}
 }
@@ -1225,17 +1225,17 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 			this._scopedContextKeyService = new MockContextKeyService();
 		}
 
-		async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 			super.setInput(input, options, context, token);
 
 			await input.resolve();
 		}
 
-		getId(): string { return id; }
+		override getId(): string { return id; }
 		layout(): void { }
 		createEditor(): void { }
 
-		get scopedContextKeyService() {
+		override get scopedContextKeyService() {
 			return this._scopedContextKeyService;
 		}
 	}
@@ -1347,8 +1347,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 
 	getTypeId() { return this.typeId; }
-	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
+	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	override matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
 	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
@@ -1361,40 +1361,40 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	setFailToOpen(): void {
 		this.fails = true;
 	}
-	async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	async override save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		this.gotSaved = true;
 		this.dirty = false;
 		return this;
 	}
-	async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	async override saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		this.gotSavedAs = true;
 		return this;
 	}
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	async override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		this.gotReverted = true;
 		this.gotSaved = false;
 		this.gotSavedAs = false;
 		this.dirty = false;
 	}
 	setDirty(): void { this.dirty = true; }
-	isDirty(): boolean {
+	override isDirty(): boolean {
 		return this.dirty;
 	}
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return false;
 	}
 	isResolved(): boolean { return false; }
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.gotDisposed = true;
 	}
 	movedEditor: IMoveResult | undefined = undefined;
-	rename(): IMoveResult | undefined { return this.movedEditor; }
+	override rename(): IMoveResult | undefined { return this.movedEditor; }
 }
 
 export class TestEditorPart extends EditorPart {
 
-	saveState(): void {
+	override saveState(): void {
 		return super.saveState();
 	}
 
@@ -1451,11 +1451,11 @@ export class TestPathService implements IPathService {
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
-	add(resource: URI, model: TextFileEditorModel): void {
+	override add(resource: URI, model: TextFileEditorModel): void {
 		return super.add(resource, model);
 	}
 
-	remove(resource: URI): void {
+	override remove(resource: URI): void {
 		return super.remove(resource);
 	}
 }

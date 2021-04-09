@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalExecutable, ITerminalProfileSource, ITerminalTypeContribution } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IAvailableProfilesRequest, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, LinuxDistro, TERMINAL_VIEW_ID, ITerminalProfileObject, ITerminalExecutable, ITerminalProfileSource, ITerminalTypeContribution } from 'vs/workbench/contrib/terminal/common/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -50,7 +50,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
-	private _findWidgetVisible: IContextKey<boolean>;
 	private _terminalTabs: ITerminalTab[] = [];
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private get _terminalInstances(): ITerminalInstance[] {
@@ -143,7 +142,6 @@ export class TerminalService implements ITerminalService {
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(this._contextKeyService);
 		this._configHelper = this._instantiationService.createInstance(TerminalConfigHelper);
 		this.onTabDisposed(tab => this._removeTab(tab));
 		this.onActiveTabChanged(() => {
@@ -1041,32 +1039,29 @@ export class TerminalService implements ITerminalService {
 	public async focusFindWidget(): Promise<void> {
 		await this.showPanel(false);
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		pane.focusFindWidget();
-		this._findWidgetVisible.set(true);
+		pane.terminalTabbedView.focusFindWidget();
 	}
 
 	public hideFindWidget(): void {
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
-			pane.hideFindWidget();
-			this._findWidgetVisible.reset();
-			pane.focus();
+			pane.terminalTabbedView.hideFindWidget();
 		}
 	}
 
 	public findNext(): void {
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
-			pane.showFindWidget();
-			pane.getFindWidget().find(false);
+			pane.terminalTabbedView.showFindWidget();
+			pane.terminalTabbedView.getFindWidget().find(false);
 		}
 	}
 
 	public findPrevious(): void {
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
 		if (pane) {
-			pane.showFindWidget();
-			pane.getFindWidget().find(true);
+			pane.terminalTabbedView.showFindWidget();
+			pane.terminalTabbedView.getFindWidget().find(true);
 		}
 	}
 

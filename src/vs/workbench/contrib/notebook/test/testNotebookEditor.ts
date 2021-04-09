@@ -160,23 +160,23 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
 
 	const notebookEditor: IActiveNotebookEditor = new class extends mock<IActiveNotebookEditor>() {
-		dispose() {
+		override dispose() {
 			viewModel.dispose();
 		}
-		onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
-		get viewModel() { return viewModel; }
-		hasModel(): this is IActiveNotebookEditor {
+		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
+		override get viewModel() { return viewModel; }
+		override hasModel(): this is IActiveNotebookEditor {
 			return !!this.viewModel;
 		}
-		getFocus() { return viewModel.getFocus(); }
-		getSelections() { return viewModel.getSelections(); }
-		getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
-		getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
-		revealCellRangeInView() { }
-		setHiddenAreas(_ranges: ICellRange[]): boolean {
+		override getFocus() { return viewModel.getFocus(); }
+		override getSelections() { return viewModel.getSelections(); }
+		override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
+		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
+		override revealCellRangeInView() { }
+		override setHiddenAreas(_ranges: ICellRange[]): boolean {
 			return cellList.setHiddenAreas(_ranges, true);
 		}
-		getActiveCell() {
+		override getActiveCell() {
 			const elements = cellList.getFocusedElements();
 
 			if (elements && elements.length) {
@@ -185,7 +185,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 			return undefined;
 		}
-		hasOutputTextSelection() {
+		override hasOutputTextSelection() {
 			return false;
 		}
 	};

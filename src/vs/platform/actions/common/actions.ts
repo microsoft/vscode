@@ -321,7 +321,7 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	run(...args: any[]): Promise<any> {
+	override run(...args: any[]): Promise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
@@ -337,7 +337,7 @@ export class SubmenuItemAction extends SubmenuAction {
 		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
 	}
 
-	get actions(): readonly IAction[] {
+	override get actions(): readonly IAction[] {
 		const result: IAction[] = [];
 		const menu = this._menuService.createMenu(this.item.submenu, this._contextKeyService);
 		const groups = menu.getActions(this._options);

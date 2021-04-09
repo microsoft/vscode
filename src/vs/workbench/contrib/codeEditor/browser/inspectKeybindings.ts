@@ -47,7 +47,7 @@ class InspectKeyMapJSON extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		return this._editorService.openEditor({ contents: this._keybindingService._dumpDebugInfoJSON(), options: { pinned: true } });
 	}
 }

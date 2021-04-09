@@ -40,7 +40,7 @@ export class WebviewInput extends EditorInput {
 		this._webview = webview;
 	}
 
-	dispose() {
+	override dispose() {
 		if (!this.isDisposed()) {
 			if (!this._hasTransfered) {
 				this._webview?.dispose();
@@ -53,15 +53,15 @@ export class WebviewInput extends EditorInput {
 		return WebviewInput.typeId;
 	}
 
-	public getName(): string {
+	public override getName(): string {
 		return this._name;
 	}
 
-	public getTitle(_verbosity?: Verbosity): string {
+	public override getTitle(_verbosity?: Verbosity): string {
 		return this.getName();
 	}
 
-	public getDescription(): string | undefined {
+	public override getDescription(): string | undefined {
 		return undefined;
 	}
 
@@ -87,7 +87,7 @@ export class WebviewInput extends EditorInput {
 		this._iconManager.setIcons(this.id, value);
 	}
 
-	public matches(other: IEditorInput): boolean {
+	public override matches(other: IEditorInput): boolean {
 		return other === this;
 	}
 
@@ -99,7 +99,7 @@ export class WebviewInput extends EditorInput {
 		this._group = group;
 	}
 
-	public supportsSplitEditor() {
+	public override supportsSplitEditor() {
 		return false;
 	}
 

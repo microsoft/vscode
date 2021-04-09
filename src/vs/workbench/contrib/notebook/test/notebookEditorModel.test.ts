@@ -28,10 +28,10 @@ suite('NotebookEditorModel', function () {
 	const notificationService = new class extends mock<INotificationService>() { };
 	const untitledTextEditorService = new class extends mock<IUntitledTextEditorService>() { };
 	const fileService = new class extends mock<IFileService>() {
-		onDidFilesChange = Event.None;
+		override onDidFilesChange = Event.None;
 	};
 	const labelService = new class extends mock<ILabelService>() {
-		getUriBasenameLabel(uri: URI) { return uri.toString(); }
+		override getUriBasenameLabel(uri: URI) { return uri.toString(); }
 	};
 
 	const notebookDataProvider = new class extends mock<IMainNotebookController>() { };
@@ -43,7 +43,7 @@ suite('NotebookEditorModel', function () {
 
 		const copies: IWorkingCopy[] = [];
 		const workingCopyService = new class extends mock<IWorkingCopyService>() {
-			registerWorkingCopy(copy: IWorkingCopy) {
+			override registerWorkingCopy(copy: IWorkingCopy) {
 				copies.push(copy);
 				return Disposable.None;
 			}

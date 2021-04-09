@@ -21,7 +21,11 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workbench/contrib/debug/common/debugSchemas';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 
+const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 export class AdapterManager implements IAdapterManager {
 
 	private debuggers: Debugger[];
@@ -81,8 +85,10 @@ export class AdapterManager implements IAdapterManager {
 			});
 
 			// update the schema to include all attributes, snippets and types from extensions.
+			const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
+			items.oneOf = [];
+			items.defaultSnippets = [];
 			this.debuggers.forEach(adapter => {
-				const items = (<IJSONSchema>launchSchema.properties!['configurations'].items);
 				const schemaAttributes = adapter.getSchemaAttributes();
 				if (schemaAttributes && items.oneOf) {
 					items.oneOf.push(...schemaAttributes);
@@ -92,6 +98,7 @@ export class AdapterManager implements IAdapterManager {
 					items.defaultSnippets.push(...configurationSnippets);
 				}
 			});
+			jsonRegistry.registerSchema(launchSchemaId, launchSchema);
 
 			this._onDidDebuggersExtPointRead.fire();
 		});

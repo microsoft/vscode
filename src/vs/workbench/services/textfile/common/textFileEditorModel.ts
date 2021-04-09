@@ -179,7 +179,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.modelService.setMode(this.textEditorModel, languageSelection);
 	}
 
-	setMode(mode: string): void {
+	override setMode(mode: string): void {
 		super.setMode(mode);
 
 		this.preferredMode = mode;
@@ -248,7 +248,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Resolve
 
-	async resolve(options?: ITextFileResolveOptions): Promise<void> {
+	async override resolve(options?: ITextFileResolveOptions): Promise<void> {
 		this.logService.trace('[text file model] resolve() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
@@ -910,9 +910,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.saveSequentializer.pending ?? Promise.resolve();
 	}
 
-	getMode(this: IResolvedTextFileEditorModel): string;
-	getMode(): string | undefined;
-	getMode(): string | undefined {
+	override getMode(this: IResolvedTextFileEditorModel): string;
+	override getMode(): string | undefined;
+	override getMode(): string | undefined {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getModeId();
 		}
@@ -987,15 +987,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#endregion
 
-	isResolved(): this is IResolvedTextFileEditorModel {
+	override isResolved(): this is IResolvedTextFileEditorModel {
 		return !!this.textEditorModel;
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
 
 		this.inConflictMode = false;

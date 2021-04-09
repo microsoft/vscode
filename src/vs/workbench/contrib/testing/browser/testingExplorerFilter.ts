@@ -104,7 +104,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	/**
 	 * @override
 	 */
-	public render(container: HTMLElement) {
+	public override render(container: HTMLElement) {
 		container.classList.add('testing-filter-action-item');
 
 		const updateDelayer = this._register(new Delayer<void>(400));
@@ -154,7 +154,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	/**
 	 * Focuses the filter input.
 	 */
-	public focus(): void {
+	public override focus(): void {
 		this.input.focus();
 	}
 
@@ -173,7 +173,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	/**
 	 * @override
 	 */
-	public dispose() {
+	public override dispose() {
 		this.saveState();
 		super.dispose();
 	}
@@ -209,7 +209,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		this.updateChecked();
 	}
@@ -267,7 +267,7 @@ class FiltersDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 		];
 	}
 
-	updateChecked(): void {
+	override updateChecked(): void {
 		this.element!.classList.toggle('checked', this._action.checked);
 	}
 }

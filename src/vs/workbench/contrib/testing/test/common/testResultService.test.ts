@@ -136,7 +136,7 @@ suite('Workbench - Test Results Service', () => {
 		let results: TestResultService;
 
 		class TestTestResultService extends TestResultService {
-			persistScheduler = { schedule: () => this.persistImmediately() } as any;
+			override persistScheduler = { schedule: () => this.persistImmediately() } as any;
 		}
 
 		setup(() => {

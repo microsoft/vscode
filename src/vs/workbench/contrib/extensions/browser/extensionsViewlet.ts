@@ -465,7 +465,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		return this.searchBox?.getValue();
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
 		parent.classList.add('extensions-viewlet');
 		this.root = parent;
 
@@ -555,13 +555,13 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		super.create(append(this.root, $('.extensions')));
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this.searchBox) {
 			this.searchBox.focus();
 		}
 	}
 
-	layout(dimension: Dimension): void {
+	override layout(dimension: Dimension): void {
 		if (this.root) {
 			this.root.classList.toggle('narrow', dimension.width <= 300);
 		}
@@ -571,7 +571,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
 
-	getOptimalWidth(): number {
+	override getOptimalWidth(): number {
 		return 400;
 	}
 
@@ -612,7 +612,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			: '';
 	}
 
-	saveState(): void {
+	override saveState(): void {
 		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
@@ -642,7 +642,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		))).then(() => undefined);
 	}
 
-	protected onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const addedViews = super.onDidAddViewDescriptors(added);
 		this.progress(Promise.all(addedViews.map(addedView =>
 			(<ExtensionsListView>addedView).show(this.normalizedQuery())

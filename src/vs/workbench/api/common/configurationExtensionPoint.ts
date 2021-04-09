@@ -181,10 +181,10 @@ configurationExtPoint.setHandler((extensions, { added, removed }) => {
 		for (let extension of added) {
 			const configurations: IConfigurationNode[] = [];
 			const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
-			if (!Array.isArray(value)) {
-				configurations.push(...handleConfiguration(value, extension));
-			} else {
+			if (Array.isArray(value)) {
 				value.forEach(v => configurations.push(...handleConfiguration(v, extension)));
+			} else {
+				configurations.push(...handleConfiguration(value, extension));
 			}
 			extensionConfigurations.set(ExtensionIdentifier.toKey(extension.description.identifier), configurations);
 			addedConfigurations.push(...configurations);

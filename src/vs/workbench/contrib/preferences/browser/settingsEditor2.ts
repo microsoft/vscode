@@ -202,12 +202,12 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	get minimumWidth(): number { return 375; }
-	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	override get minimumWidth(): number { return 375; }
+	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
-	set minimumWidth(value: number) { /*noop*/ }
-	set maximumWidth(value: number) { /*noop*/ }
+	override set minimumWidth(value: number) { /*noop*/ }
+	override set maximumWidth(value: number) { /*noop*/ }
 
 	private get currentSettingsModel() {
 		return this.searchResultModel || this.settingsTreeModel;
@@ -246,7 +246,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, context, token)
 			.then(() => timeout(0)) // Force setInput to be async
@@ -293,7 +293,7 @@ export class SettingsEditor2 extends EditorPane {
 		return withUndefinedAsNull(cachedState);
 	}
 
-	setOptions(options: SettingsEditorOptions | undefined): void {
+	override setOptions(options: SettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
 		if (options) {
@@ -317,7 +317,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		this.inSettingsEditorContextKey.set(false);
 		super.clearInput();
 	}
@@ -340,7 +340,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
 			this.focusSearch();
 		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
@@ -359,7 +359,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 
 		if (!visible) {
@@ -1395,7 +1395,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTree.layout(tocTreeHeight);
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 		if (this.isVisible()) {
 			const searchQuery = this.searchWidget.getValue().trim();
 			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;

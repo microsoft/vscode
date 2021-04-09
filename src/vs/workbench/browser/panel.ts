@@ -37,15 +37,15 @@ export abstract class Panel extends PaneComposite implements IPanel {
 		this._register(this.panelActions.onDidChange(() => this.updateTitleArea()));
 	}
 
-	getActions(): ReadonlyArray<IAction> {
+	override getActions(): ReadonlyArray<IAction> {
 		return [...super.getActions(), ...this.panelActions.getPrimaryActions()];
 	}
 
-	getSecondaryActions(): ReadonlyArray<IAction> {
+	override getSecondaryActions(): ReadonlyArray<IAction> {
 		return this.mergeSecondaryActions(super.getSecondaryActions(), this.panelActions.getSecondaryActions());
 	}
 
-	getContextMenuActions(): ReadonlyArray<IAction> {
+	override getContextMenuActions(): ReadonlyArray<IAction> {
 		return this.mergeSecondaryActions(super.getContextMenuActions(), this.panelActions.getContextMenuActions());
 	}
 

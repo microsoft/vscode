@@ -14,8 +14,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 export class BrowserBackupFileService extends BackupFileService {
 
-	declare readonly _serviceBrand: undefined;
-
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
