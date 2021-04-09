@@ -32,7 +32,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
-const MIN_TABS_WIDGET_WIDTH = 60;
+const MIN_TABS_WIDGET_WIDTH = 47;
+const SNAP_TABS_WIDGET_WIDTH = 100;
 
 export class TerminalTabbedView extends Disposable {
 
@@ -139,13 +140,22 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getLastWidgetWidth(): number {
 		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
-		return storedValue && parseInt(storedValue) ? parseInt(storedValue) : MIN_TABS_WIDGET_WIDTH;
+		if (!storedValue || !parseInt(storedValue) || parseInt(storedValue) < SNAP_TABS_WIDGET_WIDTH) {
+			return MIN_TABS_WIDGET_WIDTH;
+		}
+		return parseInt(storedValue);
 	}
 
 	private _setLastWidgetWidth(): void {
-		if (this._width && this._splitView.getViewSize(this._tabTreeIndex) > 0) {
-			this._storageService.store(TABS_WIDGET_WIDTH_KEY, (this._splitView.getViewSize(this._tabTreeIndex)), StorageScope.WORKSPACE, StorageTarget.USER);
+		if (!this._width || this._splitView.getViewSize(this._tabTreeIndex) <= 0) {
+			return;
 		}
+		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
+		if (widgetWidth < SNAP_TABS_WIDGET_WIDTH) {
+			widgetWidth = MIN_TABS_WIDGET_WIDTH;
+			this._splitView.resizeView(this._tabTreeIndex, widgetWidth);
+		}
+		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _setupSplitView(): void {
