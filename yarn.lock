@@ -6393,12 +6393,12 @@ mute-stream@0.0.8:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
   integrity sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==
 
-nan@^2.12.1:
+nan@^2.12.1, nan@^2.13.2:
   version "2.14.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
   integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
 
-nan@^2.13.2, nan@^2.14.0:
+nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -10090,10 +10090,10 @@ windows-mutex@0.3.0:
     bindings "^1.2.1"
     nan "^2.14.0"
 
-windows-process-tree@0.2.4:
-  version "0.2.4"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.2.4.tgz#747af587b54cc6c996f2be0836cc8a8fd0dc038f"
-  integrity sha512-9gag9AHm3Iin/4YC1EwoIfZlqW/rG2eV7rJZ4Fy5NnAMGdewmnwsie5Rz+CJo2vSolqzzfw7hPeu3oOdniNejg==
+windows-process-tree@0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.3.0.tgz#cf0d9291b22fba2a7f5a687c8272866e28fbcafd"
+  integrity sha512-0bKI4gcd5MOsOpn2TdStCSlnjThtH6BdHrocekY9qCgTqgEtdaUs0B5BaqyzF9jXoTSwz38NMdE1F55o4fgv9Q==
   dependencies:
     nan "^2.13.2"
 
