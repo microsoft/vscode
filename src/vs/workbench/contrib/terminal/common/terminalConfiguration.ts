@@ -29,8 +29,20 @@ const terminalProfileSchema: IJSONSchema = {
 			}
 		},
 		overrideName: {
-			description: localize('terminalProfile.overrideName', 'An optional name for the terminal which will override the detected one.'),
+			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+			type: 'boolean'
+		},
+		icon: {
+			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 			type: 'string'
+		},
+		env: {
+			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+			type: 'object',
+			additionalProperties: {
+				type: ['string', 'null']
+			},
+			default: {}
 		}
 	}
 };
@@ -117,14 +129,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'PowerShell': {
-					source: 'PowerShell'
+					source: 'PowerShell',
+					icon: 'terminal-powershell'
 				},
 				'Command Prompt': {
 					path: [
 						'${env:windir}\\Sysnative\\cmd.exe',
 						'${env:windir}\\System32\\cmd.exe'
 					],
-					args: []
+					args: [],
+					icon: 'terminal-cmd'
 				},
 				'Git Bash': {
 					source: 'Git Bash'
@@ -141,11 +155,24 @@ export const terminalConfiguration: IConfigurationNode = {
 								enum: ['PowerShell', 'Git Bash']
 							},
 							overrideName: {
-								description: localize('terminalProfile.overrideName', 'An optional name for the terminal which will override the detected one.'),
+								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+								type: 'boolean'
+							},
+							icon: {
+								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 								type: 'string'
+							},
+							env: {
+								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+								type: 'object',
+								additionalProperties: {
+									type: ['string', 'null']
+								},
+								default: {}
 							}
 						}
 					},
+					{ type: 'null' },
 					terminalProfileSchema
 				]
 			}
@@ -170,10 +197,20 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					path: 'tmux',
+					icon: 'terminal-tmux'
+				},
+				'pwsh': {
+					path: 'pwsh',
+					icon: 'terminal-powershell'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
 		'terminal.integrated.profiles.linux': {
 			markdownDescription: localize(
@@ -195,15 +232,36 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					path: 'tmux',
+					icon: 'terminal-tmux'
+				},
+				'pwsh': {
+					path: 'pwsh',
+					icon: 'terminal-powershell'
 				}
 			},
-			additionalProperties: terminalProfileSchema
+			additionalProperties: {
+				'anyOf': [
+					{ type: 'null' },
+					terminalProfileSchema
+				]
+			}
 		},
-		'terminal.integrated.showQuickLaunchWslProfiles': {
-			description: localize('terminal.integrated.showQuickLaunchWslProfiles', 'Controls whether or not WSL distros are shown in the quick launch dropdown'),
+		'terminal.integrated.useWslProfiles': {
+			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.showTabs': {
+			description: localize('terminal.integrated.showTabs', 'Controls whether or not the terminal tabs widget is shown'),
+			type: 'boolean',
+			default: false
+		},
+		'terminal.integrated.tabsLocation': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': 'left',
+			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either left or right of the terminal container.")
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),
@@ -339,17 +397,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'auto'
 		},
-		'terminal.integrated.rendererType': {
+		'terminal.integrated.gpuAcceleration': {
 			type: 'string',
-			enum: ['auto', 'canvas', 'dom', 'experimentalWebgl'],
+			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
-				localize('terminal.integrated.rendererType.auto', "Let VS Code guess which renderer to use."),
-				localize('terminal.integrated.rendererType.canvas', "Use the standard GPU/canvas-based renderer."),
-				localize('terminal.integrated.rendererType.dom', "Use the fallback DOM-based renderer."),
-				localize('terminal.integrated.rendererType.experimentalWebgl', "Use the experimental webgl-based renderer. Note that this has some [known issues](https://github.com/xtermjs/xterm.js/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Faddon%2Fwebgl).")
+				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
+				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
+				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal.")
 			],
 			default: 'auto',
-			description: localize('terminal.integrated.rendererType', "Controls how the terminal is rendered.")
+			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
 		},
 		'terminal.integrated.rightClickBehavior': {
 			type: 'string',

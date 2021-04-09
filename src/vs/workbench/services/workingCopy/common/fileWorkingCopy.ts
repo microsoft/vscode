@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { TaskSequentializer, timeout } from 'vs/base/common/async';
+import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DefaultEndOfLine, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -68,6 +68,21 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
 	/**
+	 * A version ID of the model. If a `onDidChangeContent` is fired
+	 * from the model and the last known saved `versionId` matches
+	 * with the `model.versionId`, the file working copy will discard
+	 * any dirty state.
+	 *
+	 * A use case is the following:
+	 * - a file working copy gets edited and thus dirty
+	 * - the user triggers undo to revert the changes
+	 * - at this point the `versionId` should match the one we had saved
+	 *
+	 * This requires the model to be aware of undo/redo operations.
+	 */
+	readonly versionId: unknown;
+
+	/**
 	 * Snapshots the model's current content for writing. This must include
 	 * any changes that were made to the model that are in memory.
 	 *
@@ -90,27 +105,12 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
 
 	/**
-	 * Get the alternative version id of the model. This alternative version
-	 * id is not always incremented, it will return the same values in the
-	 * case of undo-redo.
-	 *
-	 * TODO@bpasero should find a better name here maybe together
-	 * with the `pushStackElement` concept since this is around
-	 * undo/redo?
-	 */
-	getAlternativeVersionId(): number;
-
-	/**
 	 * Close the current undo-redo element. This offers a way
 	 * to create an undo/redo stop point.
 	 *
 	 * This method may for example be called right before the
 	 * save is triggered so that the user can always undo back
 	 * to the state before saving.
-	 *
-	 * TODO@bpasero should find a better name here maybe together
-	 * with the `getAlternativeVersionId` concept since this is around
-	 * undo/redo?
 	 */
 	pushStackElement(): void;
 }
@@ -442,7 +442,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	//#region Dirty
 
 	private dirty = false;
-	private savedVersionId: number | undefined;
+	private savedVersionId: unknown;
 
 	isDirty(): this is IResolvedFileWorkingCopy<T> {
 		return this.dirty;
@@ -477,7 +477,15 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			this.dirty = false;
 			this.inConflictMode = false;
 			this.inErrorMode = false;
-			this.updateSavedVersionId();
+
+			// we remember the models alternate version id to remember when the version
+			// of the model matches with the saved version on disk. we need to keep this
+			// in order to find out if the model changed back to a saved version (e.g.
+			// when undoing long enough to reach to a version that is saved and then to
+			// clear the dirty flag)
+			if (this.isResolved()) {
+				this.savedVersionId = this.model.versionId;
+			}
 		} else {
 			this.dirty = true;
 		}
@@ -785,7 +793,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 			// The contents changed as a matter of Undo and the version reached matches the saved one
 			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
-			if (model.getAlternativeVersionId() === this.savedVersionId) {
+			if (model.versionId === this.savedVersionId) {
 				this.logService.trace('[file working copy] onModelContentChanged() - model content changed back to last saved version', this.resource.toString(true));
 
 				// Clear flags
@@ -914,7 +922,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			// cancel the pending operation so that ours can run
 			// before the pending one finishes.
 			// Currently this will try to cancel pending save
-			// participants but never a pending save.
+			// participants and pending snapshots from the
+			// save operation, but not the actual save which does
+			// not support cancellation yet.
 			this.saveSequentializer.cancelPending();
 
 			// Register this as the next upcoming save and return
@@ -970,15 +980,9 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			}
 
 			// It is possible that a subsequent save is cancelling this
-			// running save. As such we return early when we detect that
-			// However, we do not pass the token into the file service
-			// because that is an atomic operation currently without
-			// cancellation support, so we dispose the cancellation if
-			// it was not cancelled yet.
+			// running save. As such we return early when we detect that.
 			if (saveCancellation.token.isCancellationRequested) {
 				return;
-			} else {
-				saveCancellation.dispose();
 			}
 
 			// We have to protect against being disposed at this point. It could be that the save() operation
@@ -1012,10 +1016,22 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 				try {
 
 					// Snapshot working copy model contents
-					const snapshot = await resolvedFileWorkingCopy.model.snapshot(CancellationToken.None);
+					const snapshot = await raceCancellation(resolvedFileWorkingCopy.model.snapshot(saveCancellation.token), saveCancellation.token);
+
+					// It is possible that a subsequent save is cancelling this
+					// running save. As such we return early when we detect that
+					// However, we do not pass the token into the file service
+					// because that is an atomic operation currently without
+					// cancellation support, so we dispose the cancellation if
+					// it was not cancelled yet.
+					if (saveCancellation.token.isCancellationRequested) {
+						return;
+					} else {
+						saveCancellation.dispose();
+					}
 
 					// Write them to disk
-					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, snapshot, {
+					const stat = await this.fileService.writeFile(lastResolvedFileStat.resource, assertIsDefined(snapshot), {
 						mtime: lastResolvedFileStat.mtime,
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource)) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						unlock: options.writeUnlock
@@ -1025,7 +1041,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 				} catch (error) {
 					this.handleSaveError(error, versionId, options);
 				}
-			})());
+			})(), () => saveCancellation.cancel());
 		})(), () => saveCancellation.cancel());
 	}
 
@@ -1084,18 +1100,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 		if (throwError) {
 			throw error;
-		}
-	}
-
-	private updateSavedVersionId(): void {
-
-		// we remember the models alternate version id to remember when the version
-		// of the model matches with the saved version on disk. we need to keep this
-		// in order to find out if the model changed back to a saved version (e.g.
-		// when undoing long enough to reach to a version that is saved and then to
-		// clear the dirty flag)
-		if (this.isResolved()) {
-			this.savedVersionId = this.model.getAlternativeVersionId();
 		}
 	}
 
@@ -1206,7 +1210,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.disposed;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.logService.trace('[file working copy] dispose()', this.resource.toString(true));
 
 		// State
@@ -1248,8 +1252,12 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			return undefined;
 		}
 
-		const snapshot = await this.model.snapshot(token);
-		const contents = await streamToBuffer(snapshot);
+		const snapshot = await raceCancellation(this.model.snapshot(token), token);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		const contents = await streamToBuffer(assertIsDefined(snapshot));
 
 		return stringToSnapshot(contents.toString());
 	}

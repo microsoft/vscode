@@ -48,8 +48,8 @@ export class Workbench extends Layout {
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
 	readonly onWillShutdown = this._onWillShutdown.event;
 
-	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown = this._onShutdown.event;
+	private readonly _onDidShutdown = this._register(new Emitter<void>());
+	readonly onDidShutdown = this._onDidShutdown.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -57,6 +57,9 @@ export class Workbench extends Layout {
 		logService: ILogService
 	) {
 		super(parent);
+
+		// Perf: measure workbench startup time
+		mark('code/willStartWorkbench');
 
 		this.registerErrorHandler(logService);
 	}
@@ -240,8 +243,8 @@ export class Workbench extends Layout {
 		// Lifecycle
 		this._register(lifecycleService.onBeforeShutdown(event => this._onBeforeShutdown.fire(event)));
 		this._register(lifecycleService.onWillShutdown(event => this._onWillShutdown.fire(event)));
-		this._register(lifecycleService.onShutdown(() => {
-			this._onShutdown.fire();
+		this._register(lifecycleService.onDidShutdown(() => {
+			this._onDidShutdown.fire();
 			this.dispose();
 		}));
 
@@ -424,7 +427,7 @@ export class Workbench extends Layout {
 				this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
 			}, 2500);
 
-			// Telemetry: startup metrics
+			// Perf: signal workbench started
 			mark('code/didStartWorkbench');
 
 			// Perf reporting (devtools)

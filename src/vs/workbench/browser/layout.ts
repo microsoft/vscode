@@ -232,7 +232,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			wasPanelVisible: false,
 			transitionDisposables: new DisposableStore(),
 			setNotificationsFilter: false,
-			editorWidgetSet: new Set<IEditor>()
 		}
 	};
 
@@ -679,7 +678,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			mark('code/didRestoreEditors');
 		})());
 
-		// Restore default views
+		// Restore default views (only when `IDefaultLayout` is provided)
 		const restoreDefaultViewsPromise = (async () => {
 			if (this.state.views.defaults?.length) {
 				mark('code/willOpenDefaultViews');
@@ -776,7 +775,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			mark('code/willRestorePanel');
 
-			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore!);
+			const panel = await this.panelService.openPanel(this.state.panel.panelToRestore);
 			if (!panel) {
 				await this.panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
 			}
@@ -976,22 +975,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				editor.updateOptions({ lineNumbers });
 			};
 
-			const editorControlSet = this.state.zenMode.editorWidgetSet;
 			if (!lineNumbers) {
 				// Reset line numbers on all editors visible and non-visible
-				for (const editor of editorControlSet) {
-					setEditorLineNumbers(editor);
+				for (const editorControl of this.editorService.visibleTextEditorControls) {
+					setEditorLineNumbers(editorControl);
 				}
-				editorControlSet.clear();
 			} else {
 				for (const editorControl of this.editorService.visibleTextEditorControls) {
-					if (!editorControlSet.has(editorControl)) {
-						editorControlSet.add(editorControl);
-						this.state.zenMode.transitionDisposables.add(editorControl.onDidDispose(() => {
-							editorControlSet.delete(editorControl);
-						}));
-					}
-
 					setEditorLineNumbers(editorControl);
 				}
 			}
@@ -1780,7 +1770,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return result;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.disposed = true;

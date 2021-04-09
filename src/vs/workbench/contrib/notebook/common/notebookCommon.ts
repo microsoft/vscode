@@ -18,7 +18,7 @@ import { IAccessibilityInformation } from 'vs/platform/accessibility/common/acce
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
@@ -162,6 +162,10 @@ export interface ICellOutput {
 	appendData(items: IOutputItemDto[]): void;
 }
 
+export interface CellMetadataChangedEvent {
+	readonly runStateChanged?: boolean;
+}
+
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
@@ -171,7 +175,7 @@ export interface ICell {
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
-	onDidChangeMetadata: Event<void>;
+	onDidChangeMetadata: Event<CellMetadataChangedEvent>;
 }
 
 export interface INotebookTextModel {
@@ -644,10 +648,9 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
-	isUntitled(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
-	saveAs(target: URI): Promise<boolean>;
+	saveAs(target: URI): Promise<IEditorInput | undefined>;
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
@@ -809,6 +812,7 @@ export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
+export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 
 export const enum CellStatusbarAlignment {
 	LEFT,

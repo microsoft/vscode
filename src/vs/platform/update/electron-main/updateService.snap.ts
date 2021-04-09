@@ -175,7 +175,7 @@ export class SnapUpdateService extends AbstractUpdateService2 {
 		});
 	}
 
-	protected doQuitAndInstall(): void {
+	protected override doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		// Allow 3 seconds for VS Code to close

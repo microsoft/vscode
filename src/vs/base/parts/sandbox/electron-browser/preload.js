@@ -9,6 +9,122 @@
 
 	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
 
+	//#region Utilities
+
+	/**
+	 * @param {string} channel
+	 * @returns {true | never}
+	 */
+	function validateIPC(channel) {
+		if (!channel || !channel.startsWith('vscode:')) {
+			throw new Error(`Unsupported event IPC channel '${channel}'`);
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param {string} type
+	 * @returns {type is 'uncaughtException'}
+	 */
+	function validateProcessEventType(type) {
+		if (type !== 'uncaughtException') {
+			throw new Error(`Unsupported process event '${type}'`);
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param {string} key the name of the process argument to parse
+	 * @returns {string | undefined}
+	 */
+	function parseArgv(key) {
+		for (const arg of process.argv) {
+			if (arg.indexOf(`--${key}=`) === 0) {
+				return arg.split('=')[1];
+			}
+		}
+
+		return undefined;
+	}
+
+	//#endregion
+
+	//#region Resolve Configuration
+
+	/**
+	 * @typedef {import('../common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 */
+
+	/** @type {ISandboxConfiguration | undefined} */
+	let configuration = undefined;
+
+	/** @type {Promise<ISandboxConfiguration>} */
+	const resolveConfiguration = (async () => {
+		const windowConfigIpcChannel = parseArgv('vscode-window-config');
+		if (!windowConfigIpcChannel) {
+			throw new Error('Preload: did not find expected vscode-window-config in renderer process arguments list.');
+		}
+
+		try {
+			if (validateIPC(windowConfigIpcChannel)) {
+
+				// Resolve configuration from electron-main
+				configuration = await ipcRenderer.invoke(windowConfigIpcChannel);
+
+				// Apply `userEnv` directly
+				Object.assign(process.env, configuration.userEnv);
+
+				// Apply zoom level early before even building the
+				// window DOM elements to avoid UI flicker. We always
+				// have to set the zoom level from within the window
+				// because Chrome has it's own way of remembering zoom
+				// settings per origin (if vscode-file:// is used) and
+				// we want to ensure that the user configuration wins.
+				webFrame.setZoomLevel(configuration.zoomLevel ?? 0);
+
+				return configuration;
+			}
+		} catch (error) {
+			throw new Error(`Preload: unable to fetch vscode-window-config: ${error}`);
+		}
+	})();
+
+	//#endregion
+
+	//#region Resolve Shell Environment
+
+	/**
+	 * If VSCode is not run from a terminal, we should resolve additional
+	 * shell specific environment from the OS shell to ensure we are seeing
+	 * all development related environment variables. We do this from the
+	 * main process because it may involve spawning a shell.
+	 *
+	 * @type {Promise<typeof process.env>}
+	 */
+	const resolveShellEnv = (async () => {
+
+		// Resolve `userEnv` from configuration and
+		// `shellEnv` from the main side
+		const [userEnv, shellEnv] = await Promise.all([
+			(async () => (await resolveConfiguration).userEnv)(),
+			ipcRenderer.invoke('vscode:fetchShellEnv')
+		]);
+
+		if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
+			// Assign all keys of the shell environment to our process environment
+			// But make sure that the user environment wins in the end over shell environment
+			Object.assign(process.env, shellEnv, userEnv);
+		}
+
+		return { ...process.env, ...shellEnv, ...userEnv };
+	})();
+
+	//#endregion
+
+	//#region Globals Definition
+
 	// #######################################################################
 	// ###                                                                 ###
 	// ###       !!! DO NOT USE GET/SET PROPERTIES ANYWHERE HERE !!!       ###
@@ -17,14 +133,21 @@
 	// ###                                                                 ###
 	// #######################################################################
 
+	/**
+	 * @type {import('../electron-sandbox/globals')}
+	 */
 	const globals = {
 
 		/**
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
 		 *
-		 * @type {import('../electron-sandbox/electronTypes').IpcRenderer}
+		 * @typedef {import('../electron-sandbox/electronTypes').IpcRenderer} IpcRenderer
+		 * @typedef {import('electron').IpcRendererEvent} IpcRendererEvent
+		 *
+		 * @type {IpcRenderer}
 		 */
+
 		ipcRenderer: {
 
 			/**
@@ -50,8 +173,8 @@
 
 			/**
 			 * @param {string} channel
-			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
+			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {IpcRenderer}
 			 */
 			on(channel, listener) {
 				if (validateIPC(channel)) {
@@ -63,8 +186,8 @@
 
 			/**
 			 * @param {string} channel
-			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
+			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {IpcRenderer}
 			 */
 			once(channel, listener) {
 				if (validateIPC(channel)) {
@@ -76,8 +199,8 @@
 
 			/**
 			 * @param {string} channel
-			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
-			 * @returns {import('../electron-sandbox/electronTypes').IpcRenderer}
+			 * @param {(event: IpcRendererEvent, ...args: any[]) => void} listener
+			 * @returns {IpcRenderer}
 			 */
 			removeListener(channel, listener) {
 				if (validateIPC(channel)) {
@@ -100,7 +223,7 @@
 			 */
 			connect(channelRequest, channelResponse, requestNonce) {
 				if (validateIPC(channelRequest) && validateIPC(channelResponse)) {
-					const responseListener = (/** @type {import('electron').IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
+					const responseListener = (/** @type {IpcRendererEvent} */ e, /** @type {string} */ responseNonce) => {
 						// validate that the nonce from the response is the same
 						// as when requested. and if so, use `postMessage` to
 						// send the `MessagePort` safely over, even when context
@@ -157,7 +280,9 @@
 		 * Note: when `sandbox` is enabled, the only properties available
 		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
 		 *
-		 * @type {import('../electron-sandbox/globals').ISandboxNodeProcess}
+		 * @typedef {import('../electron-sandbox/globals').ISandboxNodeProcess} ISandboxNodeProcess
+		 *
+		 * @type {ISandboxNodeProcess}
 		 */
 		process: {
 			get platform() { return process.platform; },
@@ -178,16 +303,8 @@
 			/**
 			 * @returns {Promise<typeof process.env>}
 			 */
-			getShellEnv() {
-				return shellEnv;
-			},
-
-			/**
-			 * @param {{[key: string]: string}} userEnv
-			 * @returns {Promise<void>}
-			 */
-			resolveEnv(userEnv) {
-				return resolveEnv(userEnv);
+			shellEnv() {
+				return resolveShellEnv;
 			},
 
 			/**
@@ -200,7 +317,7 @@
 			/**
 			 * @param {string} type
 			 * @param {Function} callback
-			 * @returns {import('../electron-sandbox/globals').ISandboxNodeProcess}
+			 * @returns {ISandboxNodeProcess}
 			 */
 			on(type, callback) {
 				if (validateProcessEventType(type)) {
@@ -209,6 +326,37 @@
 
 					return this;
 				}
+			}
+		},
+
+		/**
+		 * Some information about the context we are running in.
+		 *
+		 * @type {import('../electron-sandbox/globals').ISandboxContext}
+		 */
+		context: {
+
+			/**
+			 * A configuration object made accessible from the main side
+			 * to configure the sandbox browser window.
+			 *
+			 * Note: intentionally not using a getter here because the
+			 * actual value will be set after `resolveConfiguration`
+			 * has finished.
+			 *
+			 * @returns {ISandboxConfiguration | undefined}
+			 */
+			configuration() {
+				return configuration;
+			},
+
+			/**
+			 * Allows to await the resolution of the configuration object.
+			 *
+			 * @returns {Promise<ISandboxConfiguration>}
+			 */
+			async resolveConfiguration() {
+				return resolveConfiguration;
 			}
 		}
 	};
@@ -231,69 +379,4 @@
 		// @ts-ignore
 		window.vscode = globals;
 	}
-
-	//#region Utilities
-
-	/**
-	 * @param {string} channel
-	 * @returns {true | never}
-	 */
-	function validateIPC(channel) {
-		if (!channel || !channel.startsWith('vscode:')) {
-			throw new Error(`Unsupported event IPC channel '${channel}'`);
-		}
-
-		return true;
-	}
-
-	/**
-	 * @param {string} type
-	 * @returns {type is 'uncaughtException'}
-	 */
-	function validateProcessEventType(type) {
-		if (type !== 'uncaughtException') {
-			throw new Error(`Unsupported process event '${type}'`);
-		}
-
-		return true;
-	}
-
-	/** @type {Promise<typeof process.env> | undefined} */
-	let shellEnv = undefined;
-
-	/**
-	 * If VSCode is not run from a terminal, we should resolve additional
-	 * shell specific environment from the OS shell to ensure we are seeing
-	 * all development related environment variables. We do this from the
-	 * main process because it may involve spawning a shell.
-	 *
-	 * @param {{[key: string]: string}} userEnv
-	 * @returns {Promise<void>}
-	 */
-	async function resolveEnv(userEnv) {
-		if (!shellEnv) {
-
-			// Apply `userEnv` directly
-			Object.assign(process.env, userEnv);
-
-			// Resolve `shellEnv` from the main side
-			shellEnv = new Promise(function (resolve) {
-				ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnvResult) {
-					if (!process.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-						// Assign all keys of the shell environment to our process environment
-						// But make sure that the user environment wins in the end over shell environment
-						Object.assign(process.env, shellEnvResult, userEnv);
-					}
-
-					resolve({ ...process.env, ...shellEnvResult, ...userEnv });
-				});
-
-				ipcRenderer.send('vscode:fetchShellEnv');
-			});
-		}
-
-		await shellEnv;
-	}
-
-	//#endregion
 }());

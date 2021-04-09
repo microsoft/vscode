@@ -27,7 +27,7 @@ export class DebugExtensionHostAction extends Action {
 		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
 
-	async run(): Promise<any> {
+	async override run(): Promise<any> {
 
 		const inspectPort = await this._extensionService.getInspectPort(false);
 		if (!inspectPort) {

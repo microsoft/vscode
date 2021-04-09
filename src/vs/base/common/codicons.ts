@@ -550,7 +550,12 @@ export namespace Codicon {
 	export const debugRerun = new Codicon('debug-rerun', { fontCharacter: '\\ebc0' });
 	export const workspaceTrusted = new Codicon('workspace-trusted', { fontCharacter: '\\ebc1' });
 	export const workspaceUntrusted = new Codicon('workspace-untrusted', { fontCharacter: '\\ebc2' });
-	export const workspaceUnknown = new Codicon('workspace-unknown', { fontCharacter: '\\ebc3' });
+	export const workspaceUnspecified = new Codicon('workspace-unspecified', { fontCharacter: '\\ebc3' });
+	export const terminalCmd = new Codicon('terminal-cmd', { fontCharacter: '\\ebc4' });
+	export const terminalDebian = new Codicon('terminal-debian', { fontCharacter: '\\ebc5' });
+	export const terminalLinux = new Codicon('terminal-linux', { fontCharacter: '\\ebc6' });
+	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
+	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
 
 	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
 }

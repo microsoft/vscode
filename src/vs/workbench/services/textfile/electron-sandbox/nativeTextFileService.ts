@@ -56,7 +56,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService, modeService, logService);
 	}
 
-	protected registerListeners(): void {
+	protected override registerListeners(): void {
 		super.registerListeners();
 
 		// Lifecycle
@@ -75,7 +75,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 	}
 
-	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
+	async override read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
 
 		// ensure size & memory limits
 		options = this.ensureLimits(options);
@@ -83,7 +83,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return super.read(resource, options);
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	async override readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 
 		// ensure size & memory limits
 		options = this.ensureLimits(options);
@@ -119,7 +119,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		return ensuredOptions;
 	}
 
-	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
+	async override write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 
 		// check for `writeElevated property` to write elevated
 		// (file:// only: https://github.com/microsoft/vscode/issues/48659)

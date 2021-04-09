@@ -115,9 +115,6 @@ steps:
       export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
       ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
       yarn electron-rebuild
-      # remove once https://github.com/prebuild/prebuild-install/pull/140 is merged and found in keytar
-      cd ./node_modules/keytar
-      node-gyp rebuild
     displayName: Rebuild native modules for ARM64
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
 
@@ -223,7 +220,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
       ./resources/server/test/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |

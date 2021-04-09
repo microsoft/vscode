@@ -33,7 +33,7 @@ suite('File Service', () => {
 			capabilityChanges.push(e);
 		});
 
-		let registrationDisposable: IDisposable | undefined = undefined;
+		let registrationDisposable: IDisposable | undefined;
 		let callCount = 0;
 		service.onWillActivateFileSystemProvider(e => {
 			callCount++;
@@ -141,7 +141,7 @@ suite('File Service', () => {
 		const service = new FileService(new NullLogService());
 
 		const provider = new class extends NullFileSystemProvider {
-			async stat(resource: URI): Promise<IStat> {
+			async override stat(resource: URI): Promise<IStat> {
 				return {
 					mtime: Date.now(),
 					ctime: Date.now(),
@@ -150,7 +150,7 @@ suite('File Service', () => {
 				};
 			}
 
-			readFile(resource: URI): Promise<Uint8Array> {
+			override readFile(resource: URI): Promise<Uint8Array> {
 				if (async) {
 					return timeout(5).then(() => { throw new Error('failed'); });
 				}
@@ -158,7 +158,7 @@ suite('File Service', () => {
 				throw new Error('failed');
 			}
 
-			open(resource: URI, opts: FileOpenOptions): Promise<number> {
+			override open(resource: URI, opts: FileOpenOptions): Promise<number> {
 				if (async) {
 					return timeout(5).then(() => { throw new Error('failed'); });
 				}

@@ -64,7 +64,7 @@ class ReplaceAllAction extends Action {
 		this._searchWidget = searchWidget;
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		if (this._searchWidget) {
 			return this._searchWidget.triggerReplaceAll();
 		}
@@ -653,7 +653,7 @@ export class SearchWidget extends Widget {
 		this.onContextLinesChanged();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.setReplaceAllActionState(false);
 		super.dispose();
 	}

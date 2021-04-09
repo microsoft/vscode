@@ -11,8 +11,6 @@
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
- *   fakeLoad?: boolean,
- *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
  *   onElectron?: boolean,
  *   useParentPostMessage: boolean,
  * }} WebviewHost
@@ -150,13 +148,13 @@
 	 */
 	function getVsCodeApiScript(allowMultipleAPIAcquire, useParentPostMessage, state) {
 		const encodedState = state ? encodeURIComponent(state) : undefined;
-		return `
+		return /* js */`
 			globalThis.acquireVsCodeApi = (function() {
 				const originalPostMessage = window.parent['${useParentPostMessage ? 'postMessage' : vscodePostMessageFuncName}'].bind(window.parent);
-				const doPostMessage = (channel, data) => {
+				const doPostMessage = (channel, data, transfer) => {
 					${useParentPostMessage
-				? `originalPostMessage({ command: channel, data: data }, '*');`
-				: `originalPostMessage(channel, data);`
+				? `originalPostMessage({ command: channel, data: data }, '*', transfer);`
+				: `originalPostMessage(channel, data, transfer);`
 			}
 				};
 
@@ -170,8 +168,8 @@
 					}
 					acquired = true;
 					return Object.freeze({
-						postMessage: function(msg) {
-							doPostMessage('onmessage', msg);
+						postMessage: function(message, transfer) {
+							doPostMessage('onmessage', { message, transfer }, transfer);
 						},
 						setState: function(newState) {
 							state = newState;
@@ -197,11 +195,87 @@
 		// state
 		let firstLoad = true;
 		let loadTimeout;
+		/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
 		let pendingMessages = [];
 
 		const initData = {
 			initialScrollProgress: undefined,
 		};
+
+		function fatalError(/** @type {string} */ message) {
+			console.error(`Webview fatal error: ${message}`);
+			host.postMessage('fatal-error', { message });
+		}
+
+		/** @type {Promise<void>} */
+		const workerReady = new Promise(async (resolveWorkerReady) => {
+			// if (onElectron) {
+			// 	return resolveWorkerReady();
+			// }
+
+			if (!areServiceWorkersEnabled()) {
+				fatalError('Service Workers are not enabled in browser. Webviews will not work.');
+				return resolveWorkerReady();
+			}
+
+			const expectedWorkerVersion = 1;
+
+			navigator.serviceWorker.register(`service-worker.js${self.location.search}`).then(
+				async registration => {
+					await navigator.serviceWorker.ready;
+
+					const versionHandler = (event) => {
+						if (event.data.channel !== 'version') {
+							return;
+						}
+
+						navigator.serviceWorker.removeEventListener('message', versionHandler);
+						if (event.data.version === expectedWorkerVersion) {
+							return resolveWorkerReady();
+						} else {
+							// If we have the wrong version, try once to unregister and re-register
+							return registration.update()
+								.then(() => navigator.serviceWorker.ready)
+								.finally(resolveWorkerReady);
+						}
+					};
+					navigator.serviceWorker.addEventListener('message', versionHandler);
+					registration.active.postMessage({ channel: 'version' });
+				},
+				error => {
+					fatalError(`Could not register service workers: ${error}.`);
+					resolveWorkerReady();
+				});
+
+			const forwardFromHostToWorker = (channel) => {
+				host.onMessage(channel, (_event, data) => {
+					navigator.serviceWorker.ready.then(registration => {
+						registration.active.postMessage({ channel, data });
+					});
+				});
+			};
+
+			host.onMessage('did-load-resource', (_event, data) => {
+				navigator.serviceWorker.ready.then(registration => {
+					registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+				});
+			});
+
+			host.onMessage('did-load-localhost', (_event, data) => {
+				navigator.serviceWorker.ready.then(registration => {
+					registration.active.postMessage({ channel: 'did-load-localhost', data });
+				});
+			});
+
+			navigator.serviceWorker.addEventListener('message', event => {
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						host.postMessage(event.data.channel, event.data);
+						return;
+				}
+			});
+		});
 
 		/**
 		 * @param {HTMLDocument?} document
@@ -248,10 +322,11 @@
 				return;
 			}
 
-			let baseElement = event.view.document.getElementsByTagName('base')[0];
-			/** @type {any} */
-			let node = event.target;
-			while (node) {
+			const baseElement = event.view.document.getElementsByTagName('base')[0];
+
+			for (const pathElement of event.composedPath()) {
+				/** @type {any} */
+				const node = pathElement;
 				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 					if (node.getAttribute('href') === '#') {
 						event.view.scrollTo(0, 0);
@@ -264,9 +339,8 @@
 						host.postMessage('did-click-link', node.href.baseVal || node.href);
 					}
 					event.preventDefault();
-					break;
+					return;
 				}
-				node = node.parentNode;
 			}
 		};
 
@@ -281,13 +355,13 @@
 				}
 
 				if (event.button === 1) {
-					let node = /** @type {any} */ (event.target);
-					while (node) {
+					for (const pathElement of event.composedPath()) {
+						/** @type {any} */
+						const node = pathElement;
 						if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 							event.preventDefault();
-							break;
+							return;
 						}
-						node = node.parentNode;
 					}
 				}
 			};
@@ -433,7 +507,10 @@
 				host.postMessage('no-csp-found');
 			} else {
 				try {
-					csp.setAttribute('content', host.rewriteCSP(csp.getAttribute('content'), data.endpoint));
+					// Attempt to rewrite CSPs that hardcode old-style resource endpoint
+					const endpointUrl = new URL(data.resourceEndpoint);
+					const newCsp = csp.getAttribute('content').replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
+					csp.setAttribute('content', newCsp);
 				} catch (e) {
 					console.error(`Could not rewrite csp: ${e}`);
 				}
@@ -488,7 +565,7 @@
 			let updateId = 0;
 			host.onMessage('content', async (_event, data) => {
 				const currentUpdateId = ++updateId;
-				await host.ready;
+				await workerReady;
 				if (currentUpdateId !== updateId) {
 					return;
 				}
@@ -533,22 +610,14 @@
 				newFrame.setAttribute('frameborder', '0');
 				newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
 				newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
-				if (host.fakeLoad) {
-					// We should just be able to use srcdoc, but I wasn't
-					// seeing the service worker applying properly.
-					// Fake load an empty on the correct origin and then write real html
-					// into it to get around this.
-					newFrame.src = `./fake.html?id=${ID}`;
-				} else {
-					newFrame.src = `about:blank?webviewFrame`;
-				}
+				// We should just be able to use srcdoc, but I wasn't
+				// seeing the service worker applying properly.
+				// Fake load an empty on the correct origin and then write real html
+				// into it to get around this.
+				newFrame.src = `./fake.html?id=${ID}`;
+
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
-
-				if (!host.fakeLoad) {
-					// write new content onto iframe
-					newFrame.contentDocument.open();
-				}
 
 				/**
 				 * @param {Document} contentDocument
@@ -556,19 +625,18 @@
 				function onFrameLoaded(contentDocument) {
 					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
 					setTimeout(() => {
-						if (host.fakeLoad) {
-							contentDocument.open();
-							contentDocument.write(newDocument);
-							contentDocument.close();
-							hookupOnLoadHandlers(newFrame);
-						}
+						contentDocument.open();
+						contentDocument.write(newDocument);
+						contentDocument.close();
+						hookupOnLoadHandlers(newFrame);
+
 						if (contentDocument) {
 							applyStyles(contentDocument, contentDocument.body);
 						}
 					}, 0);
 				}
 
-				if (host.fakeLoad && !options.allowScripts && isSafari) {
+				if (!options.allowScripts && isSafari) {
 					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
 					// Use polling instead.
 					const interval = setInterval(() => {
@@ -622,8 +690,8 @@
 							contentWindow.focus();
 						}
 
-						pendingMessages.forEach((data) => {
-							contentWindow.postMessage(data, '*');
+						pendingMessages.forEach((message) => {
+							contentWindow.postMessage(message.message, '*', message.transfer);
 						});
 						pendingMessages = [];
 					}
@@ -665,25 +733,16 @@
 					}
 				}
 
-				if (!host.fakeLoad) {
-					hookupOnLoadHandlers(newFrame);
-				}
-
-				if (!host.fakeLoad) {
-					newFrame.contentDocument.write(newDocument);
-					newFrame.contentDocument.close();
-				}
-
 				host.postMessage('did-set-content', undefined);
 			});
 
 			// Forward message to the embedded iframe
-			host.onMessage('message', (_event, data) => {
+			host.onMessage('message', (_event, /** @type {{message: any, transfer?: ArrayBuffer[] }} */ data) => {
 				const pending = getPendingFrame();
 				if (!pending) {
 					const target = getActiveFrame();
 					if (target) {
-						target.contentWindow.postMessage(data, '*');
+						target.contentWindow.postMessage(data.message, '*', data.transfer);
 						return;
 					}
 				}
@@ -707,7 +766,7 @@
 				onBlur: () => host.postMessage('did-blur')
 			});
 
-			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (command, data) => {
+			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (command, data, transfer) => {
 				switch (command) {
 					case 'onmessage':
 					case 'do-update-state':
@@ -719,6 +778,14 @@
 			// signal ready
 			host.postMessage('webview-ready', {});
 		});
+	}
+
+	function areServiceWorkersEnabled() {
+		try {
+			return !!navigator.serviceWorker;
+		} catch (e) {
+			return false;
+		}
 	}
 
 	if (typeof module !== 'undefined') {

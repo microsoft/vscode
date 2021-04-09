@@ -18,20 +18,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
-
-export interface IShellLaunchConfigDto {
-	name?: string;
-	executable?: string;
-	args?: string[] | string;
-	cwd?: string | UriComponents;
-	env?: { [key: string]: string | null; };
-	hideFromUser?: boolean;
-}
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -103,6 +94,9 @@ export class RemoteTerminalChannelClient {
 	}
 	public get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
+	}
+	public get onProcessBinary(): Event<{ id: number, event: string }> {
+		return this._channel.listen<{ id: number, event: string }>('$onProcessBinary');
 	}
 	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
@@ -241,11 +235,15 @@ export class RemoteTerminalChannelClient {
 	public attachToProcess(id: number): Promise<void> {
 		return this._channel.call('$attachToProcess', [id]);
 	}
-
-	public listProcesses(reduceGraceTime: boolean): Promise<IProcessDetails[]> {
-		return this._channel.call('$listProcesses', [reduceGraceTime]);
+	public listProcesses(): Promise<IProcessDetails[]> {
+		return this._channel.call('$listProcesses');
 	}
-
+	public reduceConnectionGraceTime(): Promise<void> {
+		return this._channel.call('$reduceConnectionGraceTime');
+	}
+	public processBinary(id: number, data: string): Promise<void> {
+		return this._channel.call('$processBinary', [id, data]);
+	}
 	public start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);
 	}
@@ -270,7 +268,6 @@ export class RemoteTerminalChannelClient {
 	public orphanQuestionReply(id: number): Promise<void> {
 		return this._channel.call('$orphanQuestionReply', [id]);
 	}
-
 	public sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
 		return this._channel.call<void>('$sendCommandResult', [reqId, isError, payload]);
 	}

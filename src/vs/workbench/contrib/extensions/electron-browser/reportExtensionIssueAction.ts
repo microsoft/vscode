@@ -40,7 +40,7 @@ export class ReportExtensionIssueAction extends Action {
 		this.enabled = extension.description.isBuiltin || (!!extension.description.repository && !!extension.description.repository.url);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		if (!this._url) {
 			this._url = await this._generateNewIssueUrl(this.extension);
 		}

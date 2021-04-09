@@ -28,11 +28,11 @@ suite('MainThreadWorkspace', () => {
 	test('simple', () => {
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.equal(query.folderQueries.length, 1);
-				assert.equal(query.folderQueries[0].disregardIgnoreFiles, true);
+				assert.strictEqual(query.folderQueries.length, 1);
+				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
 
 				assert.deepEqual(query.includePattern, { 'foo': true });
-				assert.equal(query.maxResults, 10);
+				assert.strictEqual(query.maxResults, 10);
 
 				return Promise.resolve({ results: [] });
 			}
@@ -52,9 +52,9 @@ suite('MainThreadWorkspace', () => {
 
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.equal(query.folderQueries.length, 1);
-				assert.equal(query.folderQueries[0].disregardIgnoreFiles, true);
-				assert.deepEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
+				assert.strictEqual(query.folderQueries.length, 1);
+				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, { 'filesExclude': true });
 
 				return Promise.resolve({ results: [] });
 			}
@@ -74,8 +74,8 @@ suite('MainThreadWorkspace', () => {
 
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.equal(query.folderQueries[0].excludePattern, undefined);
-				assert.deepEqual(query.excludePattern, undefined);
+				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
+				assert.deepStrictEqual(query.excludePattern, undefined);
 
 				return Promise.resolve({ results: [] });
 			}
@@ -88,7 +88,7 @@ suite('MainThreadWorkspace', () => {
 	test('exclude string', () => {
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.equal(query.folderQueries[0].excludePattern, undefined);
+				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
 				assert.deepEqual(query.excludePattern, { 'exclude/**': true });
 
 				return Promise.resolve({ results: [] });

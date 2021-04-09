@@ -188,7 +188,7 @@ class SelectionTrait<T> extends Trait<T> {
 		super('selected');
 	}
 
-	renderIndex(index: number, container: HTMLElement): void {
+	override renderIndex(index: number, container: HTMLElement): void {
 		super.renderIndex(index, container);
 
 		if (this.setAriaSelected) {

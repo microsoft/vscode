@@ -57,7 +57,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		this.callbacks = callbacks;
 	}
 
-	getTitle(): string {
+	override getTitle(): string {
 		return this.input ? this.input.getName() : localize('binaryEditor', "Binary Viewer");
 	}
 
@@ -74,7 +74,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
 
@@ -118,7 +118,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		return this.metadata;
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 
 		// Clear Meta
 		this.handleMetadataChanged(undefined);
@@ -144,13 +144,13 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		}
 	}
 
-	focus(): void {
+	override focus(): void {
 		const binaryContainer = assertIsDefined(this.binaryContainer);
 
 		binaryContainer.focus();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (this.binaryContainer) {
 			this.binaryContainer.remove();
 		}

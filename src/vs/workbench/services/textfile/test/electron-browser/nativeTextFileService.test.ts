@@ -54,7 +54,7 @@ suite('Files - NativeTextFileService', function () {
 	test('shutdown joins on pending saves', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
-		await model.load();
+		await model.resolve();
 
 		let pendingSaveAwaited = false;
 		model.save().then(() => pendingSaveAwaited = true);

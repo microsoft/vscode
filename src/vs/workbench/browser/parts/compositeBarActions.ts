@@ -101,7 +101,7 @@ export class ActivityAction extends Action {
 		this._onDidChangeBadge.fire(this);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._onDidChangeActivity.dispose();
 		this._onDidChangeBadge.dispose();
 
@@ -195,7 +195,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 
 		this.container = container;
@@ -326,7 +326,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateTitle(title);
 	}
 
-	protected updateLabel(): void {
+	protected override updateLabel(): void {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
@@ -352,7 +352,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.mouseUpTimeout) {
@@ -375,7 +375,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.showMenu();
 	}
 }
@@ -434,7 +434,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.actions) {
@@ -451,7 +451,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', localize('manageExtension', "Manage Extension"));
 	}
 
-	run(id: string): Promise<void> {
+	override run(id: string): Promise<void> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -497,7 +497,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	protected get activity(): IActivity {
+	protected override get activity(): IActivity {
 		if (!this.compositeActivity) {
 			this.compositeActivity = {
 				...this.compositeActivityAction.activity,
@@ -517,7 +517,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		return keybinding ? localize('titleKeybinding', "{0} ({1})", name, keybinding.getLabel()) : name;
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 
 		this.updateChecked();
@@ -652,7 +652,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		});
 	}
 
-	protected updateChecked(): void {
+	protected override updateChecked(): void {
 		if (this.getAction().checked) {
 			this.container.classList.add('checked');
 			this.container.setAttribute('aria-label', this.container.title);
@@ -667,7 +667,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this.updateStyles();
 	}
 
-	protected updateEnabled(): void {
+	protected override updateEnabled(): void {
 		if (!this.element) {
 			return;
 		}
@@ -679,7 +679,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.label.remove();
 	}
@@ -696,7 +696,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = !!this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	async run(context: string): Promise<void> {
+	async override run(context: string): Promise<void> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {

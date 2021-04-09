@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Range } from 'vs/editor/common/core/range';
 import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 suite('NotebookTextModel', () => {
 	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('insert', async function () {
@@ -26,14 +27,14 @@ suite('NotebookTextModel', () => {
 				const viewModel = editor.viewModel;
 				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 6);
+				assert.strictEqual(textModel.cells.length, 6);
 
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[4].getValue(), 'var f = 6;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[4].getValue(), 'var f = 6;');
 			}
 		);
 	});
@@ -50,14 +51,14 @@ suite('NotebookTextModel', () => {
 				const viewModel = editor.viewModel;
 				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 6);
+				assert.strictEqual(textModel.cells.length, 6);
 
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var f = 6;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var f = 6;');
 			}
 		);
 	});
@@ -77,8 +78,8 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var c = 3;');
 			}
 		);
 	});
@@ -96,13 +97,13 @@ suite('NotebookTextModel', () => {
 				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells.length, 4);
 
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[2].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var e = 5;');
 			}
 		);
 	});
@@ -120,13 +121,13 @@ suite('NotebookTextModel', () => {
 				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 4);
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
 			}
 		);
 	});
@@ -143,13 +144,13 @@ suite('NotebookTextModel', () => {
 				const viewModel = editor.viewModel;
 				const textModel = editor.viewModel.notebookDocument;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 4);
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
 			}
 		);
 	});
@@ -265,9 +266,9 @@ suite('NotebookTextModel', () => {
 					metadata: { editable: false },
 				}], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 1);
-				assert.equal(textModel.cells[0].metadata?.editable, false);
-				assert.equal(textModel.cells[0].metadata?.executionOrder, undefined);
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].metadata?.editable, false);
+				assert.strictEqual(textModel.cells[0].metadata?.executionOrder, undefined);
 			}
 		);
 	});
@@ -318,18 +319,18 @@ suite('NotebookTextModel', () => {
 
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
-				assert.equal(textModel.cells.length, 4);
-				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
-				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
-				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
+				assert.strictEqual(textModel.cells.length, 4);
+				assert.strictEqual(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.strictEqual(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.strictEqual(textModel.cells[2].getValue(), 'var c = 3;');
 
-				assert.notEqual(changeEvent, undefined);
-				assert.equal(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
-				assert.equal(textModel.versionId, version + 1);
+				assert.notStrictEqual(changeEvent, undefined);
+				assert.strictEqual(changeEvent!.rawEvents.length, 2);
+				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
 		);
@@ -360,10 +361,10 @@ suite('NotebookTextModel', () => {
 					}
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
-				assert.notEqual(changeEvent, undefined);
-				assert.equal(changeEvent!.rawEvents.length, 2);
-				assert.deepEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
-				assert.equal(textModel.versionId, version + 1);
+				assert.notStrictEqual(changeEvent, undefined);
+				assert.strictEqual(changeEvent!.rawEvents.length, 2);
+				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
 			}
 		);
@@ -472,6 +473,19 @@ suite('NotebookTextModel', () => {
 				assert.ok(success);
 				assert.ok(event === undefined);
 			}
+		});
+	});
+
+	test('Cell text model update increases notebook model version id #119561', function () {
+		withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+			['var b = 2;', 'javascript', CellKind.Code, [], { editable: true }]
+		], async (editor) => {
+			const textModel = await editor.viewModel.cellAt(0)!.resolveTextModel();
+			assert.ok(textModel !== undefined);
+			assert.strictEqual(editor.viewModel.getVersionId(), 0);
+			textModel.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'x' }], true);
+			assert.strictEqual(editor.viewModel.getVersionId(), 1);
 		});
 	});
 });

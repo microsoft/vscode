@@ -41,7 +41,7 @@ suite('BackupTracker (browser)', function () {
 			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, logService);
 		}
 
-		protected getBackupScheduleDelay(): number {
+		protected override getBackupScheduleDelay(): number {
 			return 10; // Reduce timeout for tests
 		}
 	}
@@ -53,7 +53,7 @@ suite('BackupTracker (browser)', function () {
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IBackupFileService, backupFileService);
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 
 		disposables.add(registerTestResourceEditor());
 
@@ -63,8 +63,6 @@ suite('BackupTracker (browser)', function () {
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-
-		await part.whenRestored;
 
 		const tracker = disposables.add(instantiationService.createInstance(TestBackupTracker));
 
@@ -79,7 +77,7 @@ suite('BackupTracker (browser)', function () {
 		const untitledModel = await untitledEditor.resolve();
 
 		if (!untitled?.contents) {
-			untitledModel.textEditorModel.setValue('Super Good');
+			untitledModel.textEditorModel?.setValue('Super Good');
 		}
 
 		await backupFileService.joinBackupResource();
@@ -116,7 +114,7 @@ suite('BackupTracker (browser)', function () {
 				accessor.workingCopyService.registerWorkingCopy(this);
 			}
 
-			async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+			async override backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 				await timeout(this.backupDelay);
 
 				return {};

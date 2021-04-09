@@ -419,7 +419,7 @@ export class Selection extends Range {
 		return this._anchor === this._end;
 	}
 
-	toJSON() {
+	override toJSON() {
 		return {
 			start: this.start,
 			end: this.end,
@@ -2922,6 +2922,22 @@ export class NotebookCellRange {
 		this._start = start;
 		this._end = end;
 	}
+
+	with(change: { start?: number, end?: number }): NotebookCellRange {
+		let start = this._start;
+		let end = this._end;
+
+		if (change.start !== undefined) {
+			start = change.start;
+		}
+		if (change.end !== undefined) {
+			end = change.end;
+		}
+		if (start === this._start && end === this._end) {
+			return this;
+		}
+		return new NotebookCellRange(start, end);
+	}
 }
 
 export class NotebookCellMetadata {
@@ -3223,7 +3239,7 @@ export class LinkedEditingRanges {
 }
 
 //#region Testing
-export enum TestResult {
+export enum TestResultState {
 	Unset = 0,
 	Queued = 1,
 	Running = 2,
@@ -3368,13 +3384,6 @@ export class TestItem implements vscode.TestItem {
 	}
 }
 
-export class TestState implements vscode.TestState {
-	public messages: TestMessage[] = [];
-	public duration?: number;
-
-	constructor(public state: TestResult) { }
-}
-
 export class TestMessage implements vscode.TestMessage {
 	public severity = TestMessageSeverity.Error;
 	public expectedOutput?: string;
@@ -3402,7 +3411,7 @@ export enum ExternalUriOpenerPriority {
 export enum WorkspaceTrustState {
 	Untrusted = 0,
 	Trusted = 1,
-	Unknown = 2
+	Unspecified = 2
 }
 
 export enum PortAutoForwardAction {

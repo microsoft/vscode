@@ -361,7 +361,7 @@ class PatternBuilder {
 }
 
 class TasksMockContextKeyService extends MockContextKeyService {
-	public getContext(domNode: HTMLElement): IContext {
+	public override getContext(domNode: HTMLElement): IContext {
 		return {
 			getValue: <T>(_key: string) => {
 				return <T><unknown>true;
@@ -499,13 +499,13 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 		assert.strictEqual(actual.runtime, expected.runtime, 'runtime type');
 		assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
 		assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
-		assert.deepEqual(actual.args, expected.args, 'args');
+		assert.deepStrictEqual(actual.args, expected.args, 'args');
 		assert.strictEqual(typeof actual.options, typeof expected.options);
 		if (actual.options && expected.options) {
 			assert.strictEqual(actual.options.cwd, expected.options.cwd, 'cwd');
 			assert.strictEqual(typeof actual.options.env, typeof expected.options.env, 'env');
 			if (actual.options.env && expected.options.env) {
-				assert.deepEqual(actual.options.env, expected.options.env, 'env');
+				assert.deepStrictEqual(actual.options.env, expected.options.env, 'env');
 			}
 		}
 	}
@@ -556,7 +556,7 @@ function assertProblemPatterns(actual: ProblemPattern | ProblemPattern[], expect
 }
 
 function assertProblemPattern(actual: ProblemPattern, expected: ProblemPattern) {
-	assert.equal(actual.regexp.toString(), expected.regexp.toString());
+	assert.strictEqual(actual.regexp.toString(), expected.regexp.toString());
 	assert.strictEqual(actual.file, expected.file);
 	assert.strictEqual(actual.message, expected.message);
 	if (typeof expected.location !== 'undefined') {

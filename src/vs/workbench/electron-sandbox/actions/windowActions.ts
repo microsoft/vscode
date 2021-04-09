@@ -35,7 +35,7 @@ export class CloseCurrentWindowAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.nativeHostService.closeWindow();
 	}
 }
@@ -81,7 +81,7 @@ export class ZoomInAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.setConfiguredZoomLevel(getZoomLevel() + 1);
 	}
 }
@@ -99,7 +99,7 @@ export class ZoomOutAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.setConfiguredZoomLevel(getZoomLevel() - 1);
 	}
 }
@@ -117,7 +117,7 @@ export class ZoomResetAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.setConfiguredZoomLevel(0);
 	}
 }
@@ -149,7 +149,7 @@ export abstract class BaseSwitchWindow extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		const currentWindowId = this.nativeHostService.windowId;
 
 		const windows = await this.nativeHostService.getWindows();

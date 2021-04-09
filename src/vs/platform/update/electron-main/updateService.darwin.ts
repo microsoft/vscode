@@ -40,7 +40,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	initialize(): void {
+	override initialize(): void {
 		super.initialize();
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
@@ -110,7 +110,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		this.setState(State.Idle(UpdateType.Archive));
 	}
 
-	protected doQuitAndInstall(): void {
+	protected override doQuitAndInstall(): void {
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 		electron.autoUpdater.quitAndInstall();
 	}

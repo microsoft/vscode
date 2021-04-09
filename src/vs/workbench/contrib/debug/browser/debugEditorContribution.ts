@@ -237,6 +237,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			DebugEditorContribution.MEMOIZER.clear();
 			this.updateInlineValuesScheduler.schedule();
 		}));
+		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
@@ -249,7 +250,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			DebugEditorContribution.MEMOIZER.clear();
 			await this.updateInlineValueDecorations(stackFrame);
 		}));
-		this.toDispose.push(this.editor.onDidScrollChange(() => this.hideHoverWidget));
+		this.toDispose.push(this.editor.onDidScrollChange(() => {
+			this.hideHoverWidget();
+
+			// Inline value provider should get called on view port change
+			const model = this.editor.getModel();
+			if (model && InlineValuesProviderRegistry.has(model)) {
+				this.updateInlineValuesScheduler.schedule();
+			}
+		}));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
 			if (state !== State.Stopped) {
 				this.toggleExceptionWidget();
@@ -575,8 +584,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const separator = ', ';
 
 		const model = this.editor.getModel();
-		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
-			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
+		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
+		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && InlineValuesProviderRegistry.has(model));
+		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
 			}

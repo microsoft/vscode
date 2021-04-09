@@ -501,7 +501,7 @@ export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
 	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
-	inlineValues: boolean;
+	inlineValues: boolean | 'auto';
 	toolBarLocation: 'floating' | 'docked' | 'hidden';
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
@@ -931,7 +931,7 @@ export interface IDebugService {
 	/**
 	 * Stops the session. If no session is specified then all sessions are stopped.
 	 */
-	stopSession(session: IDebugSession | undefined): Promise<any>;
+	stopSession(session: IDebugSession | undefined, disconnect?: boolean): Promise<any>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.

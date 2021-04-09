@@ -197,16 +197,16 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
 
-	protected createHeader(): void {
+	protected override createHeader(): void {
 		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyWorkspaceSettingsHeader', "Place your settings here to override the User Settings."));
 	}
 
-	setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
+	override setAssociatedPreferencesModel(associatedPreferencesModel: IPreferencesEditorModel<ISetting>): void {
 		super.setAssociatedPreferencesModel(associatedPreferencesModel);
 		this.workspaceConfigurationRenderer.render(this.getAssociatedPreferencesModel());
 	}
 
-	render(): void {
+	override render(): void {
 		super.render();
 		this.workspaceConfigurationRenderer.render(this.getAssociatedPreferencesModel());
 	}
@@ -223,7 +223,7 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
 	}
 
-	protected createHeader(): void {
+	protected override createHeader(): void {
 		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to override those from the Workspace Settings."));
 	}
 
@@ -521,7 +521,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 		this.renderDisposables.clear();
 	}
 
-	dispose() {
+	override dispose() {
 		this.disposeWidgets();
 		super.dispose();
 	}
@@ -542,7 +542,7 @@ export class HiddenAreasRenderer extends Disposable {
 		this.editor.setHiddenAreas(ranges);
 	}
 
-	dispose() {
+	override dispose() {
 		this.editor.setHiddenAreas([]);
 		super.dispose();
 	}
@@ -593,7 +593,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		return notMatchesRanges;
 	}
 
-	dispose() {
+	override dispose() {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}
@@ -619,7 +619,7 @@ export class HighlightMatchesRenderer extends Disposable {
 		};
 	}
 
-	dispose() {
+	override dispose() {
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}
@@ -1068,7 +1068,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		};
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
 		super.dispose();
 	}
@@ -1139,7 +1139,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		};
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();

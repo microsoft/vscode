@@ -148,7 +148,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 	}
 
-	public dispose(immediate: boolean = false): void {
+	public override dispose(immediate: boolean = false): void {
 		this._isDisposed = true;
 		if (this._process) {
 			// If the process was still connected this dispose came from
@@ -376,16 +376,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			shellLaunchConfig.executable = defaultConfig.shell;
 			shellLaunchConfig.args = defaultConfig.args;
 		} else {
-			shellLaunchConfig.executable = this._configurationResolverService.resolve(lastActiveWorkspace, shellLaunchConfig.executable);
+			shellLaunchConfig.executable = await this._configurationResolverService.resolveAsync(lastActiveWorkspace, shellLaunchConfig.executable);
 			if (shellLaunchConfig.args) {
 				if (Array.isArray(shellLaunchConfig.args)) {
 					const resolvedArgs: string[] = [];
 					for (const arg of shellLaunchConfig.args) {
-						resolvedArgs.push(this._configurationResolverService.resolve(lastActiveWorkspace, arg));
+						resolvedArgs.push(await this._configurationResolverService.resolveAsync(lastActiveWorkspace, arg));
 					}
 					shellLaunchConfig.args = resolvedArgs;
 				} else {
-					shellLaunchConfig.args = this._configurationResolverService.resolve(lastActiveWorkspace, shellLaunchConfig.args);
+					shellLaunchConfig.args = await this._configurationResolverService.resolveAsync(lastActiveWorkspace, shellLaunchConfig.args);
 				}
 			}
 		}
@@ -497,6 +497,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// If the pty is not ready, queue the data received to send later
 			this._preLaunchInputQueue.push(data);
 		}
+	}
+
+	public async processBinary(data: string): Promise<void> {
+		await this.ptyProcessReady;
+		this._dataFilter.triggerSwap();
+		this._hasWrittenData = true;
+		this._process?.processBinary(data);
 	}
 
 	public getInitialCwd(): Promise<string> {

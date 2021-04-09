@@ -15,7 +15,6 @@ import { getExtensionId } from 'vs/platform/extensionManagement/common/extension
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -85,11 +84,10 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@ILocalizationsService localizationsService: ILocalizationsService,
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService
 	) {
-		super(extensionManagementService, extensionGalleryService, localizationsService);
+		super(extensionManagementService, extensionGalleryService);
 
 		const remoteAuthority = envService.remoteAuthority;
 		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;
@@ -97,11 +95,11 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 		this._extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
-	protected get location(): string | undefined {
+	protected override get location(): string | undefined {
 		return this._location;
 	}
 
-	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
+	protected override validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
 		if (!this._extensionKindController.canExecuteOnWorkspace(manifest)) {
 			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;

@@ -8,9 +8,9 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ExtHostContext, ExtHostTerminalServiceShape, IExtHostContext, IShellLaunchConfigDto, ITerminalDimensionsDto, MainContext, MainThreadTerminalServiceShape, TerminalIdentifier, TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, IExtHostContext, ITerminalDimensionsDto, MainContext, MainThreadTerminalServiceShape, TerminalIdentifier, TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -100,9 +100,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public dispose(): void {
 		this._toDispose.dispose();
 		this._linkProvider?.dispose();
-
-		// TODO@Daniel: Should all the previously created terminals be disposed
-		// when the extension host process goes down ?
 	}
 
 	private _getTerminalId(id: TerminalIdentifier): number | undefined {
@@ -126,6 +123,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			executable: launchConfig.shellPath,
 			args: launchConfig.shellArgs,
 			cwd: typeof launchConfig.cwd === 'string' ? launchConfig.cwd : URI.revive(launchConfig.cwd),
+			icon: launchConfig.icon,
+			initialText: launchConfig.initialText,
 			waitOnExit: launchConfig.waitOnExit,
 			ignoreConfigurationCwd: true,
 			env: launchConfig.env,
@@ -157,17 +156,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $dispose(id: TerminalIdentifier): void {
-		const terminalInstance = this._getTerminalInstance(id);
-		if (terminalInstance) {
-			terminalInstance.dispose();
-		}
+		this._getTerminalInstance(id)?.dispose();
 	}
 
 	public $sendText(id: TerminalIdentifier, text: string, addNewLine: boolean): void {
-		const terminalInstance = this._getTerminalInstance(id);
-		if (terminalInstance) {
-			terminalInstance.sendText(text, addNewLine);
-		}
+		this._getTerminalInstance(id)?.sendText(text, addNewLine);
 	}
 
 	public $startSendingDataEvents(): void {
@@ -183,10 +176,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $stopSendingDataEvents(): void {
-		if (this._dataEventTracker) {
-			this._dataEventTracker.dispose();
-			this._dataEventTracker = undefined;
-		}
+		this._dataEventTracker?.dispose();
+		this._dataEventTracker = undefined;
 	}
 
 	public $startLinkProvider(): void {
@@ -276,60 +267,35 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $sendProcessTitle(terminalId: number, title: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitTitle(title);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitTitle(title);
 	}
 
 	public $sendProcessData(terminalId: number, data: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitData(data);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitData(data);
 	}
 
 	public $sendProcessReady(terminalId: number, pid: number, cwd: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitReady(pid, cwd);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitReady(pid, cwd);
 	}
 
 	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitExit(exitCode);
-			this._terminalProcessProxies.delete(terminalId);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitExit(exitCode);
 	}
 
 	public $sendOverrideDimensions(terminalId: number, dimensions: ITerminalDimensions | undefined): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitOverrideDimensions(dimensions);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitOverrideDimensions(dimensions);
 	}
 
 	public $sendProcessInitialCwd(terminalId: number, initialCwd: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitInitialCwd(initialCwd);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitInitialCwd(initialCwd);
 	}
 
 	public $sendProcessCwd(terminalId: number, cwd: string): void {
-		const terminalProcess = this._terminalProcessProxies.get(terminalId);
-		if (terminalProcess) {
-			terminalProcess.emitCwd(cwd);
-		}
+		this._terminalProcessProxies.get(terminalId)?.emitCwd(cwd);
 	}
 
 	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
-		const instance = this._terminalService.getInstanceFromId(terminalId);
-		if (instance) {
-			this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
-		}
+		this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
 	}
 
 	private async _onRequestLatency(terminalId: number): Promise<void> {
@@ -350,12 +316,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		if (conn) {
 			return this._remoteAuthority === conn.remoteAuthority;
 		}
-		return true;
+		return this._extHostKind !== ExtensionHostKind.LocalWebWorker;
 	}
 
 	private async _onRequestAvailableProfiles(req: IAvailableProfilesRequest): Promise<void> {
-		if (this._isPrimaryExtHost() && this._extHostKind !== ExtensionHostKind.LocalWebWorker) {
-			req.callback(await this._proxy.$getAvailableProfiles(req.quickLaunchOnly));
+		if (this._isPrimaryExtHost()) {
+			req.callback(await this._proxy.$getAvailableProfiles(req.configuredProfilesOnly));
 		}
 	}
 

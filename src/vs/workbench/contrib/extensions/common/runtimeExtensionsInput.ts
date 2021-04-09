@@ -29,15 +29,15 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return RuntimeExtensionsInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	supportsSplitEditor(): boolean {
+	override supportsSplitEditor(): boolean {
 		return false;
 	}
 
-	matches(other: unknown): boolean {
+	override matches(other: unknown): boolean {
 		return other instanceof RuntimeExtensionsInput;
 	}
 }

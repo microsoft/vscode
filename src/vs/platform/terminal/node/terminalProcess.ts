@@ -44,6 +44,11 @@ const enum ShutdownConstants {
 	MaximumShutdownTime = 5000
 }
 
+interface IWriteObject {
+	data: string,
+	isBinary: boolean
+}
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -57,7 +62,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _isDisposed: boolean = false;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
-	private _writeQueue: string[] = [];
+	private _writeQueue: IWriteObject[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
@@ -108,7 +113,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._ptyOptions = {
 			name,
 			cwd,
-			env,
+			// TODO: When node-pty is updated this cast can be removed
+			env: env as { [key: string]: string; },
 			cols,
 			rows,
 			useConpty,
@@ -226,7 +232,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._sendProcessId(ptyProcess.pid);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		if (this._titleInterval) {
 			clearInterval(this._titleInterval);
@@ -310,14 +316,22 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	public input(data: string): void {
+	public input(data: string, isBinary?: boolean): void {
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
 		for (let i = 0; i <= Math.floor(data.length / WRITE_MAX_CHUNK_SIZE); i++) {
-			this._writeQueue.push(data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE));
+			const obj = {
+				isBinary: isBinary || false,
+				data: data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE)
+			};
+			this._writeQueue.push(obj);
 		}
 		this._startWrite();
+	}
+
+	public async processBinary(data: string): Promise<void> {
+		this.input(data, true);
 	}
 
 	private _startWrite(): void {
@@ -342,9 +356,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _doWrite(): void {
-		const data = this._writeQueue.shift()!;
-		this._logService.trace('IPty#write', `${data.length} characters`);
-		this._ptyProcess!.write(data);
+		const object = this._writeQueue.shift()!;
+		if (object.isBinary) {
+			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
+		} else {
+			this._ptyProcess!.write(object.data);
+		}
 	}
 
 	public resize(cols: number, rows: number): void {
@@ -477,7 +494,7 @@ class DelayedResizer extends Disposable {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		clearTimeout(this._timeout);
 	}

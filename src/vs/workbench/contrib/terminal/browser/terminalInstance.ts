@@ -32,7 +32,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -50,11 +50,23 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { AutoOpenBarrier } from 'vs/base/common/async';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
+
+const enum Constants {
+	/**
+	 * The maximum amount of milliseconds to wait for a container before starting to create the
+	 * terminal process. This period helps ensure the terminal has good initial dimensions to work
+	 * with if it's going to be a foreground terminal.
+	 */
+	WaitForContainerThreshold = 100
+}
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
 
@@ -106,6 +118,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
+	private _containerReadyBarrier: AutoOpenBarrier;
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
@@ -120,6 +133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private hasHadInput: boolean;
 
+	public readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	public disableLayout: boolean;
 	public get instanceId(): number { return this._instanceId; }
 	public get cols(): number {
@@ -158,6 +172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
+	public get icon(): Codicon { return this.shellLaunchConfig.icon ? (iconRegistry.get(this.shellLaunchConfig.icon) || Codicon.terminal) : Codicon.terminal; }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -173,6 +188,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onTitleChanged(): Event<ITerminalInstance> { return this._onTitleChanged.event; }
 	private readonly _onData = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
+	private readonly _onBinary = new Emitter<string>();
+	public get onBinary(): Event<string> { return this._onBinary.event; }
 	private readonly _onLineData = new Emitter<string>();
 	public get onLineData(): Event<string> { return this._onLineData.event; }
 	private readonly _onRequestExtHostProcess = new Emitter<ITerminalInstance>();
@@ -217,7 +234,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._instanceId = TerminalInstance._instanceIdCounter++;
 
 		this.hasHadInput = false;
-
 		this._titleReadyPromise = new Promise<string>(c => {
 			this._titleReadyComplete = c;
 		});
@@ -232,8 +248,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._initDimensions();
 		this._createProcessManager();
 
+		this._containerReadyBarrier = new AutoOpenBarrier(Constants.WaitForContainerThreshold);
 		this._xtermReadyPromise = this._createXterm();
-		this._xtermReadyPromise.then(() => {
+		this._xtermReadyPromise.then(async () => {
+			// Wait for a period to allow a container to be ready
+			await this._containerReadyBarrier.wait();
+
 			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
 			if (_container) {
 				this._attachToElement(_container);
@@ -255,7 +275,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
 			}
-			if (e.affectsConfiguration('terminal.integrated.rendererType')) {
+			if (e.affectsConfiguration('terminal.integrated.gpuAcceleration')) {
 				this._storageService.remove(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 			}
 		}));
@@ -404,6 +424,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+		let xtermRendererType: RendererType;
+		if (config.gpuAcceleration === 'auto') {
+			// Set the builtin renderer to canvas, even when webgl is being used since it's an addon
+			const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+			xtermRendererType = suggestedRendererType === 'dom' ? 'dom' : 'canvas';
+		} else {
+			xtermRendererType = config.gpuAcceleration === 'on' ? 'canvas' : 'dom';
+		}
 
 		const xterm = new Terminal({
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
@@ -424,7 +452,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: (config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl') ? 'canvas' : config.rendererType,
+			rendererType: xtermRendererType,
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -438,6 +466,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
+		this._xterm.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning }, 3000));
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
@@ -445,6 +474,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(e => this._onProcessData(e));
 		this._xterm.onData(data => this._processManager.write(data));
+		this._xterm.onBinary(data => this._processManager.processBinary(data));
 		this.processReady.then(async () => {
 			if (this._linkManager) {
 				this._linkManager.processCwd = await this._processManager.getInitialCwd();
@@ -529,7 +559,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
-		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
+
+		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+		if (this._configHelper.config.gpuAcceleration === 'auto' && (suggestedRendererType === 'auto' || suggestedRendererType === undefined)
+			|| this._configHelper.config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		}
 
@@ -672,33 +705,37 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const frameTimes: number[] = [];
 		const textRenderLayer = this._xtermCore!._renderService._renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
-
 		const evaluateCanvasRenderer = () => {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
 
 			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
-				const promptChoices: IPromptChoice[] = [
-					{
-						label: nls.localize('yes', "Yes"),
-						run: () => this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER)
-					} as IPromptChoice,
-					{
-						label: nls.localize('no', "No"),
-						run: () => { }
-					} as IPromptChoice,
-					{
-						label: nls.localize('dontShowAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
-					} as IPromptChoice
-				];
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
-					promptChoices
-				);
+				if (this._configHelper.config.gpuAcceleration === 'auto') {
+					this._storageService.store(SUGGESTED_RENDERER_TYPE, 'dom', StorageScope.GLOBAL, StorageTarget.MACHINE);
+					this.updateConfig();
+				} else {
+					const promptChoices: IPromptChoice[] = [
+						{
+							label: nls.localize('yes', "Yes"),
+							run: () => this._configurationService.updateValue('terminal.integrated.gpuAcceleration', 'off', ConfigurationTarget.USER)
+						} as IPromptChoice,
+						{
+							label: nls.localize('no', "No"),
+							run: () => { }
+						} as IPromptChoice,
+						{
+							label: nls.localize('dontShowAgain', "Don't Show Again"),
+							isSecondary: true,
+							run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true, StorageScope.GLOBAL, StorageTarget.MACHINE)
+						} as IPromptChoice
+					];
+					this._notificationService.prompt(
+						Severity.Warning,
+						nls.localize('terminal.slowRendering', 'Terminal GPU acceleration appears to be slow on your computer. Would you like to switch to disable it which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
+						promptChoices
+					);
+				}
 			}
 		};
 
@@ -771,7 +808,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey.set(!!(this._xterm && this._xterm.buffer.active === this._xterm.buffer.alternate));
 	}
 
-	public dispose(immediate?: boolean): void {
+	public override dispose(immediate?: boolean): void {
 		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 
 		dispose(this._linkManager);
@@ -852,6 +889,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this.focus();
 		this._xterm.paste(await this._clipboardService.readText());
+	}
+
+	public async pasteSelection(): Promise<void> {
+		if (!this._xterm) {
+			return;
+		}
+		this.focus();
+		this._xterm.paste(await this._clipboardService.readText('selection'));
 	}
 
 	public async sendText(text: string, addNewLine: boolean): Promise<void> {
@@ -967,10 +1012,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
+			this.statusList.add({ id: TerminalStatus.Disconnected, severity: Severity.Error });
 			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
 			this._safeSetOption('disableStdin', false);
+			this.statusList.remove(TerminalStatus.Disconnected);
+			// TODO: Remove title change + (disconnected) from title
 			this._onTitleChanged.fire(this);
 		});
 	}
@@ -988,7 +1036,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _onProcessData(ev: IProcessDataEvent): void {
 		if (ev.sync) {
-			this._xtermCore?.writeSync(ev.data);
+			this._xtermCore?.writeSync(ev.data, 0);
 		} else {
 			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {
@@ -1151,6 +1199,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Dispose the environment info widget if it exists
+		this.statusList.remove(TerminalStatus.RelaunchNeeded);
 		this._environmentInfo?.disposable.dispose();
 		this._environmentInfo = undefined;
 
@@ -1255,11 +1304,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-		if ((suggestedRendererType === 'auto' && config.rendererType === 'auto') || config.rendererType === 'experimentalWebgl') {
+		if ((config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
+			this._safeSetOption('rendererType', (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom') ? 'dom' : (config.gpuAcceleration === 'off' ? 'dom' : 'canvas'));
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
@@ -1272,12 +1321,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._webglAddon = new Addon();
 		try {
 			this._xterm.loadAddon(this._webglAddon);
+			this._webglAddon.onContextLoss(() => {
+				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
+				this._disposeOfWebglRenderer();
+				this._safeSetOption('rendererType', 'dom');
+			});
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
 			// if it's already set to dom, no need to measure render time
-			if (!neverMeasureRenderTime && this._configHelper.config.rendererType !== 'dom') {
+			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
 				this._measureRenderTime();
 			}
 			this._safeSetOption('rendererType', 'canvas');
@@ -1287,7 +1341,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _disposeOfWebglRenderer(): void {
-		this._webglAddon?.dispose();
+		try {
+			this._webglAddon?.dispose();
+		} catch {
+			// ignore
+		}
 		this._webglAddon = undefined;
 	}
 
@@ -1384,6 +1442,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._resize();
+
+		// Signal the container is ready
+		this._containerReadyBarrier.open();
 	}
 
 	@debounce(50)
@@ -1542,9 +1603,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
 		// Check if the widget should not exist
-		if (!info ||
+		if (
+			!info ||
 			this._configHelper.config.environmentChangesIndicator === 'off' ||
-			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction) {
+			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction
+		) {
+			this.statusList.remove(TerminalStatus.RelaunchNeeded);
 			this._environmentInfo?.disposable.dispose();
 			this._environmentInfo = undefined;
 			return;
@@ -1566,6 +1630,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// (Re-)create the widget
+		this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Error });
 		this._environmentInfo?.disposable.dispose();
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);

@@ -28,15 +28,15 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 		return WorkspaceTrustEditorInput.ID;
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		return otherInput instanceof WorkspaceTrustEditorInput;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return localize('workspaceTrustEditorInputName', "Workspace Trust");
 	}
 
-	async resolve(): Promise<WorkspaceTrustEditorModel> {
+	async override resolve(): Promise<WorkspaceTrustEditorModel> {
 		return this.workspaceTrustService.workspaceTrustEditorModel;
 	}
 }

@@ -79,10 +79,9 @@ class BrowserMain extends Disposable {
 	}
 
 	async open(): Promise<IWorkbench> {
-		const services = await this.initServices();
 
-		await domContentLoaded();
-		mark('code/willStartWorkbench');
+		// Init services and wait for DOM to be ready in parallel
+		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
 
 		// Create Workbench
 		const workbench = new Workbench(this.domElement, services.serviceCollection, services.logService);
@@ -130,7 +129,7 @@ class BrowserMain extends Disposable {
 			}
 		}));
 		this._register(workbench.onWillShutdown(() => storageService.close()));
-		this._register(workbench.onShutdown(() => this.dispose()));
+		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, configurationService: IWorkbenchConfigurationService, logService: ILogService, storageService: BrowserStorageService }> {

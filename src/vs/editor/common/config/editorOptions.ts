@@ -906,7 +906,7 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): boolean {
+	public override validate(input: any): boolean {
 		return boolean(input, this.defaultValue);
 	}
 }
@@ -941,7 +941,7 @@ class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, nu
 		this.maximum = maximum;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return EditorIntOption.clampedInt(input, this.defaultValue, this.minimum, this.maximum);
 	}
 }
@@ -980,7 +980,7 @@ class EditorFloatOption<K1 extends EditorOption> extends SimpleEditorOption<K1, 
 		this.validationFn = validationFn;
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		return this.validationFn(EditorFloatOption.float(input, this.defaultValue));
 	}
 }
@@ -1002,7 +1002,7 @@ class EditorStringOption<K1 extends EditorOption> extends SimpleEditorOption<K1,
 		super(id, name, defaultValue, schema);
 	}
 
-	public validate(input: any): string {
+	public override validate(input: any): string {
 		return EditorStringOption.string(input, this.defaultValue);
 	}
 }
@@ -1034,7 +1034,7 @@ class EditorStringEnumOption<K1 extends EditorOption, V extends string> extends 
 		this._allowedValues = allowedValues;
 	}
 
-	public validate(input: any): V {
+	public override validate(input: any): V {
 		return stringSet<V>(input, this.defaultValue, this._allowedValues);
 	}
 }
@@ -1112,7 +1112,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 		return this.defaultValue;
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: AccessibilitySupport): AccessibilitySupport {
 		if (value === AccessibilitySupport.Unknown) {
 			// The editor reads the `accessibilitySupport` from the environment
 			return env.accessibilitySupport;
@@ -1331,7 +1331,7 @@ class EditorEmptySelectionClipboard extends EditorBooleanOption<EditorOption.emp
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: boolean): boolean {
 		return value && env.emptySelectionClipboard;
 	}
 }
@@ -1402,8 +1402,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					enum: ['never', 'always', 'multiline'],
 					default: defaults.autoFindInSelection,
 					enumDescriptions: [
-						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default)'),
-						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
+						nls.localize('editor.find.autoFindInSelection.never', 'Never turn on Find in selection automatically (default).'),
+						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically.'),
 						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
 					],
 					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
@@ -1533,14 +1533,14 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		);
 	}
 
-	public validate(input: any): number {
+	public override validate(input: any): number {
 		let r = EditorFloatOption.float(input, this.defaultValue);
 		if (r === 0) {
 			return EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		return EditorFloatOption.clamp(r, 6, 100);
 	}
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The final fontSize respects the editor zoom level.
 		// So take the result from env.fontInfo
 		return env.fontInfo.fontSize;
@@ -2470,7 +2470,7 @@ class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
 		);
 	}
 
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
+	public override compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, value: number): number {
 		// The lineHeight is computed from the fontSize if it is 0.
 		// Moreover, the final lineHeight respects the editor zoom level.
 		// So take the result from env.fontInfo
@@ -2766,7 +2766,7 @@ export type ValidQuickSuggestionsOptions = boolean | Readonly<Required<IQuickSug
 
 class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions> {
 
-	public readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
+	public override readonly defaultValue: Readonly<Required<IQuickSuggestionsOptions>>;
 
 	constructor() {
 		const defaults: ValidQuickSuggestionsOptions = {
@@ -3895,8 +3895,8 @@ export const EditorOptions = {
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
 	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
-			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 2000. Warning: this has a performance implication for numbers larger than the default."),
-			deprecationMessage: nls.localize('accessibilityPageSize.deprecated', "This setting is deprecated, editor will automatically choose the accessibility page size when we detect a screen reader. 2000 lines will be the new default.")
+			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
+			deprecationMessage: nls.localize('accessibilityPageSize.deprecated', "This setting is deprecated, editor will automatically choose the accessibility page size when we detect a screen reader. 500 lines will be the new default.")
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
@@ -3990,7 +3990,7 @@ export const EditorOptions = {
 	)),
 	stickyTabStops: register(new EditorBooleanOption(
 		EditorOption.stickyTabStops, 'stickyTabStops', false,
-		{ description: nls.localize('stickyTabStops', "Emulate selection behaviour of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
+		{ description: nls.localize('stickyTabStops', "Emulate selection behavior of tab characters when using spaces for indentation. Selection will stick to tab stops.") }
 	)),
 	codeLens: register(new EditorBooleanOption(
 		EditorOption.codeLens, 'codeLens', true,
@@ -4294,7 +4294,7 @@ export const EditorOptions = {
 	)),
 	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
 		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
-		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused") }
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused.") }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
@@ -4310,7 +4310,7 @@ export const EditorOptions = {
 				'',
 				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
-				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters"),
+				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters."),
 				''
 			],
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")

@@ -59,7 +59,7 @@ class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
 		super(context, action, options);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		if (this.checkbox) {
 			this.disposables.add(attachCheckboxStyler(this.checkbox, this.themeService));
@@ -146,13 +146,13 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.createBody(keybindingsEditorElement);
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, context, token)
 			.then(() => this.render(!!(options && options.preserveFocus)));
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		super.clearInput();
 		this.keybindingsEditorContextKey.reset();
 		this.keybindingFocusContextKey.reset();
@@ -170,7 +170,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this._onLayout.fire();
 	}
 
-	focus(): void {
+	override focus(): void {
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
 			this.selectEntry(activeKeybindingEntry);
@@ -184,24 +184,21 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		return focusedElement && focusedElement.templateId === KEYBINDING_ENTRY_TEMPLATE_ID ? <IKeybindingItemEntry>focusedElement : null;
 	}
 
-	defineKeybinding(keybindingEntry: IKeybindingItemEntry, add: boolean): Promise<any> {
+	async defineKeybinding(keybindingEntry: IKeybindingItemEntry, add: boolean): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
-		return this.defineKeybindingWidget.define().then(key => {
+		try {
+			const key = await this.defineKeybindingWidget.define();
 			if (key) {
 				this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
-				return this.updateKeybinding(keybindingEntry, key, keybindingEntry.keybindingItem.when, add);
+				await this.updateKeybinding(keybindingEntry, key, keybindingEntry.keybindingItem.when, add);
 			}
-			return null;
-		}).then(() => {
-			this.hideOverlayContainer();
-			this.selectEntry(keybindingEntry);
-		}, error => {
-			this.hideOverlayContainer();
+		} catch (error) {
 			this.onKeybindingEditingError(error);
+		} finally {
+			this.hideOverlayContainer();
 			this.selectEntry(keybindingEntry);
-			return error;
-		});
+		}
 	}
 
 	defineWhenExpression(keybindingEntry: IKeybindingItemEntry): void {
@@ -211,7 +208,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		}
 	}
 
-	async updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined, add?: boolean): Promise<any> {
+	async updateKeybinding(keybindingEntry: IKeybindingItemEntry, key: string, when: string | undefined, add?: boolean): Promise<void> {
 		const currentKey = keybindingEntry.keybindingItem.keybinding ? keybindingEntry.keybindingItem.keybinding.getUserSettingsLabel() : '';
 		if (currentKey !== key || keybindingEntry.keybindingItem.when !== when) {
 			if (add) {
@@ -225,34 +222,33 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		}
 	}
 
-	removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any> {
+	async removeKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
 			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
-			return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem)
-				.then(() => this.focus(),
-					error => {
-						this.onKeybindingEditingError(error);
-						this.selectEntry(keybindingEntry);
-					});
+			try {
+				await this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem);
+				this.focus();
+			} catch (error) {
+				this.onKeybindingEditingError(error);
+				this.selectEntry(keybindingEntry);
+			}
 		}
-		return Promise.resolve(null);
 	}
 
-	resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<any> {
+	async resetKeybinding(keybindingEntry: IKeybindingItemEntry): Promise<void> {
 		this.selectEntry(keybindingEntry);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
-		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
-			.then(() => {
-				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
-					this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
-				}
-				this.selectEntry(keybindingEntry);
-			},
-				error => {
-					this.onKeybindingEditingError(error);
-					this.selectEntry(keybindingEntry);
-				});
+		try {
+			await this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
+			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+				this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
+			}
+			this.selectEntry(keybindingEntry);
+		} catch (error) {
+			this.onKeybindingEditingError(error);
+			this.selectEntry(keybindingEntry);
+		}
 	}
 
 	async copyKeybinding(keybinding: IKeybindingItemEntry): Promise<void> {
@@ -324,7 +320,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const fullTextSearchPlaceholder = localize('SearchKeybindings.FullTextSearchPlaceholder', "Type to search in keybindings");
 		const keybindingsSearchPlaceholder = localize('SearchKeybindings.KeybindingsSearchPlaceholder', "Recording Keys. Press Escape to exit");
 
-		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, () => { this.clearSearchResults(); return Promise.resolve(null); });
+		const clearInputAction = new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, {

@@ -27,7 +27,6 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -203,12 +202,12 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	get minimumWidth(): number { return 375; }
-	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	override get minimumWidth(): number { return 375; }
+	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
-	set minimumWidth(value: number) { /*noop*/ }
-	set maximumWidth(value: number) { /*noop*/ }
+	override set minimumWidth(value: number) { /*noop*/ }
+	override set maximumWidth(value: number) { /*noop*/ }
 
 	private get currentSettingsModel() {
 		return this.searchResultModel || this.settingsTreeModel;
@@ -247,7 +246,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, context, token)
 			.then(() => timeout(0)) // Force setInput to be async
@@ -264,7 +263,7 @@ export class SettingsEditor2 extends EditorPane {
 
 					this._setOptions(options);
 
-					this._register(input.onDispose(() => {
+					this._register(input.onWillDispose(() => {
 						this.searchWidget.setValue('');
 					}));
 
@@ -294,7 +293,7 @@ export class SettingsEditor2 extends EditorPane {
 		return withUndefinedAsNull(cachedState);
 	}
 
-	setOptions(options: SettingsEditorOptions | undefined): void {
+	override setOptions(options: SettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
 		if (options) {
@@ -318,7 +317,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		this.inSettingsEditorContextKey.set(false);
 		super.clearInput();
 	}
@@ -341,7 +340,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
 			this.focusSearch();
 		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
@@ -360,7 +359,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 
 		if (!visible) {
@@ -440,7 +439,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 
-		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, () => { this.clearSearchResults(); return Promise.resolve(null); });
+		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults());
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
@@ -916,24 +915,21 @@ export class SettingsEditor2 extends EditorPane {
 		this.telemetryService.publicLog('settingsEditor.settingModified', data);
 	}
 
-	private render(token: CancellationToken): Promise<any> {
+	private async render(token: CancellationToken): Promise<void> {
 		if (this.input) {
-			return this.input.resolve()
-				.then((model: IEditorModel | null) => {
-					if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
-						return undefined;
-					}
+			const model = await this.input.resolve();
+			if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
+				return;
+			}
 
-					this._register(model.onDidChangeGroups(() => {
-						this.updatedConfigSchemaDelayer.trigger(() => {
-							this.onConfigUpdate(undefined, undefined, true);
-						});
-					}));
-					this.defaultSettingsEditorModel = model;
-					return this.onConfigUpdate(undefined, true);
+			this._register(model.onDidChangeGroups(() => {
+				this.updatedConfigSchemaDelayer.trigger(() => {
+					this.onConfigUpdate(undefined, undefined, true);
 				});
+			}));
+			this.defaultSettingsEditorModel = model;
+			await this.onConfigUpdate(undefined, true);
 		}
-		return Promise.resolve(null);
 	}
 
 	private onSearchModeToggled(): void {
@@ -1399,7 +1395,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTree.layout(tocTreeHeight);
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 		if (this.isVisible()) {
 			const searchQuery = this.searchWidget.getValue().trim();
 			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;

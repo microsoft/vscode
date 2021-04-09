@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { HierarchicalElement, HierarchicalFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { TestLocationStore } from 'vs/workbench/contrib/testing/browser/explorerProjections/locationStore';
@@ -68,8 +68,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 
 			for (const inTree of [...this.items.values()].sort((a, b) => b.depth - a.depth)) {
 				const lookup = this.results.getStateById(inTree.test.item.extId)?.[1];
-				inTree.ownState = lookup?.state.state ?? TestResult.Unset;
-				const computed = lookup?.computedState ?? TestResult.Unset;
+				inTree.ownState = lookup?.state.state ?? TestResultState.Unset;
+				const computed = lookup?.computedState ?? TestResultState.Unset;
 				if (computed !== inTree.state) {
 					inTree.state = computed;
 					this.addUpdated(inTree);

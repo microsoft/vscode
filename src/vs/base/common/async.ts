@@ -381,7 +381,7 @@ export class AutoOpenBarrier extends Barrier {
 		this._timeout = setTimeout(() => this.open(), autoOpenTimeMs);
 	}
 
-	open(): void {
+	override open(): void {
 		clearTimeout(this._timeout);
 		super.open();
 	}
@@ -772,7 +772,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 		}
 	}
 
-	protected doRun(): void {
+	protected override doRun(): void {
 		const units = this.units;
 		this.units = [];
 
@@ -781,7 +781,7 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.units = [];
 
 		super.dispose();
@@ -942,7 +942,7 @@ export class TaskSequentializer {
 	}
 
 	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
-		this._pending = { taskId: taskId, cancel: () => onCancel?.(), promise };
+		this._pending = { taskId, cancel: () => onCancel?.(), promise };
 
 		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));
 

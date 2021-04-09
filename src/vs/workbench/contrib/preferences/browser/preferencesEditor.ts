@@ -71,17 +71,17 @@ export class PreferencesEditor extends EditorPane {
 
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget | undefined = undefined;
 
-	get minimumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.minimumWidth : 0; }
-	get maximumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.maximumWidth : Number.POSITIVE_INFINITY; }
+	override get minimumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.minimumWidth : 0; }
+	override get maximumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.maximumWidth : Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
-	set minimumWidth(value: number) { /*noop*/ }
-	set maximumWidth(value: number) { /*noop*/ }
+	override set minimumWidth(value: number) { /*noop*/ }
+	override set maximumWidth(value: number) { /*noop*/ }
 
-	get minimumHeight() { return 260; }
+	override get minimumHeight() { return 260; }
 
 	private _onDidCreateWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
-	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
+	override readonly onDidChangeSizeConstraints: Event<{ width: number; height: number; } | undefined> = this._onDidCreateWidget.event;
 
 	constructor(
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -151,7 +151,7 @@ export class PreferencesEditor extends EditorPane {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	setInput(newInput: EditorInput, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(newInput: EditorInput, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
@@ -167,11 +167,11 @@ export class PreferencesEditor extends EditorPane {
 		this.sideBySidePreferencesWidget.layout(new DOM.Dimension(dimension.width, dimension.height - headerHeight));
 	}
 
-	getControl(): IEditorControl | undefined {
+	override getControl(): IEditorControl | undefined {
 		return this.sideBySidePreferencesWidget.getControl();
 	}
 
-	focus(): void {
+	override focus(): void {
 		if (this.lastFocusedWidget) {
 			this.lastFocusedWidget.focus();
 		}
@@ -191,7 +191,7 @@ export class PreferencesEditor extends EditorPane {
 		}
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		this.defaultSettingsEditorContextKey.set(false);
 		this.defaultSettingsJSONEditorContextKey.set(false);
 		this.sideBySidePreferencesWidget.clearInput();
@@ -199,7 +199,7 @@ export class PreferencesEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this.sideBySidePreferencesWidget.setEditorVisible(visible, group);
 		super.setEditorVisible(visible, group);
 	}
@@ -300,10 +300,10 @@ export class PreferencesEditor extends EditorPane {
 			const metadata = filterResult && filterResult.metadata;
 			const counts = filterResult && this._countById(filterResult.filteredGroups);
 
-			let durations: any;
+			let durations: Record<string, number> | undefined;
 			if (metadata) {
 				durations = Object.create(null);
-				Object.keys(metadata).forEach(key => durations[key] = metadata[key].duration);
+				Object.keys(metadata).forEach(key => durations![key] = metadata[key].duration);
 			}
 
 			const data = {
@@ -331,11 +331,11 @@ export class PreferencesEditor extends EditorPane {
 
 class SettingsNavigator extends ArrayNavigator<ISetting> {
 
-	next(): ISetting | null {
+	override next(): ISetting | null {
 		return super.next() || super.first();
 	}
 
-	previous(): ISetting | null {
+	override previous(): ISetting | null {
 		return super.previous() || super.last();
 	}
 
@@ -749,7 +749,7 @@ class PreferencesRenderersController extends Disposable {
 		return settings;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		dispose(this._defaultPreferencesRendererDisposables);
 		dispose(this._editablePreferencesRendererDisposables);
 		super.dispose();
@@ -920,15 +920,15 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor;
 	}
 
-	private updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
-		return editor.setInput(input, options, context, token)
-			.then<any>(() => {
-				if (token.isCancellationRequested) {
-					return undefined;
-				}
+	private async updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
+		await editor.setInput(input, options, context, token);
 
-				return withNullAsUndefined((<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
-			});
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return withNullAsUndefined(
+			await (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
 	}
 
 	private getSettingsTarget(resource: URI): SettingsTarget {
@@ -958,7 +958,7 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposeEditors();
 		super.dispose();
 	}
@@ -987,7 +987,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return contributions;
 	}
 
-	createEditorControl(parent: HTMLElement, configuration: IEditorOptions): editorCommon.IEditor {
+	override createEditorControl(parent: HTMLElement, configuration: IEditorOptions): editorCommon.IEditor {
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: DefaultPreferencesEditor._getContributions() });
 
 		// Inform user about editor being readonly if user starts type
@@ -1004,7 +1004,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		}
 	}
 
-	protected getConfigurationOverrides(): IEditorOptions {
+	protected override getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.readOnly = true;
 		if (this.input) {
@@ -1025,27 +1025,24 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		return super.setInput(input, options, context, token)
-			.then(() => this.input!.resolve()
-				.then<any>(editorModel => {
-					if (token.isCancellationRequested) {
-						return undefined;
-					}
-
-					return editorModel!.load();
-				})
-				.then(editorModel => {
-					if (token.isCancellationRequested) {
-						return;
-					}
-
-					const editor = assertIsDefined(this.getControl());
-					editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
-				}));
+	async override setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
+		const editorModel = await this.input!.resolve();
+		if (!editorModel) {
+			return;
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		await editorModel.resolve();
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const editor = assertIsDefined(this.getControl());
+		editor.setModel((<ResourceEditorModel>editorModel).textEditorModel);
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		// Clear Model
 		const editor = this.getControl();
 		if (editor) {
@@ -1056,7 +1053,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		super.clearInput();
 	}
 
-	layout(dimension: DOM.Dimension) {
+	override layout(dimension: DOM.Dimension) {
 		const editor = assertIsDefined(this.getControl());
 		editor.layout(dimension);
 	}
@@ -1147,7 +1144,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable implements 
 		}
 	}
 
-	dispose() {
+	override dispose() {
 		this.disposePreferencesRenderer();
 		super.dispose();
 	}
@@ -1161,7 +1158,7 @@ export class DefaultSettingsEditorContribution extends AbstractSettingsEditorCon
 
 	protected _createPreferencesRenderer(): Promise<IPreferencesRenderer<ISetting> | null> | null {
 		return this.preferencesService.createPreferencesEditorModel(this.editor.getModel()!.uri)
-			.then<any>(editorModel => {
+			.then(editorModel => {
 				if (editorModel instanceof DefaultSettingsEditorModel && this.editor.getModel()) {
 					const preferencesRenderer = this.instantiationService.createInstance(DefaultSettingsRenderer, this.editor, editorModel);
 					preferencesRenderer.render();
@@ -1189,7 +1186,7 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 		const model = this.editor.getModel();
 		if (model) {
 			return this.preferencesService.createPreferencesEditorModel(model.uri)
-				.then<any>(settingsModel => {
+				.then(settingsModel => {
 					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
 							case ConfigurationTarget.USER_LOCAL:

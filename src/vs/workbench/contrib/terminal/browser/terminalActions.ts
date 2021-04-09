@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -76,7 +76,7 @@ async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITe
 }
 
 export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
-	accessor.get(ITerminalService).doWithActiveInstance(t => {
+	accessor.get(ITerminalService).doWithActiveInstance(async t => {
 		if (!args?.text) {
 			return;
 		}
@@ -85,7 +85,7 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		const resolvedText = configurationResolverService.resolve(lastActiveWorkspaceRoot, args.text);
+		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, args.text);
 		t.sendText(resolvedText, false);
 	});
 };
@@ -100,7 +100,7 @@ export class TerminalLaunchHelpAction extends Action {
 		super('workbench.action.terminal.launchHelp', localize('terminalLaunchHelp', "Open Help"));
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this._openerService.open('https://aka.ms/vscode-troubleshoot-terminal-launch');
 	}
 }
@@ -127,6 +127,19 @@ export function registerTerminalActions() {
 				terminalService.setActiveInstance(instance);
 			}
 			await terminalService.showPanel(true);
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE,
+				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).showProfileQuickPick('createInstance');
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -669,9 +682,14 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const labelService = accessor.get(ILabelService);
 			const remoteAgentService = accessor.get(IRemoteAgentService);
-			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
-			const remoteTerms = await offProcTerminalService.listProcesses();
-			const unattachedTerms = remoteTerms.filter(term => !terminalService.isAttachedToTerminal(term));
+			const notificationService = accessor.get(INotificationService);
+			let offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
+
+			const terms = await offProcTerminalService.listProcesses();
+
+			offProcTerminalService.reduceConnectionGraceTime();
+
+			const unattachedTerms = terms.filter(term => !terminalService.isAttachedToTerminal(term));
 			const items = unattachedTerms.map(term => {
 				const cwdLabel = labelService.getUriLabel(URI.file(term.cwd));
 				return {
@@ -681,6 +699,10 @@ export function registerTerminalActions() {
 					term
 				};
 			});
+			if (items.length === 0) {
+				notificationService.info(localize('noUnattachedTerminals', 'There are no unattached terminals to attach to'));
+				return;
+			}
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
 				const instance = terminalService.createTerminal({ attachPersistentProcess: selected.term });
@@ -1340,7 +1362,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).selectDefaultProfile();
+			await accessor.get(ITerminalService).showProfileQuickPick('setDefault');
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1424,6 +1446,28 @@ export function registerTerminalActions() {
 		});
 	}
 
+	if (BrowserFeatures.clipboard.readText && isLinux) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TERMINAL_COMMAND_ID.PASTE_SELECTION,
+					title: { value: localize('workbench.action.terminal.pasteSelection', "Paste Selection into Active Terminal"), original: 'Paste Selection into Active Terminal' },
+					f1: true,
+					category,
+					precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
+					keybinding: [{
+						linux: { primary: KeyMod.Shift | KeyCode.Insert },
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
+					}],
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(ITerminalService).getActiveInstance()?.pasteSelection();
+			}
+		});
+	}
+
 	const switchTerminalTitle: ICommandActionTitle = { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' };
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1448,7 +1492,7 @@ export function registerTerminalActions() {
 			}
 			if (item === selectDefaultProfileTitle) {
 				terminalService.refreshActiveTab();
-				return terminalService.selectDefaultProfile();
+				return terminalService.showProfileQuickPick('setDefault');
 			}
 			if (item === configureTerminalSettingsTitle) {
 				await commandService.executeCommand(TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS);
@@ -1469,11 +1513,11 @@ export function registerTerminalActions() {
 			// Remove 'New ' from the selected item to get the profile name
 			const profileSelection = item.substring(4);
 			if (quickSelectProfiles) {
-				const launchConfig = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
-				if (launchConfig) {
-					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, launchConfig);
+				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
+				if (profile) {
+					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, profile);
 					if (workspaceShellAllowed) {
-						const instance = terminalService.createTerminal({ executable: launchConfig.path, args: launchConfig.args, name: launchConfig.overrideName });
+						const instance = terminalService.createTerminal(profile);
 						terminalService.setActiveInstance(instance);
 					}
 				} else {

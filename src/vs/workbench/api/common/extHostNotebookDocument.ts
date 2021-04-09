@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { deepFreeze, equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, INotebookDocumentPropertiesChangeData, MainThreadNotebookDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
@@ -149,7 +149,7 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _disposed: boolean = false;
 
 	constructor(
-		private readonly _proxy: MainThreadNotebookShape,
+		private readonly _proxy: MainThreadNotebookDocumentsShape,
 		private readonly _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _textDocuments: ExtHostDocuments,
 		private readonly _emitter: INotebookEventEmitter,
@@ -160,7 +160,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		super();
 	}
 
-	dispose() {
+	override dispose() {
 		this._disposed = true;
 		super.dispose();
 		dispose(this._cellDisposableMapping.values());
@@ -177,10 +177,20 @@ export class ExtHostNotebookDocument extends Disposable {
 				get viewType() { return that._viewType; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
-				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
+				get isClosed() { return that._disposed; },
 				get metadata() { return that._metadata; },
-				set metadata(_value: Required<vscode.NotebookDocumentMetadata>) { throw new Error('Use WorkspaceEdit to update metadata.'); },
-				save() { return that._save(); }
+				get cellCount() { return that._cells.length; },
+				cellAt(index) {
+					index = that._validateIndex(index);
+					return that._cells[index].cell;
+				},
+				getCells(range) {
+					const cells = range ? that._getCells(range) : that._cells;
+					return cells.map(cell => cell.cell);
+				},
+				save() {
+					return that._save();
+				}
 			});
 		}
 		return this._notebook;
@@ -223,6 +233,35 @@ export class ExtHostNotebookDocument extends Disposable {
 				this._changeCellMetadata(rawEvent.index, rawEvent.metadata);
 			}
 		}
+	}
+
+	private _validateIndex(index: number): number {
+		if (index < 0) {
+			return 0;
+		} else if (index >= this._cells.length) {
+			return this._cells.length - 1;
+		} else {
+			return index;
+		}
+	}
+
+	private _validateRange(range: vscode.NotebookCellRange): vscode.NotebookCellRange {
+		if (range.start < 0) {
+			range = range.with({ start: 0 });
+		}
+		if (range.end > this._cells.length) {
+			range = range.with({ end: this._cells.length });
+		}
+		return range;
+	}
+
+	private _getCells(range: vscode.NotebookCellRange): ExtHostCell[] {
+		range = this._validateRange(range);
+		const result: ExtHostCell[] = [];
+		for (let i = range.start; i < range.end; i++) {
+			result.push(this._cells[i]);
+		}
+		return result;
 	}
 
 	private async _save(): Promise<boolean> {

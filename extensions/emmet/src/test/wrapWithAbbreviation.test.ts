@@ -398,12 +398,12 @@ function testWrapWithAbbreviation(selections: Selection[], abbreviation: string,
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
 		if (!promise) {
-			assert.equal(1, 2, 'Wrap with Abbreviation returned undefined.');
+			assert.strictEqual(1, 2, 'Wrap with Abbreviation returned undefined.');
 			return Promise.resolve();
 		}
 
 		return promise.then(() => {
-			assert.equal(editor.document.getText(), expectedContents);
+			assert.strictEqual(editor.document.getText(), expectedContents);
 			return Promise.resolve();
 		});
 	});
@@ -414,12 +414,12 @@ function testWrapIndividualLinesWithAbbreviation(selections: Selection[], abbrev
 		editor.selections = selections;
 		const promise = wrapWithAbbreviation({ abbreviation });
 		if (!promise) {
-			assert.equal(1, 2, 'Wrap individual lines with Abbreviation returned undefined.');
+			assert.strictEqual(1, 2, 'Wrap individual lines with Abbreviation returned undefined.');
 			return Promise.resolve();
 		}
 
 		return promise.then(() => {
-			assert.equal(editor.document.getText(), expectedContents);
+			assert.strictEqual(editor.document.getText(), expectedContents);
 			return Promise.resolve();
 		});
 	});

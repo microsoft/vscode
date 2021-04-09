@@ -197,3 +197,6 @@
 	padding: 0 22px 0 6px;
 }
 
+.monaco-workbench .tabs-widget .codicon {
+	vertical-align: text-bottom;
+}

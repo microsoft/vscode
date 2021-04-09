@@ -28,7 +28,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { ISerializedTestResults, ITestItem, ITestMessage, ITestState, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
@@ -1612,20 +1612,21 @@ export namespace NotebookDecorationRenderOptions {
 	}
 }
 
-export namespace TestState {
-	export function from(item: vscode.TestState): ITestState {
+export namespace NotebookDocumentContentOptions {
+	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
-			state: item.state,
-			duration: item.duration,
-			messages: item.messages.map(TestMessage.from),
+			transientOutputs: options ? options.transientOutputs : false,
+			transientMetadata: {
+				...(options?.transientMetadata ?? {}),
+				...{
+					executionOrder: true,
+					lastRunDuration: true,
+					runState: true,
+					runStartTime: true,
+					lastRunSuccess: true
+				}
+			}
 		};
-	}
-
-	export function to(item: ITestState): vscode.TestState {
-		const ts = new types.TestState(item.state);
-		ts.duration = item.duration;
-		ts.messages = item.messages.map(TestMessage.to);
-		return ts;
 	}
 }
 
@@ -1702,7 +1703,7 @@ export namespace TestItem {
 }
 
 export namespace TestResults {
-	export function from(id: string, results: vscode.TestResults): ISerializedTestResults {
+	export function from(id: string, results: vscode.TestRunResult): ISerializedTestResults {
 		const serialized: ISerializedTestResults = {
 			completedAt: results.completedAt,
 			id,
@@ -1718,9 +1719,13 @@ export namespace TestResults {
 			for (const item of children) {
 				const serializedItem: SerializedTestResultItem = {
 					children: item.children?.map(c => c.id) ?? [],
-					computedState: item.result.state,
+					computedState: item.state,
 					item: TestItem.fromResultSnapshot(item),
-					state: TestState.from(item.result),
+					state: {
+						state: item.state,
+						duration: item.duration,
+						messages: item.messages.map(TestMessage.from),
+					},
 					retired: undefined,
 					expand: TestItemExpandState.Expanded,
 					parent: parent?.item.extId ?? null,
@@ -1740,14 +1745,16 @@ export namespace TestResults {
 
 	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => ({
 		...TestItem.toPlain(item.item),
-		result: TestState.to(item.state),
+		state: item.state.state,
+		duration: item.state.duration,
+		messages: item.state.messages.map(TestMessage.to),
 		children: item.children
 			.map(c => byInternalId.get(c))
 			.filter(isDefined)
 			.map(c => convertTestResultItem(c, byInternalId)),
 	});
 
-	export function to(serialized: ISerializedTestResults): vscode.TestResults {
+	export function to(serialized: ISerializedTestResults): vscode.TestRunResult {
 		const roots: SerializedTestResultItem[] = [];
 		const byInternalId = new Map<string, SerializedTestResultItem>();
 		for (const item of serialized.items) {

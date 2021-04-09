@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/style';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
+import { iconForeground, foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground, toolbarHoverBackground, toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
@@ -182,6 +182,20 @@ registerThemingParticipant((theme, collector) => {
 	if (isIOS && isStandalone) {
 		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
 	}
+
+	// Action bars
+	collector.addRule(`
+		.monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover {
+			background-color: ${theme.getColor(toolbarHoverBackground)};
+		}
+	`);
+
+	collector.addRule(`
+		.monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
+		.monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
+			background-color: ${theme.getColor(toolbarActiveBackground)};
+		}
+	`);
 });
 
 /**

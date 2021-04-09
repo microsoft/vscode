@@ -6,7 +6,7 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestResult } from 'vs/workbench/api/common/extHostTypes';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
 import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate, TestIdWithSrc, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 
@@ -53,9 +53,9 @@ export class HierarchicalElement implements ITestTreeElement {
 		return this.parentItem.folder;
 	}
 
-	public state = TestResult.Unset;
+	public state = TestResultState.Unset;
 	public retired = false;
-	public ownState = TestResult.Unset;
+	public ownState = TestResultState.Unset;
 
 	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchicalFolder | HierarchicalElement) {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
@@ -73,7 +73,7 @@ export class HierarchicalFolder implements ITestTreeElement {
 	public readonly children = new Set<HierarchicalElement>();
 	public readonly parentItem = null;
 	public readonly depth = 0;
-	public computedState: TestResult | undefined;
+	public computedState: TestResultState | undefined;
 
 	public get treeId() {
 		return generateUuid();
@@ -96,8 +96,8 @@ export class HierarchicalFolder implements ITestTreeElement {
 	}
 
 	public retired = false;
-	public state = TestResult.Unset;
-	public ownState = TestResult.Unset;
+	public state = TestResultState.Unset;
+	public ownState = TestResultState.Unset;
 
 	constructor(public readonly folder: IWorkspaceFolder) { }
 

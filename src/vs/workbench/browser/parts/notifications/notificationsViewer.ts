@@ -444,7 +444,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		if (notification.expanded && isNonEmptyArray(primaryActions)) {
 			const that = this;
 			const actionRunner: IActionRunner = new class extends ActionRunner {
-				protected async runAction(action: IAction): Promise<void> {
+				protected async override runAction(action: IAction): Promise<void> {
 					// Run action
 					that.actionRunner.run(action, notification);
 

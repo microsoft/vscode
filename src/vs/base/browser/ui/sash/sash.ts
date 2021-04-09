@@ -211,7 +211,7 @@ export class Sash extends Disposable {
 		this._register(domEvent(this.el, 'mouseleave')(() => Sash.onMouseLeave(this)));
 
 		this._register(Gesture.addTarget(this.el));
-		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
+		this._register(domEvent(this.el, EventType.Start)(e => this.onTouchStart(e as GestureEvent), this));
 
 		if (typeof options.size === 'number') {
 			this.size = options.size;
@@ -484,7 +484,7 @@ export class Sash extends Disposable {
 		return undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.el.remove();
 	}

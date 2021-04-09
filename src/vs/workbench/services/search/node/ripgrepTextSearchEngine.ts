@@ -199,9 +199,9 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 
-	on(event: 'result', listener: (result: TextSearchResult) => void): this;
-	on(event: 'hitLimit', listener: () => void): this;
-	on(event: string, listener: (...args: any[]) => void): this {
+	override on(event: 'result', listener: (result: TextSearchResult) => void): this;
+	override on(event: 'hitLimit', listener: () => void): this;
+	override on(event: string, listener: (...args: any[]) => void): this {
 		super.on(event, listener);
 		return this;
 	}

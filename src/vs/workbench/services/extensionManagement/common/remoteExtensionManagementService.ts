@@ -26,7 +26,7 @@ export class WebRemoteExtensionManagementService extends ExtensionManagementChan
 		this.extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
-	async canInstall(extension: IGalleryExtension): Promise<boolean> {
+	async override canInstall(extension: IGalleryExtension): Promise<boolean> {
 		const manifest = await this.galleryService.getManifest(extension, CancellationToken.None);
 		return !!manifest && this.extensionKindController.canExecuteOnWorkspace(manifest);
 	}

@@ -363,7 +363,7 @@ export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends I
 export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 
-//region Fuzzy Scorer Support
+//#region Fuzzy Scorer Support
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 

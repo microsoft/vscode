@@ -37,7 +37,7 @@ export class ClearNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(clearIcon));
 	}
 
-	async run(notification: INotificationViewItem): Promise<void> {
+	async override run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(CLEAR_NOTIFICATION, notification);
 	}
 }
@@ -55,7 +55,7 @@ export class ClearAllNotificationsAction extends Action {
 		super(id, label, ThemeIcon.asClassName(clearAllIcon));
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.commandService.executeCommand(CLEAR_ALL_NOTIFICATIONS);
 	}
 }
@@ -73,7 +73,7 @@ export class HideNotificationsCenterAction extends Action {
 		super(id, label, ThemeIcon.asClassName(hideIcon));
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.commandService.executeCommand(HIDE_NOTIFICATIONS_CENTER);
 	}
 }
@@ -91,7 +91,7 @@ export class ExpandNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(expandIcon));
 	}
 
-	async run(notification: INotificationViewItem): Promise<void> {
+	async override run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(EXPAND_NOTIFICATION, notification);
 	}
 }
@@ -109,7 +109,7 @@ export class CollapseNotificationAction extends Action {
 		super(id, label, ThemeIcon.asClassName(collapseIcon));
 	}
 
-	async run(notification: INotificationViewItem): Promise<void> {
+	async override run(notification: INotificationViewItem): Promise<void> {
 		this.commandService.executeCommand(COLLAPSE_NOTIFICATION, notification);
 	}
 }
@@ -141,7 +141,7 @@ export class CopyNotificationMessageAction extends Action {
 		super(id, label);
 	}
 
-	run(notification: INotificationViewItem): Promise<void> {
+	override run(notification: INotificationViewItem): Promise<void> {
 		return this.clipboardService.writeText(notification.message.raw);
 	}
 }
@@ -166,7 +166,7 @@ export class NotificationActionRunner extends ActionRunner {
 		super();
 	}
 
-	protected async runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
+	protected async override runAction(action: IAction, context: INotificationViewItem | undefined): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: action.id, from: 'message' });
 		if (context) {
 			// If the context is not present it is a "global" notification action. Will be captured by other events

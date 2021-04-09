@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
@@ -102,11 +102,13 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: ITerminalProfiles;
-	showQuickLaunchWslProfiles: boolean;
+	useWslProfiles: boolean;
+	showTabs: boolean;
+	tabsLocation: 'left' | 'right';
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	rendererType: 'auto' | 'canvas' | 'dom' | 'experimentalWebgl';
+	gpuAcceleration: 'auto' | 'on' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -237,7 +239,9 @@ export interface ITerminalProfile {
 	isAutoDetected?: boolean;
 	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
-	overrideName?: string;
+	env?: ITerminalEnvironment;
+	overrideName?: boolean;
+	icon?: string;
 }
 
 export const enum ProfileSource {
@@ -249,20 +253,25 @@ export interface ITerminalExecutable {
 	path: string | string[];
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
-	overrideName?: string;
+	overrideName?: boolean;
+	icon?: string;
+	env?: ITerminalEnvironment;
 }
 
 export interface ITerminalProfileSource {
 	source: ProfileSource;
 	isAutoDetected?: boolean;
-	overrideName?: string;
+	overrideName?: boolean;
+	args?: string | string[] | undefined;
+	icon?: string;
+	env?: ITerminalEnvironment;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
 
 export interface IAvailableProfilesRequest {
 	callback: (shells: ITerminalProfile[]) => void;
-	quickLaunchOnly: boolean;
+	configuredProfilesOnly: boolean;
 }
 export interface IDefaultShellAndArgsRequest {
 	useAutomationShell: boolean;
@@ -305,6 +314,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	setDimensions(cols: number, rows: number, sync: true): void;
 	acknowledgeDataEvent(charCount: number): void;
+	processBinary(data: string): void;
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
@@ -344,6 +354,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	emitLatency(latency: number): void;
 
 	onInput: Event<string>;
+	onBinary: Event<string>;
 	onResize: Event<{ cols: number, rows: number }>;
 	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
@@ -399,6 +410,7 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW_WITH_CWD = 'workbench.action.terminal.newWithCwd',
 	NEW_LOCAL = 'workbench.action.terminal.newLocal',
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
+	NEW_WITH_PROFILE = 'workbench.action.terminal.newWithProfile',
 	SPLIT = 'workbench.action.terminal.split',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
 	RELAUNCH = 'workbench.action.terminal.relaunch',
@@ -412,6 +424,7 @@ export const enum TERMINAL_COMMAND_ID {
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
 	FOCUS_PREVIOUS = 'workbench.action.terminal.focusPrevious',
 	PASTE = 'workbench.action.terminal.paste',
+	PASTE_SELECTION = 'workbench.action.terminal.pasteSelection',
 	SELECT_DEFAULT_PROFILE = 'workbench.action.terminal.selectDefaultShell',
 	RUN_SELECTED_TEXT = 'workbench.action.terminal.runSelectedText',
 	RUN_ACTIVE_FILE = 'workbench.action.terminal.runActiveFile',
@@ -474,6 +487,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
 	TERMINAL_COMMAND_ID.NEW,
 	TERMINAL_COMMAND_ID.PASTE,
+	TERMINAL_COMMAND_ID.PASTE_SELECTION,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
 	TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
@@ -577,6 +591,7 @@ export interface ITerminalContributions {
 export interface ITerminalTypeContribution {
 	title: string;
 	command: string;
+	icon?: string;
 }
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
@@ -599,6 +614,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						},
 						title: {
 							description: nls.localize('vscode.extension.contributes.terminal.types.title', "Title for this type of terminal."),
+							type: 'string',
+						},
+						icon: {
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
 							type: 'string',
 						},
 					},

@@ -133,7 +133,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.titleUpdater.schedule();
 		}
 
-		if (this.titleBarStyle !== 'native') {
+		if (this.titleBarStyle !== 'native' && (!isMacintosh || isWeb)) {
 			if (event.affectsConfiguration('window.menuBarVisibility')) {
 				if (this.currentMenubarVisibility === 'compact') {
 					this.uninstallMenubar();
@@ -341,7 +341,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		// App Icon (Native Windows/Linux and Web)
@@ -413,7 +413,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		return this.element;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		// Part container
@@ -514,7 +514,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		this.updateLayout(new Dimension(width, height));
 
 		super.layoutContents(width, height);

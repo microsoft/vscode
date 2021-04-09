@@ -18,7 +18,8 @@ import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableV
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestRootProvider, ITestService, MainTestController, TestDiffListener } from 'vs/workbench/contrib/testing/common/testService';
 
 type TestLocationIdent = { resource: ExtHostTestingResource, uri: URI };
@@ -233,6 +234,7 @@ export class TestService extends Disposable implements ITestService {
 			this.unsubscribeEmitter.fire(subscription.ident);
 			const diff = subscription.collection.clear();
 			subscription.onDiff.fire(diff);
+			subscription.collection.pendingRootProviders = this.rootProviders.size;
 			this.subscribeEmitter.fire(subscription.ident);
 		}
 	}
@@ -359,6 +361,14 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	}
 
 	/**
+	 * Sets the number of pending root providers.
+	 */
+	public set pendingRootProviders(count: number) {
+		this.pendingRootCount = count;
+		this.pendingRootChangeEmitter.fire(count);
+	}
+
+	/**
 	 * @inheritdoc
 	 */
 	public get busyProviders() {
@@ -446,7 +456,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * Applies the diff to the collection.
 	 */
-	public apply(diff: TestsDiff) {
+	public override apply(diff: TestsDiff) {
 		let prevBusy = this.busyProviderCount;
 		let prevPendingRoots = this.pendingRootCount;
 		super.apply(diff);
@@ -485,7 +495,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	/**
 	 * @override
 	 */
-	protected retireTest(testId: string) {
+	protected override retireTest(testId: string) {
 		this.retireTestEmitter.fire(testId);
 	}
 

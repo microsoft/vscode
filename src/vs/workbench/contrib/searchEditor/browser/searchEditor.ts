@@ -98,8 +98,8 @@ export class SearchEditor extends BaseTextEditor {
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IEditorProgressService readonly progressService: IEditorProgressService,
 		@ITextResourceConfigurationService textResourceService: ITextResourceConfigurationService,
-		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IEditorService protected editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService
 	) {
@@ -119,7 +119,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
 	}
 
-	createEditor(parent: HTMLElement) {
+	override createEditor(parent: HTMLElement) {
 		DOM.append(parent, this.container);
 
 		this.createQueryEditor(this.container);
@@ -138,7 +138,7 @@ export class SearchEditor extends BaseTextEditor {
 		// Includes/Excludes Dropdown
 		this.includesExcludesContainer = DOM.append(this.queryEditorContainer, DOM.$('.includes-excludes'));
 
-		// // Toggle query details button
+		// Toggle query details button
 		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button', title: localize('moreSearch', "Toggle Search Details") }));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
@@ -164,7 +164,7 @@ export class SearchEditor extends BaseTextEditor {
 			}
 		}));
 
-		// // Includes
+		// Includes
 		const folderIncludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.includes'));
 		const filesToIncludeTitle = localize('searchScope.includes', "files to include");
 		DOM.append(folderIncludesList, DOM.$('h4', undefined, filesToIncludeTitle));
@@ -174,7 +174,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerSearch()));
 
-		// // Excludes
+		// Excludes
 		const excludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.excludes'));
 		const excludesTitle = localize('searchScope.excludes', "files to exclude");
 		DOM.append(excludesList, DOM.$('h4', undefined, excludesTitle));
@@ -238,11 +238,11 @@ export class SearchEditor extends BaseTextEditor {
 			});
 	}
 
-	getControl() {
+	override getControl() {
 		return this.searchResultEditor;
 	}
 
-	focus() {
+	override focus() {
 		const viewState = this.loadViewState();
 		if (viewState && viewState.focused === 'editor') {
 			this.searchResultEditor.focus();
@@ -544,7 +544,7 @@ export class SearchEditor extends BaseTextEditor {
 		await Promise.all(files);
 	}
 
-	layout(dimension: DOM.Dimension) {
+	override layout(dimension: DOM.Dimension) {
 		this.dimension = dimension;
 		this.reLayout();
 	}
@@ -583,7 +583,7 @@ export class SearchEditor extends BaseTextEditor {
 		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
 	}
 
-	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async override setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, context, token);
@@ -625,7 +625,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.reLayout();
 	}
 
-	saveState() {
+	override saveState() {
 		this.saveViewState();
 		super.saveState();
 	}
@@ -635,7 +635,7 @@ export class SearchEditor extends BaseTextEditor {
 		if (resource) { this.saveTextEditorViewState(resource); }
 	}
 
-	protected retrieveTextEditorViewState(resource: URI): SearchEditorViewState | null {
+	protected override retrieveTextEditorViewState(resource: URI): SearchEditorViewState | null {
 		const control = this.getControl();
 		const editorViewState = control.saveViewState();
 		if (!editorViewState) { return null; }
@@ -654,7 +654,7 @@ export class SearchEditor extends BaseTextEditor {
 		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
 	}
 
-	clearInput() {
+	override clearInput() {
 		this.saveViewState();
 		super.clearInput();
 	}

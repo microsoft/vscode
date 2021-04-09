@@ -12,10 +12,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
 import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IShellLaunchConfigDto, RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
+import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -49,6 +49,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			this._remoteTerminalChannel = channel;
 
 			channel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
+			channel.onProcessBinary(e => this._ptys.get(e.id)?.processBinary(e.event));
 			channel.onProcessExit(e => {
 				const pty = this._ptys.get(e.id);
 				if (pty) {
@@ -168,8 +169,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return undefined;
 	}
 
-	public async listProcesses(reduceGraceTime: boolean = false): Promise<IRemoteTerminalAttachTarget[]> {
-		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses(reduceGraceTime) : [];
+	public async listProcesses(): Promise<IRemoteTerminalAttachTarget[]> {
+		const terms = this._remoteTerminalChannel ? await this._remoteTerminalChannel.listProcesses() : [];
 		return terms.map(termDto => {
 			return <IRemoteTerminalAttachTarget>{
 				id: termDto.id,
@@ -190,8 +191,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
 	}
 
+	public async reduceConnectionGraceTime(): Promise<void> {
+		if (!this._remoteTerminalChannel) {
+			throw new Error('Cannot reduce grace time when there is no remote');
+		}
+		return this._remoteTerminalChannel.reduceConnectionGraceTime();
+	}
+
 	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {
-		await this._remoteTerminalChannel?.listProcesses(true);
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call getActiveInstanceId when there is no remote`);
 		}

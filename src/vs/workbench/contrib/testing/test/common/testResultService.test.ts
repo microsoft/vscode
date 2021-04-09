@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { timeout } from 'vs/base/common/async';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { HydratedTestResult, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ReExportedTestRunState as TestRunState } from 'vs/workbench/contrib/testing/common/testStubs';
 import { getInitializedMainTestCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -52,7 +56,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('setAllToState', () => {
-			r.setAllToState({ state: TestRunState.Queued, duration: 0, messages: [] }, t => t.item.label !== 'root');
+			r.setAllToState(TestRunState.Queued, t => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Unset]: 1,
@@ -69,7 +73,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('updateState', () => {
-			r.updateState('id-a', { state: TestRunState.Running, duration: 0, messages: [] });
+			r.updateState('id-a', TestRunState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Running]: 1,
@@ -98,7 +102,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('addTestToRun', () => {
-			r.updateState('id-b', { state: TestRunState.Running, duration: 0, messages: [] });
+			r.updateState('id-b', TestRunState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Running]: 1,
@@ -110,8 +114,8 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('markComplete', () => {
-			r.setAllToState({ state: TestRunState.Queued, duration: 0, messages: [] }, t => true);
-			r.updateState('id-aa', { state: TestRunState.Passed, duration: 0, messages: [] });
+			r.setAllToState(TestRunState.Queued, () => true);
+			r.updateState('id-aa', TestRunState.Passed);
 			changed.clear();
 
 			r.markComplete();
@@ -128,15 +132,16 @@ suite('Workbench - Test Results Service', () => {
 	});
 
 	suite('service', () => {
-		let storage: TestStorageService;
+		let storage: ITestResultStorage;
 		let results: TestResultService;
 
+		class TestTestResultService extends TestResultService {
+			override persistScheduler = { schedule: () => this.persistImmediately() } as any;
+		}
+
 		setup(() => {
-			storage = new TestStorageService();
-			results = new TestResultService(
-				new MockContextKeyService(),
-				storage,
-			);
+			storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
+			results = new TestTestResultService(new MockContextKeyService(), storage);
 		});
 
 		test('pushes new result', () => {
@@ -144,15 +149,20 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(results.results, [r]);
 		});
 
-		test('serializes and re-hydrates', () => {
+		test('serializes and re-hydrates', async () => {
 			results.push(r);
-			r.updateState('id-aa', { state: TestRunState.Passed, duration: 0, messages: [] });
+			r.updateState('id-aa', TestRunState.Passed);
 			r.markComplete();
+			await timeout(0); // allow persistImmediately async to happen
 
 			results = new TestResultService(
 				new MockContextKeyService(),
 				storage,
 			);
+
+			assert.strictEqual(0, results.results.length);
+			await timeout(0); // allow load promise to resolve
+			assert.strictEqual(1, results.results.length);
 
 			const [rehydrated, actual] = results.getStateById('id-root')!;
 			const expected: any = { ...r.getStateById('id-root')! };

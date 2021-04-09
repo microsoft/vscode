@@ -9,7 +9,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 
-const setupIcon = registerIcon('getting-started-setup', Codicon.heart, localize('getting-started-setup-icon', "Icon used for the setup category of getting started"));
+const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of getting started"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of getting started"));
 const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
 
@@ -20,7 +20,7 @@ export type BuiltinGettingStartedItem = {
 	description: string,
 	button:
 	| { title: string, command?: never, link: string }
-	| { title: string, command: string, link?: never },
+	| { title: string, command: string, link?: never, sideBySide?: boolean },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
 	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
@@ -47,7 +47,7 @@ export const content: GettingStartedContent = [
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'explorer.newFile',
+			command: 'workbench.action.files.newUntitledFile',
 		}
 	},
 	{
@@ -166,7 +166,13 @@ export const content: GettingStartedContent = [
 					},
 					when: 'isWeb',
 					doneOn: { commandExecuted: 'github.codespaces.openInStable' },
-					media: { type: 'image', altText: 'Preview of the Open in VS Code command.', path: 'openVSC.png' },
+					media: {
+						type: 'image', altText: 'Preview of the Open in VS Code command.', path: {
+							dark: 'dark/openVSC.png',
+							light: 'light/openVSC.png',
+							hc: 'light/openVSC.png',
+						}
+					},
 				}
 			]
 		}
@@ -191,14 +197,37 @@ export const content: GettingStartedContent = [
 				},
 				{
 					id: 'findLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Code in any language, without switching editors"),
+					title: localize('gettingStarted.findLanguageExts.title', "Code in any language"),
 					description: localize('gettingStarted.findLanguageExts.description', "VS Code supports over 50+ programming languages. While many are built-in, others can be easily installed as extensions in one click."),
 					button: {
 						title: localize('gettingStarted.findLanguageExts.button', "Browse Language Extensions"),
 						command: 'workbench.extensions.action.showLanguageExtensions',
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showLanguageExtensions' },
-					media: { type: 'image', altText: 'Language extensions', path: 'languageExtensions.png', }
+					media: {
+						type: 'image', altText: 'Language extensions', path: {
+							dark: 'dark/languageExtensions.png',
+							light: 'light/languageExtensions.png',
+							hc: 'hc/languageExtensions.png',
+						}
+					}
+				},
+				{
+					id: 'keymaps',
+					title: localize('gettingStarted.keymaps.title', "Migrate your keyboard shortcuts"),
+					description: localize('gettingStarted.keymaps.description', "Keymap extensions bring your favorite keyboard shortcuts from other editors to VS Code."),
+					button: {
+						title: localize('gettingStarted.keymaps.button', "Keymap Extensions"),
+						command: 'workbench.extensions.action.showRecommendedKeymapExtensions',
+					},
+					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedKeymapExtensions' },
+					media: {
+						type: 'image', altText: 'List of keymap extensions.', path: {
+							dark: 'dark/keymaps.png',
+							light: 'light/keymaps.png',
+							hc: 'hc/keymaps.png',
+						},
+					}
 				},
 				{
 					id: 'settingsSync',
@@ -210,31 +239,68 @@ export const content: GettingStartedContent = [
 						command: 'workbench.userDataSync.actions.turnOn',
 					},
 					doneOn: { eventFired: 'sync-enabled' },
-					media: { type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.png', }
+					media: {
+						type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: {
+							dark: 'dark/settingsSync.png',
+							light: 'light/settingsSync.png',
+							hc: 'hc/settingsSync.png',
+						},
+					}
 				},
 				{
 					id: 'pickAFolderTask-Mac',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project"),
-					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to get started!"),
-					when: 'isMac',
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
+					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to start coding!"),
+					when: 'isMac && workspaceFolderCount == 0',
 					button: {
 						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
 						command: 'workbench.action.files.openFileFolder'
 					},
 					doneOn: { commandExecuted: 'workbench.action.files.openFileFolder' },
-					media: { type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.png' }
+					media: {
+						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
+							dark: 'dark/openFolder.png',
+							light: 'light/openFolder.png',
+							hc: 'hc/openFolder.png',
+						}
+					}
 				},
 				{
 					id: 'pickAFolderTask-Other',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project"),
-					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a folder to get started!"),
-					when: '!isMac',
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
+					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a project folder to start coding!"),
+					when: '!isMac && workspaceFolderCount == 0',
 					button: {
 						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
 						command: 'workbench.action.files.openFolder'
 					},
 					doneOn: { commandExecuted: 'workbench.action.files.openFolder' },
-					media: { type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.png' }
+					media: {
+						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
+							dark: 'dark/openFolder.png',
+							light: 'light/openFolder.png',
+							hc: 'hc/openFolder.png',
+						}
+					}
+				},
+				{
+					id: 'quickOpen',
+					title: localize('gettingStarted.quickOpen.title', "Quick open files"),
+					description: localize('gettingStarted.quickOpen.description', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key."),
+					when: 'workspaceFolderCount != 0',
+					button: {
+						title: localize('gettingStarted.quickOpen.button', "Quick Open a File"),
+						command: 'workbench.action.quickOpen',
+						sideBySide: true
+					},
+					doneOn: { commandExecuted: 'workbench.action.quickOpen' },
+					media: {
+						type: 'image', altText: 'Go to file in quick search.', path: {
+							dark: 'dark/openFolder.png',
+							light: 'light/openFolder.png',
+							hc: 'hc/openFolder.png',
+						}
+					}
 				}
 			]
 		}
@@ -244,7 +310,7 @@ export const content: GettingStartedContent = [
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
-		description: localize('gettingStarted.beginner.description', "Save time with these must-have shortcuts & features."),
+		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
 		content: {
 			type: 'items',
 			items: [
@@ -257,19 +323,31 @@ export const content: GettingStartedContent = [
 						command: 'workbench.action.showCommands'
 					},
 					doneOn: { commandExecuted: 'workbench.action.showCommands' },
-					media: { type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.png' },
+					media: {
+						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
+							dark: 'dark/commandPalette.png',
+							light: 'light/commandPalette.png',
+							hc: 'hc/commandPalette.png',
+						}
+					},
 				},
 				{
 					id: 'terminal',
-					title: localize('gettingStarted.terminal.title', "Run tasks in the integrated terminal"),
+					title: localize('gettingStarted.terminal.title', "Convenient built-in terminal"),
 					description: localize('gettingStarted.terminal.description', "Quickly run shell commands and monitor build output, right next to your code."),
-					when: 'remoteName != codespaces',
+					when: 'remoteName != codespaces && !terminalIsOpen',
 					button: {
-						title: localize('gettingStarted.terminal.button', "Open Terminal"),
+						title: localize('gettingStarted.terminal.button', "Show Terminal Panel"),
 						command: 'workbench.action.terminal.toggleTerminal'
 					},
 					doneOn: { commandExecuted: 'workbench.action.terminal.toggleTerminal' },
-					media: { type: 'image', altText: 'Integrated terminal running a few npm commands', path: 'terminal.png' },
+					media: {
+						type: 'image', altText: 'Integrated terminal running a few npm commands', path: {
+							dark: 'dark/terminal.png',
+							light: 'light/terminal.png',
+							hc: 'hc/terminal.png',
+						}
+					},
 				},
 				{
 					id: 'extensions',
@@ -280,15 +358,22 @@ export const content: GettingStartedContent = [
 						command: 'workbench.extensions.action.showRecommendedExtensions'
 					},
 					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedExtensions' },
-					media: { type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: 'extensions.png' },
+					media: {
+						type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: {
+							dark: 'dark/extensions.png',
+							light: 'light/extensions.png',
+							hc: 'hc/extensions.png',
+						}
+					},
 				},
 				{
 					id: 'settings',
-					title: localize('gettingStarted.settings.title', "Everything is a setting"),
-					description: localize('gettingStarted.settings.description', "Optimize every part of VS Code's look & feel to your liking. Enabling Settings Sync lets you share your personal tweaks across machines."),
+					title: localize('gettingStarted.settings.title', "Tune your settings"),
+					description: localize('gettingStarted.settings.description', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started."),
 					button: {
 						title: localize('gettingStarted.settings.button', "Tweak my Settings"),
-						command: 'workbench.action.openSettings'
+						command: 'workbench.action.openSettings',
+						sideBySide: true
 					},
 					doneOn: { commandExecuted: 'workbench.action.openSettings' },
 					media: {

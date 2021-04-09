@@ -223,7 +223,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -238,7 +238,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		// insert down, move selections
 		const focus = viewModel.getFocus();
 		const selections = viewModel.getSelections();
-		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model));
+		const newCells = cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model));
 		const countDelta = newCells.length;
 		const newFocus = context.ui ? focus : { start: focus.start + countDelta, end: focus.end + countDelta };
 		const newSelections = context.ui ? selections : [{ start: range.start + countDelta, end: range.end + countDelta }];
@@ -247,7 +247,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 				editType: CellEditType.Replace,
 				index: range.end,
 				count: 0,
-				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.viewCells[index].model))
+				cells: cellRangesToIndexes([range]).map(index => cloneNotebookCellTextModel(viewModel.cellAt(index)!.model))
 			}],
 			true,
 			{
@@ -306,7 +306,7 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 		return null;
 	}
 
-	const cells = viewModel.viewCells.slice(range.start, range.end);
+	const cells = viewModel.getCells(range);
 
 	if (!cells.length) {
 		return null;
@@ -332,7 +332,7 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 	}
 
 	if (direction === 'above') {
-		const above = viewModel.viewCells[range.start - 1] as CellViewModel;
+		const above = viewModel.cellAt(range.start - 1) as CellViewModel;
 		if (constraint && above.cellKind !== constraint) {
 			return null;
 		}
@@ -362,7 +362,7 @@ export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICe
 			endSelections: [{ start: range.start - 1, end: range.start }]
 		};
 	} else {
-		const below = viewModel.viewCells[range.end] as CellViewModel;
+		const below = viewModel.cellAt(range.end) as CellViewModel;
 		if (constraint && below.cellKind !== constraint) {
 			return null;
 		}
@@ -440,10 +440,10 @@ export async function joinCellsWithSurrounds(bulkEditService: IBulkEditService, 
 				|| selection.start === 0 && direction === 'above'
 			) {
 				if (containFocus) {
-					cell = viewModel.getCellByIndex(focus.start);
+					cell = viewModel.cellAt(focus.start)!;
 				}
 
-				cells.push(...viewModel.viewCells.slice(selection.start, selection.end));
+				cells.push(...viewModel.getCells(selection));
 				continue;
 			}
 
