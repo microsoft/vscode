@@ -43,53 +43,6 @@ export namespace WebviewResourceResponse {
 	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied | NotModified;
 }
 
-export namespace WebviewFileReadResponse {
-	export enum Type { Success, NotModified }
-
-	export class StreamSuccess {
-		readonly type = Type.Success;
-
-		constructor(
-			public readonly stream: VSBufferReadableStream,
-			public readonly etag: string | undefined
-		) { }
-	}
-
-	export const NotModified = { type: Type.NotModified } as const;
-
-	export type Response = StreamSuccess | typeof NotModified;
-}
-
-/**
- * Wraps a call to `IFileService.readFileStream` and converts the result to a `WebviewFileReadResponse.Response`
- */
-export async function readFileStream(
-	fileService: IFileService,
-	resource: URI,
-	etag: string | undefined,
-): Promise<WebviewFileReadResponse.Response> {
-	try {
-		const result = await fileService.readFileStream(resource, { etag });
-		return new WebviewFileReadResponse.StreamSuccess(result.value, result.etag);
-	} catch (e) {
-		if (e instanceof FileOperationError) {
-			const result = e.fileOperationResult;
-
-			// NotModified status is expected and can be handled gracefully
-			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
-				return WebviewFileReadResponse.NotModified;
-			}
-		}
-
-		// Otherwise the error is unexpected. Re-throw and let caller handle it
-		throw e;
-	}
-}
-
-export interface WebviewResourceFileReader {
-	readFileStream(resource: URI, etag: string | undefined): Promise<WebviewFileReadResponse.Response>;
-}
-
 export async function loadLocalResource(
 	requestUri: URI,
 	ifNoneMatch: string | undefined,
@@ -99,7 +52,7 @@ export async function loadLocalResource(
 		remoteConnectionData?: IRemoteConnectionData | null;
 		rewriteUri?: (uri: URI) => URI,
 	},
-	fileReader: WebviewResourceFileReader,
+	fileService: IFileService,
 	requestService: IRequestService,
 	logService: ILogService,
 	token: CancellationToken,
@@ -147,21 +100,19 @@ export async function loadLocalResource(
 	}
 
 	try {
-		const contents = await fileReader.readFileStream(resourceToLoad, ifNoneMatch);
-		logService.debug(`loadLocalResource - Loaded using fileReader. requestUri=${requestUri}`);
-
-		switch (contents.type) {
-			case WebviewFileReadResponse.Type.Success:
-				return new WebviewResourceResponse.StreamSuccess(contents.stream, contents.etag, mime);
-
-			case WebviewFileReadResponse.Type.NotModified:
-				return new WebviewResourceResponse.NotModified(mime);
-
-			default:
-				logService.error(`loadLocalResource - Unknown file read response`);
-				return WebviewResourceResponse.Failed;
-		}
+		const result = await fileService.readFileStream(resourceToLoad, { etag: ifNoneMatch });
+		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, mime);
 	} catch (err) {
+		if (err instanceof FileOperationError) {
+			const result = err.fileOperationResult;
+
+			// NotModified status is expected and can be handled gracefully
+			if (result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+				return new WebviewResourceResponse.NotModified(mime);
+			}
+		}
+
+		// Otherwise the error is unexpected.
 		logService.debug(`loadLocalResource - Error using fileReader. requestUri=${requestUri}`);
 		console.log(err);
 

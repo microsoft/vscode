@@ -20,7 +20,7 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
-import { loadLocalResource, readFileStream, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
+import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -491,9 +491,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 				roots: this.content.options.localResourceRoots || [],
 				remoteConnectionData,
 				rewriteUri,
-			}, {
-				readFileStream: (resource, etag) => readFileStream(this._fileService, resource, etag),
-			}, this._requestService, this._logService, CancellationToken.None);
+			}, this._fileService, this._requestService, this._logService, CancellationToken.None);
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success:
