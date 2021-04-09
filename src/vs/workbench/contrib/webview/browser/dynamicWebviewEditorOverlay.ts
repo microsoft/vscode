@@ -281,10 +281,6 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	runFindAction(previous: boolean): void { this.withWebview(webview => webview.runFindAction(previous)); }
 
-	public getInnerWebview() {
-		return this._webview.value;
-	}
-
 	private withWebview(f: (webview: Webview) => void): void {
 		if (this._webview.value) {
 			f(this._webview.value);

@@ -173,7 +173,5 @@ export interface WebviewOverlay extends Webview {
 	claim(owner: any, scopedContextKeyService: IContextKeyService | undefined): void;
 	release(owner: any): void;
 
-	getInnerWebview(): Webview | undefined;
-
 	layoutWebviewOverElement(element: HTMLElement, dimension?: Dimension): void;
 }
