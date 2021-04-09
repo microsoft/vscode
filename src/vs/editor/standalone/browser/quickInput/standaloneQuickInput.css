@@ -30,7 +30,13 @@
 	color: #555;
 }
 
-.hc-black .monaco-keybinding > .monaco-keybinding-key,
+.hc-black .monaco-keybinding > .monaco-keybinding-key {
+	background-color: transparent;
+	border: solid 1px rgb(111, 195, 223);
+	box-shadow: none;
+	color: #fff;
+}
+
 .vs-dark .monaco-keybinding > .monaco-keybinding-key {
 	background-color: rgba(128, 128, 128, 0.17);
 	border: solid 1px rgba(51, 51, 51, 0.6);
