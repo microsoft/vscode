@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
@@ -97,6 +98,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _telemetryService: ITelemetryService;
 	private readonly _tunnelService: ITunnelService;
 	protected readonly _environmentService: IWorkbenchEnvironmentService;
+
+	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 
 	constructor(
 		public readonly id: string,
@@ -528,4 +531,53 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			location: redirect
 		});
 	}
+
+	public focus(): void {
+		this.doFocus();
+
+		// Handle focus change programmatically (do not rely on event from <webview>)
+		this.handleFocusChange(true);
+	}
+
+	protected doFocus() {
+		if (!this.element) {
+			return;
+		}
+
+		// Clear the existing focus first if not already on the webview.
+		// This is required because the next part where we set the focus is async.
+		if (document.activeElement && document.activeElement instanceof HTMLElement && document.activeElement !== this.element) {
+			// Don't blur if on the webview because this will also happen async and may unset the focus
+			// after the focus trigger fires below.
+			document.activeElement.blur();
+		}
+
+		// Workaround for https://github.com/microsoft/vscode/issues/75209
+		// Electron's webview.focus is async so for a sequence of actions such as:
+		//
+		// 1. Open webview
+		// 1. Show quick pick from command palette
+		//
+		// We end up focusing the webview after showing the quick pick, which causes
+		// the quick pick to instantly dismiss.
+		//
+		// Workaround this by debouncing the focus and making sure we are not focused on an input
+		// when we try to re-focus.
+		this._focusDelayer.trigger(async () => {
+			if (!this.isFocused || !this.element) {
+				return;
+			}
+			if (document.activeElement && document.activeElement?.tagName !== 'BODY') {
+				return;
+			}
+			try {
+				this.elementFocusImpl();
+			} catch {
+				// noop
+			}
+			this._send('focus');
+		});
+	}
+
+	protected abstract elementFocusImpl(): void;
 }
