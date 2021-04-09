@@ -105,6 +105,7 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 						extensionLocation: kernel.localResourceRoot,
 						supportedLanguages: kernel.supportedLanguages,
 						implementsInterrupt: kernel.implementsInterrupt,
+						implementsExecutionOrder: kernel.implementsExecutionOrder,
 						extension: kernel.extensionId,
 						async resolve() { },
 						async executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.executeCells(uri, ranges); },

@@ -33,7 +33,7 @@ export interface INotebookKernel2 {
 	detail?: string;
 	isPreferred?: boolean;
 	supportedLanguages: string[];
-	hasExecutionOrder: boolean;
+	implementsExecutionOrder: boolean;
 	implementsInterrupt: boolean;
 
 	localResourceRoot: URI;

@@ -48,7 +48,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionLocation: extension.extensionLocation,
 			label: options.label,
 			supportedLanguages: options.supportedLanguages,
-			supportsInterrupt: Boolean(options.interruptHandler)
+			supportsInterrupt: Boolean(options.interruptHandler),
+			hasExecutionOrder: options.hasExecutionOrder,
 		};
 		this._proxy.$addKernel(handle, data);
 

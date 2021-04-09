@@ -762,6 +762,7 @@ export interface INotebookKernel {
 	preloads?: URI[];
 	supportedLanguages?: string[]
 	implementsInterrupt?: boolean;
+	implementsExecutionOrder?: boolean;
 
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
