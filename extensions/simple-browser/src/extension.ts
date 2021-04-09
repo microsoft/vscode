@@ -22,7 +22,7 @@ const enabledHosts = new Set<string>([
 	'0:0:0:0:0:0:0:1',
 	'::1',
 	// all interfaces IPv4
-	'0.0.0.0.0',
+	'0.0.0.0',
 	// all interfaces IPv6
 	'0:0:0:0:0:0:0:0',
 	'::'
