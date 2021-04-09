@@ -1195,13 +1195,6 @@ declare module 'vscode' {
 		 * The column in which this editor shows.
 		 */
 		readonly viewColumn?: ViewColumn;
-
-		/**
-		 * @deprecated
-		 */
-		// @rebornix REMOVE/REplace NotebookCommunication
-		// todo@API fishy? notebooks are public objects, there should be a "global" events for this
-		readonly onDidDispose: Event<void>;
 	}
 
 	export interface NotebookDocumentMetadataChangeEvent {
