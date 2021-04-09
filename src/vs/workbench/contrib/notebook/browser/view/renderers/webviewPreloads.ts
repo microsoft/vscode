@@ -531,7 +531,6 @@ function webviewPreloads() {
 				break;
 			case 'showMarkdownPreview':
 				{
-					console.log('showMarkdownPreview');
 					const data = event.data;
 
 					const cellContainer = document.getElementById(data.id);
