@@ -31,6 +31,7 @@ class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProv
 		const item = text ? <INotebookCellStatusBarItem>{
 			text,
 			alignment: CellStatusbarAlignment.Left,
+			opacity: '0.7'
 		} : undefined;
 		return {
 			items: item ? [item] : []

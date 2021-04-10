@@ -14,7 +14,7 @@ import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, getEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -99,7 +99,11 @@ export abstract class BaseCellViewModel extends Disposable {
 		id?: string;
 		options: model.IModelDeltaDecoration;
 	}>();
-	private _lastDecorationId: number = 0;
+	private _lastItemId: number = 0;
+
+	private _cellStatusBarItems = new Map<string, INotebookCellStatusBarItem>();
+	private _onDidChangeCellStatusBarItems = new Emitter<void>();
+	readonly onDidChangeCellStatusBarItems: Event<void> = this._onDidChangeCellStatusBarItems.event;
 
 	get textModel(): model.ITextModel | undefined {
 		return this.model.textModel;
@@ -256,7 +260,7 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	addModelDecoration(decoration: model.IModelDeltaDecoration): string {
 		if (!this._textEditor) {
-			const id = ++this._lastDecorationId;
+			const id = ++this._lastItemId;
 			const decorationId = `_lazy_${this.id};${id}`;
 			this._resolvedDecorations.set(decorationId, { options: decoration });
 			return decorationId;
@@ -300,7 +304,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	private _addCellDecoration(options: INotebookCellDecorationOptions): string {
-		const id = ++this._lastDecorationId;
+		const id = ++this._lastItemId;
 		const decorationId = `_cell_${this.id};${id}`;
 		this._resolvedCellDecorations.set(decorationId, options);
 		this._cellDecorationsChanged.fire({ added: [options], removed: [] });
@@ -321,6 +325,31 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		return ret;
+	}
+
+	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
+		oldItems.forEach(id => {
+			const item = this._cellStatusBarItems.get(id);
+			if (item) {
+				this._cellStatusBarItems.delete(id);
+				// item.dispose();
+			}
+		});
+
+		const newIds = newItems.map(item => {
+			const id = ++this._lastItemId;
+			const itemId = `_cell_${this.id};${id}`;
+			this._cellStatusBarItems.set(itemId, item);
+			return itemId;
+		});
+
+		this._onDidChangeCellStatusBarItems.fire();
+
+		return newIds;
+	}
+
+	getCellStatusBarItems(): INotebookCellStatusBarItem[] {
+		return Array.from(this._cellStatusBarItems.values());
 	}
 
 	revealRangeInCenter(range: Range) {

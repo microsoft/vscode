@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernel, ICellRange, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, cellRangesToIndexes, reduceRanges, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -244,6 +244,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly textBuffer: IReadonlyTextBuffer;
 	readonly layoutInfo: { totalHeight: number; };
 	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
+	readonly onDidChangeCellStatusBarItems: Event<void>;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -263,6 +264,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
 	getCellDecorations(): INotebookCellDecorationOptions[];
+	getCellStatusBarItems(): INotebookCellStatusBarItem[];
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {
@@ -299,6 +301,11 @@ export interface INotebookCellDecorationOptions {
 export interface INotebookDeltaDecoration {
 	handle: number;
 	options: INotebookCellDecorationOptions;
+}
+
+export interface INotebookDeltaCellStatusBarItems {
+	handle: number;
+	items: INotebookCellStatusBarItem[];
 }
 
 export class NotebookEditorOptions extends EditorOptions {
@@ -350,10 +357,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 
 	cursorNavigationMode: boolean;
 
-	// or add/remove by id
-	setStatusBarItems(cell: handle, ownerId: string, items: Array);
-	getStatusBarItems(cell: handle);
-	onDidChangeCellStatusBarItems: Event<URI>;
+	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[];
 
 	/**
 	 * Notebook view model attached to the current editor
@@ -602,6 +606,12 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 * @param endIndex Exclusive
 	 */
 	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel>;
+
+	/**
+	 * Get the cells in the given range.
+	 * TODO - is this the right way to do this?
+	 */
+	getCells(range: ICellRange): ReadonlyArray<ICellViewModel>;
 
 	/**
 	 * Set hidden areas on cell text models.

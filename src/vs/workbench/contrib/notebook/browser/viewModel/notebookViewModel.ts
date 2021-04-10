@@ -18,7 +18,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, IEditableCellViewModel, INotebookDeltaDecoration, INotebookDeltaCellStatusBarItems, CellFocusMode } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
@@ -221,6 +221,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	private _decorationIdToCellMap = new Map<string, number>();
+	private _statusBarItemIdToCellMap = new Map<string, number>();
 
 	constructor(
 		public viewType: string,
@@ -721,6 +722,31 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			const ret = cell?.deltaCellDecorations([], [decoration.options]) || [];
 			ret.forEach(id => {
 				this._decorationIdToCellMap.set(id, decoration.handle);
+			});
+
+			result.push(...ret);
+		});
+
+		return result;
+	}
+
+	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[] {
+		oldItems.forEach(id => {
+			const handle = this._statusBarItemIdToCellMap.get(id);
+
+			if (handle !== undefined) {
+				const cell = this.getCellByHandle(handle);
+				cell?.deltaCellStatusBarItems([id], []);
+			}
+		});
+
+		const result: string[] = [];
+
+		newItems.forEach(itemDelta => {
+			const cell = this.getCellByHandle(itemDelta.handle);
+			const ret = cell?.deltaCellStatusBarItems([], itemDelta.items) || [];
+			ret.forEach(id => {
+				this._statusBarItemIdToCellMap.set(id, itemDelta.handle);
 			});
 
 			result.push(...ret);
