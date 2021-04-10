@@ -1736,7 +1736,13 @@ export class QuickInputController extends Disposable {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
 
-			if (Object.values(this.styles.keybindingLabel).some(value => value instanceof Color)) {
+			if (
+				this.styles.keybindingLabel.keybindingLabelBackground ||
+				this.styles.keybindingLabel.keybindingLabelBorder ||
+				this.styles.keybindingLabel.keybindingLabelBottomBorder ||
+				this.styles.keybindingLabel.keybindingLabelShadow ||
+				this.styles.keybindingLabel.keybindingLabelForeground
+			) {
 				content.push('.quick-input-list .monaco-keybinding > .monaco-keybinding-key {');
 				if (this.styles.keybindingLabel.keybindingLabelBackground) {
 					content.push(`background-color: ${this.styles.keybindingLabel.keybindingLabelBackground};`);
