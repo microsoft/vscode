@@ -403,11 +403,11 @@
 	display: grid;
 
 	grid-template-columns: minmax(auto, 400px) 1fr;
-	grid-template-rows: minmax(40px, 25%) 100px 1fr;
+	grid-template-rows: minmax(40px, 20%) 100px 1fr;
 	grid-column-gap: 20px;
 	grid-template-areas:
 	"back ."
-	"title img"
+	"title ."
 	"tasks img"
 	;
 }
