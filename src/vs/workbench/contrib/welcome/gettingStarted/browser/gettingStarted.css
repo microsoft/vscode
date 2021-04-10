@@ -10,7 +10,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer {
 	box-sizing: border-box;
-	padding: 10px 20px;
 	line-height: 22px;
 	position: relative;
 	overflow: hidden;
@@ -24,10 +23,16 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer img {
 	max-width: 100%;
 	max-height: 100%;
+	object-fit: contain;
+	pointer-events: none;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer {
 	font-size: 13px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted {
+	height: 100%;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer h1 {
@@ -71,11 +76,15 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide {
 	width: 100%;
 	height: 100%;
-	padding: 8px;
+	padding: 0;
 	position: absolute;
 	box-sizing: border-box;
 	left: 0;
 	top: 0;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories {
+	padding: 12px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.animationReady .gettingStartedSlide {
@@ -88,7 +97,7 @@
 	height: 100%;
 	max-width: 800px;
 	margin: 0 auto;
-	grid-template-rows: 25% auto min-content;
+	grid-template-rows: 25% minmax(min-content, auto) min-content;
 	grid-template-columns: 1fr 1fr;
 	grid-template-areas:
 	"header header"
@@ -98,7 +107,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
-	grid-template-rows: 25% min-content auto min-content;
+	grid-template-rows: auto min-content minmax(min-content, auto) min-content;
 	grid-template-columns: 1fr;
 	grid-template-areas:
 	"header"
@@ -109,8 +118,9 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
-	grid-template-rows: auto min-content;
+	grid-template-rows: auto minmax(min-content, auto) min-content;
 	grid-template-areas:
+	"header"
 	"left-column right-column"
 	"footer footer"
 ;
@@ -118,7 +128,7 @@
 
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer {
-	grid-template-rows: min-content auto min-content;
+	grid-template-rows: min-content minmax(min-content, auto) min-content;
 	grid-template-columns: 1fr;
 	grid-template-areas:
 	"left-column"
@@ -127,6 +137,7 @@
 ;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .header,
 .monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .header {
 	display: none;
 }
@@ -223,7 +234,6 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category {
 	width: calc(100% - 16px);
-	max-width: 320px;
 	font-size: 13px;
 	box-sizing: border-box;
 	line-height: normal;
@@ -278,7 +288,6 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category {
-	width: 330px;
 	display: flex;
 	padding: 10px 0 20px 12px;
 	margin: 0;
@@ -307,6 +316,14 @@
 	margin: 4px 0;
 	overflow: hidden;
 	transition: height .1s linear;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task.expanded {
+	cursor: default !important;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task.expanded > .codicon {
+	cursor: pointer !important;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) {
@@ -378,7 +395,7 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .full-height-scrollable {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .full-height-scrollable {
 	height: 100%;
 }
 
@@ -388,8 +405,56 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
-	display: flex;
-	flex-direction: column;
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 0 12px;
+	display: grid;
+
+	grid-template-columns: minmax(auto, 400px) 1fr;
+	grid-template-rows: minmax(40px, 20%) 100px 1fr;
+	grid-column-gap: 20px;
+	grid-template-areas:
+	"back ."
+	"title ."
+	"tasks img"
+	;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
+	max-width: 500px;
+	grid-template-columns: auto;
+	grid-template-rows: 30px 100px minmax(30%, 40%) 1fr;
+	grid-column-gap: 20px;
+	grid-template-areas:
+	"back"
+	"title"
+	"img"
+	"tasks"
+	;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
+	grid-template-rows: 0 100px minmax(40%, 50%) 1fr;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .prev-button {
+	grid-area: back;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-category {
+	grid-area: title;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .tasks-container {
+	height: 100%;
+	grid-area: tasks;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
+	grid-area: img;
+}
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
+	align-self: center;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right {
@@ -437,6 +502,24 @@
 	z-index: 1;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .prev-button.button-link {
+	left: 0;
+	top: -10px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link {
+	left: 0;
+	top: -10px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link .codicon {
+	font-size: 20px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link .moreText {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button:hover {
 	cursor: pointer;
 }
@@ -482,6 +565,10 @@
 	opacity: 0;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted.showDetails .categoriesScrollbar .scrollbar.vertical {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
 	padding: 0;
 	background: transparent;
@@ -496,6 +583,7 @@
 	background: transparent;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .configureVisibility > button,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
 	text-align: center;
 }
