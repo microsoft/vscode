@@ -140,14 +140,7 @@ function webviewPreloads() {
 		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
-					if (!this.pending.size) {
-						return;
-					}
-
-					postNotebookMessage<IDimensionMessage>('dimension', {
-						updates: Array.from(this.pending.values())
-					});
-					this.pending.clear();
+					this.updateImmediately();
 				}, 0);
 			}
 			this.pending.set(id, {
