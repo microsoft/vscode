@@ -59,7 +59,7 @@ export class WorkspaceTrustRequestModel extends Disposable implements IWorkspace
 export class WorkspaceTrustStorageService extends Disposable implements IWorkspaceTrustStorageService {
 	_serviceBrand: undefined;
 
-	private storageKey = WORKSPACE_TRUST_STORAGE_KEY;
+	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
 	private trustStateInfo: IWorkspaceTrustStateInfo;
 
 	private readonly _onDidStorageChange = this._register(new Emitter<void>());
