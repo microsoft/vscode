@@ -1530,7 +1530,7 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 		const trustLabelElement = $('.setting-item-trust-description');
 		DOM.append(trustLabelElement, $('span.codicon.codicon-workspace-untrusted'));
 		const element = DOM.append(trustLabelElement, $('span'));
-		element.textContent = localize('trustLabel', "This setting can be applied only when the workspace is trusted.");
+		element.textContent = localize('trustLabel', "This setting can be applied only in the trusted workspace.");
 		const linkElement: HTMLAnchorElement = DOM.append(trustLabelElement, $('a'));
 		linkElement.textContent = manageWorkspaceTrustLabel;
 		linkElement.setAttribute('tabindex', '0');

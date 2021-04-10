@@ -272,22 +272,29 @@ export class WorkspaceTrustEditor extends EditorPane {
 		clearNode(this.affectedFeaturesContainer);
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
 		this.renderLimitationsHeaderElement(trustedContainer, localize('trustedWorkspace', "Trusted Workspace"), this.getHeaderTitleIconClassNames(WorkspaceTrustState.Trusted));
-		this.renderLimitationsListElement(trustedContainer, [
+
+		const limitationsInTrustedWorkspace = [
 			localize('trustedTasks', "Tasks will be allowed to run"),
 			localize('trustedDebugging', "Debugging will be enabled"),
-			localize('trustedSettings', "All workspace settings will be applied"),
-			localize('trustedExtensions', "All extensions will be enabled"),
-		], checkListIcon.classNamesArray);
+		];
+		if (numSettings > 0) {
+			limitationsInTrustedWorkspace.push(localize('trustedSettings', "All workspace settings will be applied"));
+		}
+		limitationsInTrustedWorkspace.push(localize('trustedExtensions', "All extensions will be enabled"));
+		this.renderLimitationsListElement(trustedContainer, limitationsInTrustedWorkspace, checkListIcon.classNamesArray);
 
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
 		this.renderLimitationsHeaderElement(untrustedContainer, localize('untrustedWorkspace', "Untrusted Workspace"), this.getHeaderTitleIconClassNames(WorkspaceTrustState.Untrusted));
 
-		this.renderLimitationsListElement(untrustedContainer, [
+		const limitationsInUntrustedWorkspace = [
 			localize('untrustedTasks', "Tasks will be disabled"),
 			localize('untrustedDebugging', "Debugging will be disabled"),
-			localize('untrustedSettings', "[{0} workspace settings](command:{1}) will not be applied", numSettings, 'settings.filterUntrusted'),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or limit functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
-		], xListIcon.classNamesArray);
+		];
+		if (numSettings > 0) {
+			limitationsInUntrustedWorkspace.push(localize('untrustedSettings', "[{0} workspace settings](command:{1}) will not be applied", numSettings, 'settings.filterUntrusted'));
+		}
+		limitationsInUntrustedWorkspace.push(localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or limit functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions'));
+		this.renderLimitationsListElement(untrustedContainer, limitationsInUntrustedWorkspace, xListIcon.classNamesArray);
 
 		this.addButtonToLimitationsElement(trustedContainer, WorkspaceTrustState.Trusted);
 		this.addButtonToLimitationsElement(untrustedContainer, WorkspaceTrustState.Untrusted);
