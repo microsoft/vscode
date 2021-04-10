@@ -52,7 +52,7 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/browser/
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -175,7 +175,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -203,13 +203,13 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
-		this._register(workspaceTrustService.onDidChangeTrustState(() => {
+		this._register(workspaceTrustManagementService.onDidChangeTrustState(() => {
 			if (this.searchResultModel) {
-				this.searchResultModel.updateWorkspaceTrustState(workspaceTrustService.getWorkspaceTrustState());
+				this.searchResultModel.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState());
 			}
 
 			if (this.settingsTreeModel) {
-				this.settingsTreeModel.updateWorkspaceTrustState(workspaceTrustService.getWorkspaceTrustState());
+				this.settingsTreeModel.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState());
 			}
 		}));
 	}
@@ -1011,7 +1011,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.refreshTOCTree();
 			this.renderTree(undefined, forceRefresh);
 		} else {
-			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustService.getWorkspaceTrustState());
+			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.getWorkspaceTrustState());
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
 
@@ -1204,7 +1204,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * Return a fake SearchResultModel which can hold a flat list of all settings, to be filtered (@modified etc)
 	 */
 	private createFilterModel(): SearchResultModel {
-		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustService.getWorkspaceTrustState());
+		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.getWorkspaceTrustState());
 
 		const fullResult: ISearchResult = {
 			filterMatches: []
@@ -1310,7 +1310,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 
 			if (!this.searchResultModel) {
-				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustService.getWorkspaceTrustState());
+				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.getWorkspaceTrustState());
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.currentSearchModel = this.searchResultModel;
 				this.onSearchModeToggled();
