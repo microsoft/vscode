@@ -42,18 +42,6 @@ export interface WorkspaceTrustRequestOptions {
 	readonly modal: boolean;
 }
 
-export interface IWorkspaceTrustRequestModel {
-	readonly trustRequestOptions: WorkspaceTrustRequestOptions | undefined;
-
-	readonly onDidInitiateRequest: Event<void>;
-	readonly onDidCompleteRequest: Event<WorkspaceTrustState | undefined>;
-	readonly onDidCancelRequest: Event<void>;
-
-	initiateRequest(options?: WorkspaceTrustRequestOptions): void;
-	completeRequest(trustState?: WorkspaceTrustState): void;
-	cancelRequest(): void;
-}
-
 export interface WorkspaceTrustStateChangeEvent {
 	readonly previousTrustState: WorkspaceTrustState;
 	readonly currentTrustState: WorkspaceTrustState;
@@ -93,8 +81,12 @@ export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequ
 
 export interface IWorkspaceTrustRequestService {
 	readonly _serviceBrand: undefined;
-	readonly requestModel: IWorkspaceTrustRequestModel;
 
+	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions>;
+	readonly onDidCompleteWorkspaceTrustRequest: Event<WorkspaceTrustState>;
+
+	cancelRequest(): void;
+	completeRequest(trustState?: WorkspaceTrustState): void;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
 }
 

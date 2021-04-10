@@ -5,8 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustRequestService, IWorkspaceTrustRequestModel, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
-import { WorkspaceTrustRequestModel } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageService {
 	_serviceBrand: undefined;
@@ -63,7 +62,17 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
 	_serviceBrand: undefined;
 
-	requestModel: IWorkspaceTrustRequestModel = new WorkspaceTrustRequestModel();
+	onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions> = Event.None;
+	onDidCompleteWorkspaceTrustRequest: Event<WorkspaceTrustState> = Event.None;
+
+
+	cancelRequest(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	completeRequest(trustState?: WorkspaceTrustState): void {
+		throw new Error('Method not implemented.');
+	}
 
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
 		return Promise.resolve(WorkspaceTrustState.Trusted);

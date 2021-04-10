@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { dirname, resolve } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
@@ -13,7 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustRequestModel, IWorkspaceTrustManagementService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService as IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustStateInfo, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService as IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
@@ -23,38 +23,6 @@ export const WorkspaceTrustContext = {
 	PendingRequest: new RawContextKey<boolean>('workspaceTrustPendingRequest', false),
 	TrustState: new RawContextKey<WorkspaceTrustState>('workspaceTrustState', WorkspaceTrustState.Unspecified)
 };
-
-export class WorkspaceTrustRequestModel extends Disposable implements IWorkspaceTrustRequestModel {
-	trustRequestOptions: WorkspaceTrustRequestOptions | undefined;
-
-	private readonly _onDidInitiateRequest = this._register(new Emitter<void>());
-	readonly onDidInitiateRequest: Event<void> = this._onDidInitiateRequest.event;
-
-	private readonly _onDidCompleteRequest = this._register(new Emitter<WorkspaceTrustState | undefined>());
-	readonly onDidCompleteRequest = this._onDidCompleteRequest.event;
-
-	private readonly _onDidCancelRequest = this._register(new Emitter<void>());
-	readonly onDidCancelRequest = this._onDidCancelRequest.event;
-
-	initiateRequest(options: WorkspaceTrustRequestOptions): void {
-		if (this.trustRequestOptions && (!options.modal || this.trustRequestOptions.modal)) {
-			return;
-		}
-
-		this.trustRequestOptions = options;
-		this._onDidInitiateRequest.fire();
-	}
-
-	completeRequest(trustState?: WorkspaceTrustState): void {
-		this.trustRequestOptions = undefined;
-		this._onDidCompleteRequest.fire(trustState);
-	}
-
-	cancelRequest(): void {
-		this.trustRequestOptions = undefined;
-		this._onDidCancelRequest.fire();
-	}
-}
 
 export class WorkspaceTrustStorageService extends Disposable implements IWorkspaceTrustStorageService {
 	_serviceBrand: undefined;
@@ -366,7 +334,11 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	private readonly _ctxWorkspaceTrustState: IContextKey<WorkspaceTrustState>;
 	private readonly _ctxWorkspaceTrustPendingRequest: IContextKey<boolean>;
 
-	readonly requestModel: IWorkspaceTrustRequestModel;
+	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions>());
+	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
+
+	private readonly _onDidCompleteWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustState>());
+	readonly onDidCompleteWorkspaceTrustRequest = this._onDidCompleteWorkspaceTrustRequest.event;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -374,9 +346,6 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	) {
 		super();
 
-		this.requestModel = this._register(new WorkspaceTrustRequestModel());
-		this._register(this.requestModel.onDidCancelRequest(() => this.onTrustRequestCancelled()));
-		this._register(this.requestModel.onDidCompleteRequest(trustState => this.onTrustRequestCompleted(trustState)));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustState(trustState => this.onTrustStateChanged(trustState.currentTrustState)));
 
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.TrustState.bindTo(contextKeyService);
@@ -394,7 +363,24 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustState.set(trustState);
 	}
 
-	private onTrustRequestCancelled(): void {
+	private onTrustStateChanged(trustState: WorkspaceTrustState): void {
+		// Resolve any pending soft requests for workspace trust
+		if (this._trustRequestResolver) {
+			this._trustRequestResolver(trustState);
+
+			this._trustRequestResolver = undefined;
+			this._trustRequestPromise = undefined;
+		}
+
+		// Update context if there are no pending requests
+		if (!this._modalTrustRequestPromise && !this._trustRequestPromise) {
+			this._ctxWorkspaceTrustPendingRequest.set(false);
+		}
+
+		this.currentTrustState = trustState;
+	}
+
+	cancelRequest(): void {
 		if (this._modalTrustRequestResolver) {
 			this._modalTrustRequestResolver(undefined);
 
@@ -403,7 +389,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 	}
 
-	private onTrustRequestCompleted(trustState?: WorkspaceTrustState): void {
+	completeRequest(trustState?: WorkspaceTrustState): void {
 		if (this._modalTrustRequestResolver) {
 			this._modalTrustRequestResolver(trustState ?? this.currentTrustState);
 
@@ -422,23 +408,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 
 		this.workspaceTrustManagementService.setWorkspaceTrustState(trustState);
-	}
-
-	private onTrustStateChanged(trustState: WorkspaceTrustState): void {
-		// Resolve any pending soft requests for workspace trust
-		if (this._trustRequestResolver) {
-			this._trustRequestResolver(trustState);
-
-			this._trustRequestResolver = undefined;
-			this._trustRequestPromise = undefined;
-		}
-
-		// Update context if there are no pending requests
-		if (!this._modalTrustRequestPromise && !this._trustRequestPromise) {
-			this._ctxWorkspaceTrustPendingRequest.set(false);
-		}
-
-		this.currentTrustState = trustState;
+		this._onDidCompleteWorkspaceTrustRequest.fire(trustState);
 	}
 
 	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<WorkspaceTrustState | undefined> {
@@ -475,8 +445,8 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 			}
 		}
 
-		this.requestModel.initiateRequest(options);
 		this._ctxWorkspaceTrustPendingRequest.set(true);
+		this._onDidInitiateWorkspaceTrustRequest.fire(options);
 
 		return options.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
 	}

@@ -43,7 +43,6 @@ const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, 
  * Trust Request UX Handler
  */
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
-	private readonly requestModel = this.workspaceTrustRequestService.requestModel;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private shouldShowManagementEditor = true;
 
@@ -83,75 +82,73 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 
 	private registerListeners(): void {
-		this._register(this.requestModel.onDidInitiateRequest(async () => {
-			if (this.requestModel.trustRequestOptions) {
-				this.toggleRequestBadge(true);
+		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
+			this.toggleRequestBadge(true);
 
-				type WorkspaceTrustRequestedEventClassification = {
-					modal: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					extensions: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				};
+			type WorkspaceTrustRequestedEventClassification = {
+				modal: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				extensions: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
 
-				type WorkspaceTrustRequestedEvent = {
-					modal: boolean,
-					workspaceId: string,
-					extensions: string[]
-				};
+			type WorkspaceTrustRequestedEvent = {
+				modal: boolean,
+				workspaceId: string,
+				extensions: string[]
+			};
 
-				this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-					modal: this.requestModel.trustRequestOptions.modal,
-					workspaceId: this.workspaceContextService.getWorkspace().id,
-					extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
-				});
+			this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
+				modal: requestOptions.modal,
+				workspaceId: this.workspaceContextService.getWorkspace().id,
+				extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
+			});
 
-				if (this.requestModel.trustRequestOptions.modal) {
-					// Message
-					const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
-					const message = this.requestModel.trustRequestOptions.message ?? defaultMessage;
+			if (requestOptions.modal) {
+				// Message
+				const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
+				const message = requestOptions.message ?? defaultMessage;
 
-					// Buttons
-					const buttons = this.requestModel.trustRequestOptions.buttons ?? [
-						{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
-						{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
-					];
-					// Add Cancel button if not provided
-					if (!buttons.some(b => b.type === 'Cancel')) {
-						buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
+				// Buttons
+				const buttons = requestOptions.buttons ?? [
+					{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
+					{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
+				];
+				// Add Cancel button if not provided
+				if (!buttons.some(b => b.type === 'Cancel')) {
+					buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
+				}
+
+				// Dialog
+				const result = await this.dialogService.show(
+					Severity.Warning,
+					localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
+					buttons.map(b => b.label),
+					{
+						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
+						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information.", message),
 					}
+				);
 
-					// Dialog
-					const result = await this.dialogService.show(
-						Severity.Warning,
-						localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
-						buttons.map(b => b.label),
-						{
-							cancelId: buttons.findIndex(b => b.type === 'Cancel'),
-							detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information.", message),
-						}
-					);
-
-					// Dialog result
-					switch (buttons[result.choice].type) {
-						case 'ContinueWithTrust':
-							this.requestModel.completeRequest(WorkspaceTrustState.Trusted);
-							break;
-						case 'ContinueWithoutTrust':
-							this.requestModel.completeRequest(undefined);
-							break;
-						case 'Manage':
-							this.requestModel.cancelRequest();
-							await this.commandService.executeCommand('workbench.trust.manage');
-							break;
-						case 'Cancel':
-							this.requestModel.cancelRequest();
-							break;
-					}
+				// Dialog result
+				switch (buttons[result.choice].type) {
+					case 'ContinueWithTrust':
+						this.workspaceTrustRequestService.completeRequest(WorkspaceTrustState.Trusted);
+						break;
+					case 'ContinueWithoutTrust':
+						this.workspaceTrustRequestService.completeRequest(undefined);
+						break;
+					case 'Manage':
+						this.workspaceTrustRequestService.cancelRequest();
+						await this.commandService.executeCommand('workbench.trust.manage');
+						break;
+					case 'Cancel':
+						this.workspaceTrustRequestService.cancelRequest();
+						break;
 				}
 			}
 		}));
 
-		this._register(this.requestModel.onDidCompleteRequest(trustState => {
+		this._register(this.workspaceTrustRequestService.onDidCompleteWorkspaceTrustRequest(trustState => {
 			if (trustState !== undefined && trustState !== WorkspaceTrustState.Unspecified) {
 				this.toggleRequestBadge(false);
 			}
@@ -327,7 +324,7 @@ registerAction2(class extends Action2 {
 		});
 
 		if (result.confirmed) {
-			workspaceTrustRequestService.requestModel.completeRequest(WorkspaceTrustState.Trusted);
+			workspaceTrustRequestService.completeRequest(WorkspaceTrustState.Trusted);
 		}
 
 		return;
@@ -367,7 +364,7 @@ registerAction2(class extends Action2 {
 		});
 
 		if (result.confirmed) {
-			workspaceTrustRequestService.requestModel.completeRequest(WorkspaceTrustState.Untrusted);
+			workspaceTrustRequestService.completeRequest(WorkspaceTrustState.Untrusted);
 		}
 		return;
 	}
