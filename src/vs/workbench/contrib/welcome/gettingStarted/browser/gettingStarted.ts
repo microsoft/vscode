@@ -261,16 +261,7 @@ export class GettingStartedPage extends EditorPane {
 								break;
 							}
 							case 'toggleTaskCompletion': {
-								if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
-									throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
-								}
-
-								const taskToggle = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
-								if (taskToggle.done) {
-									this.gettingStartedService.deprogressTask(argument);
-								} else {
-									this.gettingStartedService.progressTask(argument);
-								}
+								this.toggleTaskCompletion(argument);
 								break;
 							}
 							case 'runTaskAction': {
@@ -309,6 +300,19 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
+	private toggleTaskCompletion(argument: string) {
+		if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
+			throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
+		}
+
+		const taskToggle = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
+		if (taskToggle.done) {
+			this.gettingStartedService.deprogressTask(argument);
+		} else {
+			this.gettingStartedService.progressTask(argument);
+		}
+	}
+
 	private async configureCategoryVisibility() {
 		const hiddenCategories = this.getHiddenCategories();
 		const allCategories = this.gettingStartedCategories.filter(x => x.content.type === 'items');
@@ -337,7 +341,7 @@ export class GettingStartedPage extends EditorPane {
 			StorageTarget.USER);
 	}
 
-	private selectTask(id: string | undefined, contractIfAlreadySelected = true, delayFocus = true) {
+	private selectTask(id: string | undefined, toggleIfAlreadySelected = true, delayFocus = true) {
 		this.taskDisposables.clear();
 		const mediaElement = assertIsDefined(this.taskMediaComponent);
 		if (id) {
@@ -348,11 +352,9 @@ export class GettingStartedPage extends EditorPane {
 				node.setAttribute('aria-expanded', 'false');
 			});
 			setTimeout(() => (taskElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
-			if (this.editorInput.selectedTask === id && contractIfAlreadySelected) {
-				this.previousSelection = this.editorInput.selectedTask;
-				this.editorInput.selectedTask = undefined;
-				this.selectedTaskElement = undefined;
-				return;
+			if (this.editorInput.selectedTask === id && toggleIfAlreadySelected) {
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'toggleTaskCompletion2', argument: id });
+				this.toggleTaskCompletion(id);
 			}
 			taskElement.style.height = `${taskElement.scrollHeight}px`;
 			if (!this.currentCategory || this.currentCategory.content.type !== 'items') {

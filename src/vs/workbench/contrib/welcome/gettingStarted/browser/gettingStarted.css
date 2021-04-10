@@ -318,6 +318,14 @@
 	transition: height .1s linear;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task.expanded {
+	cursor: default !important;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task.expanded > .codicon {
+	cursor: pointer !important;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) {
 	height: 54px;
 	background: none;
