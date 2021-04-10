@@ -5,15 +5,22 @@
 
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
+import { bufferToStream, newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
+import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { InternalTestItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ReExportedTestRunState as TestRunState } from 'vs/workbench/contrib/testing/common/testStubs';
 import { getInitializedMainTestCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+
+export const emptyOutputController = () => new LiveOutputController(
+	new Lazy(() => [newWriteableBufferStream(), Promise.resolve()]),
+	() => Promise.resolve(bufferToStream(VSBuffer.alloc(0))),
+);
 
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<InternalTestItem>) => [...it].map(t => t.item.label).sort();
@@ -27,8 +34,10 @@ suite('Workbench - Test Results Service', () => {
 	setup(async () => {
 		changed = new Set();
 		r = LiveTestResult.from(
+			'foo',
 			[await getInitializedMainTestCollection()],
-			{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: 'id-a' }], debug: false }
+			emptyOutputController(),
+			{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: 'id-a' }], debug: false },
 		);
 
 		r.onChange(e => changed.add(e));
@@ -36,7 +45,7 @@ suite('Workbench - Test Results Service', () => {
 
 	suite('LiveTestResult', () => {
 		test('is empty if no tests are requesteed', async () => {
-			const r = LiveTestResult.from([await getInitializedMainTestCollection()], { tests: [], debug: false });
+			const r = LiveTestResult.from('', [await getInitializedMainTestCollection()], emptyOutputController(), { tests: [], debug: false });
 			assert.deepStrictEqual(getLabelsIn(r.tests), []);
 		});
 
@@ -181,7 +190,9 @@ suite('Workbench - Test Results Service', () => {
 			r.markComplete();
 
 			const r2 = results.push(LiveTestResult.from(
+				'',
 				[await getInitializedMainTestCollection()],
+				emptyOutputController(),
 				{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: '1' }], debug: false }
 			));
 			results.clear();
@@ -192,7 +203,9 @@ suite('Workbench - Test Results Service', () => {
 		test('keeps ongoing tests on top', async () => {
 			results.push(r);
 			const r2 = results.push(LiveTestResult.from(
+				'',
 				[await getInitializedMainTestCollection()],
+				emptyOutputController(),
 				{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: '1' }], debug: false }
 			));
 
@@ -213,7 +226,7 @@ suite('Workbench - Test Results Service', () => {
 				retired: undefined,
 				children: [],
 			}]
-		});
+		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))));
 
 		test('pushes hydrated results', async () => {
 			results.push(r);

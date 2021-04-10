@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
@@ -71,7 +72,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
-		this.resultService.push(new HydratedTestResult(results, persist));
+		// todo
+		this.resultService.push(new HydratedTestResult(results, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))), persist));
 	}
 
 	/**
@@ -83,6 +85,17 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			r.updateState(testId, state, duration);
 		}
 	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $appendOutputToRun(runId: string, output: VSBuffer): void {
+		const r = this.resultService.getResult(runId);
+		if (r && r instanceof LiveTestResult) {
+			r.output.append(output);
+		}
+	}
+
 
 	/**
 	 * @inheritdoc
