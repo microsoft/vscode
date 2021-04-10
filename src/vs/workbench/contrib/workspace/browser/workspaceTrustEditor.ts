@@ -9,7 +9,9 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { Action } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { values } from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
+import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { splitName } from 'vs/base/common/labels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -19,12 +21,14 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionWorkspaceTrustRequestType, getExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -130,6 +134,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this._register(this.extensionWorkbenchService.onChange(() => {
 			this.render(model);
 		}));
+
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		this._register(Event.any(configurationRegistry.onDidUpdateConfiguration, configurationRegistry.onDidSchemaChange)(() => {
+			this.render(model);
+		}));
 	}
 
 	private getHeaderContainerClass(trustState: WorkspaceTrustState): string {
@@ -209,12 +218,15 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.headerContainer.className = this.getHeaderContainerClass(model.currentWorkspaceTrustState);
 
+		// Settings
+		const settingsRequiringTrustedWorkspaceCount = this.getSettingsRequiringTrustedTargetCount();
+
 		// Features List
 		const installedExtensions = await this.instantiationService.invokeFunction(getInstalledExtensions);
 		const onDemandExtensionCount = this.getExtensionCountByTrustRequestType(installedExtensions, 'onDemand');
 		const onStartExtensionCount = this.getExtensionCountByTrustRequestType(installedExtensions, 'onStart');
 
-		this.renderAffectedFeatures(model, onDemandExtensionCount + onStartExtensionCount);
+		this.renderAffectedFeatures(model, settingsRequiringTrustedWorkspaceCount, onDemandExtensionCount + onStartExtensionCount);
 
 		// Configuration Tree
 		this.workspaceTrustSettingsTreeModel.update(model.dataModel.getTrustStateInfo());
@@ -222,6 +234,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.scanDomNode();
 		this.rendering = false;
+	}
+
+	private getSettingsRequiringTrustedTargetCount(): number {
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		return values(configurationRegistry.getConfigurationProperties()).reduce((count, property) => property.requireTrustedTarget ? count + 1 : count, 0);
 	}
 
 	private getExtensionCountByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): number {
@@ -266,7 +283,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.affectedFeaturesContainer = append(parent, $('.workspace-trust-features'));
 	}
 
-	private renderAffectedFeatures(model: WorkspaceTrustEditorModel, numExtensions: number): void {
+	private renderAffectedFeatures(model: WorkspaceTrustEditorModel, numSettings: number, numExtensions: number): void {
 		clearNode(this.affectedFeaturesContainer);
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
 		this.renderLimitationsHeaderElement(trustedContainer, localize('trustedWorkspace', "Trusted Workspace"), this.getHeaderTitleIconClassNames(WorkspaceTrustState.Trusted));
@@ -283,7 +300,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderLimitationsListElement(untrustedContainer, [
 			localize('untrustedTasks', "Tasks will be disabled"),
 			localize('untrustedDebugging', "Debugging will be disabled"),
-			localize('untrustedSettings', "Unsafe workspace settings will not be applied"),
+			localize('untrustedSettings', "[{0} workspace settings](command:{1}) will not be applied", numSettings, 'settings.filterUntrusted'),
 			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or limit functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
 		], xListIcon.classNamesArray);
 

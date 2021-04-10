@@ -77,6 +77,7 @@ export interface ISetting {
 	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
+	requireTrustedTarget?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
