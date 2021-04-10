@@ -17,7 +17,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { joinPath } from 'vs/base/common/resources';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -31,9 +31,9 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService dialogService: IDialogService,
-		@IWorkspaceTrustService workspaceTrustService: IWorkspaceTrustService
+		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
-		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustService);
+		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService);
 	}
 
 	protected async override installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {

@@ -32,7 +32,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 import { delta, distinct } from 'vs/base/common/arrays';
 
 class Workspace extends BaseWorkspace {
@@ -940,12 +940,12 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 class ConfigurationWorkspaceTrustContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IWorkspaceTrustService workspaceTrustService: IWorkspaceTrustService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService configurationService: WorkspaceService
 	) {
 		super();
-		configurationService.updateWorkspaceTrustState(workspaceTrustService.getWorkspaceTrustState());
-		this._register(workspaceTrustService.onDidChangeTrustState(e => configurationService.updateWorkspaceTrustState(workspaceTrustService.getWorkspaceTrustState())));
+		configurationService.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState());
+		this._register(workspaceTrustManagementService.onDidChangeTrustState(e => configurationService.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState())));
 	}
 }
 
