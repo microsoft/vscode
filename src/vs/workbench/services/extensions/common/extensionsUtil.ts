@@ -10,7 +10,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
-import { ExtensionWorkspaceTrustRequestValues } from 'vs/base/common/product';
+import { ExtensionWorkspaceTrustRequest } from 'vs/base/common/product';
 
 export class ExtensionKindController {
 	constructor(
@@ -144,13 +144,13 @@ function getConfiguredExtensionKind(manifest: IExtensionManifest, configurationS
 	return _configuredExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionId));
 }
 
-let _productExtensionWorkspaceTrustValuesMap: Map<string, ExtensionWorkspaceTrustRequestValues> | null = null;
-function getProductExtensionWorkspaceTrustValues(manifest: IExtensionManifest, productService: IProductService): ExtensionWorkspaceTrustRequestValues | undefined {
+let _productExtensionWorkspaceTrustValuesMap: Map<string, ExtensionWorkspaceTrustRequest> | null = null;
+function getProductExtensionWorkspaceTrustValues(manifest: IExtensionManifest, productService: IProductService): ExtensionWorkspaceTrustRequest | undefined {
 	if (_productExtensionWorkspaceTrustValuesMap === null) {
-		const productExtensionWorkspaceTrustValuesMap = new Map<string, ExtensionWorkspaceTrustRequestValues>();
-		if (productService.extensionWorkspaceTrust) {
-			for (const id of Object.keys(productService.extensionWorkspaceTrust)) {
-				productExtensionWorkspaceTrustValuesMap.set(ExtensionIdentifier.toKey(id), productService.extensionWorkspaceTrust[id]);
+		const productExtensionWorkspaceTrustValuesMap = new Map<string, ExtensionWorkspaceTrustRequest>();
+		if (productService.extensionWorkspaceTrustRequest) {
+			for (const id of Object.keys(productService.extensionWorkspaceTrustRequest)) {
+				productExtensionWorkspaceTrustValuesMap.set(ExtensionIdentifier.toKey(id), productService.extensionWorkspaceTrustRequest[id]);
 			}
 		}
 		_productExtensionWorkspaceTrustValuesMap = productExtensionWorkspaceTrustValuesMap;
@@ -170,8 +170,8 @@ export function getExtensionWorkspaceTrustRequestType(manifest: IExtensionManife
 	const productWorkspaceTrustRequirement = getProductExtensionWorkspaceTrustValues(manifest, productService);
 
 	// Use product.json override value if it exists
-	if (productWorkspaceTrustRequirement?.overrideValue) {
-		return productWorkspaceTrustRequirement.overrideValue;
+	if (productWorkspaceTrustRequirement?.override) {
+		return productWorkspaceTrustRequirement.override;
 	}
 
 	// Use extension manifest value if it exists
@@ -180,8 +180,8 @@ export function getExtensionWorkspaceTrustRequestType(manifest: IExtensionManife
 	}
 
 	// Use product.json default value if it exists
-	if (productWorkspaceTrustRequirement?.defaultValue) {
-		return productWorkspaceTrustRequirement.defaultValue;
+	if (productWorkspaceTrustRequirement?.default) {
+		return productWorkspaceTrustRequirement.default;
 	}
 
 	return 'onStart';

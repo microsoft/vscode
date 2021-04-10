@@ -20,9 +20,9 @@ export type ConfigurationSyncStore = {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>
 };
 
-export type ExtensionWorkspaceTrustRequestValues = {
-	readonly defaultValue: 'never' | 'onStart' | 'onDemand',
-	readonly overrideValue: 'never' | 'onStart' | 'onDemand'
+export type ExtensionWorkspaceTrustRequest = {
+	readonly default: 'never' | 'onStart' | 'onDemand',
+	readonly override: 'never' | 'onStart' | 'onDemand'
 };
 
 export interface IProductConfiguration {
@@ -121,7 +121,7 @@ export interface IProductConfiguration {
 	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
-	readonly extensionWorkspaceTrust?: { readonly [extensionId: string]: ExtensionWorkspaceTrustRequestValues };
+	readonly extensionWorkspaceTrustRequest?: { readonly [extensionId: string]: ExtensionWorkspaceTrustRequest };
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
