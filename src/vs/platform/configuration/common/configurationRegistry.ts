@@ -140,14 +140,12 @@ export interface IConfigurationNode {
 	extensionInfo?: IConfigurationExtensionInfo;
 }
 
-type SettingProperties = { [key: string]: any };
-
-export const allSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const applicationSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const machineSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const machineOverridableSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const windowSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const resourceSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const resourceSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 
 export const resourceLanguageSettingsSchemaId = 'vscode://schemas/settings/resourceLanguage';
 

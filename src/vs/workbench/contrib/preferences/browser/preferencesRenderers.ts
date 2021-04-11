@@ -18,7 +18,7 @@ import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -34,6 +34,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { IWorkspaceTrustManagementService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -949,6 +950,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		@IMarkerService private markerService: IMarkerService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkspaceTrustManagementService private workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
@@ -1004,7 +1006,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 		return markerData;
 	}
 
-	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
 			markerData.push({
 				severity: MarkerSeverity.Hint,
@@ -1015,13 +1017,13 @@ class UnsupportedSettingsRenderer extends Disposable {
 		}
 	}
 
-	private handleRemoteUserConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+	private handleRemoteUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (configuration.scope === ConfigurationScope.APPLICATION) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
 	}
 
-	private handleWorkspaceConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+	private handleWorkspaceConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (configuration.scope === ConfigurationScope.APPLICATION) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
@@ -1029,9 +1031,13 @@ class UnsupportedSettingsRenderer extends Disposable {
 		if (configuration.scope === ConfigurationScope.MACHINE) {
 			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
 		}
+
+		if (this.workspaceTrustManagementService.getWorkspaceTrustState() !== WorkspaceTrustState.Trusted && configuration.requireTrustedTarget) {
+			markerData.push(this.generateUntrustedSettingMarker(setting));
+		}
 	}
 
-	private handleWorkspaceFolderConfiguration(setting: ISetting, configuration: IConfigurationNode, markerData: IMarkerData[]): void {
+	private handleWorkspaceFolderConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
 		if (configuration.scope === ConfigurationScope.APPLICATION) {
 			markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
 		}
@@ -1047,6 +1053,10 @@ class UnsupportedSettingsRenderer extends Disposable {
 				...setting.range,
 				message: nls.localize('unsupportedWindowSetting', "This setting cannot be applied in this workspace. It will be applied when you open the containing workspace folder directly.")
 			});
+		}
+
+		if (this.workspaceTrustManagementService.getWorkspaceTrustState() !== WorkspaceTrustState.Trusted && configuration.requireTrustedTarget) {
+			markerData.push(this.generateUntrustedSettingMarker(setting));
 		}
 	}
 
@@ -1065,6 +1075,15 @@ class UnsupportedSettingsRenderer extends Disposable {
 			tags: [MarkerTag.Unnecessary],
 			...setting.range,
 			message: nls.localize('unsupportedMachineSetting', "This setting can only be applied in user settings in local window or in remote settings in remote window.")
+		};
+	}
+
+	private generateUntrustedSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			...setting.range,
+			message: nls.localize('untrustedSetting', "This setting can be applied only in the trusted workspace.")
 		};
 	}
 
