@@ -12,7 +12,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionContributions, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, ExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -59,7 +59,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IWorkspaceContextService),
 			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
 			extensionManagementService,
-			new class extends mock<IExtensionWorkspaceTrustRequestService>() { },
+			new class extends mock<IExtensionWorkspaceTrustRequestService>() { getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType { return 'never'; } },
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
 			productService,
