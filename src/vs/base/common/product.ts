@@ -21,8 +21,8 @@ export type ConfigurationSyncStore = {
 };
 
 export type ExtensionWorkspaceTrustRequest = {
-	readonly default: 'never' | 'onStart' | 'onDemand',
-	readonly override: 'never' | 'onStart' | 'onDemand'
+	readonly default?: 'never' | 'onStart' | 'onDemand',
+	readonly override?: 'never' | 'onStart' | 'onDemand'
 };
 
 export interface IProductConfiguration {

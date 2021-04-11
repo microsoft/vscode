@@ -37,7 +37,7 @@ export class ExtensionWorkspaceTrustRequestService extends Disposable implements
 
 		// Settings.json
 		this._configuredExtensionWorkspaceTrustRequestMap = new Map<string, { request: ExtensionWorkspaceTrustRequestType, version?: string }>();
-		const configuredExtensionWorkspaceTrustRequests = configurationService.getValue<{ [key: string]: { request: ExtensionWorkspaceTrustRequestType, version?: string } }>(WORKSPACE_TRUST_EXTENSION_REQUEST) || {};
+		const configuredExtensionWorkspaceTrustRequests = configurationService.inspect<{ [key: string]: { request: ExtensionWorkspaceTrustRequestType, version?: string } }>(WORKSPACE_TRUST_EXTENSION_REQUEST).userValue || {};
 		for (const id of Object.keys(configuredExtensionWorkspaceTrustRequests)) {
 			this._configuredExtensionWorkspaceTrustRequestMap.set(ExtensionIdentifier.toKey(id), configuredExtensionWorkspaceTrustRequests[id]);
 		}
