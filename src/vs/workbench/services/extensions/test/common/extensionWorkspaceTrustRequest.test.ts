@@ -56,28 +56,28 @@ suite('ExtensionWorkspaceTrustRequestService', () => {
 		instantiationService.stub(IProductService, <Partial<IProductService>>{});
 		instantiationService.stub(IWorkspaceTrustManagementService, getWorkspaceTrustManagementService(true));
 
-		await testConfigurationService.setUserConfiguration('security.workspace.trust.extensionRequest', { 'pub.a': { request: 'never' } });
+		await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { extensionRequest: { 'pub.a': { request: 'never' } } } } });
 		const extensionMaifest = getExtensionManifest({ main: './out/extension.js', workspaceTrust: { request: 'onDemand' } });
 		assertWorkspaceTrustRequest(extensionMaifest, 'never');
 	});
 
-	// test('test extension workspace trust request when override for the version exists in settings.json', async () => {
-	// 	instantiationService.stub(IProductService, <Partial<IProductService>>{});
-	// 	instantiationService.stub(IWorkspaceTrustManagementService, getWorkspaceTrustManagementService(true));
+	test('test extension workspace trust request when override for the version exists in settings.json', async () => {
+		instantiationService.stub(IProductService, <Partial<IProductService>>{});
+		instantiationService.stub(IWorkspaceTrustManagementService, getWorkspaceTrustManagementService(true));
 
-	// 	await testConfigurationService.setUserConfiguration('security.workspace.trust.extensionRequest', { 'pub.a': { request: 'never', version: '1.0.0' } });
-	// 	const extensionMaifest = getExtensionManifest({ main: './out/extension.js', workspaceTrust: { request: 'onDemand' } });
-	// 	assertWorkspaceTrustRequest(extensionMaifest, 'never');
-	// });
+		await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { extensionRequest: { 'pub.a': { request: 'never', version: '1.0.0' } } } } });
+		const extensionMaifest = getExtensionManifest({ main: './out/extension.js', workspaceTrust: { request: 'onDemand' } });
+		assertWorkspaceTrustRequest(extensionMaifest, 'never');
+	});
 
-	// test('test extension workspace trust request when override for a different version exists in settings.json', async () => {
-	// 	instantiationService.stub(IProductService, <Partial<IProductService>>{});
-	// 	instantiationService.stub(IWorkspaceTrustManagementService, getWorkspaceTrustManagementService(true));
+	test('test extension workspace trust request when override for a different version exists in settings.json', async () => {
+		instantiationService.stub(IProductService, <Partial<IProductService>>{});
+		instantiationService.stub(IWorkspaceTrustManagementService, getWorkspaceTrustManagementService(true));
 
-	// 	await testConfigurationService.setUserConfiguration('security.workspace.trust.extensionRequest', { 'pub.a': { request: 'never', version: '2.0.0' } });
-	// 	const extensionMaifest = getExtensionManifest({ main: './out/extension.js', workspaceTrust: { request: 'onDemand' } });
-	// 	assertWorkspaceTrustRequest(extensionMaifest, 'never');
-	// });
+		await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { extensionRequest: { 'pub.a': { request: 'never', version: '2.0.0' } } } } });
+		const extensionMaifest = getExtensionManifest({ main: './out/extension.js', workspaceTrust: { request: 'onDemand' } });
+		assertWorkspaceTrustRequest(extensionMaifest, 'onDemand');
+	});
 
 	test('test extension workspace trust request when default exists in product.json', () => {
 		instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionWorkspaceTrustRequest: { 'pub.a': { default: 'never' } } });
