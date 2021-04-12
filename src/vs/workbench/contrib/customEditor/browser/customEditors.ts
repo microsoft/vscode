@@ -137,24 +137,17 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		editor: DiffEditorInput,
 		editorID: string,
 		group: IEditorGroup
-	): DiffEditorInput | undefined {
+	): DiffEditorInput {
 		const createEditorForSubInput = (subInput: IEditorInput, editorID: string, customClasses: string): EditorInput | undefined => {
-			if (!editor) {
-				return;
-			}
-			if (!subInput.resource) {
-				return;
-			}
-			const input = CustomEditorInput.create(this.instantiationService, subInput.resource, editorID, group.id, { customClasses });
+			// We check before calling this call back that both resources are defined
+			const input = CustomEditorInput.create(this.instantiationService, subInput.resource!, editorID, group.id, { customClasses });
 			return input instanceof EditorInput ? input : undefined;
 		};
 
 		const modifiedOverride = createEditorForSubInput(editor.modifiedInput, editorID, 'modified');
 		const originalOverride = createEditorForSubInput(editor.originalInput, editorID, 'original');
-		if (modifiedOverride || originalOverride) {
-			return this.instantiationService.createInstance(DiffEditorInput, editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
-		}
-		return undefined;
+
+		return this.instantiationService.createInstance(DiffEditorInput, editor.getName(), editor.getDescription(), originalOverride || editor.originalInput, modifiedOverride || editor.modifiedInput, true);
 	}
 
 	public get models() { return this._models; }

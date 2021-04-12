@@ -39,11 +39,12 @@ interface IContributedEditorInput extends IEditorInput {
 
 interface ContributionPoint {
 	scheme: string | undefined,
-	globPattern: string, priority: number,
+	globPattern: string,
+	priority: number,
 	editorInfo: ContributedEditorInfo,
 	options: ContributionPointOptions,
 	createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-	createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput | undefined
+	createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput
 }
 
 type ContributionPoints = Array<ContributionPoint>;
@@ -80,7 +81,7 @@ export interface IExtensionContributedEditorService {
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
 		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput | undefined
+		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput
 	): IDisposable;
 }
 
@@ -160,7 +161,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
 		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput | undefined
+		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput
 	): IDisposable {
 		if (this._contributionPoints.get(scheme ?? globPattern) === undefined) {
 			this._contributionPoints.set(scheme ?? globPattern, []);
@@ -229,7 +230,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 				return;
 			}
 			const input = selectedContribution.createDiffEditorInput(editor, selectedContribution.editorInfo.id, group);
-			return input ? group.openEditor(input, options) : undefined;
+			return group.openEditor(input, options);
 		}
 
 		// We only call this function from one place and there we do the check to ensure editor.resource is not undefined
