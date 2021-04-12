@@ -164,7 +164,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
-		element.classList.add('format-widget-row');
 
 		const label = new IconLabel(element, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
 		const actionsContainer = DOM.append(label.element, $('.actions'));
@@ -176,9 +175,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 					: undefined
 		});
 
-		return {
-			element, label, actionBar
-		};
+		return { element, label, actionBar };
 	}
 
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
