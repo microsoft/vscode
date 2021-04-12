@@ -1198,8 +1198,11 @@ declare module 'vscode' {
 
 	export interface NotebookCellsChangeData {
 		readonly start: number;
+		// todo@API end? Use NotebookCellRange instead?
 		readonly deletedCount: number;
+		// todo@API removedCells, deletedCells?
 		readonly deletedItems: NotebookCell[];
+		// todo@API addedCells, insertedCells, newCells?
 		readonly items: NotebookCell[];
 	}
 
@@ -1219,16 +1222,6 @@ declare module 'vscode' {
 		 */
 		readonly document: NotebookDocument;
 		readonly cells: NotebookCell[];
-	}
-
-	export interface NotebookCellLanguageChangeEvent {
-
-		/**
-		 * The affected document.
-		 */
-		readonly document: NotebookDocument;
-		readonly cell: NotebookCell;
-		readonly language: string;
 	}
 
 	export interface NotebookCellMetadataChangeEvent {
