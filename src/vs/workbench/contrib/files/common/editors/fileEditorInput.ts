@@ -352,7 +352,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
 		for (const editorPane of this.editorService.visibleEditorPanes) {
-			if (editorPane.group.id === group && isEqual(editorPane.input.resource, this.resource)) {
+			if (editorPane.group.id === group && this.matches(editorPane.input)) {
 				if (isTextEditorPane(editorPane)) {
 					return editorPane.getViewState();
 				}
