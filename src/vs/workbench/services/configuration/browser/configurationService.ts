@@ -1062,7 +1062,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 		const result: IStringDictionary<IConfigurationPropertySchema> = {};
 		forEach(properties, ({ key, value }) => {
-			if (!value.requireTrustedTarget) {
+			if (!value.requireTrust) {
 				result[key] = value;
 			}
 		});

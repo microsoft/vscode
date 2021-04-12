@@ -110,7 +110,7 @@ export const enum ConfigurationScope {
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
-	requireTrustedTarget?: boolean;
+	requireTrust?: boolean;
 	included?: boolean;
 	tags?: string[];
 	/**
@@ -126,6 +126,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 
 export interface IConfigurationExtensionInfo {
 	id: string;
+	requireTrustForConfigurations?: string[];
 }
 
 export interface IConfigurationNode {
@@ -189,7 +190,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
 		const properties: string[] = [];
 		configurations.forEach(configuration => {
-			properties.push(...this.validateAndRegisterProperties(configuration, validate)); // fills in defaults
+			properties.push(...this.validateAndRegisterProperties(configuration, validate, configuration.extensionInfo)); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
 		});
@@ -296,7 +297,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, extensionInfo?: IConfigurationExtensionInfo, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {
 		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
 		let propertyKeys: string[] = [];
 		let properties = configuration.properties;
@@ -317,7 +318,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
-					property.requireTrustedTarget = types.isUndefinedOrNull(property.requireTrustedTarget) ? false : property.requireTrustedTarget;
+					property.requireTrust = types.isUndefinedOrNull(property.requireTrust) ? !!extensionInfo?.requireTrustForConfigurations?.includes(key) : property.requireTrust;
 				}
 
 				// Add to properties maps
@@ -341,7 +342,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope));
+				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, extensionInfo, scope));
 			}
 		}
 		return propertyKeys;

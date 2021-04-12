@@ -223,7 +223,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private getSettingsRequiringTrustedTargetCount(): number {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		return values(configurationRegistry.getConfigurationProperties()).reduce((count, property) => property.requireTrustedTarget ? count + 1 : count, 0);
+		return values(configurationRegistry.getConfigurationProperties()).reduce((count, property) => property.requireTrust ? count + 1 : count, 0);
 	}
 
 	private getExtensionCountByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): number {

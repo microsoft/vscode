@@ -343,7 +343,7 @@ export class ConfigurationModelParser {
 				const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
 				// Load unregistered configurations always.
 				if (scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) {
-					if (options.isUntrusted && propertySchema?.requireTrustedTarget) {
+					if (options.isUntrusted && propertySchema?.requireTrust) {
 						untrusted.push(key);
 					} else {
 						raw[key] = properties[key];

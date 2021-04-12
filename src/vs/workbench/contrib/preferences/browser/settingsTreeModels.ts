@@ -177,7 +177,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
 			case 'workspaceValue':
-				this.isUntrusted = !!this.setting.requireTrustedTarget && workspaceTrustState !== WorkspaceTrustState.Trusted;
+				this.isUntrusted = !!this.setting.requireTrust && workspaceTrustState !== WorkspaceTrustState.Trusted;
 				break;
 		}
 
