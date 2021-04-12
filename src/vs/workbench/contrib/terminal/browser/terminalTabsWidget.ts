@@ -48,7 +48,8 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
-				expandOnlyOnTwistieClick: true
+				expandOnlyOnTwistieClick: true,
+				selectionNavigation: true
 			},
 			contextKeyService,
 			listService,
