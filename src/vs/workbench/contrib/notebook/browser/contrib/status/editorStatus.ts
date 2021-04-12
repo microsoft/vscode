@@ -10,8 +10,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -170,53 +168,49 @@ registerAction2(class extends Action2 {
 });
 
 export class KernelStatus extends Disposable implements IWorkbenchContribution {
+
 	private readonly _editorDisposable = this._register(new DisposableStore());
-	private readonly kernelInfoElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly _kernelInfoElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) {
 		super();
-		this.registerListeners();
+		this._register(this._editorService.onDidActiveEditorChange(() => this._updateStatusbar()));
 	}
 
-	registerListeners() {
-		this._register(this._editorService.onDidActiveEditorChange(() => this.updateStatusbar()));
-		this._register(this._notebookService.onDidChangeKernels(() => this.updateStatusbar()));
-	}
-
-	updateStatusbar() {
+	private _updateStatusbar() {
 		this._editorDisposable.clear();
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 
 		if (activeEditor) {
 			this._editorDisposable.add(activeEditor.onDidChangeKernel(() => {
 				if (activeEditor.multipleKernelsAvailable) {
-					this.showKernelStatus(activeEditor.activeKernel);
+					this._showKernelStatus(activeEditor.activeKernel);
 				} else {
-					this.kernelInfoElement.clear();
+					this._kernelInfoElement.clear();
 				}
 			}));
 
 			this._editorDisposable.add(activeEditor.onDidChangeAvailableKernels(() => {
 				if (activeEditor.multipleKernelsAvailable) {
-					this.showKernelStatus(activeEditor.activeKernel);
+					this._showKernelStatus(activeEditor.activeKernel);
 				} else {
-					this.kernelInfoElement.clear();
+					this._kernelInfoElement.clear();
 				}
 			}));
 		}
 
 		if (activeEditor && activeEditor.multipleKernelsAvailable) {
-			this.showKernelStatus(activeEditor.activeKernel);
+			this._showKernelStatus(activeEditor.activeKernel);
 		} else {
-			this.kernelInfoElement.clear();
+			this._kernelInfoElement.clear();
 		}
 	}
 
-	showKernelStatus(kernel: INotebookKernel | undefined) {
-		this.kernelInfoElement.value = this._statusbarService.addEntry({
+	private _showKernelStatus(kernel: INotebookKernel | undefined) {
+		this._kernelInfoElement.value = this._statusbarService.addEntry({
 			text: kernel ? kernel.label : 'Choose Kernel',
 			ariaLabel: kernel ? kernel.label : 'Choose Kernel',
 			tooltip: nls.localize('chooseActiveKernel', "Choose kernel for current notebook"),

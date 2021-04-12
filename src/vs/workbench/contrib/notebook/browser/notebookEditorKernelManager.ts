@@ -159,12 +159,12 @@ export class NotebookEditorKernelManager extends Disposable {
 		}));
 	}
 
-	public async setKernels(tokenSource: CancellationTokenSource) {
+	public async setKernels(refresh: boolean, tokenSource: CancellationTokenSource) {
 		if (!this._delegate.viewModel) {
 			return;
 		}
 
-		if (this._activeKernel !== undefined && this._activeKernelExecuted) {
+		if (!refresh && this._activeKernel !== undefined && this._activeKernelExecuted) {
 			// kernel already executed, we should not change it automatically
 			return;
 		}
@@ -185,10 +185,22 @@ export class NotebookEditorKernelManager extends Disposable {
 			this.multipleKernelsAvailable = false;
 		}
 
-		const activeKernelStillExist = [...availableKernels].find(kernel => kernel.friendlyId === this.activeKernel?.friendlyId && this.activeKernel?.friendlyId !== undefined);
+		let activeKernelStillExist = false;
+		if (this._activeKernel?.friendlyId) {
+			for (let candidateKernel of availableKernels) {
+				if (this._activeKernel.friendlyId === candidateKernel.friendlyId) {
+					// exiting kernel still exists but might have changed. Only update the object and call it a day
+					this._activeKernel = candidateKernel;
+					activeKernelStillExist = true;
+					break;
+				}
+			}
+		}
+
 
 		if (activeKernelStillExist) {
 			// the kernel still exist, we don't want to modify the selection otherwise user's temporary preference is lost
+			this._onDidChangeKernel.fire();
 			return;
 		}
 
@@ -318,7 +330,7 @@ export class NotebookEditorKernelManager extends Disposable {
 
 
 		if (!this._initialKernelComputationDone) {
-			await this.setKernels(new CancellationTokenSource());
+			await this.setKernels(false, new CancellationTokenSource());
 
 			if (this._activeKernel) {
 				return;

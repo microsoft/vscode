@@ -2945,7 +2945,6 @@ export class NotebookCellMetadata {
 	constructor(
 		readonly editable?: boolean,
 		readonly breakpointMargin?: boolean,
-		readonly hasExecutionOrder?: boolean,
 		readonly statusMessage?: string,
 		readonly inputCollapsed?: boolean,
 		readonly outputCollapsed?: boolean,
@@ -2955,14 +2954,13 @@ export class NotebookCellMetadata {
 	with(change: {
 		editable?: boolean | null,
 		breakpointMargin?: boolean | null,
-		hasExecutionOrder?: boolean | null,
 		statusMessage?: string | null,
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
 		custom?: Record<string, any> | null,
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, hasExecutionOrder, statusMessage, inputCollapsed, outputCollapsed, custom } = change;
+		let { editable, breakpointMargin, statusMessage, inputCollapsed, outputCollapsed, custom } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -2973,11 +2971,6 @@ export class NotebookCellMetadata {
 			breakpointMargin = this.breakpointMargin;
 		} else if (breakpointMargin === null) {
 			breakpointMargin = undefined;
-		}
-		if (hasExecutionOrder === undefined) {
-			hasExecutionOrder = this.hasExecutionOrder;
-		} else if (hasExecutionOrder === null) {
-			hasExecutionOrder = undefined;
 		}
 		if (statusMessage === undefined) {
 			statusMessage = this.statusMessage;
@@ -3002,7 +2995,6 @@ export class NotebookCellMetadata {
 
 		if (editable === this.editable &&
 			breakpointMargin === this.breakpointMargin &&
-			hasExecutionOrder === this.hasExecutionOrder &&
 			statusMessage === this.statusMessage &&
 			inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
@@ -3014,7 +3006,6 @@ export class NotebookCellMetadata {
 		return new NotebookCellMetadata(
 			editable,
 			breakpointMargin,
-			hasExecutionOrder,
 			statusMessage,
 			inputCollapsed,
 			outputCollapsed,
@@ -3028,7 +3019,6 @@ export class NotebookDocumentMetadata {
 	constructor(
 		readonly editable: boolean = true,
 		readonly cellEditable: boolean = true,
-		readonly cellHasExecutionOrder: boolean = true,
 		readonly custom: { [key: string]: any; } = {},
 		readonly trusted: boolean = true,
 	) { }
@@ -3036,12 +3026,11 @@ export class NotebookDocumentMetadata {
 	with(change: {
 		editable?: boolean | null,
 		cellEditable?: boolean | null,
-		cellHasExecutionOrder?: boolean | null,
 		custom?: { [key: string]: any; } | null,
 		trusted?: boolean | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, cellEditable, cellHasExecutionOrder, custom, trusted } = change;
+		let { editable, cellEditable, custom, trusted } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -3052,11 +3041,6 @@ export class NotebookDocumentMetadata {
 			cellEditable = this.cellEditable;
 		} else if (cellEditable === null) {
 			cellEditable = undefined;
-		}
-		if (cellHasExecutionOrder === undefined) {
-			cellHasExecutionOrder = this.cellHasExecutionOrder;
-		} else if (cellHasExecutionOrder === null) {
-			cellHasExecutionOrder = undefined;
 		}
 		if (custom === undefined) {
 			custom = this.custom;
@@ -3071,7 +3055,6 @@ export class NotebookDocumentMetadata {
 
 		if (editable === this.editable &&
 			cellEditable === this.cellEditable &&
-			cellHasExecutionOrder === this.cellHasExecutionOrder &&
 			custom === this.custom &&
 			trusted === this.trusted
 		) {
@@ -3082,7 +3065,6 @@ export class NotebookDocumentMetadata {
 		return new NotebookDocumentMetadata(
 			editable,
 			cellEditable,
-			cellHasExecutionOrder,
 			custom,
 			trusted
 		);
