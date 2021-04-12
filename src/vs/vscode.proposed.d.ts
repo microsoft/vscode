@@ -2843,6 +2843,11 @@ declare module 'vscode' {
 		export const trustState: WorkspaceTrustState;
 
 		/**
+		 * Read (without prompting) the stored workspace trust value for a URI
+		 */
+		export function getWorkspaceTrustState(uri: Uri): Thenable<WorkspaceTrustState>;
+
+		/**
 		 * Prompt the user to chose whether to trust the current workspace
 		 * @param options Optional object describing the properties of the
 		 * workspace trust request

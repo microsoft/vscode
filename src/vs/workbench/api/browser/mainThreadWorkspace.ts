@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { WorkspaceTrustStateChangeEvent, WorkspaceTrustRequestOptions, WorkspaceTrustState, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustStateChangeEvent, WorkspaceTrustRequestOptions, WorkspaceTrustState, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -47,6 +47,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
+		@IWorkspaceTrustStorageService private readonly _workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
@@ -208,6 +209,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	}
 
 	// --- trust ---
+
+	$getWorkspaceTrustState(uri: URI): Promise<WorkspaceTrustState> {
+		return Promise.resolve(this._workspaceTrustStorageService.getFoldersTrustState([uri]));
+	}
 
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
 		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);

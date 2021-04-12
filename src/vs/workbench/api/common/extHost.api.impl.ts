@@ -918,6 +918,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostWorkspace.trustState;
 			},
+			getWorkspaceTrustState: (uri: vscode.Uri) => {
+				checkProposedApiEnabled(extension);
+				return extHostWorkspace.getWorkspaceTrustState(uri);
+			},
 			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension);
 				return extHostWorkspace.requestWorkspaceTrust(options);
