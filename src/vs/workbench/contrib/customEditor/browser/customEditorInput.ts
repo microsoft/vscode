@@ -89,7 +89,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return CustomEditorInput.typeId;
 	}
 
-	public override supportsSplitEditor() {
+	public override canSplit() {
 		return !!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument;
 	}
 

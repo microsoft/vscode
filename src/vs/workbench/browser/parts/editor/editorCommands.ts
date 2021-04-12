@@ -633,7 +633,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	}
 
 	// Copy the editor to the new group, else move the editor to the new group
-	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
+	if (editorToCopy && (editorToCopy as EditorInput).canSplit()) {
 		sourceGroup.copyEditor(editorToCopy, newGroup);
 		// Focus
 		newGroup.focus();

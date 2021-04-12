@@ -36,7 +36,7 @@ export class ExtensionsInput extends EditorInput {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
-	override supportsSplitEditor(): boolean {
+	override canSplit(): boolean {
 		return false;
 	}
 

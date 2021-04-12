@@ -33,7 +33,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	override supportsSplitEditor(): boolean {
+	override canSplit(): boolean {
 		return false;
 	}
 

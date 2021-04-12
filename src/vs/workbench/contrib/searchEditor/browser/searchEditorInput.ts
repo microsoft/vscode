@@ -250,7 +250,7 @@ export class SearchEditorInput extends EditorInput {
 		this.setDirty(false);
 	}
 
-	override supportsSplitEditor() {
+	override canSplit() {
 		return false;
 	}
 

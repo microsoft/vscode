@@ -498,7 +498,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Subclasses can set this to false if it does not make sense to split the editor input.
 	 */
-	supportsSplitEditor(): boolean;
+	canSplit(): boolean;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -604,7 +604,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return undefined;
 	}
 
-	supportsSplitEditor(): boolean {
+	canSplit(): boolean {
 		return true;
 	}
 

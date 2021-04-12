@@ -99,7 +99,7 @@ export class WebviewInput extends EditorInput {
 		this._group = group;
 	}
 
-	public override supportsSplitEditor() {
+	public override canSplit() {
 		return false;
 	}
 
