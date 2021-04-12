@@ -46,6 +46,10 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 		this._settingsModelParser.reparse(configurationParseOptions);
 	}
 
+	getUntrustedWorkspaceSettings(): string[] {
+		return this._settingsModelParser.untrustedConfigurations;
+	}
+
 	protected override doParseRaw(raw: any, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
 		this._settingsModelParser.parseRaw(raw['settings'], configurationParseOptions);

@@ -1211,13 +1211,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const state = this.windowsStateHandler.getNewWindowState(configuration);
 
 			// Create the window
-			mark('code/willCreateWindow');
+			mark('code/willCreateCodeWindow');
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath
 			});
-			mark('code/didCreateWindow');
+			mark('code/didCreateCodeWindow');
 
 			// Add as window tab if configured (macOS only)
 			if (options.forceNewTabbedWindow) {

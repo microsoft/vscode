@@ -287,7 +287,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	/**
-	 * end the current debug adapter session
+	 * terminate the current debug adapter session
 	 */
 	async terminate(restart = false): Promise<void> {
 		if (!this.raw) {
@@ -300,7 +300,7 @@ export class DebugSession implements IDebugSession {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				await this.raw.terminate(restart);
 			} else {
-				await this.raw.disconnect(restart);
+				await this.raw.disconnect({ restart, terminateDebuggee: true });
 			}
 		}
 
@@ -320,7 +320,7 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		if (this.raw) {
-			await this.raw.disconnect(restart);
+			await this.raw.disconnect({ restart, terminateDebuggee: false });
 		}
 
 		if (!restart) {
@@ -797,7 +797,7 @@ export class DebugSession implements IDebugSession {
 						// Disconnect the debug session on configuration done error #10596
 						this.notificationService.error(e);
 						if (this.raw) {
-							this.raw.disconnect();
+							this.raw.disconnect({});
 						}
 					}
 				}
@@ -877,7 +877,7 @@ export class DebugSession implements IDebugSession {
 			if (event.body && event.body.restart) {
 				await this.debugService.restartSession(this, event.body.restart);
 			} else if (this.raw) {
-				await this.raw.disconnect();
+				await this.raw.disconnect({});
 			}
 		}));
 
@@ -1047,7 +1047,7 @@ export class DebugSession implements IDebugSession {
 	private shutdown(): void {
 		dispose(this.rawListeners);
 		if (this.raw) {
-			this.raw.disconnect();
+			this.raw.disconnect({});
 			this.raw.dispose();
 			this.raw = undefined;
 		}

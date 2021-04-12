@@ -110,7 +110,7 @@ export const enum ConfigurationScope {
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
-	requiresTrustedWorkspace?: boolean;
+	requireTrustedTarget?: boolean;
 	included?: boolean;
 	tags?: string[];
 	/**
@@ -137,7 +137,6 @@ export interface IConfigurationNode {
 	properties?: { [path: string]: IConfigurationPropertySchema; };
 	allOf?: IConfigurationNode[];
 	scope?: ConfigurationScope;
-	requiresTrustedWorkspace?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 }
 
@@ -299,9 +298,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, requiresTrustedWorkspace?: boolean): string[] {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {
 		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
-		requiresTrustedWorkspace = types.isUndefinedOrNull(configuration.requiresTrustedWorkspace) ? types.isUndefined(requiresTrustedWorkspace) ? false : requiresTrustedWorkspace : configuration.requiresTrustedWorkspace;
 		let propertyKeys: string[] = [];
 		let properties = configuration.properties;
 		if (properties) {
@@ -321,7 +319,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
-					property.requiresTrustedWorkspace = types.isUndefinedOrNull(property.requiresTrustedWorkspace) ? requiresTrustedWorkspace : property.requiresTrustedWorkspace;
+					property.requireTrustedTarget = types.isUndefinedOrNull(property.requireTrustedTarget) ? false : property.requireTrustedTarget;
 				}
 
 				// Add to properties maps
@@ -345,7 +343,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope, requiresTrustedWorkspace));
+				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope));
 			}
 		}
 		return propertyKeys;

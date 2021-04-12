@@ -211,7 +211,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this._whenRestored;
 	}
 
-	get willRestoreEditors(): boolean {
+	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 

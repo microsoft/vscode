@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -89,13 +89,7 @@ export class TerminalTabbedView extends Disposable {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = this._terminalService.configHelper.config.showTabs;
 				if (this._showTabs) {
-					this._splitView.addView({
-						element: this._terminalTabTree,
-						layout: width => this._tabsWidget.layout(this._height, width),
-						minimumSize: 40,
-						maximumSize: Number.POSITIVE_INFINITY,
-						onDidChange: () => Disposable.None,
-					}, Sizing.Distribute, this._tabTreeIndex);
+					this._addTabTree();
 				} else {
 					this._splitView.removeView(this._tabTreeIndex);
 				}
@@ -115,7 +109,10 @@ export class TerminalTabbedView extends Disposable {
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
-		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
+		this._splitView = new SplitView(parentElement, {
+			orientation: Orientation.HORIZONTAL,
+			proportionalLayout: false
+		});
 
 		this._setupSplitView();
 	}
@@ -124,21 +121,27 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 
 		if (this._showTabs) {
-			this._splitView.addView({
-				element: this._terminalTabTree,
-				layout: width => this._tabsWidget.layout(this._height, width),
-				minimumSize: 40,
-				maximumSize: Number.POSITIVE_INFINITY,
-				onDidChange: () => Disposable.None,
-			}, Sizing.Distribute, this._tabTreeIndex);
+			this._addTabTree();
 		}
 		this._splitView.addView({
 			element: this._terminalContainer,
 			layout: width => this._terminalService.terminalTabs.forEach(tab => tab.layout(width, this._height || 0)),
 			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
-			onDidChange: () => Disposable.None
+			onDidChange: () => Disposable.None,
+			priority: LayoutPriority.High
 		}, Sizing.Distribute, this._terminalContainerIndex);
+	}
+
+	private _addTabTree() {
+		this._splitView.addView({
+			element: this._terminalTabTree,
+			layout: width => this._tabsWidget.layout(this._height, width),
+			minimumSize: 40,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: () => Disposable.None,
+			priority: LayoutPriority.Low
+		}, Sizing.Distribute, this._tabTreeIndex);
 	}
 
 	layout(width: number, height: number): void {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar {
-	text-align: right;
 	white-space: nowrap;
 	height: 100%;
 }
@@ -15,7 +14,6 @@
 	padding: 0;
 	height: 100%;
 	width: 100%;
-	justify-content: flex-end;
 	align-items: center;
 }
 

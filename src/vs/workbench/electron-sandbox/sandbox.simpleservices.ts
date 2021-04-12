@@ -17,7 +17,6 @@ import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures }
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
-import { LinkedMap } from 'vs/base/common/map';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
@@ -323,29 +322,20 @@ class SimpleTaskService implements ITaskService {
 	supportsMultipleTaskExecutions = false;
 
 	configureAction(): Action { throw new Error('Method not implemented.'); }
-	build(): Promise<ITaskSummary> { throw new Error('Method not implemented.'); }
-	runTest(): Promise<ITaskSummary> { throw new Error('Method not implemented.'); }
 	run(task: CustomTask | ContributedTask | InMemoryTask | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary | undefined> { throw new Error('Method not implemented.'); }
 	inTerminal(): boolean { throw new Error('Method not implemented.'); }
-	isActive(): Promise<boolean> { throw new Error('Method not implemented.'); }
 	getActiveTasks(): Promise<Task[]> { throw new Error('Method not implemented.'); }
 	getBusyTasks(): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	restart(task: Task): void { throw new Error('Method not implemented.'); }
 	terminate(task: Task): Promise<TaskTerminateResponse> { throw new Error('Method not implemented.'); }
-	terminateAll(): Promise<TaskTerminateResponse[]> { throw new Error('Method not implemented.'); }
 	tasks(filter?: TaskFilter): Promise<Task[]> { throw new Error('Method not implemented.'); }
 	taskTypes(): string[] { throw new Error('Method not implemented.'); }
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>> { throw new Error('Method not implemented.'); }
 	readRecentTasks(): Promise<(CustomTask | ContributedTask | InMemoryTask | ConfiguringTask)[]> { throw new Error('Method not implemented.'); }
 	getTask(workspaceFolder: string | IWorkspace | IWorkspaceFolder, alias: string | TaskIdentifier, compareId?: boolean): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
-	getTasksForGroup(group: string): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	getRecentlyUsedTasks(): LinkedMap<string, string> { throw new Error('Method not implemented.'); }
 	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void { throw new Error('Method not implemented.'); }
-	migrateRecentTasks(tasks: Task[]): Promise<void> { throw new Error('Method not implemented.'); }
 	createSorter(): TaskSorter { throw new Error('Method not implemented.'); }
 	getTaskDescription(task: CustomTask | ContributedTask | InMemoryTask | ConfiguringTask): string | undefined { throw new Error('Method not implemented.'); }
-	canCustomize(task: CustomTask | ContributedTask): boolean { throw new Error('Method not implemented.'); }
 	customize(task: CustomTask | ContributedTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
 	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> { throw new Error('Method not implemented.'); }
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable { throw new Error('Method not implemented.'); }

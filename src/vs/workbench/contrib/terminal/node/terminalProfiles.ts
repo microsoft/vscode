@@ -15,6 +15,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
 import { ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { Codicon } from 'vs/base/common/codicons';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
@@ -49,7 +50,16 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 
 	// Add auto detected profiles
 	if (!configuredProfilesOnly) {
-		detectedProfiles.set('PowerShell', { source: ProfileSource.Pwsh, isAutoDetected: true });
+		detectedProfiles.set('PowerShell', {
+			source: ProfileSource.Pwsh,
+			icon: Codicon.terminalPowershell.id,
+			isAutoDetected: true
+		});
+		detectedProfiles.set('Windows PowerShell', {
+			path: `${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`,
+			icon: Codicon.terminalPowershell.id,
+			isAutoDetected: true
+		});
 		detectedProfiles.set('Git Bash', { source: ProfileSource.GitBash, isAutoDetected: true });
 		detectedProfiles.set('Cygwin', {
 			path: [
@@ -61,8 +71,8 @@ async function detectAvailableWindowsProfiles(configuredProfilesOnly: boolean, f
 		});
 		detectedProfiles.set('Command Prompt',
 			{
-				path: [`${system32Path}\\cmd.exe`],
-				icon: 'terminal-cmd',
+				path: `${system32Path}\\cmd.exe`,
+				icon: Codicon.terminalCmd.id,
 				isAutoDetected: true
 			},
 		);
@@ -143,17 +153,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`
 		],
 		args: ['--login']
-	}
-	);
-	profileSources.set('Cygwin', {
-		profileName: 'Cygwin',
-		paths: [
-			`${process.env['HOMEDRIVE']}\\cygwin64\\bin\\bash.exe`,
-			`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
-		],
-		args: ['--login']
 	});
-
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
 		paths: await getPowershellPaths(),

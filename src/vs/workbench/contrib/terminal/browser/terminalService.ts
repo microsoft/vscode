@@ -1038,28 +1038,26 @@ export class TerminalService implements ITerminalService {
 
 	public async focusFindWidget(): Promise<void> {
 		await this.showPanel(false);
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		pane.terminalTabbedView.focusFindWidget();
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.focusFindWidget();
 	}
 
 	public hideFindWidget(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (pane) {
-			pane.terminalTabbedView.hideFindWidget();
-		}
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.hideFindWidget();
 	}
 
 	public findNext(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (pane) {
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		if (pane?.terminalTabbedView) {
 			pane.terminalTabbedView.showFindWidget();
 			pane.terminalTabbedView.getFindWidget().find(false);
 		}
 	}
 
 	public findPrevious(): void {
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID) as TerminalViewPane;
-		if (pane) {
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		if (pane?.terminalTabbedView) {
 			pane.terminalTabbedView.showFindWidget();
 			pane.terminalTabbedView.getFindWidget().find(true);
 		}

@@ -728,11 +728,6 @@ declare module 'vscode' {
 	export interface SourceControlInputBox {
 
 		/**
-		 * Sets focus to the input.
-		 */
-		focus(): void;
-
-		/**
 		 * Shows a transient contextual message on the input.
 		 */
 		showValidationMessage(message: string, type: SourceControlInputBoxValidationType): void;
@@ -2964,5 +2959,17 @@ declare module 'vscode' {
 		 */
 		export function registerPortAttributesProvider(portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: PortAttributesProvider): Disposable;
 	}
+	//#endregion
+
+	// region https://github.com/microsoft/vscode/issues/119904 @eamodio
+
+	export interface SourceControlInputBox {
+
+		/**
+		 * Sets focus to the input.
+		 */
+		focus(): void;
+	}
+
 	//#endregion
 }

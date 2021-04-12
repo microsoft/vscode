@@ -289,16 +289,6 @@
 	box-sizing: border-box;
 }
 
-/* Theming */
-
-.monaco-workbench.vs .search-view .search-widget .toggle-replace-button:hover {
-	background-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-.monaco-workbench.vs-dark .search-view .search-widget .toggle-replace-button:hover {
-	background-color: rgba(255, 255, 255, 0.1) !important;
-}
-
 /* High Contrast Theming */
 
 .monaco-workbench.hc-black .search-view .foldermatch,

@@ -321,6 +321,10 @@
 	opacity: 1;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-actions .actions-container {
+	justify-content: center;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab > .tab-actions .action-label.codicon {
 	color: inherit;
 	font-size: 16px;

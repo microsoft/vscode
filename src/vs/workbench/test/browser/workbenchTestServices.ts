@@ -124,8 +124,8 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -230,7 +230,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
-	instantiationService.stub(IWorkspaceTrustService, new TestWorkspaceTrustService());
+	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ILocalTerminalService, new TestLocalTerminalService());
 
@@ -622,7 +622,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	orientation = GroupOrientation.HORIZONTAL;
 	whenRestored: Promise<void> = Promise.resolve(undefined);
-	willRestoreEditors = false;
+	hasRestorableState = false;
 
 	contentDimension = { width: 800, height: 600 };
 
@@ -1057,10 +1057,32 @@ export class TestLifecycleService implements ILifecycleService {
 		});
 	}
 
-	fireWillShutdown(event: BeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
+	fireBeforeShutdown(event: BeforeShutdownEvent): void { this._onBeforeShutdown.fire(event); }
+
+	fireWillShutdown(event: WillShutdownEvent): void { this._onWillShutdown.fire(event); }
 
 	shutdown(): void {
 		this.fireShutdown();
+	}
+}
+
+export class TestBeforeShutdownEvent implements BeforeShutdownEvent {
+
+	value: boolean | Promise<boolean> | undefined;
+	reason = ShutdownReason.CLOSE;
+
+	veto(value: boolean | Promise<boolean>): void {
+		this.value = value;
+	}
+}
+
+export class TestWillShutdownEvent implements WillShutdownEvent {
+
+	value: Promise<void>[] = [];
+	reason = ShutdownReason.CLOSE;
+
+	join(promise: Promise<void>, id: string): void {
+		this.value.push(promise);
 	}
 }
 

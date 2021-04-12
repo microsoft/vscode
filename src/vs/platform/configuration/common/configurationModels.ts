@@ -216,14 +216,14 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 
 export interface ConfigurationParseOptions {
 	scopes: ConfigurationScope[] | undefined;
-	excludeUnsafeConfigurations?: boolean;
+	isUntrusted?: boolean;
 }
 
 export class ConfigurationModelParser {
 
 	private _raw: any = null;
 	private _configurationModel: ConfigurationModel | null = null;
-	private _excludedUnsafeConfigurations: string[] = [];
+	private _untrustedConfigurations: string[] = [];
 	private _parseErrors: any[] = [];
 
 	constructor(protected readonly _name: string) { }
@@ -232,8 +232,8 @@ export class ConfigurationModelParser {
 		return this._configurationModel || new ConfigurationModel();
 	}
 
-	get excludedUnsafeConfigurations(): string[] {
-		return this._excludedUnsafeConfigurations;
+	get untrustedConfigurations(): string[] {
+		return this._untrustedConfigurations;
 	}
 
 	get errors(): any[] {
@@ -255,9 +255,9 @@ export class ConfigurationModelParser {
 
 	public parseRaw(raw: any, options?: ConfigurationParseOptions): void {
 		this._raw = raw;
-		const { contents, keys, overrides, unsafeConfigurations } = this.doParseRaw(raw, options);
+		const { contents, keys, overrides, untrusted } = this.doParseRaw(raw, options);
 		this._configurationModel = new ConfigurationModel(contents, keys, overrides);
-		this._excludedUnsafeConfigurations = unsafeConfigurations || [];
+		this._untrustedConfigurations = untrusted || [];
 	}
 
 	private doParseContent(content: string): any {
@@ -317,41 +317,41 @@ export class ConfigurationModelParser {
 		return raw;
 	}
 
-	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { unsafeConfigurations?: string[] } {
+	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { untrusted?: string[] } {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const filtered = this.filter(raw, configurationProperties, true, options);
 		raw = filtered.raw;
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
 		const overrides: IOverrides[] = toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
-		return { contents, keys, overrides, unsafeConfigurations: filtered.unsafeConfigurations };
+		return { contents, keys, overrides, untrusted: filtered.untrusted };
 	}
 
-	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, unsafeConfigurations: string[] } {
-		if (!options?.scopes && !options?.excludeUnsafeConfigurations) {
-			return { raw: properties, unsafeConfigurations: [] };
+	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, untrusted: string[] } {
+		if (!options?.scopes && !options?.isUntrusted) {
+			return { raw: properties, untrusted: [] };
 		}
 		const raw: any = {};
-		const unsafeConfigurations: string[] = [];
+		const untrusted: string[] = [];
 		for (let key in properties) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
 				const result = this.filter(properties[key], configurationProperties, false, options);
 				raw[key] = result.raw;
-				unsafeConfigurations.push(...result.unsafeConfigurations);
+				untrusted.push(...result.untrusted);
 			} else {
 				const propertySchema = configurationProperties[key];
 				const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
 				// Load unregistered configurations always.
 				if (scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) {
-					if (options.excludeUnsafeConfigurations && propertySchema?.requiresTrustedWorkspace) {
-						unsafeConfigurations.push(key);
+					if (options.isUntrusted && propertySchema?.requireTrustedTarget) {
+						untrusted.push(key);
 					} else {
 						raw[key] = properties[key];
 					}
 				}
 			}
 		}
-		return { raw, unsafeConfigurations };
+		return { raw, untrusted };
 	}
 
 }
@@ -391,6 +391,10 @@ export class UserSettings extends Disposable {
 	reparse(): ConfigurationModel {
 		this.parser.reparse(this.parseOptions);
 		return this.parser.configurationModel;
+	}
+
+	getUntrustedSettings(): string[] {
+		return this.parser.untrustedConfigurations;
 	}
 }
 

@@ -148,10 +148,6 @@
 	text-align: initial;
 }
 
-.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container {
-	justify-content: flex-start;
-}
-
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item {
 	margin-right: 0;
 	overflow: hidden;

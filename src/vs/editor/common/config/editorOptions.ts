@@ -3895,8 +3895,7 @@ export const EditorOptions = {
 	accessibilitySupport: register(new EditorAccessibilitySupport()),
 	accessibilityPageSize: register(new EditorIntOption(EditorOption.accessibilityPageSize, 'accessibilityPageSize', 10, 1, Constants.MAX_SAFE_SMALL_INTEGER,
 		{
-			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
-			deprecationMessage: nls.localize('accessibilityPageSize.deprecated', "This setting is deprecated, editor will automatically choose the accessibility page size when we detect a screen reader. 500 lines will be the new default.")
+			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default.")
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")

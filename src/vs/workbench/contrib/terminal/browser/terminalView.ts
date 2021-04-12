@@ -35,8 +35,8 @@ export class TerminalViewPane extends ViewPane {
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _tabsViewWrapper: HTMLElement | undefined;
-	private _terminalTabbedView!: TerminalTabbedView;
-	public get terminalTabbedView(): TerminalTabbedView { return this._terminalTabbedView; }
+	private _terminalTabbedView?: TerminalTabbedView;
+	public get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
 	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 	private _isWelcomeShowing: boolean = false;
@@ -148,10 +148,12 @@ export class TerminalViewPane extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
-		this._bodyDimensions.width = width;
-		this._bodyDimensions.height = height;
+		if (this._terminalTabbedView) {
+			this._bodyDimensions.width = width;
+			this._bodyDimensions.height = height;
 
-		this._terminalTabbedView.layout(width, height);
+			this._terminalTabbedView.layout(width, height);
+		}
 	}
 
 	public override getActionViewItem(action: Action): IActionViewItem | undefined {
