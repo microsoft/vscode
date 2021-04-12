@@ -911,7 +911,7 @@ export interface INotebookKernelDto2 {
 	supportedLanguages: string[];
 	supportsInterrupt?: boolean;
 	hasExecutionOrder?: boolean;
-	preloads?: UriComponents[];
+	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
@@ -1910,7 +1910,7 @@ export interface INotebookKernelInfoDto2 {
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloads?: UriComponents[];
+	preloads?: { uri: UriComponents; provides: string[] }[];
 	supportedLanguages?: string[]
 	implementsInterrupt?: boolean;
 }

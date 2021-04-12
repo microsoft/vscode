@@ -1003,13 +1003,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernel) {
-		if (kernel.preloads && kernel.preloads.length) {
-			if (!this._webview?.isResolved()) {
-				await this._resolveWebview();
-			}
-
-			this._webview?.updateKernelPreloads([extensionLocation], kernel.preloads.map(preload => URI.revive(preload)));
+		const preloadUris = kernel.preloadUris;
+		if (!preloadUris.length) {
+			return;
 		}
+
+		if (!this._webview?.isResolved()) {
+			await this._resolveWebview();
+		}
+
+		this._webview?.updateKernelPreloads([extensionLocation], kernel.preloadUris);
 	}
 
 	private _updateForMetadata(): void {

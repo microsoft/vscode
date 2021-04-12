@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { flatten } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
@@ -169,7 +170,8 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 						description: dto.description,
 						detail: dto.detail,
 						isPreferred: dto.isPreferred,
-						preloads: dto.preloads?.map(u => URI.revive(u)),
+						preloadProvides: flatten(dto.preloads?.map(p => p.provides) ?? []),
+						preloadUris: dto.preloads?.map(u => URI.revive(u.uri)) ?? [],
 						supportedLanguages: dto.supportedLanguages,
 						implementsInterrupt: dto.implementsInterrupt,
 						implementsExecutionOrder: true, // todo@jrieken this is temporary and for the OLD API only

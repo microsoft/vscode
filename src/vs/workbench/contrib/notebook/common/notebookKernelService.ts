@@ -37,7 +37,8 @@ export interface INotebookKernel2 {
 	implementsInterrupt: boolean;
 
 	localResourceRoot: URI;
-	preloads?: URI[];
+	preloadUris: URI[];
+	preloadProvides: string[];
 
 	setSelected(value: boolean): void;
 	executeCells(uri: URI, ranges: ICellRange[]): void;

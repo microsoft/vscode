@@ -107,6 +107,24 @@ export interface INotebookMimeTypeSelector {
 	mimeTypes?: string[];
 }
 
+/**
+ * Passed to INotebookRendererInfo.matches when the notebook is initially
+ * loaded before the kernel is known.
+ */
+export const AnyRendererApi = Symbol('AnyRendererApi');
+
+/** Note: enum values are used for sorting */
+export const enum NotebookRendererMatch {
+	/** Renderer has a hard dependency on an available kernel */
+	WithHardKernelDependency = 0,
+	/** Renderer works better with an available kernel */
+	WithOptionalKernelDependency = 1,
+	/** Renderer is kernel-agnostic */
+	Pure = 2,
+	/** Renderer is for a different mimeType or has a hard dependency which is unsatisfied */
+	Never = 3,
+}
+
 export interface INotebookRendererInfo {
 	id: string;
 	displayName: string;
@@ -115,7 +133,8 @@ export interface INotebookRendererInfo {
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
 
-	matches(mimeType: string): boolean;
+	matchesWithoutKernel(mimeType: string): NotebookRendererMatch;
+	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
 export interface INotebookMarkdownRendererInfo {
@@ -755,7 +774,8 @@ export interface INotebookKernel {
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloads?: URI[];
+	preloadUris: URI[];
+	preloadProvides: string[];
 	supportedLanguages?: string[]
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;

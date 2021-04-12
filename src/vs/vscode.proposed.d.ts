@@ -1579,6 +1579,11 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
+	export interface NotebookKernelPreload {
+		provides?: string | string[];
+		uri: Uri;
+	}
+
 	export interface NotebookKernel {
 
 		// todo@API make this mandatory?
@@ -1589,8 +1594,8 @@ declare module 'vscode' {
 		detail?: string;
 		isPreferred?: boolean;
 
-		// todo@API is this maybe an output property?
-		preloads?: Uri[];
+		// todo@API do we need an preload change event?
+		preloads?: NotebookKernelPreload[];
 
 		/**
 		 * languages supported by kernel

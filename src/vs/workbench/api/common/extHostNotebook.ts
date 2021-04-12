@@ -124,7 +124,20 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				description: kernel.description,
 				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
-				preloads: kernel.preloads,
+				preloads: kernel.preloads?.map(preload => {
+					// todo@connor4312: back compat on 2020-04-12, remove after transition
+					if (URI.isUri(preload)) {
+						preload = { uri: preload, provides: [] };
+					}
+
+					return {
+						uri: preload.uri, provides: typeof preload.provides === 'string'
+							? [preload.provides]
+							: preload.provides === undefined
+								? []
+								: preload.provides
+					};
+				}),
 				supportedLanguages: kernel.supportedLanguages,
 				implementsInterrupt: !!kernel.interrupt
 			};

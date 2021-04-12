@@ -109,14 +109,14 @@ export interface ICellOutputViewModel {
 	 * When rendering an output, `model` should always be used as we convert legacy `text/error` output to `display_data` output under the hood.
 	 */
 	model: ICellOutput;
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 	supportAppend(): boolean;
 	toRawJSON(): any;
 }
 
 export interface IDisplayOutputViewModel extends ICellOutputViewModel {
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 }
 

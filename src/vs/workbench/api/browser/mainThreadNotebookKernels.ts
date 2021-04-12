@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -16,6 +17,7 @@ import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebook
 abstract class MainThreadKernel implements INotebookKernel2 {
 
 	private readonly _onDidChange = new Emitter<INotebookKernel2ChangeEvent>();
+	private readonly preloads: { uri: URI, provides: string[] }[];
 	readonly onDidChange: Event<INotebookKernel2ChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
@@ -30,7 +32,14 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
-	preloads?: URI[];
+
+	public get preloadUris() {
+		return this.preloads.map(p => p.uri);
+	}
+
+	public get preloadProvides() {
+		return flatten(this.preloads.map(p => p.provides));
+	}
 
 	constructor(data: INotebookKernelDto2) {
 		this.id = data.id;
@@ -44,7 +53,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this.supportedLanguages = data.supportedLanguages;
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
-		this.preloads = data.preloads && data.preloads.map(u => URI.revive(u));
+		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
 	}
 
 
