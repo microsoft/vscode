@@ -1113,8 +1113,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 
 	private generateUntrustedSettingMarker(setting: ISetting): IMarkerData {
 		return {
-			severity: MarkerSeverity.Hint,
-			tags: [MarkerTag.Unnecessary],
+			severity: MarkerSeverity.Warning,
 			...setting.range,
 			message: nls.localize('untrustedSetting', "This setting can be applied only in the trusted workspace.")
 		};
