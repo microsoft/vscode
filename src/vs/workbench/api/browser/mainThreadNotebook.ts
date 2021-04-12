@@ -172,6 +172,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 						preloads: dto.preloads?.map(u => URI.revive(u)),
 						supportedLanguages: dto.supportedLanguages,
 						implementsInterrupt: dto.implementsInterrupt,
+						implementsExecutionOrder: true, // todo@jrieken this is temporary and for the OLD API only
 						resolve: (uri: URI, editorId: string, token: CancellationToken): Promise<void> => {
 							this._logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
 							return this._proxy.$resolveNotebookKernel(handle, editorId, uri, dto.friendlyId, token);

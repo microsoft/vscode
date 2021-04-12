@@ -45,13 +45,14 @@ import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickE
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -90,7 +91,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
 
 	private static readonly SUGGESTIONS: string[] = [
-		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@${ID_SETTING_TAG}`, `@${EXTENSION_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}scm`, `@${FEATURE_SETTING_TAG}explorer`, `@${FEATURE_SETTING_TAG}search`, `@${FEATURE_SETTING_TAG}debug`, `@${FEATURE_SETTING_TAG}extensions`, `@${FEATURE_SETTING_TAG}terminal`, `@${FEATURE_SETTING_TAG}task`, `@${FEATURE_SETTING_TAG}problems`, `@${FEATURE_SETTING_TAG}output`, `@${FEATURE_SETTING_TAG}comments`, `@${FEATURE_SETTING_TAG}remote`, `@${FEATURE_SETTING_TAG}timeline`
+		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`, `@${ID_SETTING_TAG}`, `@${EXTENSION_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}scm`, `@${FEATURE_SETTING_TAG}explorer`, `@${FEATURE_SETTING_TAG}search`, `@${FEATURE_SETTING_TAG}debug`, `@${FEATURE_SETTING_TAG}extensions`, `@${FEATURE_SETTING_TAG}terminal`, `@${FEATURE_SETTING_TAG}task`, `@${FEATURE_SETTING_TAG}problems`, `@${FEATURE_SETTING_TAG}output`, `@${FEATURE_SETTING_TAG}comments`, `@${FEATURE_SETTING_TAG}remote`, `@${FEATURE_SETTING_TAG}timeline`
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
@@ -173,7 +174,8 @@ export class SettingsEditor2 extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
-		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService
+		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -198,6 +200,16 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.source !== ConfigurationTarget.DEFAULT) {
 				this.onConfigUpdate(e.affectedKeys);
+			}
+		}));
+
+		this._register(workspaceTrustManagementService.onDidChangeTrustState(() => {
+			if (this.searchResultModel) {
+				this.searchResultModel.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState());
+			}
+
+			if (this.settingsTreeModel) {
+				this.settingsTreeModel.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState());
 			}
 		}));
 	}
@@ -999,7 +1011,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.refreshTOCTree();
 			this.renderTree(undefined, forceRefresh);
 		} else {
-			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState);
+			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.getWorkspaceTrustState());
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
 
@@ -1192,7 +1204,7 @@ export class SettingsEditor2 extends EditorPane {
 	 * Return a fake SearchResultModel which can hold a flat list of all settings, to be filtered (@modified etc)
 	 */
 	private createFilterModel(): SearchResultModel {
-		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
+		const filterModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.getWorkspaceTrustState());
 
 		const fullResult: ISearchResult = {
 			filterMatches: []
@@ -1298,7 +1310,7 @@ export class SettingsEditor2 extends EditorPane {
 			}
 
 			if (!this.searchResultModel) {
-				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
+				this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState, this.workspaceTrustManagementService.getWorkspaceTrustState());
 				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.currentSearchModel = this.searchResultModel;
 				this.onSearchModeToggled();

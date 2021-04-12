@@ -62,6 +62,7 @@ import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/works
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
+import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface IEnvironment {
@@ -897,6 +898,26 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 	$tryOpenDocument(uriComponents: UriComponents): Promise<UriComponents>;
 	$trySaveDocument(uri: UriComponents): Promise<boolean>;
 	$applyEdits(resource: UriComponents, edits: IImmediateCellEditOperation[], computeUndoRedo?: boolean): Promise<void>;
+}
+
+export interface INotebookKernelDto2 {
+	id: string;
+	selector: NotebookSelector;
+	extensionId: ExtensionIdentifier;
+	extensionLocation: UriComponents;
+	label: string;
+	description?: string;
+	isPreferred?: boolean;
+	supportedLanguages: string[];
+	supportsInterrupt?: boolean;
+	hasExecutionOrder?: boolean;
+	preloads?: UriComponents[];
+}
+
+export interface MainThreadNotebookKernelsShape extends IDisposable {
+	$addKernel(handle: number, data: INotebookKernelDto2): void;
+	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
+	$removeKernel(handle: number): void;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1930,6 +1951,12 @@ export interface ExtHostNotebookEditorsShape {
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void;
 }
 
+export interface ExtHostNotebookKernelsShape {
+	$acceptSelection(handle: number, value: boolean): void;
+	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
+	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
+}
+
 export interface ExtHostStorageShape {
 	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
@@ -1977,6 +2004,7 @@ export interface MainThreadTestingShape {
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 	$updateTestStateInRun(runId: string, testId: string, state: TestResultState, duration?: number): void;
 	$appendTestMessageInRun(runId: string, testId: string, message: ITestMessage): void;
+	$appendOutputToRun(runId: string, output: VSBuffer): void;
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
 	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void;
 }
@@ -2033,6 +2061,7 @@ export const MainContext = {
 	MainThreadNotebook: createMainId<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadNotebookDocuments: createMainId<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),
 	MainThreadNotebookEditors: createMainId<MainThreadNotebookEditorsShape>('MainThreadNotebookEditorsShape'),
+	MainThreadNotebookKernels: createMainId<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
@@ -2079,6 +2108,7 @@ export const ExtHostContext = {
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook'),
+	ExtHostNotebookKernels: createMainId<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),

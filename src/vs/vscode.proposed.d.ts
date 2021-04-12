@@ -1004,12 +1004,9 @@ declare module 'vscode' {
 		// todo@API duplicates status bar API
 		readonly statusMessage?: string;
 
-		// run related API, will be removed
-		readonly hasExecutionOrder?: boolean;
+		constructor(editable?: boolean, breakpointMargin?: boolean, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
-		constructor(editable?: boolean, breakpointMargin?: boolean, hasExecutionOrder?: boolean, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
-
-		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, hasExecutionOrder?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
 	}
 
 	export interface NotebookCellExecutionSummary {
@@ -1051,12 +1048,9 @@ declare module 'vscode' {
 		 */
 		readonly trusted: boolean;
 
-		// todo@API is this a kernel property?
-		readonly cellHasExecutionOrder: boolean;
+		constructor(editable?: boolean, cellEditable?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
 
-		constructor(editable?: boolean, cellEditable?: boolean, cellHasExecutionOrder?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
-
-		with(change: { editable?: boolean | null, cellEditable?: boolean | null, cellHasExecutionOrder?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, cellEditable?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {
@@ -1115,7 +1109,7 @@ declare module 'vscode' {
 		 * @param range A notebook range.
 		 * @returns The cells contained by the range or all cells.
 		 */
-		getCells(range?: NotebookCellRange): ReadonlyArray<NotebookCell>;
+		getCells(range?: NotebookCellRange): NotebookCell[];
 
 		/**
 		 * Save the document. The saving will be handled by the corresponding content provider
@@ -1204,8 +1198,11 @@ declare module 'vscode' {
 
 	export interface NotebookCellsChangeData {
 		readonly start: number;
+		// todo@API end? Use NotebookCellRange instead?
 		readonly deletedCount: number;
+		// todo@API removedCells, deletedCells?
 		readonly deletedItems: NotebookCell[];
+		// todo@API addedCells, insertedCells, newCells?
 		readonly items: NotebookCell[];
 	}
 
@@ -1225,16 +1222,6 @@ declare module 'vscode' {
 		 */
 		readonly document: NotebookDocument;
 		readonly cells: NotebookCell[];
-	}
-
-	export interface NotebookCellLanguageChangeEvent {
-
-		/**
-		 * The affected document.
-		 */
-		readonly document: NotebookDocument;
-		readonly cell: NotebookCell;
-		readonly language: string;
 	}
 
 	export interface NotebookCellMetadataChangeEvent {
@@ -1450,6 +1437,84 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/119949
+
+
+	export interface NotebookFilter {
+		readonly viewType?: string;
+		readonly scheme?: string;
+		readonly pattern?: GlobPattern;
+	}
+
+	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
+
+	export interface NotebookKernel2 {
+
+		readonly id: string;
+
+		// select notebook of a type and/or by file-pattern
+		readonly selector: NotebookSelector;
+
+		// selection is tricky/bogous because a kernel can be selected for
+		// different notebook documents. A handler-approach might be the better
+		// fit here, e.g:
+		// selectionHandler?: (notebook: NotebookDocument, selected: boolean) => void;
+
+		// // is this kernel selected
+		// readonly selected: boolean;
+		// // fired when kernel is selected/unselected
+		// readonly onDidChangeSelection: Event<boolean>;
+
+		// kernels can establish IPC channels to (visible) notebook editors
+		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
+
+
+		// UI properties (get/set)
+		label: string;
+		description: string;
+		supportedLanguages: string[];
+		hasExecutionOrder: boolean;
+
+		/**
+		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
+		 * Run Selection etc.
+		 */
+		readonly executeHandler: (executions: NotebookCellExecutionTask[]) => void;
+
+		// optional kernel interrupt command
+		interruptHandler?: (notebook: NotebookDocument) => void
+
+		// remove kernel
+		dispose(): void;
+
+		/**
+		 * Manually create an execution task. This should only be used when cell execution
+		 * has started before creating the kernel instance or when execution can be triggered
+		 * from another source.
+		 *
+		 * @param cell The notebook cell for which to create the execution
+		 * @returns A notebook cell execution.
+		 */
+		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
+	}
+
+	export interface NotebookKernelOptions {
+		id: string;
+		label: string;
+		description?: string;
+		selector: NotebookSelector;
+		supportedLanguages: string[];
+		hasExecutionOrder?: boolean;
+		executeHandler: (executions: NotebookCellExecutionTask[]) => void;
+		interruptHandler?: (notebook: NotebookDocument) => void
+	}
+
+	export namespace notebook {
+		export function createNotebookKernel(options: NotebookKernelOptions): NotebookKernel2;
+	}
+
+	//#endregion
+
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookContentProvider
 
 
@@ -1635,14 +1700,6 @@ declare module 'vscode' {
 		filenamePattern?: NotebookFilenamePattern;
 	}
 
-	// export interface NotebookFilter {
-	// 	readonly viewType?: string;
-	// 	readonly scheme?: string;
-	// 	readonly pattern?: GlobPattern;
-	// }
-
-	// export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
-
 	// todo@API very unclear, provider MUST not return alive object but only data object
 	// todo@API unclear how the flow goes
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
@@ -1652,17 +1709,17 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookEditor {
-		/**
-		 * Active kernel used in the editor
-		 */
+
 		// todo@API unsure about that
 		// kernel, kernel selection, kernel provider
+		/** @deprecated kernels are private object*/
 		readonly kernel?: NotebookKernel;
 	}
 
 	export namespace notebook {
+		/** @deprecated */
 		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
-
+		/** @deprecated use createNotebookKernel */
 		export function registerNotebookKernelProvider(selector: NotebookDocumentFilter, provider: NotebookKernelProvider): Disposable;
 	}
 
@@ -2316,6 +2373,9 @@ declare module 'vscode' {
 		 * Appends raw output from the test runner. On the user's request, the
 		 * output will be displayed in a terminal. ANSI escape sequences,
 		 * such as colors and text styles, are supported.
+		 *
+		 * @param output Output text to append
+		 * @param associateTo Optionally, associate the given segment of output
 		 */
 		appendOutput(output: string): void;
 	}
@@ -2543,6 +2603,11 @@ declare module 'vscode' {
 		 * Unix milliseconds timestamp at which the test run was completed.
 		 */
 		completedAt: number;
+
+		/**
+		 * Optional raw output from the test run.
+		 */
+		output?: string;
 
 		/**
 		 * List of test results. The items in this array are the items that

@@ -216,7 +216,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private _eventDispatcher: NotebookEventDispatcher | undefined;
 	private _notebookViewModel: NotebookViewModel | undefined;
 	private _localStore: DisposableStore = this._register(new DisposableStore());
-	private _localCellStateListeners: IDisposable[] = [];
+	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
 	private _dimension: DOM.Dimension | null = null;
 	private _shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
@@ -898,7 +898,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._currentKernelTokenSource = new CancellationTokenSource();
 		this._localStore.add(this._currentKernelTokenSource);
 		// we don't await for it, otherwise it will slow down the file opening
-		this._setKernels(this._currentKernelTokenSource);
+		this._setKernels(false, this._currentKernelTokenSource);
 
 		this._localStore.add(this.notebookService.onDidChangeKernels(async (e) => {
 			if (e && e.toString() !== this.textModel?.uri.toString()) {
@@ -907,7 +907,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 			this._currentKernelTokenSource?.cancel();
 			this._currentKernelTokenSource = new CancellationTokenSource();
-			await this._setKernels(this._currentKernelTokenSource);
+			await this._setKernels(true, this._currentKernelTokenSource);
 		}));
 
 		this._localStore.add(this._list.onDidChangeFocus(() => {
@@ -996,12 +996,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._kernelManger.beginComputeContributedKernels();
 	}
 
-	private async _setKernels(tokenSource: CancellationTokenSource) {
-		if (!this.viewModel) {
-			return;
+	private async _setKernels(refresh: boolean, tokenSource: CancellationTokenSource) {
+		if (this.viewModel) {
+			this._kernelManger.setKernels(refresh, tokenSource);
 		}
-
-		this._kernelManger.setKernels(tokenSource);
 	}
 
 	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernel) {
@@ -1235,11 +1233,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		mark(textModel.uri, 'customMarkdownLoaded');
 
 		// model attached
-		this._localCellStateListeners = this.viewModel.viewCells.map(cell => cell.onDidChangeLayout(e => {
-			if (e.totalHeight !== undefined || e.outerWidth) {
-				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
-			}
-		}));
+		this._localCellStateListeners = this.viewModel.viewCells.map(cell => this._bindCellListener(cell));
 
 		this._localStore.add(this.viewModel.onDidChangeViewCells((e) => {
 			if (this._isDisposed) {
@@ -1249,11 +1243,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			// update resize listener
 			e.splices.reverse().forEach(splice => {
 				const [start, deleted, newCells] = splice;
-				const deletedCells = this._localCellStateListeners.splice(start, deleted, ...newCells.map(cell => cell.onDidChangeLayout(e => {
-					if (e.totalHeight !== undefined || e.outerWidth) {
-						this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
-					}
-				})));
+				const deletedCells = this._localCellStateListeners.splice(start, deleted, ...newCells.map(cell => this._bindCellListener(cell)));
 
 				dispose(deletedCells);
 			});
@@ -1269,6 +1259,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		// restore list state at last, it must be after list layout
 		this.restoreListViewState(viewState);
+	}
+
+	private _bindCellListener(cell: ICellViewModel) {
+		const store = new DisposableStore();
+
+		store.add(cell.onDidChangeLayout(e => {
+			if (e.totalHeight !== undefined || e.outerWidth) {
+				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+			}
+		}));
+
+		if (cell.cellKind === CellKind.Code) {
+			store.add((cell as CodeCellViewModel).onDidRemoveOutputs((outputs) => {
+				outputs.forEach(output => this.removeInset(output));
+			}));
+		}
+
+		return store;
 	}
 
 	private async _warmupWithMarkdownRenderer(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {

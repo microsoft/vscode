@@ -5,6 +5,7 @@
 
 import { mapFind } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -274,8 +275,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 
 		try {
 			await provider.runTests({
-				appendOutput() {
-					// todo
+				appendOutput: message => {
+					this.proxy.$appendOutputToRun(req.runId, VSBuffer.fromString(message));
 				},
 				appendMessage: (test, message) => {
 					if (!isExcluded(test)) {

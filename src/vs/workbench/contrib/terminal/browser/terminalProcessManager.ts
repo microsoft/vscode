@@ -10,7 +10,6 @@ import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforePr
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -42,7 +41,7 @@ const LATENCY_MEASURING_INTERVAL = 1000;
 
 enum ProcessType {
 	Process,
-	ExtensionTerminal
+	PsuedoTerminal
 }
 
 /**
@@ -191,9 +190,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		let newProcess: ITerminalChildProcess;
 
-		if (shellLaunchConfig.isExtensionCustomPtyTerminal) {
-			this._processType = ProcessType.ExtensionTerminal;
-			newProcess = this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
+		if (shellLaunchConfig.customPtyImplementation) {
+			this._processType = ProcessType.PsuedoTerminal;
+			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
@@ -488,7 +487,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		await this.ptyProcessReady;
 		this._dataFilter.triggerSwap();
 		this._hasWrittenData = true;
-		if (this.shellProcessId || this._processType === ProcessType.ExtensionTerminal) {
+		if (this.shellProcessId || this._processType === ProcessType.PsuedoTerminal) {
 			if (this._process) {
 				// Send data if the pty is ready
 				this._process.input(data);

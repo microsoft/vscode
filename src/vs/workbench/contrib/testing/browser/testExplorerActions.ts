@@ -31,6 +31,7 @@ import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
@@ -434,6 +435,29 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 		view.viewModel.viewSorting = TestExplorerViewSorting.ByLocation;
 	}
 }
+
+export class ShowMostRecentOutputAction extends Action2 {
+	constructor() {
+		super({
+			id: 'testing.showMostRecentOutput',
+			title: localize('testing.showMostRecentOutput', "Show Most Recent Output"),
+			f1: false,
+			icon: Codicon.terminal,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.Collapse,
+				group: 'navigation',
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor) {
+		const result = accessor.get(ITestResultService).results[0];
+		accessor.get(ITestingOutputTerminalService).open(result);
+	}
+}
+
 
 export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 	constructor() {
