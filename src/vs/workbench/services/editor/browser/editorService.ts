@@ -935,9 +935,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Open in target groups
-		const result: Promise<IEditorPane | null>[] = [];
+		const result: Promise<IEditorPane | undefined>[] = [];
 		mapGroupToEditors.forEach((editorsWithOptions, group) => {
-			result.push(group.openEditors(editorsWithOptions));
+			for (const editor of editorsWithOptions) {
+				result.push(this.openEditor(editor.editor, editor.options, group));
+			}
 		});
 
 		return coalesce(await Promises.settled(result));
