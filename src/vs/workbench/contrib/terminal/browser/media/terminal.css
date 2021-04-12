@@ -201,7 +201,7 @@
 	padding-left: 24px;
 }
 
-.tabs-widget .terminal-tabs-entry.format-element {
+.tabs-widget .terminal-tabs-entry.format-widget-row {
 	text-overflow: clip;
 	padding-left: 16px;
 }

@@ -85,7 +85,10 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalTabTree = document.createElement('div');
 		this._terminalTabTree.classList.add('tabs-widget');
 
-		this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree);
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
+		this._tabsMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
+
+		this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree, this._instanceMenu);
 		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
 		parentElement.appendChild(this._findWidget.getDomNode());
 
@@ -97,10 +100,6 @@ export class TerminalTabbedView extends Disposable {
 
 		this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
 		this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
-
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
-
-		this._tabsMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
 
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 

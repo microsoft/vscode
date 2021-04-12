@@ -17,6 +17,12 @@ import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
 
@@ -24,6 +30,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 	private _terminalService: ITerminalService;
 	constructor(
 		container: HTMLElement,
+		menu: IMenu,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -31,7 +38,9 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITerminalService terminalService: ITerminalService,
-		@IInstantiationService _instantiationService: IInstantiationService
+		@IInstantiationService _instantiationService: IInstantiationService,
+		@ICommandService _commandService: ICommandService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 
 		super('TerminalTabsTree', container,
@@ -39,7 +48,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[new TerminalTabsRenderer()],
+			[new TerminalTabsRenderer(_instantiationService, _commandService, _contextKeyService)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
@@ -141,17 +150,39 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 }
 
 class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITerminalTabEntryTemplate> {
-
 	templateId = 'terminal.tabs';
+	private _instantiationService: IInstantiationService;
+	private _commandService: ICommandService;
+	private _contextKeyService: IContextKeyService;
+	constructor(instantiationService: IInstantiationService, commandService: ICommandService, contextKeyService: IContextKeyService) {
+		this._instantiationService = instantiationService;
+		this._commandService = commandService;
+		this._contextKeyService = contextKeyService;
+	}
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
-		const labelElement = DOM.append(container, $('.terminal-tabs-entry'));
-		labelElement.classList.add('format-element');
+		const element = DOM.append(container, $('.terminal-tabs-entry'));
+		element.classList.add('format-widget-row');
+
+		const label = new IconLabel(element, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		const actionsContainer = DOM.append(label.element, $('.actions'));
+
+		const actionBar = new ActionBar(actionsContainer, {
+			actionViewItemProvider: action =>
+				action instanceof MenuItemAction
+					? this._instantiationService.createInstance(MenuEntryActionViewItem, action)
+					: undefined
+		});
+
+		const split = new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: 'Split', icon: Codicon.splitHorizontal }, undefined, undefined, this._contextKeyService, this._commandService);
+		const kill = new MenuItemAction({ id: TERMINAL_COMMAND_ID.KILL, title: 'Kill', icon: Codicon.trashcan }, undefined, undefined, this._contextKeyService, this._commandService);
+		actionBar.push(split, { icon: true, label: false });
+		actionBar.push(kill, { icon: true, label: false });
+
 		return {
-			labelElement,
-			label: new IconLabel(labelElement, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true })
+			element, label, actionBar
 		};
 	}
 
@@ -176,8 +207,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 }
 
 interface ITerminalTabEntryTemplate {
-	labelElement: HTMLElement;
+	element: HTMLElement;
 	label: IconLabel;
+	actionBar?: ActionBar;
 }
 
 type ITabTreeNode = ITerminalTab | ITerminalInstance;
