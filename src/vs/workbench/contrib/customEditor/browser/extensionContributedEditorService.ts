@@ -20,7 +20,8 @@ import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/custo
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
-import { ContributedEditorPriority } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
+import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 enum ExtensionContributedEditorChoice {
 	DEFAULT = 1,
@@ -42,6 +43,7 @@ interface ContributionPoint {
 	editorInfo: ContributedEditorInfo,
 	options: ContributionPointOptions,
 	createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
+	createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput | undefined
 }
 
 type ContributionPoints = Array<ContributionPoint>;
@@ -77,7 +79,8 @@ export interface IExtensionContributedEditorService {
 		globPattern: string, priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
-		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput
+		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
+		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput | undefined
 	): IDisposable;
 }
 
@@ -120,7 +123,13 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 				});
 			},
 			open: (editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
-				if (!editor.resource) {
+
+				// Always ensure inputs have populated resource fields
+				if (editor instanceof DiffEditorInput) {
+					if ((!editor.modifiedInput.resource || !editor.originalInput.resource)) {
+						return;
+					}
+				} else if (!editor.resource) {
 					return;
 				}
 
@@ -129,7 +138,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 				// If the editor passed in already has a type and the user didn't explicitly override the editor choice, use the editor type.
 				override = override ?? (editor as IContributedEditorInput).viewType;
 
-				const selectedContribution = this.getContributionPoint(editor.resource, override);
+				const selectedContribution = this.getContributionPoint(editor instanceof DiffEditorInput ? editor.modifiedInput.resource! : editor.resource!, override);
 				if (!selectedContribution) {
 					return;
 				}
@@ -150,7 +159,8 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
-		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput
+		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
+		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput | undefined
 	): IDisposable {
 		if (this._contributionPoints.get(scheme ?? globPattern) === undefined) {
 			this._contributionPoints.set(scheme ?? globPattern, []);
@@ -162,6 +172,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			editorInfo,
 			options,
 			createEditorInput,
+			createDiffEditorInput
 		});
 		return toDisposable(() => remove());
 	}
@@ -196,19 +207,30 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			}
 		}
 		// Return the contributions sorted by their priority
-		return contributions.sort((a, b) => a.priority - b.priority);
+		return contributions.sort((a, b) => b.priority - a.priority);
 	}
 
 	private getContributionPoint(resource: URI, override: string | undefined) {
-		const contributionPoints = this.findMatchingContributions(resource);
+		let contributionPoints = this.findMatchingContributions(resource);
 		if (override) {
 			return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === override);
 		}
-		const userAssociation = this.getAssociationsForResource(resource)[0] || [];
-		return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === userAssociation.viewType);
+		// We only want built-in+ if no user defined setting is found. Else we will fall back to the text editor
+		contributionPoints = contributionPoints.filter(contribPoint => contribPoint.priority >= priorityToRank(ContributedEditorPriority.builtin));
+		const selectedViewType = this.getAssociationsForResource(resource)[0]?.viewType || contributionPoints[0]?.editorInfo.id;
+		return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === selectedViewType);
 	}
 
 	private async doHandleEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, selectedContribution: ContributionPoint) {
+
+		// If it's a diff editor we trigger the create diff editor input
+		if (editor instanceof DiffEditorInput) {
+			if (!selectedContribution.createDiffEditorInput) {
+				return;
+			}
+			const input = selectedContribution.createDiffEditorInput(editor, selectedContribution.editorInfo.id, group);
+			return input ? group.openEditor(input, options) : undefined;
+		}
 
 		// We only call this function from one place and there we do the check to ensure editor.resource is not undefined
 		const resource = editor.resource!;

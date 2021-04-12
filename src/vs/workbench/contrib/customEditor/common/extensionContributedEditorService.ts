@@ -14,9 +14,9 @@ export function priorityToRank(priority: ContributedEditorPriority): number {
 	switch (priority) {
 		case ContributedEditorPriority.exclusive:
 			return 5;
-		case ContributedEditorPriority.default:
-			return 4;
 		case ContributedEditorPriority.builtin:
+			return 4;
+		case ContributedEditorPriority.default:
 			return 3;
 		case ContributedEditorPriority.option:
 		default:
