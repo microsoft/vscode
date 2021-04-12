@@ -85,14 +85,9 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 
 		// handle popular non-POSIX shells
 		const name = path.basename(systemShellUnix);
-		switch (name) {
-			case 'pwsh':
-			case 'pwsh-preview':
-				command = `& ${command}`;
-				shellArgs = ['-Login', '-Command'];
-				break;
-			default:
-				break;
+		if (/^pwsh(-preview)?$/.test(name)) {
+			command = `& ${command}`;
+			shellArgs = ['-Login', '-Command'];
 		}
 
 		shellArgs.push(command);
