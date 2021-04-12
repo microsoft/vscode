@@ -130,7 +130,7 @@ interface IOpenFolderAPICommandOptions {
 	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;
 	noRecentEntry?: boolean;
-	remoteAuthority?: string;
+	forceLocalWindow?: boolean;
 }
 
 CommandsRegistry.registerCommand({
@@ -145,10 +145,12 @@ CommandsRegistry.registerCommand({
 		// Without URI, ask to pick a folder or workspace to open
 		if (!uri) {
 			const options: IPickAndOpenOptions = {
-				forceNewWindow: arg?.forceNewWindow,
-				availableFileSystems: arg?.remoteAuthority === null ? [Schemas.file] : undefined,
-				remoteAuthority: arg?.remoteAuthority
+				forceNewWindow: arg?.forceNewWindow
 			};
+			if (arg?.forceLocalWindow) {
+				options.remoteAuthority = null;
+				options.availableFileSystems = ['file'];
+			}
 			return commandService.executeCommand('_files.pickFolderAndOpen', options);
 		}
 
@@ -158,9 +160,8 @@ CommandsRegistry.registerCommand({
 			forceNewWindow: arg?.forceNewWindow,
 			forceReuseWindow: arg?.forceReuseWindow,
 			noRecentEntry: arg?.noRecentEntry,
-			remoteAuthority: arg?.remoteAuthority
+			remoteAuthority: arg?.forceLocalWindow ? null : undefined
 		};
-
 		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
 		return commandService.executeCommand('_files.windowOpen', [uriToOpen], options);
 	},
