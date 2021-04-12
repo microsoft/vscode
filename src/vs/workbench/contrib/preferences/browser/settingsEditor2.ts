@@ -18,7 +18,7 @@ import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -108,6 +108,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	// (!) Lots of props that are set once on the first render
 	private defaultSettingsEditorModel!: Settings2EditorModel;
+	private modelDisposables: DisposableStore;
 
 	private rootElement!: HTMLElement;
 	private headerContainer!: HTMLElement;
@@ -212,6 +213,8 @@ export class SettingsEditor2 extends EditorPane {
 				this.settingsTreeModel.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState());
 			}
 		}));
+
+		this.modelDisposables = this._register(new DisposableStore());
 	}
 
 	override get minimumWidth(): number { return 375; }
@@ -258,31 +261,46 @@ export class SettingsEditor2 extends EditorPane {
 		this.updateStyles();
 	}
 
-	override setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async override setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
-		return super.setInput(input, options, context, token)
-			.then(() => timeout(0)) // Force setInput to be async
-			.then(() => {
-				// Don't block setInput on render (which can trigger an async search)
-				this.render(token).then(() => {
-					options = options || SettingsEditorOptions.create({});
+		await super.setInput(input, options, context, token);
+		await timeout(0); // Force setInput to be async
+		if (!this.input) {
+			return;
+		}
 
-					if (!this.viewState.settingsTarget) {
-						if (!options.target) {
-							options.target = ConfigurationTarget.USER_LOCAL;
-						}
-					}
+		const model = await this.input.resolve();
+		if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
+			return;
+		}
 
-					this._setOptions(options);
-
-					this._register(input.onWillDispose(() => {
-						this.searchWidget.setValue('');
-					}));
-
-					// Init TOC selection
-					this.updateTreeScrollSync();
-				});
+		this.modelDisposables.clear();
+		this.modelDisposables.add(model.onDidChangeGroups(() => {
+			this.updatedConfigSchemaDelayer.trigger(() => {
+				this.onConfigUpdate(undefined, undefined, true);
 			});
+		}));
+		this.defaultSettingsEditorModel = model;
+
+		// Don't block setInput on render (which can trigger an async search)
+		this.onConfigUpdate(undefined, true).then(() => {
+			options = options || SettingsEditorOptions.create({});
+
+			if (!this.viewState.settingsTarget) {
+				if (!options.target) {
+					options.target = ConfigurationTarget.USER_LOCAL;
+				}
+			}
+
+			this._setOptions(options);
+
+			this._register(input.onWillDispose(() => {
+				this.searchWidget.setValue('');
+			}));
+
+			// Init TOC selection
+			this.updateTreeScrollSync();
+		});
 	}
 
 	private restoreCachedState(): ISettingsEditor2State | null {
@@ -925,23 +943,6 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		*/
 		this.telemetryService.publicLog('settingsEditor.settingModified', data);
-	}
-
-	private async render(token: CancellationToken): Promise<void> {
-		if (this.input) {
-			const model = await this.input.resolve();
-			if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
-				return;
-			}
-
-			this._register(model.onDidChangeGroups(() => {
-				this.updatedConfigSchemaDelayer.trigger(() => {
-					this.onConfigUpdate(undefined, undefined, true);
-				});
-			}));
-			this.defaultSettingsEditorModel = model;
-			await this.onConfigUpdate(undefined, true);
-		}
 	}
 
 	private onSearchModeToggled(): void {
