@@ -33,6 +33,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 		@ITerminalService terminalService: ITerminalService,
 		@IInstantiationService _instantiationService: IInstantiationService
 	) {
+
 		super('TerminalTabsTree', container,
 			{
 				getHeight: () => 22,
@@ -144,7 +145,10 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	templateId = 'terminal.tabs';
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
 		const labelElement = DOM.append(container, $('.terminal-tabs-entry'));
+		labelElement.classList.add('format-element');
 		return {
 			labelElement,
 			label: new IconLabel(labelElement, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true })
@@ -159,7 +163,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 				const instance = item.terminalInstances[0];
 				label = `$(${instance.icon.id}) ${instance.title}`;
 			} else if (item.terminalInstances.length > 1) {
-				label = `Terminals (${item.terminalInstances.length})`;
+				label = `(${item.terminalInstances.length})`;
 			}
 		} else {
 			label = `$(${item.icon.id}) ${item.title}`;

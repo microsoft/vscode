@@ -198,13 +198,21 @@
 }
 
 #terminal-tabs-plus-button {
-	padding-left: 20px;
+	padding-left: 24px;
+}
+
+.tabs-widget .terminal-tabs-entry.format-element {
+	text-overflow: clip;
+	padding-left: 16px;
 }
 
 .monaco-workbench .tabs-widget .codicon {
 	vertical-align: text-bottom;
 }
 
-.tabs-widget > .monaco-tl-twistie {
-	display: none !important;
+.tabs-widget .monaco-tl-twistie.force-no-twistie {
+	background-image: none !important;
+	width: 0 !important;
+	padding-right: 0 !important;
+	visibility: hidden;
 }
