@@ -483,7 +483,6 @@ abstract class AbstractElementRenderer extends Disposable {
 				switch (key as keyof NotebookCellMetadata) {
 					case 'breakpointMargin':
 					case 'editable':
-					case 'hasExecutionOrder':
 					case 'inputCollapsed':
 					case 'outputCollapsed':
 						// boolean

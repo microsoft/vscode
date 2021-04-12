@@ -190,14 +190,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
-		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
-			documentMetadata.cellHasExecutionOrder;
-
 		return {
 			...(this.metadata || {}),
 			...{
 				editable,
-				hasExecutionOrder
 			}
 		};
 	}
@@ -216,7 +212,6 @@ export function cloneMetadata(cell: NotebookCellTextModel) {
 	return {
 		editable: cell.metadata?.editable,
 		breakpointMargin: cell.metadata?.breakpointMargin,
-		hasExecutionOrder: cell.metadata?.hasExecutionOrder,
 		inputCollapsed: cell.metadata?.inputCollapsed,
 		outputCollapsed: cell.metadata?.outputCollapsed,
 		custom: cell.metadata?.custom

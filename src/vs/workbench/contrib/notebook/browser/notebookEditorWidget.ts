@@ -898,7 +898,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._currentKernelTokenSource = new CancellationTokenSource();
 		this._localStore.add(this._currentKernelTokenSource);
 		// we don't await for it, otherwise it will slow down the file opening
-		this._setKernels(this._currentKernelTokenSource);
+		this._setKernels(false, this._currentKernelTokenSource);
 
 		this._localStore.add(this.notebookService.onDidChangeKernels(async (e) => {
 			if (e && e.toString() !== this.textModel?.uri.toString()) {
@@ -907,7 +907,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 			this._currentKernelTokenSource?.cancel();
 			this._currentKernelTokenSource = new CancellationTokenSource();
-			await this._setKernels(this._currentKernelTokenSource);
+			await this._setKernels(true, this._currentKernelTokenSource);
 		}));
 
 		this._localStore.add(this._list.onDidChangeFocus(() => {
@@ -996,12 +996,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._kernelManger.beginComputeContributedKernels();
 	}
 
-	private async _setKernels(tokenSource: CancellationTokenSource) {
-		if (!this.viewModel) {
-			return;
+	private async _setKernels(refresh: boolean, tokenSource: CancellationTokenSource) {
+		if (this.viewModel) {
+			this._kernelManger.setKernels(refresh, tokenSource);
 		}
-
-		this._kernelManger.setKernels(tokenSource);
 	}
 
 	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernel) {

@@ -59,7 +59,6 @@ export enum NotebookRunState {
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
 	cellEditable: true,
-	cellHasExecutionOrder: true,
 	custom: {},
 	trusted: true
 };
@@ -67,7 +66,6 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 export interface NotebookDocumentMetadata {
 	editable: boolean;
 	cellEditable: boolean;
-	cellHasExecutionOrder: boolean;
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
 }
@@ -87,7 +85,6 @@ export interface INotebookCellPreviousExecutionResult {
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	breakpointMargin?: boolean;
-	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
 	lastRunSuccess?: boolean;
@@ -762,6 +759,7 @@ export interface INotebookKernel {
 	preloads?: URI[];
 	supportedLanguages?: string[]
 	implementsInterrupt?: boolean;
+	implementsExecutionOrder?: boolean;
 
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;

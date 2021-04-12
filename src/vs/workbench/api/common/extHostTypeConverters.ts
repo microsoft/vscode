@@ -1418,7 +1418,7 @@ export namespace NotebookCellRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.hasExecutionOrder, data.statusMessage, data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.statusMessage, data.inputCollapsed, data.outputCollapsed, data.custom);
 	}
 }
 
@@ -1429,7 +1429,7 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.cellHasExecutionOrder, data.custom, data.trusted);
+		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.custom, data.trusted);
 	}
 }
 
