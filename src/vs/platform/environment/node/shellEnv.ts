@@ -90,10 +90,9 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 			shellArgs = ['-Login', '-Command'];
 		}
 
-		shellArgs.push(command);
-		logService.trace('getUnixShellEnvironment#spawn', command);
+		logService.trace('getUnixShellEnvironment#spawn', command, JSON.stringify(shellArgs));
 
-		const child = spawn(systemShellUnix, shellArgs, {
+		const child = spawn(systemShellUnix, [...shellArgs, command], {
 			detached: true,
 			stdio: ['ignore', 'pipe', process.stderr],
 			env
