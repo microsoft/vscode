@@ -111,7 +111,7 @@ class KeybindingsEditorInputSerializer implements IEditorInputSerializer {
 		const input = <KeybindingsEditorInput>editorInput;
 		return JSON.stringify({
 			name: input.getName(),
-			typeId: input.getTypeId()
+			typeId: input.typeId
 		});
 	}
 

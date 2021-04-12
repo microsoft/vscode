@@ -1224,12 +1224,12 @@ export class TestReadonlyTextFileEditorModel extends TextFileEditorModel {
 
 export class TestEditorInput extends EditorInput {
 
-	constructor(public resource: URI, private typeId: string) {
+	constructor(public resource: URI, private readonly _typeId: string) {
 		super();
 	}
 
-	getTypeId(): string {
-		return this.typeId;
+	override get typeId(): string {
+		return this._typeId;
 	}
 
 	override resolve(): Promise<IEditorModel | null> {
@@ -1363,14 +1363,14 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 
 	constructor(
 		public resource: URI,
-		private typeId: string
+		private _typeId: string
 	) {
 		super();
 	}
 
-	getTypeId() { return this.typeId; }
+	override get typeId() { return this._typeId; }
 	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	override matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
+	override matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId); }
 	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }

@@ -230,7 +230,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		const editor = this.editorService.activeEditor;
 
 		// Ensure that the welcome editor won't get opened more than once
-		if (editor?.getTypeId() === startupEditorTypeID || this.editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
+		if (editor?.typeId === startupEditorTypeID || this.editorService.editors.some(e => e.typeId === startupEditorTypeID)) {
 			return;
 		}
 		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };

@@ -62,7 +62,7 @@ export class WalkThroughInput extends EditorInput {
 		super();
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return this.options.typeId;
 	}
 

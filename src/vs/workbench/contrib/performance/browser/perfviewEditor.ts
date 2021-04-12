@@ -48,6 +48,10 @@ export class PerfviewInput extends ResourceEditorInput {
 	static readonly Id = 'PerfviewInput';
 	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
+	override get typeId(): string {
+		return PerfviewInput.Id;
+	}
+
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
@@ -70,10 +74,6 @@ export class PerfviewInput extends ResourceEditorInput {
 			labelService,
 			filesConfigurationService
 		);
-	}
-
-	override getTypeId(): string {
-		return PerfviewInput.Id;
 	}
 }
 

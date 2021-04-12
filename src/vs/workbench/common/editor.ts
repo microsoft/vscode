@@ -388,6 +388,14 @@ export interface IEditorInput extends IDisposable {
 	readonly onDidChangeLabel: Event<void>;
 
 	/**
+	 * Unique type identifier for this inpput. Every editor input of the
+	 * same class should share the same type identifier. The type identifier
+	 * is used for example for serialising/deserialising editor inputs
+	 * via the serialisers of the `IEditorInputFactoryRegistry`.
+	 */
+	readonly typeId: string;
+
+	/**
 	 * Returns the optional associated resource of this input.
 	 *
 	 * This resource should be unique for all editors of the same
@@ -399,14 +407,6 @@ export interface IEditorInput extends IDisposable {
 	 * Please refer to `EditorResourceAccessor` documentation in that case.
 	 */
 	readonly resource: URI | undefined;
-
-	/**
-	 * Unique type identifier for this inpput. Every editor input of the
-	 * same class should share the same type identifier. The type identifier
-	 * is used for example for serialising/deserialising editor inputs
-	 * via the serialisers of the `IEditorInputFactoryRegistry`.
-	 */
-	getTypeId(): string;
 
 	/**
 	 * Returns the display name of this input.
@@ -528,12 +528,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	private disposed: boolean = false;
 
+	abstract get typeId(): string;
+
 	abstract get resource(): URI | undefined;
 
-	abstract getTypeId(): string;
-
 	getName(): string {
-		return `Editor ${this.getTypeId()}`;
+		return `Editor ${this.typeId}`;
 	}
 
 	getDescription(verbosity?: Verbosity): string | undefined {
@@ -567,7 +567,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		return { typeId: this.getTypeId() };
+		return { typeId: this.typeId };
 	}
 
 	isReadonly(): boolean {
@@ -753,6 +753,10 @@ export class SideBySideEditorInput extends EditorInput {
 
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
+	override get typeId(): string {
+		return SideBySideEditorInput.ID;
+	}
+
 	constructor(
 		protected readonly name: string | undefined,
 		protected readonly description: string | undefined,
@@ -800,10 +804,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	get secondary(): EditorInput {
 		return this._secondary;
-	}
-
-	getTypeId(): string {
-		return SideBySideEditorInput.ID;
 	}
 
 	override getName(): string {
@@ -1525,7 +1525,7 @@ class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {
 	getEditorInputSerializer(editorInput: IEditorInput): IEditorInputSerializer | undefined;
 	getEditorInputSerializer(editorInputTypeId: string): IEditorInputSerializer | undefined;
 	getEditorInputSerializer(arg1: string | IEditorInput): IEditorInputSerializer | undefined {
-		return this.editorInputSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.getTypeId());
+		return this.editorInputSerializerInstances.get(typeof arg1 === 'string' ? arg1 : arg1.typeId);
 	}
 
 	registerCustomEditorInputFactory(scheme: string, factory: ICustomEditorInputFactory): void {

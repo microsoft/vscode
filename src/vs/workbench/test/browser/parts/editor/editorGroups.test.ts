@@ -119,7 +119,7 @@ suite('Workbench editor groups', () => {
 		constructor(public id: string) {
 			super();
 		}
-		getTypeId() { return 'testEditorInputForGroups'; }
+		override get typeId() { return 'testEditorInputForGroups'; }
 		async override resolve(): Promise<IEditorModel> { return null!; }
 
 		override matches(other: TestEditorInput): boolean {
@@ -142,7 +142,7 @@ suite('Workbench editor groups', () => {
 		constructor(public id: string) {
 			super();
 		}
-		getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
+		override get typeId() { return 'testEditorInputForGroups-nonSerializable'; }
 		async override resolve(): Promise<IEditorModel | null> { return null; }
 
 		override matches(other: NonSerializableTestEditorInput): boolean {
@@ -157,7 +157,7 @@ suite('Workbench editor groups', () => {
 		constructor(public id: string, public resource: URI) {
 			super();
 		}
-		getTypeId() { return 'testFileEditorInputForGroups'; }
+		override get typeId() { return 'testFileEditorInputForGroups'; }
 		async override resolve(): Promise<IEditorModel | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }

@@ -73,7 +73,7 @@ class TestInput extends EditorInput {
 		return ids[1];
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return 'testInput';
 	}
 
@@ -86,7 +86,7 @@ class OtherTestInput extends EditorInput {
 
 	readonly resource = undefined;
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return 'otherTestInput';
 	}
 
@@ -187,7 +187,7 @@ suite('Workbench EditorPane', () => {
 	test('Editor Input Serializer', function () {
 		const testInput = new TestEditorInput(URI.file('/fake'), 'testTypeId');
 		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
-		const disposable = EditorInputRegistry.registerEditorInputSerializer(testInput.getTypeId(), TestInputSerializer);
+		const disposable = EditorInputRegistry.registerEditorInputSerializer(testInput.typeId, TestInputSerializer);
 
 		let factory = EditorInputRegistry.getEditorInputSerializer('testTypeId');
 		assert(factory);
@@ -196,7 +196,7 @@ suite('Workbench EditorPane', () => {
 		assert(factory);
 
 		// throws when registering serializer for same type
-		assert.throws(() => EditorInputRegistry.registerEditorInputSerializer(testInput.getTypeId(), TestInputSerializer));
+		assert.throws(() => EditorInputRegistry.registerEditorInputSerializer(testInput.typeId, TestInputSerializer));
 
 		disposable.dispose();
 	});
@@ -311,7 +311,7 @@ suite('Workbench EditorPane', () => {
 			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
 				super();
 			}
-			getTypeId() { return 'testEditorInputForMementoTest'; }
+			override get typeId() { return 'testEditorInputForMementoTest'; }
 			async override resolve(): Promise<IEditorModel | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
@@ -349,7 +349,7 @@ suite('Workbench EditorPane', () => {
 			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
 				super();
 			}
-			getTypeId() { return 'testEditorInputForMementoTest'; }
+			override get typeId() { return 'testEditorInputForMementoTest'; }
 			async override resolve(): Promise<IEditorModel | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {

@@ -85,7 +85,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._untitledDocumentData = options.untitledDocumentData;
 	}
 
-	public override getTypeId(): string {
+	public get typeId(): string {
 		return CustomEditorInput.typeId;
 	}
 

@@ -42,7 +42,7 @@ class WebviewPanelContribution implements IWorkbenchContribution {
 		options: ITextEditorOptions | undefined,
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
-		if (!(editor instanceof WebviewInput) || editor.getTypeId() !== WebviewInput.typeId) {
+		if (!(editor instanceof WebviewInput) || editor.typeId !== WebviewInput.typeId) {
 			return undefined;
 		}
 

@@ -15,7 +15,11 @@ export class ExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.extensions.input2';
 
-	get resource() {
+	override get typeId(): string {
+		return ExtensionsInput.ID;
+	}
+
+	override get resource() {
 		return URI.from({
 			scheme: Schemas.extension,
 			path: join(this.extension.identifier.id, 'extension')
@@ -26,10 +30,6 @@ export class ExtensionsInput extends EditorInput {
 		public readonly extension: IExtension
 	) {
 		super();
-	}
-
-	getTypeId(): string {
-		return ExtensionsInput.ID;
 	}
 
 	override getName(): string {

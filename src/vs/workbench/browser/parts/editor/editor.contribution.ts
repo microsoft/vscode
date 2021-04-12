@@ -202,7 +202,7 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
 		if (input.primary && input.secondary) {
-			const [secondaryInputSerializer, primaryInputSerializer] = this.getInputSerializers(input.secondary.getTypeId(), input.primary.getTypeId());
+			const [secondaryInputSerializer, primaryInputSerializer] = this.getInputSerializers(input.secondary.typeId, input.primary.typeId);
 
 			return !!(secondaryInputSerializer?.canSerialize(input.secondary) && primaryInputSerializer?.canSerialize(input.primary));
 		}
@@ -214,7 +214,7 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
 
 		if (input.primary && input.secondary) {
-			const [secondaryInputSerializer, primaryInputSerializer] = this.getInputSerializers(input.secondary.getTypeId(), input.primary.getTypeId());
+			const [secondaryInputSerializer, primaryInputSerializer] = this.getInputSerializers(input.secondary.typeId, input.primary.typeId);
 			if (primaryInputSerializer && secondaryInputSerializer) {
 				const primarySerialized = primaryInputSerializer.serialize(input.primary);
 				const secondarySerialized = secondaryInputSerializer.serialize(input.secondary);
@@ -225,8 +225,8 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 						description: input.getDescription(),
 						primarySerialized: primarySerialized,
 						secondarySerialized: secondarySerialized,
-						primaryTypeId: input.primary.getTypeId(),
-						secondaryTypeId: input.secondary.getTypeId()
+						primaryTypeId: input.primary.typeId,
+						secondaryTypeId: input.secondary.typeId
 					};
 
 					return JSON.stringify(serializedEditorInput);

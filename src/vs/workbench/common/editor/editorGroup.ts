@@ -763,7 +763,7 @@ export class EditorGroup extends Disposable {
 				if (typeof value === 'string') {
 					canSerializeEditor = true;
 
-					serializedEditors.push({ id: editor.getTypeId(), value });
+					serializedEditors.push({ id: editor.typeId, value });
 					serializableEditors.push(editor);
 
 					if (this.preview === editor) {

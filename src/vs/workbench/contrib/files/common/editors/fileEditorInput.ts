@@ -34,6 +34,10 @@ const enum ForceOpenAs {
  */
 export class FileEditorInput extends AbstractTextResourceEditorInput implements IFileEditorInput {
 
+	override get typeId(): string {
+		return FILE_EDITOR_INPUT_ID;
+	}
+
 	private preferredName: string | undefined;
 	private preferredDescription: string | undefined;
 	private preferredEncoding: string | undefined;
@@ -125,10 +129,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			this.modelListeners.clear();
 			this.model = undefined;
 		}));
-	}
-
-	getTypeId(): string {
-		return FILE_EDITOR_INPUT_ID;
 	}
 
 	override getName(): string {

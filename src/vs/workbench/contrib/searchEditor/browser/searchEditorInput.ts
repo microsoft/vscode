@@ -47,6 +47,10 @@ export const SEARCH_EDITOR_EXT = '.code-search';
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editorinputs.searchEditorInput';
 
+	override get typeId(): string {
+		return SearchEditorInput.ID;
+	}
+
 	private memento: Memento;
 
 	private dirty: boolean = false;
@@ -157,10 +161,6 @@ export class SearchEditorInput extends EditorInput {
 			}
 		}
 		return undefined;
-	}
-
-	getTypeId(): string {
-		return SearchEditorInput.ID;
 	}
 
 	override getName(maxLength = 12): string {

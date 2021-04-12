@@ -720,7 +720,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.recentlyClosedEditors.push({
 			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
-			serialized: { typeId: editor.getTypeId(), value: serialized },
+			serialized: { typeId: editor.typeId, value: serialized },
 			index: event.index,
 			sticky: event.sticky
 		});
@@ -1033,7 +1033,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				if (editorSerializer) {
 					const deserialized = editorSerializer.serialize(input);
 					if (deserialized) {
-						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } };
+						return { editorInputJSON: { typeId: input.typeId, deserialized } };
 					}
 				}
 			}

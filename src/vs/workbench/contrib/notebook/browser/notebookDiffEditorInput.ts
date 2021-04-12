@@ -74,7 +74,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 		this._defaultDirtyState = !!options.startDirty;
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return NotebookDiffEditorInput.ID;
 	}
 

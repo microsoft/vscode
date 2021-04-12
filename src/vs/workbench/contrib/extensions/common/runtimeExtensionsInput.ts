@@ -11,6 +11,10 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.runtimeExtensions.input';
 
+	override get typeId(): string {
+		return RuntimeExtensionsInput.ID;
+	}
+
 	static _instance: RuntimeExtensionsInput;
 	static get instance() {
 		if (!RuntimeExtensionsInput._instance || RuntimeExtensionsInput._instance.isDisposed()) {
@@ -24,10 +28,6 @@ export class RuntimeExtensionsInput extends EditorInput {
 		scheme: 'runtime-extensions',
 		path: 'default'
 	});
-
-	getTypeId(): string {
-		return RuntimeExtensionsInput.ID;
-	}
 
 	override getName(): string {
 		return nls.localize('extensionsInputName', "Running Extensions");
