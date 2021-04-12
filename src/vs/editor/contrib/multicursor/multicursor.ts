@@ -463,7 +463,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._session = null;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._endSession();
 		super.dispose();
 	}
@@ -1060,7 +1060,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		className: 'selectionHighlight',
 	});
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._setState(null);
 		super.dispose();
 	}

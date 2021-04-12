@@ -60,7 +60,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	private readonly _untitledDocumentData: VSBuffer | undefined;
 
-	get resource() { return this._editorResource; }
+	override get resource() { return this._editorResource; }
 
 	private _modelRef?: IReference<ICustomEditorModel>;
 
@@ -85,20 +85,20 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._untitledDocumentData = options.untitledDocumentData;
 	}
 
-	public getTypeId(): string {
+	public override getTypeId(): string {
 		return CustomEditorInput.typeId;
 	}
 
-	public supportsSplitEditor() {
-		return true;
+	public override supportsSplitEditor() {
+		return !!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument;
 	}
 
-	getName(): string {
+	override getName(): string {
 		const name = basename(this.labelService.getUriLabel(this.resource));
 		return this.decorateLabel(name);
 	}
 
-	matches(other: IEditorInput): boolean {
+	override matches(other: IEditorInput): boolean {
 		return this === other || (other instanceof CustomEditorInput
 			&& this.viewType === other.viewType
 			&& isEqual(this.resource, other.resource));
@@ -119,7 +119,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this.labelService.getUriLabel(this.resource);
 	}
 
-	public getTitle(verbosity?: Verbosity): string {
+	public override getTitle(verbosity?: Verbosity): string {
 		switch (verbosity) {
 			case Verbosity.SHORT:
 				return this.decorateLabel(this.shortTitle);
@@ -144,22 +144,22 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		});
 	}
 
-	public isReadonly(): boolean {
+	public override isReadonly(): boolean {
 		return this._modelRef ? !this._modelRef.object.isEditable() : false;
 	}
 
-	public isUntitled(): boolean {
+	public override isUntitled(): boolean {
 		return this.resource.scheme === Schemas.untitled;
 	}
 
-	public isDirty(): boolean {
+	public override isDirty(): boolean {
 		if (!this._modelRef) {
 			return !!this._defaultDirtyState;
 		}
 		return this._modelRef.object.isDirty();
 	}
 
-	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public async override save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -176,7 +176,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this;
 	}
 
-	public async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+	public async override saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (!this._modelRef) {
 			return undefined;
 		}
@@ -194,7 +194,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this.rename(groupId, target)?.editor;
 	}
 
-	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+	public async override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		if (this._modelRef) {
 			return this._modelRef.object.revert(options);
 		}
@@ -202,7 +202,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._onDidChangeDirty.fire();
 	}
 
-	public async resolve(): Promise<null> {
+	public async override resolve(): Promise<null> {
 		await super.resolve();
 
 		if (this.isDisposed()) {
@@ -222,7 +222,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	rename(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+	override rename(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
 		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {
@@ -266,7 +266,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._moveHandler = handler;
 	}
 
-	protected transfer(other: CustomEditorInput): CustomEditorInput | undefined {
+	protected override transfer(other: CustomEditorInput): CustomEditorInput | undefined {
 		if (!super.transfer(other)) {
 			return;
 		}

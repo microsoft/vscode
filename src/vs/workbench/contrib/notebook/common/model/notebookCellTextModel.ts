@@ -11,10 +11,10 @@ import * as UUID from 'vs/base/common/uuid';
 import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { hash } from 'vs/base/common/hash';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -53,6 +53,11 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	set language(newLanguage: string) {
+		if (this._textModel && this._textModel.getLanguageIdentifier().language !== newLanguage) {
+			const newMode = this._modeService.create(newLanguage);
+			this._textModel.setMode(newMode.languageIdentifier);
+		}
+
 		if (this._language === newLanguage) {
 			return;
 		}
@@ -60,6 +65,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._language = newLanguage;
 		this._hash = null;
 		this._onDidChangeLanguage.fire(newLanguage);
+		this._onDidChangeContent.fire();
 	}
 
 	private _textBuffer!: model.IReadonlyTextBuffer;
@@ -106,7 +112,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			// Listen to language changes on the model
 			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
 				this.language = e.newLanguage;
-				this._onDidChangeContent.fire();
 			}));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
 		}
@@ -121,7 +126,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		outputs: IOutputDto[],
 		metadata: NotebookCellMetadata | undefined,
 		public readonly transientOptions: TransientOptions,
-		private readonly _modelService: ITextModelService
+		private readonly _modeService: IModeService
 	) {
 		super();
 		this._outputs = outputs.map(op => new NotebookCellOutputTextModel(op));
@@ -197,13 +202,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		};
 	}
 
-	async resolveTextModelRef() {
-		const ref = await this._modelService.createModelReference(this.uri);
-		this.textModel = ref.object.textEditorModel;
-		return ref;
-	}
-
-	dispose() {
+	override dispose() {
 		// Manually release reference to previous text buffer to avoid large leaks
 		// in case someone leaks a CellTextModel reference
 		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);

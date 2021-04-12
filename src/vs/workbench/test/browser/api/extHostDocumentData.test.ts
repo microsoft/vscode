@@ -50,7 +50,7 @@ suite('ExtHostDocumentData', () => {
 	test('save, when disposed', function () {
 		let saved: URI;
 		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
-			$trySaveDocument(uri: URI) {
+			override $trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
 				return Promise.resolve(true);

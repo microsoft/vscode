@@ -16,14 +16,14 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IWorkingCopyBackup, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
+import { BackupTracker } from 'vs/workbench/services/backup/common/backupTracker';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { createEditorPart, InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
-import { BrowserBackupTracker } from 'vs/workbench/contrib/backup/browser/backupTracker';
+import { BrowserBackupTracker } from 'vs/workbench/services/backup/browser/backupTracker';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('BackupTracker (browser)', function () {
@@ -41,7 +41,7 @@ suite('BackupTracker (browser)', function () {
 			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, logService);
 		}
 
-		protected getBackupScheduleDelay(): number {
+		protected override getBackupScheduleDelay(): number {
 			return 10; // Reduce timeout for tests
 		}
 	}
@@ -114,7 +114,7 @@ suite('BackupTracker (browser)', function () {
 				accessor.workingCopyService.registerWorkingCopy(this);
 			}
 
-			async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+			async override backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 				await timeout(this.backupDelay);
 
 				return {};

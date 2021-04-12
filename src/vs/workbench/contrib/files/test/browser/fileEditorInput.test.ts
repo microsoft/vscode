@@ -34,7 +34,7 @@ suite('Files - FileEditorInput', () => {
 		instantiationService = workbenchInstantiationService({
 			editorService: () => {
 				return new class extends TestEditorService {
-					createEditorInput(input: IResourceEditorInput) {
+					override createEditorInput(input: IResourceEditorInput) {
 						return createFileInput(input.resource);
 					}
 				};

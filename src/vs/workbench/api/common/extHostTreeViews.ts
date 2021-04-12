@@ -749,7 +749,7 @@ class ExtHostTreeView<T> extends Disposable {
 		this.nodes.clear();
 	}
 
-	dispose() {
+	override dispose() {
 		this._refreshCancellationSource.dispose();
 
 		this.clearAll();

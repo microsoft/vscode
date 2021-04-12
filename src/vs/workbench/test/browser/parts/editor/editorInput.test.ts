@@ -14,7 +14,7 @@ suite('Workbench editor input', () => {
 		readonly resource = undefined;
 
 		getTypeId(): string { return ''; }
-		resolve(): any { return null; }
+		override resolve(): any { return null; }
 	}
 
 	test('EditorInput', () => {

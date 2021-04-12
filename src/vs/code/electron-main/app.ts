@@ -93,6 +93,7 @@ import { ISignService } from 'vs/platform/sign/common/sign';
  * even if the user starts many instances (e.g. from the command line).
  */
 export class CodeApplication extends Disposable {
+
 	private windowsMainService: IWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
@@ -186,7 +187,7 @@ export class CodeApplication extends Disposable {
 
 					const uri = URI.parse(source);
 					if (uri.scheme === Schemas.vscodeWebview) {
-						return uri.path === '/index.html' || uri.path === '/electron-browser/index.html';
+						return uri.path === '/index.html' || uri.path === '/electron-browser-index.html';
 					}
 
 					const srcUri = uri.fsPath.toLowerCase();
@@ -225,17 +226,18 @@ export class CodeApplication extends Disposable {
 				this.nativeHostMainService?.openExternal(undefined, url);
 			});
 
-			const webviewFrameUrl = 'about:blank?webviewFrame';
+			const isUrlFromWebview = (requestingUrl: string) =>
+				requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
 
 			session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
-				if (details.requestingUrl === webviewFrameUrl) {
+				if (isUrlFromWebview(details.requestingUrl)) {
 					return callback(permission === 'clipboard-read');
 				}
 				return callback(false);
 			});
 
 			session.defaultSession.setPermissionCheckHandler((_webContents, permission /* 'media' */, _origin, details) => {
-				if (details.requestingUrl === webviewFrameUrl) {
+				if (isUrlFromWebview(details.requestingUrl)) {
 					return permission === 'clipboard-read';
 				}
 				return false;

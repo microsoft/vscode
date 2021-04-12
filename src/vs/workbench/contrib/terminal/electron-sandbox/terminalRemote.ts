@@ -29,7 +29,7 @@ export class CreateNewLocalTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		const instance = this._terminalService.createTerminal({ cwd: this._nativeEnvironmentService.userHome });
 		if (!instance) {
 			return Promise.resolve(undefined);

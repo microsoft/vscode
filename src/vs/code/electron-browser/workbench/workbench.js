@@ -46,6 +46,20 @@
 			},
 			beforeRequire: function () {
 				performance.mark('code/willLoadWorkbenchMain');
+
+				// It looks like browsers only lazily enable
+				// the <canvas> element when needed. Since we
+				// leverage canvas elements in our code in many
+				// locations, we try to help the browser to
+				// initialize canvas when it is idle, right
+				// before we wait for the scripts to be loaded.
+				// @ts-ignore
+				window.requestIdleCallback(() => {
+					const canvas = document.createElement('canvas');
+					const context = canvas.getContext('2d');
+					context.clearRect(0, 0, canvas.width, canvas.height);
+					canvas.remove();
+				}, { timeout: 50 });
 			}
 		}
 	);

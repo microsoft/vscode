@@ -94,9 +94,6 @@ import 'vs/workbench/electron-sandbox/desktop.contribution';
 import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
 import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
 
-// Backup
-import 'vs/workbench/contrib/backup/electron-sandbox/backup.contribution';
-
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution';
 

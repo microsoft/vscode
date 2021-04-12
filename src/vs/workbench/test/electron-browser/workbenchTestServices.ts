@@ -43,8 +43,9 @@ import { homedir, release, tmpdir } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
-import { INativeEnvironmentPaths } from 'vs/platform/environment/common/environmentService';
 import product from 'vs/platform/product/common/product';
+
+const args = parseArgs(process.argv, OPTIONS);
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
@@ -60,18 +61,19 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	colorScheme: { dark: true, highContrast: false },
 	os: { release: release() },
 	product,
-	...parseArgs(process.argv, OPTIONS)
+	homeDir: homedir(),
+	tmpDir: tmpdir(),
+	userDataDir: getUserDataPath(args),
+	...args
 };
 
-export const TestEnvironmentPaths: INativeEnvironmentPaths = { homeDir: homedir(), tmpDir: tmpdir(), userDataDir: getUserDataPath(TestWorkbenchConfiguration) };
-
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestEnvironmentPaths, TestProductService);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;
 
 	constructor(
-		@IFileService protected fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -117,7 +119,7 @@ export class TestTextFileService extends NativeTextFileService {
 		this.resolveTextContentError = error;
 	}
 
-	async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
+	override async readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent> {
 		if (this.resolveTextContentError) {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
@@ -142,7 +144,7 @@ export class TestTextFileService extends NativeTextFileService {
 export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
 
 	private _testEncoding: TestEncodingOracle | undefined;
-	get encoding(): TestEncodingOracle {
+	override get encoding(): TestEncodingOracle {
 		if (!this._testEncoding) {
 			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
 		}
@@ -281,8 +283,6 @@ export class TestServiceAccessor {
 }
 
 export class TestNativePathService extends TestPathService {
-
-	declare readonly _serviceBrand: undefined;
 
 	constructor() {
 		super(URI.file(homedir()));

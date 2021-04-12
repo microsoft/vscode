@@ -18,7 +18,6 @@ perf.mark('code/didStartMain');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
@@ -45,7 +44,9 @@ app.setPath('userData', userDataPath);
 const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Configure crash reporter
+perf.mark('code/willStartCrashReporter');
 configureCrashReporter();
+perf.mark('code/didStartCrashReporter');
 
 // Set logs path before app 'ready' event if running portable
 // to ensure that no 'logs' folder is created on disk at a
@@ -59,10 +60,7 @@ if (portable && portable.isPortable) {
 protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-webview',
-		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true }
-	}, {
-		scheme: 'vscode-webview-resource',
-		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, }
 	},
 	{
 		scheme: 'vscode-file',
@@ -87,6 +85,7 @@ let nlsConfigurationPromise = undefined;
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
@@ -579,6 +578,7 @@ async function resolveNlsConfiguration() {
 			// See above the comment about the loader and case sensitiviness
 			appLocale = appLocale.toLowerCase();
 
+			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
 			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
 			if (!nlsConfiguration) {
 				nlsConfiguration = { locale: appLocale, availableLanguages: {} };

@@ -43,7 +43,7 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		this.#isVisible = isVisible;
 	}
 
-	public dispose() {
+	public override dispose() {
 		if (this.#isDisposed) {
 			return;
 		}

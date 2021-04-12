@@ -834,6 +834,13 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.listTrustRequiredExtensions',
+			title: { value: localize('showTrustRequiredExtensions', "Show Extensions Requiring Trust"), original: 'Show Extensions Requiring Trust' },
+			category: ExtensionsLocalizedLabel,
+			run: () => runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@trustRequired'))
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showInstalledExtensions',
 			title: { value: localize('showInstalledExtensions', "Show Installed Extensions"), original: 'Show Installed Extensions' },
 			category: ExtensionsLocalizedLabel,

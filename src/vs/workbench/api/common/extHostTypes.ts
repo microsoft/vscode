@@ -419,7 +419,7 @@ export class Selection extends Range {
 		return this._anchor === this._end;
 	}
 
-	toJSON() {
+	override toJSON() {
 		return {
 			start: this.start,
 			end: this.end,

@@ -74,11 +74,6 @@ export namespace Schemas {
 	export const vscodeWebview = 'vscode-webview';
 
 	/**
-	 * Scheme used for loading resources inside of webviews.
-	 */
-	export const vscodeWebviewResource = 'vscode-webview-resource';
-
-	/**
 	 * Scheme used for extension pages
 	 */
 	export const extension = 'extension';

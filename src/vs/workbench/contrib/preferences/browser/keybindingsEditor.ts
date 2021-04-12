@@ -59,7 +59,7 @@ class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
 		super(context, action, options);
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 		if (this.checkbox) {
 			this.disposables.add(attachCheckboxStyler(this.checkbox, this.themeService));
@@ -146,13 +146,13 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.createBody(keybindingsEditorElement);
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, context, token)
 			.then(() => this.render(!!(options && options.preserveFocus)));
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		super.clearInput();
 		this.keybindingsEditorContextKey.reset();
 		this.keybindingFocusContextKey.reset();
@@ -170,7 +170,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this._onLayout.fire();
 	}
 
-	focus(): void {
+	override focus(): void {
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
 			this.selectEntry(activeKeybindingEntry);

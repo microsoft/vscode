@@ -9,7 +9,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
+import { BackupTracker } from 'vs/workbench/services/backup/common/backupTracker';
 
 export class BrowserBackupTracker extends BackupTracker implements IWorkbenchContribution {
 

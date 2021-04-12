@@ -172,7 +172,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	protected updateStyles(): void {
+	protected override updateStyles(): void {
 		super.updateStyles();
 
 		if (this.$el) {
@@ -243,7 +243,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		dom.hide(this.$el);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.$el) {

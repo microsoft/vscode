@@ -1216,9 +1216,10 @@ suite('EditorGroupsService', () => {
 
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		const thirdInput = new TestFileEditorInput(URI.file('foo/bar/third'), TEST_EDITOR_INPUT_ID);
 
 		let leftFiredCount = 0;
-		const leftGroupListneer = group.onWillMoveEditor(() => {
+		const leftGroupListener = group.onWillMoveEditor(() => {
 			leftFiredCount++;
 		});
 
@@ -1227,22 +1228,23 @@ suite('EditorGroupsService', () => {
 			rightFiredCount++;
 		});
 
-		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }, { editor: thirdInput }]);
 		assert.strictEqual(leftFiredCount, 0);
 		assert.strictEqual(rightFiredCount, 0);
 
-		group.moveEditor(inputInactive, rightGroup);
+		group.moveEditor(input, rightGroup);
 		assert.strictEqual(leftFiredCount, 1);
 		assert.strictEqual(rightFiredCount, 0);
 
-		group.moveEditor(input, rightGroup);
+		group.moveEditor(inputInactive, rightGroup);
 		assert.strictEqual(leftFiredCount, 2);
 		assert.strictEqual(rightFiredCount, 0);
 
 		rightGroup.moveEditor(inputInactive, group);
 		assert.strictEqual(leftFiredCount, 2);
 		assert.strictEqual(rightFiredCount, 1);
-		leftGroupListneer.dispose();
+
+		leftGroupListener.dispose();
 		rightGroupListener.dispose();
 	});
 

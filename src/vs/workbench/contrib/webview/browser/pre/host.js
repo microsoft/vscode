@@ -47,75 +47,6 @@
 		}
 	}();
 
-	function fatalError(/** @type {string} */ message) {
-		console.error(`Webview fatal error: ${message}`);
-		hostMessaging.postMessage('fatal-error', { message });
-	}
-
-	/** @type {Promise<void>} */
-	const workerReady = new Promise(async (resolveWorkerReady) => {
-		if (onElectron) {
-			return resolveWorkerReady();
-		}
-
-		if (!areServiceWorkersEnabled()) {
-			fatalError('Service Workers are not enabled in browser. Webviews will not work.');
-			return resolveWorkerReady();
-		}
-
-		const expectedWorkerVersion = 1;
-
-		navigator.serviceWorker.register('service-worker.js').then(
-			async registration => {
-				await navigator.serviceWorker.ready;
-
-				const versionHandler = (event) => {
-					if (event.data.channel !== 'version') {
-						return;
-					}
-
-					navigator.serviceWorker.removeEventListener('message', versionHandler);
-					if (event.data.version === expectedWorkerVersion) {
-						return resolveWorkerReady();
-					} else {
-						// If we have the wrong version, try once to unregister and re-register
-						return registration.update()
-							.then(() => navigator.serviceWorker.ready)
-							.finally(resolveWorkerReady);
-					}
-				};
-				navigator.serviceWorker.addEventListener('message', versionHandler);
-				registration.active.postMessage({ channel: 'version' });
-			},
-			error => {
-				fatalError(`Could not register service workers: ${error}.`);
-				resolveWorkerReady();
-			});
-
-		const forwardFromHostToWorker = (channel) => {
-			hostMessaging.onMessage(channel, event => {
-				navigator.serviceWorker.ready.then(registration => {
-					registration.active.postMessage({ channel: channel, data: event.data.args });
-				});
-			});
-		};
-		forwardFromHostToWorker('did-load-resource');
-		forwardFromHostToWorker('did-load-localhost');
-
-		navigator.serviceWorker.addEventListener('message', event => {
-			if (['load-resource', 'load-localhost'].includes(event.data.channel)) {
-				hostMessaging.postMessage(event.data.channel, event.data);
-			}
-		});
-	});
-
-	function areServiceWorkersEnabled() {
-		try {
-			return !!navigator.serviceWorker;
-		} catch (e) {
-			return false;
-		}
-	}
 
 	const unloadMonitor = new class {
 
@@ -175,21 +106,11 @@
 	const host = {
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
-		ready: workerReady,
-		fakeLoad: !onElectron,
 		onElectron: onElectron,
 		useParentPostMessage: false,
 		onIframeLoaded: (/** @type {HTMLIFrameElement} */ frame) => {
 			unloadMonitor.onIframeLoaded(frame);
-		},
-		rewriteCSP: onElectron
-			? (csp) => {
-				return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
-			}
-			: (csp, endpoint) => {
-				const endpointUrl = new URL(endpoint);
-				return csp.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
-			}
+		}
 	};
 
 	(/** @type {any} */ (window)).createWebviewManager(host);

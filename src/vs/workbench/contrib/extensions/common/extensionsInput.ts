@@ -32,15 +32,15 @@ export class ExtensionsInput extends EditorInput {
 		return ExtensionsInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
-	supportsSplitEditor(): boolean {
+	override supportsSplitEditor(): boolean {
 		return false;
 	}
 
-	matches(other: unknown): boolean {
+	override matches(other: unknown): boolean {
 		if (super.matches(other)) {
 			return true;
 		}

@@ -110,6 +110,7 @@ export const enum ConfigurationScope {
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
+	requireTrustedTarget?: boolean;
 	included?: boolean;
 	tags?: string[];
 	/**
@@ -318,6 +319,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
+					property.requireTrustedTarget = types.isUndefinedOrNull(property.requireTrustedTarget) ? false : property.requireTrustedTarget;
 				}
 
 				// Add to properties maps

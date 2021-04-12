@@ -34,6 +34,8 @@ import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/note
 import { mock } from 'vs/base/test/common/mock';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -43,9 +45,9 @@ export class TestCell extends NotebookCellTextModel {
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutputDto[],
-		modelService: ITextModelService
+		modeService: IModeService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientMetadata: {}, transientOutputs: false }, modelService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientMetadata: {}, transientOutputs: false }, modeService);
 	}
 }
 
@@ -123,6 +125,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 export function setupInstantiationService() {
 	const instantiationService = new TestInstantiationService();
+	instantiationService.stub(IModeService, new ModeServiceImpl());
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, new TestThemeService());
@@ -157,23 +160,23 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	const listViewInfoAccessor = new ListViewInfoAccessor(cellList);
 
 	const notebookEditor: IActiveNotebookEditor = new class extends mock<IActiveNotebookEditor>() {
-		dispose() {
+		override dispose() {
 			viewModel.dispose();
 		}
-		onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
-		get viewModel() { return viewModel; }
-		hasModel(): this is IActiveNotebookEditor {
+		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
+		override get viewModel() { return viewModel; }
+		override hasModel(): this is IActiveNotebookEditor {
 			return !!this.viewModel;
 		}
-		getFocus() { return viewModel.getFocus(); }
-		getSelections() { return viewModel.getSelections(); }
-		getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
-		getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
-		revealCellRangeInView() { }
-		setHiddenAreas(_ranges: ICellRange[]): boolean {
+		override getFocus() { return viewModel.getFocus(); }
+		override getSelections() { return viewModel.getSelections(); }
+		override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
+		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
+		override revealCellRangeInView() { }
+		override setHiddenAreas(_ranges: ICellRange[]): boolean {
 			return cellList.setHiddenAreas(_ranges, true);
 		}
-		getActiveCell() {
+		override getActiveCell() {
 			const elements = cellList.getFocusedElements();
 
 			if (elements && elements.length) {
@@ -182,7 +185,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 			return undefined;
 		}
-		hasOutputTextSelection() {
+		override hasOutputTextSelection() {
 			return false;
 		}
 	};

@@ -14,7 +14,7 @@ export class StubTestItem extends TestItem {
 		super(id, label, URI.file('/'), pendingChildren.length > 0);
 	}
 
-	public discoverChildren(progress: IProgress<{ busy: boolean }>) {
+	public override discoverChildren(progress: IProgress<{ busy: boolean }>) {
 		for (const child of this.pendingChildren) {
 			this.children.add(child);
 		}

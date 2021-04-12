@@ -73,7 +73,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._initFetchFileSystem();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 		super.dispose();
 	}

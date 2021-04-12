@@ -97,7 +97,7 @@ class DropOverlay extends Themable {
 		this.updateStyles();
 	}
 
-	protected updateStyles(): void {
+	protected override updateStyles(): void {
 		const overlay = assertIsDefined(this.overlay);
 
 		// Overlay drop background
@@ -543,7 +543,7 @@ class DropOverlay extends Themable {
 		return element === this.container || element === this.overlay;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._disposed = true;
@@ -652,7 +652,7 @@ export class EditorDropTarget extends Themable {
 		this.container.classList.toggle('dragged-over', isDraggedOver);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.disposeOverlay();

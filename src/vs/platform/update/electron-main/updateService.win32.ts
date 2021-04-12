@@ -49,8 +49,6 @@ function getUpdateType(): UpdateType {
 
 export class Win32UpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private availableUpdate: IAvailableUpdate | undefined;
 
 	@memoize
@@ -73,7 +71,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
 	}
 
-	initialize(): void {
+	override initialize(): void {
 		super.initialize();
 
 		if (getUpdateType() === UpdateType.Setup) {
@@ -177,7 +175,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			});
 	}
 
-	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
+	protected async override doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		if (state.update.url) {
 			this.nativeHostMainService.openExternal(undefined, state.update.url);
 		}
@@ -206,7 +204,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		await Promise.all(promises);
 	}
 
-	protected async doApplyUpdate(): Promise<void> {
+	protected async override doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
 			return Promise.resolve(undefined);
 		}
@@ -242,7 +240,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			.then(() => this.setState(State.Ready(update)));
 	}
 
-	protected doQuitAndInstall(): void {
+	protected override doQuitAndInstall(): void {
 		if (this.state.type !== StateType.Ready || !this.availableUpdate) {
 			return;
 		}
@@ -259,7 +257,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		}
 	}
 
-	protected getUpdateType(): UpdateType {
+	protected override getUpdateType(): UpdateType {
 		return getUpdateType();
 	}
 }

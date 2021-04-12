@@ -33,7 +33,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -230,7 +230,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
-		@IModelService modelService: IModelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 	) {
 		super();
 
@@ -1089,7 +1089,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	async withElement(element: SingleModelEditStackElement | MultiModelEditStackElement, callback: () => Promise<void>) {
 		const viewCells = this._viewCells.filter(cell => element.matchesResource(cell.uri));
-		const refs = await Promise.all(viewCells.map(cell => cell.model.resolveTextModelRef()));
+		const refs = await Promise.all(viewCells.map(cell => this._textModelService.createModelReference(cell.uri)));
 		await callback();
 		refs.forEach(ref => ref.dispose());
 	}
@@ -1139,7 +1139,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook === notebook;
 	}
 
-	dispose() {
+	override dispose() {
 		this._localStore.clear();
 		this._viewCells.forEach(cell => {
 			cell.dispose();

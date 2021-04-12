@@ -51,11 +51,11 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return UntitledTextEditorInput.ID;
 	}
 
-	getName(): string {
+	override getName(): string {
 		return this.model.name;
 	}
 
-	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+	override getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
 
 		// Without associated path: only use if name and description differ
 		if (!this.model.hasAssociatedFilePath) {
@@ -71,7 +71,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return super.getDescription(verbosity);
 	}
 
-	getTitle(verbosity: Verbosity): string {
+	override getTitle(verbosity: Verbosity): string {
 
 		// Without associated path: check if name and description differ to decide
 		// if description should appear besides the name to distinguish better
@@ -89,7 +89,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return super.getTitle(verbosity);
 	}
 
-	isDirty(): boolean {
+	override isDirty(): boolean {
 		return this.model.isDirty();
 	}
 
@@ -109,7 +109,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.getMode();
 	}
 
-	async resolve(): Promise<IUntitledTextEditorModel> {
+	async override resolve(): Promise<IUntitledTextEditorModel> {
 		if (!this.modelResolve) {
 			this.modelResolve = this.model.resolve();
 		}
@@ -119,7 +119,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model;
 	}
 
-	matches(otherInput: unknown): boolean {
+	override matches(otherInput: unknown): boolean {
 		if (otherInput === this) {
 			return true;
 		}
@@ -131,7 +131,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return false;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.modelResolve = undefined;
 
 		super.dispose();
