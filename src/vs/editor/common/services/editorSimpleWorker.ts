@@ -96,10 +96,6 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		return this._uri;
 	}
 
-	public get version(): number {
-		return this._versionId;
-	}
-
 	public get eol(): string {
 		return this._eol;
 	}
