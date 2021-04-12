@@ -1468,7 +1468,6 @@ declare module 'vscode' {
 		// kernels can establish IPC channels to (visible) notebook editors
 		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
 
-		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 
 		// UI properties (get/set)
 		label: string;
@@ -1476,8 +1475,10 @@ declare module 'vscode' {
 		supportedLanguages: string[];
 		hasExecutionOrder: boolean;
 
-		// invoked when Run, Run All, Run Selections is triggered,
-		// command is invoked with [kernel, cells] as arguments
+		/**
+		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
+		 * Run Selection etc.
+		 */
 		readonly executeHandler: (executions: NotebookCellExecutionTask[]) => void;
 
 		// optional kernel interrupt command
@@ -1485,6 +1486,16 @@ declare module 'vscode' {
 
 		// remove kernel
 		dispose(): void;
+
+		/**
+		 * Manually create an execution task. This should only be used when cell execution
+		 * has started before creating the kernel instance or when execution can be triggered
+		 * from another source.
+		 *
+		 * @param cell The notebook cell for which to create the execution
+		 * @returns A notebook cell execution.
+		 */
+		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 	}
 
 	export interface NotebookKernelOptions {
