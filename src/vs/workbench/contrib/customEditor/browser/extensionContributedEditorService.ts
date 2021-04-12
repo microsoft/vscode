@@ -77,7 +77,8 @@ export interface IExtensionContributedEditorService {
 	 */
 	registerContributionPoint(
 		scheme: string | undefined,
-		globPattern: string, priority: number,
+		globPattern: string,
+		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
 		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,

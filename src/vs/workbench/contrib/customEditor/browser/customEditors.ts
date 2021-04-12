@@ -17,7 +17,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Extensions as EditorExtensions, IEditorAssociationsRegistry, IEditorType, IEditorTypesHandler } from 'vs/workbench/browser/editor';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, GroupIdentifier, IEditorInput, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
@@ -255,16 +254,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}), group);
 		}
 	}
-}
-
-export class CustomEditorContribution extends Disposable implements IWorkbenchContribution {
-
-	constructor(
-	) {
-		super();
-	}
-
-	//@ts-ignore
 }
 
 registerThemingParticipant((theme, collector) => {
