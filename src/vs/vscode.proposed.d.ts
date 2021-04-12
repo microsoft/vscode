@@ -1468,6 +1468,8 @@ declare module 'vscode' {
 		// kernels can establish IPC channels to (visible) notebook editors
 		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
 
+		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
+
 		// UI properties (get/set)
 		label: string;
 		description: string;

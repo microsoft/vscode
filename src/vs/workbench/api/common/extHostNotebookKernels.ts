@@ -113,6 +113,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.supportsInterrupt = Boolean(value);
 				_update();
 			},
+			createNotebookCellExecutionTask(cell) {
+				//todo@jrieken
+				return that._extHostNotebook.createNotebookCellExecution(cell.document.uri, cell.index, data.id)!;
+			},
 			dispose: () => {
 				isDisposed = true;
 				this._kernelData.delete(handle);
