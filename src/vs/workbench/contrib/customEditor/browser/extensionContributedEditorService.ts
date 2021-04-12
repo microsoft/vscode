@@ -44,6 +44,8 @@ interface ContributionPoint {
 	createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
 }
 
+type ContributionPoints = Array<ContributionPoint>;
+
 export type ContributionPointOptions = {
 	singlePerGroup?: boolean | (() => boolean);
 	singlePerResource?: boolean | (() => boolean);
@@ -77,10 +79,6 @@ export interface IExtensionContributedEditorService {
 		options: ContributionPointOptions,
 		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput
 	): IDisposable;
-	/**
-	 * Returns whether a not a contribution point is registered for that glob or scheme
-	 */
-	hasContributionPoint(schemeOrGlob: string): boolean;
 }
 
 export interface IExtensionContributedEditorHandler {
@@ -96,7 +94,7 @@ export interface IExtensionContributedEditorHandler {
 export class ExtensionContributedEditorService extends Disposable implements IExtensionContributedEditorService {
 	readonly _serviceBrand: undefined;
 
-	private _contributionPoints: Map<string, ContributionPoint> = new Map<string, ContributionPoint>();
+	private _contributionPoints: Map<string, ContributionPoints> = new Map<string, ContributionPoints>();
 	private readonly _editorChoiceStorageID = 'extensionContributedEditorService.editorChoice';
 
 	private readonly extensionContributedEditors: IExtensionContributedEditorHandler[] = [];
@@ -154,7 +152,10 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		options: ContributionPointOptions,
 		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput
 	): IDisposable {
-		this._contributionPoints.set(scheme ?? globPattern, {
+		if (this._contributionPoints.get(scheme ?? globPattern) === undefined) {
+			this._contributionPoints.set(scheme ?? globPattern, []);
+		}
+		const remove = insert(this._contributionPoints.get(scheme ?? globPattern)!, {
 			scheme,
 			globPattern,
 			priority,
@@ -162,7 +163,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			options,
 			createEditorInput,
 		});
-		return toDisposable(() => this._contributionPoints.delete(scheme ?? globPattern));
+		return toDisposable(() => remove());
 	}
 
 	contributedEditorOverride(handler: IExtensionContributedEditorHandler): IDisposable {
@@ -185,11 +186,13 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		contributions = contributions.concat(this._contributionPoints.get(resource.scheme) ?? []);
 		// Then all glob patterns
 		for (const key of this._contributionPoints.keys()) {
-			const contributionPoint = this._contributionPoints.get(key)!;
-			const matchOnPath = contributionPoint?.globPattern.indexOf(posix.sep) >= 0;
-			const target = matchOnPath ? resource.path : basename(resource);
-			if (glob.match(contributionPoint.globPattern, target)) {
-				contributions.push(contributionPoint);
+			const contributionPoints = this._contributionPoints.get(key)!;
+			for (const contributionPoint of contributionPoints) {
+				const matchOnPath = contributionPoint?.globPattern.indexOf(posix.sep) >= 0;
+				const target = matchOnPath ? resource.path : basename(resource);
+				if (glob.match(contributionPoint.globPattern, target)) {
+					contributions.push(contributionPoint);
+				}
 			}
 		}
 		// Return the contributions sorted by their priority

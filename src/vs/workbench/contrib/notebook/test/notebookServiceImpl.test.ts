@@ -7,9 +7,11 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
+import { ContributedEditorPriority } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -24,6 +26,12 @@ suite('NotebookProviderInfoStore', function () {
 			},
 			new class extends mock<IExtensionService>() {
 				onDidRegisterExtensions = Event.None;
+			},
+			new class extends mock<IExtensionContributedEditorService>() {
+
+			},
+			new class extends mock<IInstantiationService>() {
+
 			}
 		);
 
@@ -31,7 +39,7 @@ suite('NotebookProviderInfoStore', function () {
 			id: 'foo',
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
-			priority: NotebookEditorPriority.default,
+			priority: ContributedEditorPriority.default,
 			dynamicContribution: false,
 			exclusive: false,
 			providerDisplayName: 'foo',
@@ -41,7 +49,7 @@ suite('NotebookProviderInfoStore', function () {
 			id: 'bar',
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
-			priority: NotebookEditorPriority.default,
+			priority: ContributedEditorPriority.default,
 			dynamicContribution: false,
 			exclusive: false,
 			providerDisplayName: 'bar',
