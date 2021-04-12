@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
@@ -74,7 +74,7 @@ class TestInput extends EditorInput {
 	}
 
 	getTypeId(): string {
-		return '';
+		return 'testInput';
 	}
 
 	override resolve(): any {
@@ -87,7 +87,7 @@ class OtherTestInput extends EditorInput {
 	readonly resource = undefined;
 
 	getTypeId(): string {
-		return '';
+		return 'otherTestInput';
 	}
 
 	override resolve(): any {
@@ -185,11 +185,18 @@ suite('Workbench EditorPane', () => {
 	});
 
 	test('Editor Input Serializer', function () {
+		const testInput = new TestEditorInput(URI.file('/fake'), 'testTypeId');
 		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
-		const disposable = EditorInputRegistry.registerEditorInputSerializer('testInputId', TestInputSerializer);
+		const disposable = EditorInputRegistry.registerEditorInputSerializer(testInput.getTypeId(), TestInputSerializer);
 
-		let factory = EditorInputRegistry.getEditorInputSerializer('testInputId');
+		let factory = EditorInputRegistry.getEditorInputSerializer('testTypeId');
 		assert(factory);
+
+		factory = EditorInputRegistry.getEditorInputSerializer(testInput);
+		assert(factory);
+
+		// throws when registering serializer for same type
+		assert.throws(() => EditorInputRegistry.registerEditorInputSerializer(testInput.getTypeId(), TestInputSerializer));
 
 		disposable.dispose();
 	});

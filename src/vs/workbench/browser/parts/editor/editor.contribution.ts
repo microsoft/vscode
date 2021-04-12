@@ -192,10 +192,10 @@ interface ISerializedSideBySideEditorInput {
 
 export abstract class AbstractSideBySideEditorInputSerializer implements IEditorInputSerializer {
 
-	private getInputSerializers(secondaryId: string, primaryId: string): [IEditorInputSerializer | undefined, IEditorInputSerializer | undefined] {
+	private getInputSerializers(secondaryEditorInputTypeId: string, primaryEditorInputTypeId: string): [IEditorInputSerializer | undefined, IEditorInputSerializer | undefined] {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
 
-		return [registry.getEditorInputSerializer(secondaryId), registry.getEditorInputSerializer(primaryId)];
+		return [registry.getEditorInputSerializer(secondaryEditorInputTypeId), registry.getEditorInputSerializer(primaryEditorInputTypeId)];
 	}
 
 	canSerialize(editorInput: EditorInput): boolean {

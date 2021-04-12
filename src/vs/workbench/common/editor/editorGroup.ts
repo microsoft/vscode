@@ -755,7 +755,7 @@ export class EditorGroup extends Disposable {
 			const editor = this.editors[i];
 			let canSerializeEditor = false;
 
-			const editorSerializer = registry.getEditorInputSerializer(editor.getTypeId());
+			const editorSerializer = registry.getEditorInputSerializer(editor);
 			if (editorSerializer) {
 				const value = editorSerializer.serialize(editor);
 

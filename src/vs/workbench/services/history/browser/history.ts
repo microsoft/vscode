@@ -695,7 +695,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor.getTypeId());
+		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor);
 		if (!editorSerializer || !editorSerializer.canSerialize(editor)) {
 			return; // we need a serializer from this point that can serialize this editor
 		}
@@ -1029,7 +1029,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Editor input: try via serializer
 			if (input instanceof EditorInput) {
-				const editorSerializer = this.editorInputFactory.getEditorInputSerializer(input.getTypeId());
+				const editorSerializer = this.editorInputFactory.getEditorInputSerializer(input);
 				if (editorSerializer) {
 					const deserialized = editorSerializer.serialize(input);
 					if (deserialized) {
