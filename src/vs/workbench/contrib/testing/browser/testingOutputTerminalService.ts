@@ -66,7 +66,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 			output = new TestOutputProcess();
 			terminal = this.terminalService.createTerminal({
 				isFeatureTerminal: true,
-				customPtyImplementation: output,
+				customPtyImplementation: () => output,
 				name: title,
 			}) as TestOutputTerminalInstance;
 		}

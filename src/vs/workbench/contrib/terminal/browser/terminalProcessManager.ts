@@ -10,7 +10,6 @@ import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforePr
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -191,9 +190,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		let newProcess: ITerminalChildProcess;
 
-		if (shellLaunchConfig.isExtensionCustomPtyTerminal || shellLaunchConfig.customPtyImplementation) {
+		if (shellLaunchConfig.customPtyImplementation) {
 			this._processType = ProcessType.PsuedoTerminal;
-			newProcess = shellLaunchConfig.customPtyImplementation || this._instantiationService.createInstance(TerminalProcessExtHostProxy, this._instanceId, shellLaunchConfig, cols, rows);
+			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
 		} else {
 			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
