@@ -440,7 +440,7 @@ export class ShowMostRecentOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: 'testing.showMostRecentOutput',
-			title: localize('testing.showMostRecentOutput', "Collapse All Tests"),
+			title: localize('testing.showMostRecentOutput', "Show Most Recent Output"),
 			f1: false,
 			icon: Codicon.terminal,
 			menu: {

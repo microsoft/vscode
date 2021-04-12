@@ -2555,6 +2555,11 @@ declare module 'vscode' {
 		completedAt: number;
 
 		/**
+		 * Optional raw output from the test run.
+		 */
+		output?: string;
+
+		/**
 		 * List of test results. The items in this array are the items that
 		 * were passed in the {@link test.runTests} method.
 		 */
