@@ -487,8 +487,7 @@ function registerOpenEditorAPICommands(): void {
 			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
-		const input = editorService.createEditorInput({ resource: URI.revive(resource) });
-		return editorService.openEditor(input, { ...optionsArg, override: id }, group);
+		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, override: id } }, group);
 	});
 }
 
