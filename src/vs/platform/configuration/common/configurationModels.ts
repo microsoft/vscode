@@ -822,7 +822,9 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 }
 
 export class AllKeysConfigurationChangeEvent extends ConfigurationChangeEvent {
-	constructor(configuration: Configuration, workspace: Workspace, public source: ConfigurationTarget, public sourceConfig: any) {
+	constructor(configuration: Configuration, workspace: Workspace, source: ConfigurationTarget, sourceConfig: any) {
 		super({ keys: configuration.allKeys(), overrides: [] }, undefined, configuration, workspace);
+		this.source = source;
+		this.sourceConfig = sourceConfig;
 	}
 }
