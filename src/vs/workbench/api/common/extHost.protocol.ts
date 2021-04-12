@@ -861,7 +861,7 @@ export interface INotebookDocumentShowOptions {
 	position?: EditorGroupColumn;
 	preserveFocus?: boolean;
 	pinned?: boolean;
-	selection?: ICellRange;
+	selections?: ICellRange[];
 }
 
 export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarEntry>;

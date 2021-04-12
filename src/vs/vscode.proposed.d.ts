@@ -1299,7 +1299,7 @@ declare module 'vscode' {
 		viewColumn?: ViewColumn;
 		preserveFocus?: boolean;
 		preview?: boolean;
-		selection?: NotebookCellRange;
+		selections?: NotebookCellRange[];
 	}
 
 	export namespace notebook {
