@@ -18,7 +18,6 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
-import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 suite('ExtHostConfiguration', function () {
 
@@ -319,7 +318,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(URI.file('foo'), 0)],
 			'name': 'foo'
-		}, WorkspaceTrustState.Trusted);
+		}, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,
@@ -395,7 +394,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 			'name': 'foo'
-		}, WorkspaceTrustState.Trusted);
+		}, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,
@@ -498,7 +497,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [aWorkspaceFolder(firstRoot, 0), aWorkspaceFolder(secondRoot, 1)],
 			'name': 'foo'
-		}, WorkspaceTrustState.Trusted);
+		}, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,
@@ -676,7 +675,7 @@ suite('ExtHostConfiguration', function () {
 			'id': 'foo',
 			'folders': [workspaceFolder],
 			'name': 'foo'
-		}, WorkspaceTrustState.Trusted);
+		}, true);
 		const testObject = new ExtHostConfigProvider(
 			new class extends mock<MainThreadConfigurationShape>() { },
 			extHostWorkspace,
