@@ -217,8 +217,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === override);
 		}
 		// We only want built-in+ if no user defined setting is found. Else we will fall back to the text editor
-		contributionPoints = contributionPoints.filter(contribPoint => contribPoint.priority >= priorityToRank(ContributedEditorPriority.builtin));
-		const selectedViewType = this.getAssociationsForResource(resource)[0]?.viewType || contributionPoints[0]?.editorInfo.id;
+		const selectedViewType = this.getAssociationsForResource(resource)[0]?.viewType || contributionPoints.find(contribPoint => contribPoint.priority >= priorityToRank(ContributedEditorPriority.builtin))?.editorInfo.id;
 		return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === selectedViewType);
 	}
 
