@@ -349,7 +349,7 @@
 	right: 0;
 }
 
-.monaco-workbench.hc-black .notebookOverlay .monaco-list-row .cell-editor-focus .cell-editor-part:before {
+.monaco-workbench.hc-black .notebookOverlay .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
 	outline-style: dashed;
 }
 
