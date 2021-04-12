@@ -62,10 +62,10 @@ export class UntitledHintContribution implements IEditorContribution {
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID) {
 			if (untitledHintMode === 'text') {
-				this.untitledHintContentWidget = new UntitledHintContentWidget(this.editor, this.commandService, this.configurationService, this.keybindingService);
+				this.untitledHintContentWidget = new UntitledHintContentWidget(this.editor, this.commandService, this.configurationService);
 			}
 			if (untitledHintMode === 'button') {
-				this.button = new FloatingClickWidget(this.editor, localize('selectALanguage', "Select a Language"), ChangeModeAction.ID, this.keybindingService, this.themeService);
+				this.button = new FloatingClickWidget(this.editor, localize('selectALanguage', "Select a Language"), null, this.keybindingService, this.themeService);
 				this.toDispose.push(this.button.onClick(async () => {
 					// Need to focus editor before so current editor becomes active and the command is properly executed
 					this.editor.focus();
@@ -94,7 +94,6 @@ class UntitledHintContentWidget implements IContentWidget {
 		private readonly editor: ICodeEditor,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
-		private readonly keybindingService: IKeybindingService
 	) {
 		this.toDispose = [];
 		this.toDispose.push(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
@@ -120,10 +119,7 @@ class UntitledHintContentWidget implements IContentWidget {
 			this.domNode.style.width = 'max-content';
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
-			const keybinding = this.keybindingService.lookupKeybinding(ChangeModeAction.ID);
-			const keybindingLabel = keybinding?.getLabel();
-			const keybindingWithBrackets = keybindingLabel ? `(${keybindingLabel})` : '';
-			language.innerText = localize('selectAlanguage', "Select a language {0}", keybindingWithBrackets);
+			language.innerText = localize('selectAlanguage', "Select a language");
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);
