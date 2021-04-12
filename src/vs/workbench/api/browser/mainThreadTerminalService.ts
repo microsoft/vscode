@@ -131,7 +131,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			env: launchConfig.env,
 			strictEnv: launchConfig.strictEnv,
 			hideFromUser: launchConfig.hideFromUser,
-			customPtyImplementation: (id, rows, cols) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
+			customPtyImplementation: launchConfig.isExtensionCustomPtyTerminal
+				? (id, rows, cols) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService)
+				: undefined,
 			extHostTerminalId: extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal
