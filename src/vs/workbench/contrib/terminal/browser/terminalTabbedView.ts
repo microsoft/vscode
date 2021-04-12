@@ -203,7 +203,7 @@ export class TerminalTabbedView extends Disposable {
 			dom.EventHelper.stop(e);
 			await this._openTabsContextMenu(e);
 		}));
-		this._terminalTabTree.prepend(button);
+		this._terminalTabTree.append(button);
 		this._plusButton = button;
 	}
 

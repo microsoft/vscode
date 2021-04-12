@@ -184,16 +184,12 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
 		let item = node.element;
-		const split = new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: 'Split', icon: Codicon.splitHorizontal }, undefined, undefined, this._contextKeyService, this._commandService);
-		const kill = new MenuItemAction({ id: TERMINAL_COMMAND_ID.KILL, title: 'Kill', icon: Codicon.trashcan }, undefined, undefined, this._contextKeyService, this._commandService);
+
 		if ('terminalInstances' in item) {
 			if (item.terminalInstances.length === 1) {
 				const instance = item.terminalInstances[0];
 				label = `$(${instance.icon.id}) ${instance.title}`;
-				if (template.actionBar.viewItems.length === 0) {
-					template.actionBar.push(split, { icon: true, label: false });
-					template.actionBar.push(kill, { icon: true, label: false });
-				}
+				this.fillActionBar(template);
 			} else if (item.terminalInstances.length > 1) {
 				label = `(${item.terminalInstances.length})`;
 				if (template.actionBar.viewItems.length > 0) {
@@ -202,15 +198,21 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 			}
 		} else {
 			label = `$(${item.icon.id}) ${item.title}`;
-			if (template.actionBar.viewItems.length === 0) {
-				template.actionBar.push(split, { icon: true, label: false });
-				template.actionBar.push(kill, { icon: true, label: false });
-			}
+			this.fillActionBar(template);
 		}
 		template.label.setLabel(label);
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
+	}
+
+	fillActionBar(template: ITerminalTabEntryTemplate): void {
+		const split = new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: 'Split', icon: Codicon.splitHorizontal }, undefined, undefined, this._contextKeyService, this._commandService);
+		const kill = new MenuItemAction({ id: TERMINAL_COMMAND_ID.KILL, title: 'Kill', icon: Codicon.trashcan }, undefined, undefined, this._contextKeyService, this._commandService);
+		if (template.actionBar.viewItems.length === 0) {
+			template.actionBar.push(split, { icon: true, label: false });
+			template.actionBar.push(kill, { icon: true, label: false });
+		}
 	}
 }
 

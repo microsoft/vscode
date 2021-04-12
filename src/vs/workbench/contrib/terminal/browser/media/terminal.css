@@ -199,6 +199,8 @@
 
 #terminal-tabs-plus-button {
 	padding-left: 24px;
+	position : sticky;
+	min-height: 10;
 }
 
 .tabs-widget .terminal-tabs-entry.format-widget-row {
@@ -215,4 +217,18 @@
 	width: 0 !important;
 	padding-right: 0 !important;
 	visibility: hidden;
+}
+
+.tabs-widget .actions {
+	display: none;
+}
+
+.tabs-widget .actions .action-label {
+	padding: 2px;
+}
+
+.tabs-widget .monaco-list-row:hover .actions,
+.tabs-widget .monaco-list-row.selected .actions,
+.tabs-widget .monaco-list-row.focused .actions {
+	display: block;
 }
