@@ -652,6 +652,13 @@ export function registerTerminalActions() {
 			});
 		}
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.RENAME,
+			title: localize('workbench.action.terminal.rename', "Rename")
+		},
+		group: ContextMenuGroup.Edit
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({

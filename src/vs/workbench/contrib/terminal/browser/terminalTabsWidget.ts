@@ -142,7 +142,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 
 	templateId = 'terminal.tabs';
 
-
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
 		const labelElement = DOM.append(container, $('.terminal-tabs-entry'));
 		return {

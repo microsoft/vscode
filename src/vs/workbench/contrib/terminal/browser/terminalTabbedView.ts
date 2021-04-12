@@ -58,7 +58,7 @@ export class TerminalTabbedView extends Disposable {
 	private _width: number | undefined;
 
 	private _cancelContextMenu: boolean = false;
-	private _menu: IMenu;
+	private _instanceMenu: IMenu;
 	private _tabsMenu: IMenu;
 
 	private _contextKeyService: IContextKeyService;
@@ -98,7 +98,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
 		this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
-		this._menu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 
 		this._tabsMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
 
@@ -320,7 +320,7 @@ export class TerminalTabbedView extends Disposable {
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this._menu, undefined, actions);
+		const actionsDisposable = createAndFillInContextMenuActions(this._instanceMenu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
