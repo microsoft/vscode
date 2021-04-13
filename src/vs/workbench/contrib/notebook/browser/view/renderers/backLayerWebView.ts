@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from 'vs/base/common/actions';
+import { coalesce } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -12,6 +14,11 @@ import { isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
+import * as nls from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -25,8 +32,6 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import * as nls from 'vs/nls';
-import { coalesce } from 'vs/base/common/arrays';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -98,6 +103,13 @@ export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly shiftKey: boolean;
+}
+
+export interface IContextMenuMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'contextMenuMarkdownPreview';
+	readonly cellId: string;
+	readonly clientX: number;
+	readonly clientY: number;
 }
 
 export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
@@ -311,6 +323,7 @@ export type FromWebviewMessage =
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
 	| IClickMarkdownPreviewMessage
+	| IContextMenuMarkdownPreviewMessage
 	| IMouseEnterMarkdownPreviewMessage
 	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
@@ -402,6 +415,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -952,6 +968,25 @@ var requirejs = (function() {
 								this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
 							}
 						}
+						break;
+					}
+				case 'contextMenuMarkdownPreview':
+					{
+						const webviewRect = this.element.getBoundingClientRect();
+						this.contextMenuService.showContextMenu({
+							getActions: () => {
+								const result: IAction[] = [];
+								const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
+								createAndFillInContextMenuActions(menu, undefined, result);
+								menu.dispose();
+								return result;
+							},
+							getAnchor: () => ({
+								x: webviewRect.x + data.clientX,
+								y: webviewRect.y + data.clientY
+							})
+						});
+
 						break;
 					}
 				case 'toggleMarkdownPreview':
