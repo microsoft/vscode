@@ -66,7 +66,7 @@ viewsRegistry.registerViews([{
 	canToggleVisibility: true,
 	workspace: true,
 	canMoveView: true,
-	weight: 80,
+	weight: 20,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
@@ -90,7 +90,7 @@ viewsRegistry.registerViews([{
 	hideByDefault: true,
 	workspace: true,
 	canMoveView: true,
-	weight: 20,
+	weight: 5,
 	order: -1000,
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
