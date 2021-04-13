@@ -51,7 +51,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 			[_instantiationService.createInstance(TerminalTabsRenderer)],
 			{
 				horizontalScrolling: false,
-				supportDynamicHeights: true,
+				supportDynamicHeights: false,
 				identityProvider: new TerminalTabsIdentityProvider(),
 				accessibilityProvider: new TerminalTabsAccessibilityProvider(),
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),

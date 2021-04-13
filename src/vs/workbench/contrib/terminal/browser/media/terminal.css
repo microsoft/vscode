@@ -200,6 +200,12 @@
 #terminal-tabs-plus-button {
 	padding-left: 10px;
 	min-height: 10;
+	flex-grow: 0;
+}
+
+.tabs-container {
+	display: flex;
+	flex-direction: column;
 }
 
 .tabs-widget .terminal-tabs-entry {

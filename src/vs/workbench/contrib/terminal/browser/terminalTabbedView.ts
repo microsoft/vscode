@@ -42,6 +42,7 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalContainer: HTMLElement;
 	private _terminalTabTree: HTMLElement;
 	private _parentElement: HTMLElement;
+	private _tabTreeContainer: HTMLElement;
 
 	private _tabsWidget: TerminalTabsWidget;
 	private _findWidget: TerminalFindWidget;
@@ -82,8 +83,11 @@ export class TerminalTabbedView extends Disposable {
 
 		this._parentElement = parentElement;
 
+		this._tabTreeContainer = document.createElement('div');
+		this._tabTreeContainer.classList.add('tabs-container');
 		this._terminalTabTree = document.createElement('div');
 		this._terminalTabTree.classList.add('tabs-widget');
+		this._tabTreeContainer.appendChild(this._terminalTabTree);
 
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 		this._tabsMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
@@ -113,7 +117,7 @@ export class TerminalTabbedView extends Disposable {
 				} else {
 					this._splitView.removeView(this._tabTreeIndex);
 					if (this._plusButton) {
-						this._terminalTabTree.removeChild(this._plusButton);
+						this._tabTreeContainer.removeChild(this._plusButton);
 					}
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
@@ -184,8 +188,8 @@ export class TerminalTabbedView extends Disposable {
 
 	private _addTabTree() {
 		this._splitView.addView({
-			element: this._terminalTabTree,
-			layout: width => this._tabsWidget.layout(this._height ? this._height - this._terminalTabTree.clientHeight : undefined, width),
+			element: this._tabTreeContainer,
+			layout: width => this._tabsWidget.layout(this._height ? this._height - 22 : 0, width),
 			minimumSize: MIN_TABS_WIDGET_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
@@ -198,6 +202,7 @@ export class TerminalTabbedView extends Disposable {
 		this._height = height;
 		this._width = width;
 		this._splitView.layout(width);
+		this._tabsWidget.getHTMLElement().style.zIndex = `10`;
 		if (this._showTabs) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 		}
@@ -211,7 +216,7 @@ export class TerminalTabbedView extends Disposable {
 			dom.EventHelper.stop(e);
 			await this._openTabsContextMenu(e);
 		}));
-		this._terminalTabTree.append(button);
+		this._tabTreeContainer.appendChild(button);
 		this._plusButton = button;
 	}
 
