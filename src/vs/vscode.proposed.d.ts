@@ -997,16 +997,21 @@ declare module 'vscode' {
 		 */
 		readonly inputCollapsed?: boolean;
 		/**
+		 * @deprecated
 		 * Additional attributes of a cell metadata.
 		 */
 		readonly custom?: Record<string, any>;
 
 		// todo@API duplicates status bar API
 		readonly statusMessage?: string;
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		readonly [key: string]: any;
 
-		constructor(editable?: boolean, breakpointMargin?: boolean, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
+		constructor(editable?: boolean, breakpointMargin?: boolean, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, additionalMetadata?: Record<string, any>)
 
-		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, additionalMetadata?: Record<string, any> | null }): NotebookCellMetadata;
 	}
 
 	export interface NotebookCellExecutionSummary {
@@ -1039,6 +1044,7 @@ declare module 'vscode' {
 		 */
 		readonly cellEditable: boolean;
 		/**
+		 * @deprecated
 		 * Additional attributes of the document metadata.
 		 */
 		readonly custom: { [key: string]: any; };
@@ -1047,10 +1053,14 @@ declare module 'vscode' {
 		 * When false, insecure outputs like HTML, JavaScript, SVG will not be rendered.
 		 */
 		readonly trusted: boolean;
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		readonly [key: string]: any;
 
-		constructor(editable?: boolean, cellEditable?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
+		constructor(editable?: boolean, cellEditable?: boolean, trusted?: boolean, additionalMetadata?: { [key: string]: any; });
 
-		with(change: { editable?: boolean | null, cellEditable?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, cellEditable?: boolean | null, trusted?: boolean | null, additionalMetadata?: Record<string, any> | null }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {

@@ -667,6 +667,13 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(newObj.trusted, false);
 	});
 
+	test('NotebookMetadata - additionalMetadata', function () {
+		const obj = new types.NotebookDocumentMetadata();
+		const newObj = obj.with({ additionalMetadata: { displayId: 'first' } });
+		assert.ok(obj !== newObj);
+		assert.strictEqual(newObj.displayId, 'first');
+	});
+
 	test('NotebookCellMetadata - with', function () {
 		const obj = new types.NotebookCellMetadata(true, true);
 
@@ -680,5 +687,12 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(newObj.editable, true);
 		assert.strictEqual(newObj.custom, undefined);
 
+	});
+
+	test('NotebookCellMetadata - additionalMetadata', function () {
+		const obj = new types.NotebookCellMetadata(true, true);
+		const newObj = obj.with({ additionalMetadata: { displayId: 'first' } });
+		assert.ok(obj !== newObj);
+		assert.strictEqual(newObj.displayId, 'first');
 	});
 });

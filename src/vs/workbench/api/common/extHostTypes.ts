@@ -2941,6 +2941,7 @@ export class NotebookCellRange {
 }
 
 export class NotebookCellMetadata {
+	readonly [key: string]: any;
 
 	constructor(
 		readonly editable?: boolean,
@@ -2949,7 +2950,11 @@ export class NotebookCellMetadata {
 		readonly inputCollapsed?: boolean,
 		readonly outputCollapsed?: boolean,
 		readonly custom?: Record<string, any>,
-	) { }
+	) {
+		if (custom) {
+			Object.assign(this, custom);
+		}
+	}
 
 	with(change: {
 		editable?: boolean | null,
@@ -2957,10 +2962,10 @@ export class NotebookCellMetadata {
 		statusMessage?: string | null,
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
-		custom?: Record<string, any> | null,
+		additionalMetadata?: Record<string, any> | null,
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, statusMessage, inputCollapsed, outputCollapsed, custom } = change;
+		let { editable, breakpointMargin, statusMessage, inputCollapsed, outputCollapsed, additionalMetadata } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -2987,10 +2992,10 @@ export class NotebookCellMetadata {
 		} else if (outputCollapsed === null) {
 			outputCollapsed = undefined;
 		}
-		if (custom === undefined) {
-			custom = this.custom;
-		} else if (custom === null) {
-			custom = undefined;
+		if (additionalMetadata === undefined) {
+			additionalMetadata = this.custom;
+		} else if (additionalMetadata === null) {
+			additionalMetadata = undefined;
 		}
 
 		if (editable === this.editable &&
@@ -2998,7 +3003,7 @@ export class NotebookCellMetadata {
 			statusMessage === this.statusMessage &&
 			inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
-			custom === this.custom
+			additionalMetadata === this.custom
 		) {
 			return this;
 		}
@@ -3009,28 +3014,33 @@ export class NotebookCellMetadata {
 			statusMessage,
 			inputCollapsed,
 			outputCollapsed,
-			custom,
+			additionalMetadata,
 		);
 	}
 }
 
 export class NotebookDocumentMetadata {
+	readonly [key: string]: any;
 
 	constructor(
 		readonly editable: boolean = true,
 		readonly cellEditable: boolean = true,
-		readonly custom: { [key: string]: any; } = {},
 		readonly trusted: boolean = true,
-	) { }
+		readonly custom: { [key: string]: any; } = {}
+	) {
+		if (custom) {
+			Object.assign(this, custom);
+		}
+	}
 
 	with(change: {
 		editable?: boolean | null,
 		cellEditable?: boolean | null,
-		custom?: { [key: string]: any; } | null,
 		trusted?: boolean | null,
+		additionalMetadata?: { [key: string]: any; } | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, cellEditable, custom, trusted } = change;
+		let { editable, cellEditable, additionalMetadata, trusted } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -3042,10 +3052,10 @@ export class NotebookDocumentMetadata {
 		} else if (cellEditable === null) {
 			cellEditable = undefined;
 		}
-		if (custom === undefined) {
-			custom = this.custom;
-		} else if (custom === null) {
-			custom = undefined;
+		if (additionalMetadata === undefined) {
+			additionalMetadata = this.custom;
+		} else if (additionalMetadata === null) {
+			additionalMetadata = undefined;
 		}
 		if (trusted === undefined) {
 			trusted = this.trusted;
@@ -3055,7 +3065,7 @@ export class NotebookDocumentMetadata {
 
 		if (editable === this.editable &&
 			cellEditable === this.cellEditable &&
-			custom === this.custom &&
+			additionalMetadata === this.custom &&
 			trusted === this.trusted
 		) {
 			return this;
@@ -3065,8 +3075,8 @@ export class NotebookDocumentMetadata {
 		return new NotebookDocumentMetadata(
 			editable,
 			cellEditable,
-			custom,
-			trusted
+			trusted,
+			additionalMetadata
 		);
 	}
 }
