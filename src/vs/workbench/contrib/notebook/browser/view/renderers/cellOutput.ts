@@ -268,35 +268,36 @@ export class CellOutputElement extends Disposable {
 			? nls.localize('promptChooseMimeTypeInSecure.placeHolder', "Select mimetype to render for current output. Rich mimetypes are available only when the notebook is trusted")
 			: nls.localize('promptChooseMimeType.placeHolder', "Select mimetype to render for current output");
 
-		const pick = await new Promise<number | undefined>(resolve => {
+		const pick = await new Promise<IMimeTypeRenderer | undefined>(resolve => {
 			picker.onDidAccept(() => {
-				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer).index : undefined);
+				resolve(picker.selectedItems.length === 1 ? (picker.selectedItems[0] as IMimeTypeRenderer) : undefined);
 				picker.dispose();
 			});
 			picker.show();
 		});
 
-		if (pick === undefined) {
+		if (pick === undefined || pick.index === currIndex) {
 			return;
 		}
 
-		if (pick !== currIndex) {
-			// user chooses another mimetype
-			const index = this.viewCell.outputsViewModels.indexOf(viewModel);
-			const nextElement = this.domNode.nextElementSibling;
-			this.localDisposableStore.clear();
-			const element = this.domNode;
-			if (element) {
-				element.parentElement?.removeChild(element);
-				this.notebookEditor.removeInset(viewModel);
-			}
-
-			viewModel.pickedMimeType = pick;
-			this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
-			this.render(index, nextElement as HTMLElement);
-			this._validateFinalOutputHeight(false);
-			this.relayoutCell();
+		// user chooses another mimetype
+		const index = this.viewCell.outputsViewModels.indexOf(viewModel);
+		const nextElement = this.domNode.nextElementSibling;
+		this.localDisposableStore.clear();
+		const element = this.domNode;
+		if (element) {
+			element.parentElement?.removeChild(element);
+			this.notebookEditor.removeInset(viewModel);
 		}
+
+		viewModel.pickedMimeType = pick.index;
+		this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
+
+		const { mimeType, rendererId } = mimeTypes[pick.index];
+		this.notebookService.updateMimePreferredRenderer(mimeType, rendererId);
+		this.render(index, nextElement as HTMLElement);
+		this._validateFinalOutputHeight(false);
+		this.relayoutCell();
 	}
 
 	private generateRendererInfo(renderId: string | undefined): string {
