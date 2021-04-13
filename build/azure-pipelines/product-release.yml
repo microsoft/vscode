@@ -1,7 +1,3 @@
-variables:
-  - name: BUILDS_API_URL
-    value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-
 steps:
   - task: NodeTool@0
     inputs:

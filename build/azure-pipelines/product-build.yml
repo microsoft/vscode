@@ -327,6 +327,9 @@ stages:
         - Compile
       pool:
         vmImage: "Ubuntu-18.04"
+      variables:
+        - name: BUILDS_API_URL
+          value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
       jobs:
         - job: ReleaseBuild
           displayName: Release Build
