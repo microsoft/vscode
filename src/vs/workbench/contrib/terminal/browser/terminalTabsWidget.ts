@@ -47,7 +47,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[_instantiationService.createInstance(TerminalTabsRenderer)],
+			[_instantiationService.createInstance(TerminalTabsRenderer, container)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -150,8 +150,8 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
-	private _container: HTMLElement | undefined;
 	constructor(
+		private readonly _container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -160,7 +160,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	}
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
-		this._container = container;
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
@@ -185,9 +184,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
 		let item = node.element;
-		console.log(this.shouldHideText());
-		template.element.classList.toggle('has-text', !this.shouldHideText());
-		if (this.shouldHideText()) {
+		const hasText = !this.shouldHideText();
+		template.element.classList.toggle('has-text', hasText);
+		if (!hasText) {
 			if ('terminalInstances' in item) {
 				if (item.terminalInstances.length === 1) {
 					const instance = item.terminalInstances[0];
