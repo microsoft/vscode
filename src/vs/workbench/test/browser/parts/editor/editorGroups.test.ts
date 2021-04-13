@@ -119,10 +119,10 @@ suite('Workbench editor groups', () => {
 		constructor(public id: string) {
 			super();
 		}
-		getTypeId() { return 'testEditorInputForGroups'; }
-		async resolve(): Promise<IEditorModel> { return null!; }
+		override get typeId() { return 'testEditorInputForGroups'; }
+		async override resolve(): Promise<IEditorModel> { return null!; }
 
-		matches(other: TestEditorInput): boolean {
+		override matches(other: TestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof TestEditorInput;
 		}
 
@@ -142,10 +142,10 @@ suite('Workbench editor groups', () => {
 		constructor(public id: string) {
 			super();
 		}
-		getTypeId() { return 'testEditorInputForGroups-nonSerializable'; }
-		async resolve(): Promise<IEditorModel | null> { return null; }
+		override get typeId() { return 'testEditorInputForGroups-nonSerializable'; }
+		async override resolve(): Promise<IEditorModel | null> { return null; }
 
-		matches(other: NonSerializableTestEditorInput): boolean {
+		override matches(other: NonSerializableTestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
 		}
 	}
@@ -157,8 +157,8 @@ suite('Workbench editor groups', () => {
 		constructor(public id: string, public resource: URI) {
 			super();
 		}
-		getTypeId() { return 'testFileEditorInputForGroups'; }
-		async resolve(): Promise<IEditorModel | null> { return null; }
+		override get typeId() { return 'testFileEditorInputForGroups'; }
+		async override resolve(): Promise<IEditorModel | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
 		setPreferredResource(resource: URI): void { }
@@ -170,7 +170,7 @@ suite('Workbench editor groups', () => {
 		setPreferredMode(mode: string) { }
 		isResolved(): boolean { return false; }
 
-		matches(other: TestFileEditorInput): boolean {
+		override matches(other: TestFileEditorInput): boolean {
 			return other && this.id === other.id && other instanceof TestFileEditorInput;
 		}
 	}

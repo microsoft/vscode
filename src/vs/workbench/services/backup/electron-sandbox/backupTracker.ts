@@ -15,7 +15,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
+import { BackupTracker } from 'vs/workbench/services/backup/common/backupTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SaveReason } from 'vs/workbench/common/editor';

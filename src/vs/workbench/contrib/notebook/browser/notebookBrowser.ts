@@ -13,7 +13,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
@@ -109,14 +109,14 @@ export interface ICellOutputViewModel {
 	 * When rendering an output, `model` should always be used as we convert legacy `text/error` output to `display_data` output under the hood.
 	 */
 	model: ICellOutput;
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 	supportAppend(): boolean;
 	toRawJSON(): any;
 }
 
 export interface IDisplayOutputViewModel extends ICellOutputViewModel {
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 }
 
@@ -154,7 +154,7 @@ export interface ICommonCellInfo {
 export interface INotebookCellOutputLayoutInfo {
 	width: number;
 	height: number;
-	fontInfo: BareFontInfo;
+	fontInfo: FontInfo;
 }
 
 export interface IFocusNotebookCellOptions {
@@ -183,7 +183,7 @@ export interface ICommonNotebookEditor {
 export interface NotebookLayoutInfo {
 	width: number;
 	height: number;
-	fontInfo: BareFontInfo;
+	fontInfo: FontInfo;
 }
 
 export interface NotebookLayoutChangeEvent {
@@ -200,7 +200,7 @@ export enum CodeCellLayoutState {
 }
 
 export interface CodeCellLayoutInfo {
-	readonly fontInfo: BareFontInfo | null;
+	readonly fontInfo: FontInfo | null;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly totalHeight: number;
@@ -220,11 +220,11 @@ export interface CodeCellLayoutChangeEvent {
 	outputShowMoreContainerHeight?: number;
 	totalHeight?: boolean;
 	outerWidth?: number;
-	font?: BareFontInfo;
+	font?: FontInfo;
 }
 
 export interface MarkdownCellLayoutInfo {
-	readonly fontInfo: BareFontInfo | null;
+	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
 	readonly bottomToolbarOffset: number;
@@ -232,7 +232,7 @@ export interface MarkdownCellLayoutInfo {
 }
 
 export interface MarkdownCellLayoutChangeEvent {
-	font?: BareFontInfo;
+	font?: FontInfo;
 	outerWidth?: number;
 	totalHeight?: number;
 }
@@ -366,7 +366,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
 	activeKernel: INotebookKernel | undefined;
-	multipleKernelsAvailable: boolean;
+	readonly availableKernelCount: number;
 	readonly onDidScroll: Event<void>;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;

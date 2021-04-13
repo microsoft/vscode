@@ -39,7 +39,7 @@ export class ToggleColumnSelectionAction extends Action {
 		return this._codeEditorService.getActiveCodeEditor();
 	}
 
-	public async run(): Promise<any> {
+	public async override run(): Promise<any> {
 		const oldValue = this._configurationService.getValue<boolean>('editor.columnSelection');
 		const codeEditor = this._getCodeEditor();
 		await this._configurationService.updateValue('editor.columnSelection', !oldValue);

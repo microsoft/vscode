@@ -10,6 +10,7 @@ import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { getInitializedMainTestCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workbench - Test Result Storage', () => {
@@ -18,7 +19,9 @@ suite('Workbench - Test Result Storage', () => {
 
 	const makeResult = (addMessage?: string) => {
 		const t = LiveTestResult.from(
+			'',
 			[collection],
+			emptyOutputController(),
 			{ tests: [{ src: { provider: 'provider', tree: 0 }, testId: 'id-a' }], debug: false }
 		);
 		if (addMessage) {

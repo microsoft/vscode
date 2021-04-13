@@ -34,7 +34,7 @@ suite('Files - FileEditorInput', () => {
 		instantiationService = workbenchInstantiationService({
 			editorService: () => {
 				return new class extends TestEditorService {
-					createEditorInput(input: IResourceEditorInput) {
+					override createEditorInput(input: IResourceEditorInput) {
 						return createFileInput(input.resource);
 					}
 				};
@@ -268,7 +268,7 @@ suite('Files - FileEditorInput', () => {
 
 		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer);
 
-		const editorSerializer = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputSerializer(input.getTypeId());
+		const editorSerializer = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputSerializer(input.typeId);
 		if (!editorSerializer) {
 			assert.fail('File Editor Input Serializer missing');
 		}

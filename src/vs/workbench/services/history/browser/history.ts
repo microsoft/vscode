@@ -695,7 +695,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor.getTypeId());
+		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor);
 		if (!editorSerializer || !editorSerializer.canSerialize(editor)) {
 			return; // we need a serializer from this point that can serialize this editor
 		}
@@ -720,7 +720,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.recentlyClosedEditors.push({
 			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
-			serialized: { typeId: editor.getTypeId(), value: serialized },
+			serialized: { typeId: editor.typeId, value: serialized },
 			index: event.index,
 			sticky: event.sticky
 		});
@@ -1029,11 +1029,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Editor input: try via serializer
 			if (input instanceof EditorInput) {
-				const editorSerializer = this.editorInputFactory.getEditorInputSerializer(input.getTypeId());
+				const editorSerializer = this.editorInputFactory.getEditorInputSerializer(input);
 				if (editorSerializer) {
 					const deserialized = editorSerializer.serialize(input);
 					if (deserialized) {
-						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } };
+						return { editorInputJSON: { typeId: input.typeId, deserialized } };
 					}
 				}
 			}

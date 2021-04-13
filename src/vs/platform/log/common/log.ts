@@ -250,7 +250,7 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		// noop
 	}
 
@@ -303,7 +303,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		// noop
 	}
 
@@ -363,7 +363,7 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 		return toErrorMessage(msg, this.getLevel() <= LogLevel.Trace);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		// noop
 	}
 
@@ -382,7 +382,7 @@ export class MultiplexLogService extends AbstractLogger implements ILogService {
 		}
 	}
 
-	setLevel(level: LogLevel): void {
+	override setLevel(level: LogLevel): void {
 		for (const logService of this.logServices) {
 			logService.setLevel(level);
 		}
@@ -431,7 +431,7 @@ export class MultiplexLogService extends AbstractLogger implements ILogService {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		for (const logService of this.logServices) {
 			logService.dispose();
 		}
@@ -517,7 +517,7 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		return logger;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.logLevelChangeableLoggers.splice(0, this.logLevelChangeableLoggers.length);
 		this.loggers.forEach(logger => logger.dispose());
 		this.loggers.clear();

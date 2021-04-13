@@ -120,7 +120,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
 		if (typeof channelId === 'string') {
 			// Sometimes the action is executed with no channelId parameter, then we should just ignore it #103496
-			accessor.get(IOutputService).showChannel(channelId);
+			accessor.get(IOutputService).showChannel(channelId, true);
 		}
 	}
 });

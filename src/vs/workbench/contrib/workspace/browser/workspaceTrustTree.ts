@@ -76,8 +76,8 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 	constructor(
 		container: HTMLElement,
 		@ILabelService protected readonly labelService: ILabelService,
-		@IThemeService protected readonly themeService: IThemeService,
-		@IContextViewService protected readonly contextViewService: IContextViewService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(container, themeService, contextViewService);
 	}
@@ -109,7 +109,7 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 		] as IAction[];
 	}
 
-	protected renderHeader() {
+	protected override renderHeader() {
 		const header = $('.setting-list-row-header');
 		const hostHeader = append(header, $('.setting-list-object-key'));
 		const pathHeader = append(header, $('.setting-list-object-value'));
@@ -564,7 +564,7 @@ export class WorkspaceTrustTree extends WorkbenchObjectTree<WorkspaceTrustSettin
 		}));
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<WorkspaceTrustSettingsTreeEntry>>, options: IObjectTreeOptions<WorkspaceTrustSettingsTreeEntry>): ITreeModel<WorkspaceTrustSettingsTreeEntry | null, void, WorkspaceTrustSettingsTreeEntry | null> {
+	protected override createModel(user: string, view: IList<ITreeNode<WorkspaceTrustSettingsTreeEntry>>, options: IObjectTreeOptions<WorkspaceTrustSettingsTreeEntry>): ITreeModel<WorkspaceTrustSettingsTreeEntry | null, void, WorkspaceTrustSettingsTreeEntry | null> {
 		return new NonCollapsibleObjectTreeModel<WorkspaceTrustSettingsTreeEntry>(user, view, options);
 	}
 }

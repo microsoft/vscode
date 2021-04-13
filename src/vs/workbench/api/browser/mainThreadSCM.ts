@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -422,6 +422,24 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.visible = visible;
+	}
+
+	$setInputBoxFocus(sourceControlHandle: number): void {
+		const repository = this._repositories.get(sourceControlHandle);
+		if (!repository) {
+			return;
+		}
+
+		repository.input.setFocus();
+	}
+
+	$showValidationMessage(sourceControlHandle: number, message: string, type: InputValidationType) {
+		const repository = this._repositories.get(sourceControlHandle);
+		if (!repository) {
+			return;
+		}
+
+		repository.input.showValidationMessage(message, type);
 	}
 
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {

@@ -171,10 +171,7 @@ import 'vs/workbench/contrib/files/browser/explorerViewlet';
 import 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import 'vs/workbench/contrib/files/browser/files.contribution';
 
-// Backup
-import 'vs/workbench/contrib/backup/common/backup.contribution';
-
-// bulkEdit
+// Bulk Edit
 import 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution';
 

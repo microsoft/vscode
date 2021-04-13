@@ -233,11 +233,11 @@ export abstract class ViewPane extends Pane implements IView {
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
-	get headerVisible(): boolean {
+	override get headerVisible(): boolean {
 		return super.headerVisible;
 	}
 
-	set headerVisible(visible: boolean) {
+	override set headerVisible(visible: boolean) {
 		super.headerVisible = visible;
 		this.element.classList.toggle('merged-header', !visible);
 	}
@@ -260,7 +260,7 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._isVisible && this.isExpanded();
 	}
 
-	setExpanded(expanded: boolean): boolean {
+	override setExpanded(expanded: boolean): boolean {
 		const changed = super.setExpanded(expanded);
 		if (changed) {
 			this._onDidChangeBodyVisibility.fire(expanded);
@@ -272,7 +272,7 @@ export abstract class ViewPane extends Pane implements IView {
 		return changed;
 	}
 
-	render(): void {
+	override render(): void {
 		super.render();
 
 		const focusTracker = trackFocus(this.element);
@@ -316,7 +316,7 @@ export abstract class ViewPane extends Pane implements IView {
 		return expanded ? viewPaneContainerExpandedIcon : viewPaneContainerCollapsedIcon;
 	}
 
-	style(styles: IPaneStyles): void {
+	override style(styles: IPaneStyles): void {
 		super.style(styles);
 
 		const icon = this.getIcon();

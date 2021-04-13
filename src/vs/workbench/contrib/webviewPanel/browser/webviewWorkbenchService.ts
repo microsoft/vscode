@@ -107,14 +107,14 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		super(id, viewType, name, webview, _webviewWorkbenchService.iconManager);
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 		this.#resolvePromise?.cancel();
 		this.#resolvePromise = undefined;
 	}
 
 	@memoize
-	public async resolve() {
+	public async override resolve() {
 		if (!this.#resolved) {
 			this.#resolved = true;
 			this.#resolvePromise = this._webviewWorkbenchService.resolveWebview(this);
@@ -129,7 +129,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 		return super.resolve();
 	}
 
-	protected transfer(other: LazilyResolvedWebviewEditorInput): WebviewInput | undefined {
+	protected override transfer(other: LazilyResolvedWebviewEditorInput): WebviewInput | undefined {
 		if (!super.transfer(other)) {
 			return;
 		}

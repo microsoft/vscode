@@ -68,6 +68,21 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
 	/**
+	 * A version ID of the model. If a `onDidChangeContent` is fired
+	 * from the model and the last known saved `versionId` matches
+	 * with the `model.versionId`, the file working copy will discard
+	 * any dirty state.
+	 *
+	 * A use case is the following:
+	 * - a file working copy gets edited and thus dirty
+	 * - the user triggers undo to revert the changes
+	 * - at this point the `versionId` should match the one we had saved
+	 *
+	 * This requires the model to be aware of undo/redo operations.
+	 */
+	readonly versionId: unknown;
+
+	/**
 	 * Snapshots the model's current content for writing. This must include
 	 * any changes that were made to the model that are in memory.
 	 *
@@ -90,27 +105,12 @@ export interface IFileWorkingCopyModel extends IDisposable {
 	update(contents: VSBufferReadableStream, token: CancellationToken): Promise<void>;
 
 	/**
-	 * Get the alternative version id of the model. This alternative version
-	 * id is not always incremented, it will return the same values in the
-	 * case of undo-redo.
-	 *
-	 * TODO@bpasero should find a better name here maybe together
-	 * with the `pushStackElement` concept since this is around
-	 * undo/redo?
-	 */
-	getAlternativeVersionId(): number;
-
-	/**
 	 * Close the current undo-redo element. This offers a way
 	 * to create an undo/redo stop point.
 	 *
 	 * This method may for example be called right before the
 	 * save is triggered so that the user can always undo back
 	 * to the state before saving.
-	 *
-	 * TODO@bpasero should find a better name here maybe together
-	 * with the `getAlternativeVersionId` concept since this is around
-	 * undo/redo?
 	 */
 	pushStackElement(): void;
 }
@@ -442,7 +442,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	//#region Dirty
 
 	private dirty = false;
-	private savedVersionId: number | undefined;
+	private savedVersionId: unknown;
 
 	isDirty(): this is IResolvedFileWorkingCopy<T> {
 		return this.dirty;
@@ -477,7 +477,15 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			this.dirty = false;
 			this.inConflictMode = false;
 			this.inErrorMode = false;
-			this.updateSavedVersionId();
+
+			// we remember the models alternate version id to remember when the version
+			// of the model matches with the saved version on disk. we need to keep this
+			// in order to find out if the model changed back to a saved version (e.g.
+			// when undoing long enough to reach to a version that is saved and then to
+			// clear the dirty flag)
+			if (this.isResolved()) {
+				this.savedVersionId = this.model.versionId;
+			}
 		} else {
 			this.dirty = true;
 		}
@@ -785,7 +793,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 
 			// The contents changed as a matter of Undo and the version reached matches the saved one
 			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
-			if (model.getAlternativeVersionId() === this.savedVersionId) {
+			if (model.versionId === this.savedVersionId) {
 				this.logService.trace('[file working copy] onModelContentChanged() - model content changed back to last saved version', this.resource.toString(true));
 
 				// Clear flags
@@ -1095,18 +1103,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		}
 	}
 
-	private updateSavedVersionId(): void {
-
-		// we remember the models alternate version id to remember when the version
-		// of the model matches with the saved version on disk. we need to keep this
-		// in order to find out if the model changed back to a saved version (e.g.
-		// when undoing long enough to reach to a version that is saved and then to
-		// clear the dirty flag)
-		if (this.isResolved()) {
-			this.savedVersionId = this.model.getAlternativeVersionId();
-		}
-	}
-
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
 
 		// First resolve - just take
@@ -1214,7 +1210,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return this.disposed;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.logService.trace('[file working copy] dispose()', this.resource.toString(true));
 
 		// State

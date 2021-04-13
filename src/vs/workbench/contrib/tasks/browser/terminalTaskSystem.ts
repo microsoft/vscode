@@ -48,6 +48,7 @@ import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -1163,7 +1164,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this.currentTask.shellLaunchConfig = launchConfigs = {
-				isExtensionCustomPtyTerminal: true,
+				customPtyImplementation: (id, rows, cols) => new TerminalProcessExtHostProxy(id, cols, rows, this.terminalService),
 				waitOnExit,
 				name: this.createTerminalName(task),
 				initialText: task.command.presentation && task.command.presentation.echo ? `\x1b[1m> Executing task: ${task._label} <\x1b[0m\n` : undefined,

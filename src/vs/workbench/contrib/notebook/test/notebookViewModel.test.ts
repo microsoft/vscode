@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -27,15 +28,16 @@ suite('NotebookViewModel', () => {
 	const bulkEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.get(IUndoRedoService);
 	const modelService = instantiationService.get(IModelService);
+	const modeService = instantiationService.get(IModeService);
 
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IThemeService, new TestThemeService());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService, modelService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
-		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, modelService);
+		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, textModelService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 
@@ -153,67 +155,56 @@ suite('NotebookViewModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
 
-				const defaults = { hasExecutionOrder: true };
+
 
 				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(1)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(2)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(3)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(4)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
 
 				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(1)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(2)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(3)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(4)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, trusted: true };
 
 				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 			}
 		);
@@ -465,6 +456,37 @@ suite('NotebookViewModel API', () => {
 				// no one should use an invalid range but `getCells` should be able to handle that.
 				assert.deepStrictEqual(viewModel.getCells({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
 				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+			}
+		);
+	});
+
+	test('split cell', async function () {
+		await withTestNotebook(
+			[
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor) => {
+				const viewModel = editor.viewModel;
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }]), [
+					'var',
+					' b = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }, { lineNumber: 1, column: 6 }]), [
+					'var',
+					' b',
+					' = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 1 }]), [
+					'',
+					'var b = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 11 }]), [
+					'var b = 1;',
+					'',
+				]);
 			}
 		);
 	});

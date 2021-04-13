@@ -95,11 +95,11 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 		this._extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
-	protected get location(): string | undefined {
+	protected override get location(): string | undefined {
 		return this._location;
 	}
 
-	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
+	protected override validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
 		if (!this._extensionKindController.canExecuteOnWorkspace(manifest)) {
 			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;

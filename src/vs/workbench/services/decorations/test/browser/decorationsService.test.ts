@@ -25,7 +25,7 @@ suite('DecorationsService', function () {
 		service = new DecorationsService(
 			new TestThemeService(),
 			new class extends mock<IUriIdentityService>() {
-				extUri = resources.extUri;
+				override extUri = resources.extUri;
 			}
 		);
 	});

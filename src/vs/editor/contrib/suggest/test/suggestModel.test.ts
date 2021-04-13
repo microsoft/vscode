@@ -194,12 +194,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			const oracle = new SuggestModel(
 				editor,
 				new class extends mock<IEditorWorkerService>() {
-					computeWordRanges() {
+					override computeWordRanges() {
 						return Promise.resolve({});
 					}
 				},
 				new class extends mock<IClipboardService>() {
-					readText() {
+					override readText() {
 						return Promise.resolve('CLIPPY');
 					}
 				},
@@ -680,7 +680,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
+				override _insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
 					super._insertSuggestion(item, flags);
 				}
 			}

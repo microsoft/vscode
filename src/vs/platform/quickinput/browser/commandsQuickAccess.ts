@@ -39,8 +39,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 	private readonly commandsHistory = this._register(this.instantiationService.createInstance(CommandsHistory));
 
+	protected override readonly options: ICommandsQuickAccessOptions;
+
 	constructor(
-		protected options: ICommandsQuickAccessOptions,
+		options: ICommandsQuickAccessOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -48,6 +50,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(AbstractCommandsQuickAccessProvider.PREFIX, options);
+
+		this.options = options;
 	}
 
 	protected async getPicks(filter: string, disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {

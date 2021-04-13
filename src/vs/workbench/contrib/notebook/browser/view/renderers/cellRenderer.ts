@@ -859,7 +859,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateExecutionOrder(metadata: NotebookCellMetadata, templateData: CodeCellRenderTemplate): void {
-		if (metadata.hasExecutionOrder) {
+		if (this.notebookEditor.activeKernel?.implementsExecutionOrder) {
 			const executionOrderLabel = typeof metadata.executionOrder === 'number' ?
 				`[${metadata.executionOrder}]` :
 				'[ ]';

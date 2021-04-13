@@ -103,6 +103,8 @@ export interface ITerminalConfiguration {
 	};
 	profiles: ITerminalProfiles;
 	useWslProfiles: boolean;
+	showTabs: boolean;
+	tabsLocation: 'left' | 'right';
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;

@@ -16,7 +16,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		super();
 	}
 
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
+	override call(ctx: TContext, command: string, arg?: any): Promise<any> {
 		if (command === 'openExtensionDevelopmentHostWindow') {
 			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
 		} else {

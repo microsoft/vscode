@@ -12,7 +12,7 @@ import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/commo
 import { CodeCellRenderTemplate, ICellOutputViewModel, IInsetRenderOutput, INotebookEditor, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellUri, NotebookCellOutputsSplice, IOrderedMimeType, mimeTypeIsAlwaysSecure } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellUri, NotebookCellOutputsSplice, IOrderedMimeType, mimeTypeIsAlwaysSecure, INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
@@ -106,7 +106,8 @@ export class CellOutputElement extends Disposable {
 		}
 
 		const notebookTextModel = this.notebookEditor.viewModel.notebookDocument;
-		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel);
+
+		const [mimeTypes, pick] = this.output.resolveMimeTypes(notebookTextModel, this.notebookEditor.activeKernel?.preloadProvides);
 
 		if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#noMimeType');
@@ -120,7 +121,7 @@ export class CellOutputElement extends Disposable {
 		this.domNode.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
 
 		if (mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1) {
-			this.attachMimetypeSwitcher(this.domNode, notebookTextModel, mimeTypes);
+			this.attachMimetypeSwitcher(this.domNode, notebookTextModel, this.notebookEditor.activeKernel, mimeTypes);
 		}
 
 		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
@@ -218,7 +219,7 @@ export class CellOutputElement extends Disposable {
 		return false;
 	}
 
-	private async attachMimetypeSwitcher(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, mimeTypes: readonly IOrderedMimeType[]) {
+	private async attachMimetypeSwitcher(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, mimeTypes: readonly IOrderedMimeType[]) {
 		outputItemDiv.style.position = 'relative';
 		const mimeTypePicker = DOM.$('.multi-mimetype-output');
 		mimeTypePicker.classList.add(...ThemeIcon.asClassNameArray(mimetypeIcon));
@@ -229,7 +230,7 @@ export class CellOutputElement extends Disposable {
 			if (e.leftButton) {
 				e.preventDefault();
 				e.stopPropagation();
-				await this.pickActiveMimeTypeRenderer(notebookTextModel, this.output);
+				await this.pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output);
 			}
 		}));
 
@@ -238,13 +239,13 @@ export class CellOutputElement extends Disposable {
 			if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
 				e.preventDefault();
 				e.stopPropagation();
-				await this.pickActiveMimeTypeRenderer(notebookTextModel, this.output);
+				await this.pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output);
 			}
 		})));
 	}
 
-	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, viewModel: ICellOutputViewModel) {
-		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel);
+	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
+		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
 
 		let items: IMimeTypeRenderer[] = [];
 		mimeTypes.forEach((mimeType, index) => {
@@ -335,7 +336,7 @@ export class CellOutputElement extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	dispose() {
+	override dispose() {
 		this.viewCell.updateOutputMinHeight(0);
 
 		if (this._outputHeightTimer) {
@@ -407,10 +408,9 @@ export class CellOutputContainer extends Disposable {
 		}
 
 		this.templateData.outputShowMoreContainer.innerText = '';
-		this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
-		// this.templateData.outputShowMoreContainer.style.top = `${this.viewCell.layoutInfo.outputShowMoreContainerOffset}px`;
-
-		if (this.viewCell.outputsViewModels.length < OUTPUT_COUNT_LIMIT) {
+		if (this.viewCell.outputsViewModels.length > OUTPUT_COUNT_LIMIT) {
+			this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer);
 			this.viewCell.updateOutputShowMoreContainerHeight(0);
 		}
@@ -536,6 +536,9 @@ export class CellOutputContainer extends Disposable {
 
 		if (this.viewCell.outputsViewModels.length > OUTPUT_COUNT_LIMIT) {
 			DOM.show(this.templateData.outputShowMoreContainer);
+			if (!this.templateData.outputShowMoreContainer.hasChildNodes()) {
+				this.templateData.outputShowMoreContainer.appendChild(this._generateShowMoreElement());
+			}
 			this.viewCell.updateOutputShowMoreContainerHeight(46);
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer);
@@ -600,7 +603,7 @@ export class CellOutputContainer extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	dispose() {
+	override dispose() {
 		this.viewCell.updateOutputMinHeight(0);
 
 		if (this._outputHeightTimer) {

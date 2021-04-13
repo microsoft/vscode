@@ -95,8 +95,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private readonly _proposedApiController: ProposedApiController;
 	private readonly _isExtensionDevHost: boolean;
 	protected readonly _isExtensionDevTestFromCli: boolean;
+
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 	private _inHandleDeltaExtensions: boolean;
+	private readonly _onDidFinishHandleDeltaExtensions = this._register(new Emitter<void>());
+
 	protected _runningLocation: Map<string, ExtensionRunningLocation>;
 
 	// --- Members used per extension host process
@@ -144,6 +147,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._deltaExtensionsQueue = [];
 		this._inHandleDeltaExtensions = false;
+
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
 		this._extensionKindController = new ExtensionKindController(this._productService, this._configurationService);
@@ -215,6 +219,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				this._inHandleDeltaExtensions = false;
 			}
 		}
+
+		this._onDidFinishHandleDeltaExtensions.fire();
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
@@ -496,7 +502,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
-	protected _stopExtensionHosts(): void {
+	//#region Stopping / Starting / Restarting
+
+	public stopExtensionHosts(): void {
 		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);
@@ -516,8 +524,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
-		this._stopExtensionHosts();
-
 		const extensionHosts = this._createExtensionHosts(isInitialStart);
 		extensionHosts.forEach((extensionHost) => {
 			const processManager = this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents);
@@ -541,7 +547,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
 		console.error('Extension host terminated unexpectedly. Code: ', code, ' Signal: ', signal);
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
-			this._stopExtensionHosts();
+			this.stopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
 			for (let i = 0; i < this._extensionHostManagers.length; i++) {
 				if (this._extensionHostManagers[i] === extensionHost) {
@@ -553,16 +559,24 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
+	public async startExtensionHosts(): Promise<void> {
+		this.stopExtensionHosts();
+
+		if (this._inHandleDeltaExtensions) {
+			await Event.toPromise(this._onDidFinishHandleDeltaExtensions.event);
+		}
+
+		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
+	}
+
+	public async restartExtensionHost(): Promise<void> {
+		this.stopExtensionHosts();
+		await this.startExtensionHosts();
+	}
+
+	//#endregion
+
 	//#region IExtensionService
-
-	public restartExtensionHost(): void {
-		this._stopExtensionHosts();
-		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
-	}
-
-	protected startExtensionHost(): void {
-		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
-	}
 
 	public activateByEvent(activationEvent: string, activationKind: ActivationKind = ActivationKind.Normal): Promise<void> {
 		if (this._installedExtensionsReady.isOpen()) {

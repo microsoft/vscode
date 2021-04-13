@@ -516,13 +516,13 @@ class NewlinePrediction implements IPrediction {
  * prediction, but shells handle it slightly differently.
  */
 class LinewrapPrediction extends NewlinePrediction implements IPrediction {
-	public apply(_: IBuffer, cursor: Cursor) {
+	public override apply(_: IBuffer, cursor: Cursor) {
 		this.prevPosition = cursor.coordinate;
 		cursor.move(0, cursor.y + 1);
 		return ' \r';
 	}
 
-	public matches(input: StringReader) {
+	public override matches(input: StringReader) {
 		// bash and zshell add a space which wraps in the terminal, then a CR
 		const r = input.eatGradually(' \r');
 		if (r !== MatchResult.Failure) {

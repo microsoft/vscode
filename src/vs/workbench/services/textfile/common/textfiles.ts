@@ -147,12 +147,16 @@ export class TextFileOperationError extends FileOperationError {
 		return obj instanceof Error && !isUndefinedOrNull((obj as TextFileOperationError).textFileOperationResult);
 	}
 
+	override readonly options?: IReadTextFileOptions & IWriteTextFileOptions;
+
 	constructor(
 		message: string,
 		public textFileOperationResult: TextFileOperationResult,
-		public options?: IReadTextFileOptions & IWriteTextFileOptions
+		options?: IReadTextFileOptions & IWriteTextFileOptions
 	) {
 		super(message, FileOperationResult.FILE_OTHER_ERROR);
+
+		this.options = options;
 	}
 }
 

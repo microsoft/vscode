@@ -52,7 +52,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
 	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
 
-	get scopedContextKeyService(): IContextKeyService | undefined {
+	override get scopedContextKeyService(): IContextKeyService | undefined {
 		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
 	}
 
@@ -62,7 +62,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IEditorService protected editorService: IEditorService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
@@ -158,7 +158,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async override setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
 		// Update editor options after having set the input. We do this because there can be
@@ -170,7 +170,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		editorContainer.setAttribute('aria-label', this.computeAriaLabel());
 	}
 
-	setOptions(options: EditorOptions | undefined): void {
+	override setOptions(options: EditorOptions | undefined): void {
 		const textOptions = options as TextEditorOptions;
 		if (textOptions && isFunction(textOptions.apply)) {
 			const textEditor = assertIsDefined(this.getControl());
@@ -178,7 +178,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 
 		// Pass on to Editor
 		const editorControl = assertIsDefined(this.editorControl);
@@ -206,7 +206,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		// Subclasses can override
 	}
 
-	focus(): void {
+	override focus(): void {
 
 		// Pass on to Editor
 		const editorControl = assertIsDefined(this.editorControl);
@@ -220,7 +220,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		editorControl.layout(dimension);
 	}
 
-	getControl(): IEditor | undefined {
+	override getControl(): IEditor | undefined {
 		return this.editorControl;
 	}
 
@@ -338,7 +338,7 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		return undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.lastAppliedEditorOptions = undefined;
 
 		super.dispose();

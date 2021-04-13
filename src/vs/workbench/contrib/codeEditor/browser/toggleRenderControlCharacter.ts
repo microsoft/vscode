@@ -24,7 +24,7 @@ export class ToggleRenderControlCharacterAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<any> {
+	public override run(): Promise<any> {
 		let newRenderControlCharacters = !this._configurationService.getValue<boolean>('editor.renderControlCharacters');
 		return this._configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters);
 	}
