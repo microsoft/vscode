@@ -1,3 +1,7 @@
+variables:
+  - name: BUILDS_API_URL
+    value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
+
 steps:
   - task: NodeTool@0
     inputs:
@@ -21,10 +25,8 @@ steps:
   - script: |
       set -e
       VERSION=`node -p "require(\"./package.json\").version"`
-      # AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      #   node build/azure-pipelines/common/createBuild.js $VERSION
-
-      echo "we would create a build here...$VERSION"
+      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
+        node build/azure-pipelines/common/createBuild.js $VERSION
     displayName: Create build
 
   - pwsh: Start-Sleep -Seconds 600
@@ -32,16 +34,27 @@ steps:
 
   - pwsh: |
       $set = [System.Collections.Generic.HashSet[string]]::new()
-      $currentCount = 0
 
-      # HARD CODED TO TEST ONLY WINDOWS
-      $NUMBER_OF_ARTIFACTS = 13
+      # Determine which stages we need to watch
+      $stages = @(
+        if ($(VSCODE_BUILD_STAGE_WINDOWS) -eq 'True') { 'Windows' }
+        if ($(VSCODE_BUILD_STAGE_LINUX) -eq 'True')   { 'Linux' }
+        if ($(VSCODE_BUILD_STAGE_MACOS) -eq 'True')   { 'macOS' }
+      )
 
-      while ($NUMBER_OF_ARTIFACTS -gt $currentCount) {
-        $res = Invoke-RestMethod "https://dev.azure.com/monacotools/Monaco/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{ Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN" }
+      do {
+        Start-Sleep -Seconds 10
 
-        if ($res -and $res.count) {
-          $currentCount = $res.count
+        try {
+          $res = Invoke-RestMethod "https://dev.azure.com/monacotools/Monaco/_apis/build/builds/$(Build.BuildId)/artifacts?api-version=6.0" -Headers @{
+            Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
+          }
+        } catch {
+          Write-Warning $_
+          $res = $null
+        }
+
+        if ($res) {
           $res.value | ForEach-Object {
             if($set.Add($_.name)) {
               Write-Host "NEWLY ADDED: $($_.name)"
@@ -49,10 +62,23 @@ steps:
           }
         }
 
-        Start-Sleep -Seconds 10
-      }
+        # Get the timeline and see if it says the other stage completed
+        try {
+          $timeline = Invoke-RestMethod "$(BUILDS_API_URL)timeline?api-version=6.0" -Headers @{ Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN" }
+        } catch {
+          Write-Warning $_
+          continue
+        }
 
-      Write-Host "DONE WITH: NUMBER_OF_ARTIFACTS: $NUMBER_OF_ARTIFACTS currentCount: $currentCount"
+        foreach ($stage in $stages) {
+          $otherStageFinished = $timeline.records | Where-Object { $_.name -eq $stage -and $_.type -eq 'stage' -and $_.state -eq 'completed' }
+          if (!$otherStageFinished) {
+            break
+          }
+        }
+      } while (!$otherStageFinished)
+
+      Write-Host "DONE WITH NUMBER OF ARTIFACTS: $($set.Count)"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
