@@ -25,6 +25,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -247,11 +248,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private getWorkspaceLabel() {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceLocation = workspace.configuration || (workspace.folders.length === 1 ? workspace.folders[0].uri : undefined);
+		const workspaceLocation = getVirtualWorkspaceLocation(workspace);
 		if (workspaceLocation) {
 			return this.labelService.getHostLabel(workspaceLocation.scheme, workspaceLocation.authority);
 		}
-
 		return undefined;
 	}
 
