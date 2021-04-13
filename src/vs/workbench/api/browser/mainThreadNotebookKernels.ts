@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -16,11 +17,12 @@ import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebook
 abstract class MainThreadKernel implements INotebookKernel2 {
 
 	private readonly _onDidChange = new Emitter<INotebookKernel2ChangeEvent>();
+	private readonly preloads: { uri: URI, provides: string[] }[];
 	readonly onDidChange: Event<INotebookKernel2ChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
 	readonly selector: NotebookSelector;
-	readonly extensionId: ExtensionIdentifier;
+	readonly extension: ExtensionIdentifier;
 
 	implementsInterrupt: boolean;
 	label: string;
@@ -30,12 +32,19 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
 	localResourceRoot: URI;
-	preloads?: URI[];
+
+	public get preloadUris() {
+		return this.preloads.map(p => p.uri);
+	}
+
+	public get preloadProvides() {
+		return flatten(this.preloads.map(p => p.provides));
+	}
 
 	constructor(data: INotebookKernelDto2) {
 		this.id = data.id;
 		this.selector = data.selector;
-		this.extensionId = data.extensionId;
+		this.extension = data.extensionId;
 
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
@@ -44,7 +53,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this.supportedLanguages = data.supportedLanguages;
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
-		this.preloads = data.preloads && data.preloads.map(u => URI.revive(u));
+		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
 	}
 
 
@@ -73,9 +82,8 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this._onDidChange.fire(event);
 	}
 
-	abstract setSelected(value: boolean): void;
-	abstract executeCells(uri: URI, ranges: ICellRange[]): void;
-	abstract cancelCells(uri: URI, ranges: ICellRange[]): void;
+	abstract executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
+	abstract cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
@@ -100,18 +108,24 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$addKernel(handle: number, data: INotebookKernelDto2): void {
 		const that = this;
 		const kernel = new class extends MainThreadKernel {
-			setSelected(value: boolean): void {
-				that._proxy.$acceptSelection(handle, value);
-			}
-			executeCells(uri: URI, ranges: ICellRange[]): void {
+			executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void {
 				that._proxy.$executeCells(handle, uri, ranges);
 			}
-			cancelCells(uri: URI, ranges: ICellRange[]): void {
+			cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void {
 				that._proxy.$cancelCells(handle, uri, ranges);
 			}
 		}(data);
-		const disposable = this._notebookKernelService.addKernel(kernel);
-		this._kernels.set(handle, [kernel, disposable]);
+		const registration = this._notebookKernelService.registerKernel(kernel);
+
+		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
+			if (e.oldKernel === kernel) {
+				this._proxy.$acceptSelection(handle, e.notebook, false);
+			} else if (e.newKernel === kernel) {
+				this._proxy.$acceptSelection(handle, e.notebook, true);
+			}
+		});
+
+		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {

@@ -130,7 +130,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions = new NotebookEditorOptions({
-			cellSelections: options.selection && [options.selection],
+			cellSelections: options.selections,
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
 			// selection: options.selection,

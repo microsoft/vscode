@@ -38,7 +38,7 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 				const viewCell = (cell as CodeCellViewModel);
 				const outputs = viewCell.outputsViewModels;
 				for (let output of outputs) {
-					const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!);
+					const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
 					if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 						continue;
 					}

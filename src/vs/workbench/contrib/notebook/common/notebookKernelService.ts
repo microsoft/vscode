@@ -24,7 +24,7 @@ export interface INotebookKernel2 {
 
 	readonly id: string;
 	readonly selector: NotebookSelector
-	readonly extensionId: ExtensionIdentifier;
+	readonly extension: ExtensionIdentifier;
 
 	readonly onDidChange: Event<INotebookKernel2ChangeEvent>;
 
@@ -37,11 +37,17 @@ export interface INotebookKernel2 {
 	implementsInterrupt: boolean;
 
 	localResourceRoot: URI;
-	preloads?: URI[];
+	preloadUris: URI[];
+	preloadProvides: string[];
 
-	setSelected(value: boolean): void;
-	executeCells(uri: URI, ranges: ICellRange[]): void;
-	cancelCells(uri: URI, ranges: ICellRange[]): void
+	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
+	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void
+}
+
+export interface INotebookKernelBindEvent {
+	notebook: URI;
+	oldKernel: INotebookKernel2 | undefined;
+	newKernel: INotebookKernel2 | undefined;
 }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
@@ -49,10 +55,16 @@ export const INotebookKernelService = createDecorator<INotebookKernelService>('I
 export interface INotebookKernelService {
 	_serviceBrand: undefined;
 
-	onDidAddKernel: Event<INotebookKernel2>;
-	onDidRemoveKernel: Event<INotebookKernel2>;
+	readonly onDidAddKernel: Event<INotebookKernel2>;
+	readonly onDidRemoveKernel: Event<INotebookKernel2>;
+	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
 
-	addKernel(kernel: INotebookKernel2): IDisposable;
+	registerKernel(kernel: INotebookKernel2): IDisposable;
+	getKernels(notebook: INotebookTextModel): INotebookKernel2[];
 
-	selectKernels(notebook: INotebookTextModel): INotebookKernel2[];
+	/**
+	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
+	 * but a kernel can be bound to many notebooks (depending on its configuration)
+	 */
+	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel2 | undefined): void;
 }
