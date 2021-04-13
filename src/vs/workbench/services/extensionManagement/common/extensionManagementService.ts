@@ -8,7 +8,7 @@ import {
 	ILocalExtension, IGalleryExtension, InstallExtensionEvent, DidInstallExtensionEvent, IExtensionIdentifier, DidUninstallExtensionEvent, IReportedExtension, IGalleryMetadata, IExtensionGalleryService, InstallOptions, UninstallOptions, INSTALL_ERROR_NOT_SUPPORTED
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, isLanguagePackExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,6 +26,7 @@ import { canceled } from 'vs/base/common/errors';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { Promises } from 'vs/base/common/async';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 
 export class ExtensionManagementService extends Disposable implements IWorkbenchExtensionManagementService {
 
@@ -43,6 +44,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	constructor(
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IProductService protected readonly productService: IProductService,
 		@IDownloadService protected readonly downloadService: IDownloadService,
@@ -361,7 +363,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	}
 
 	protected async checkForWorkspaceTrust(manifest: IExtensionManifest): Promise<void> {
-		if (getExtensionWorkspaceTrustRequestType(manifest) === 'onStart') {
+		if (this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(manifest) === 'onStart') {
 			const trustState = await this.workspaceTrustRequestService.requestWorkspaceTrust({
 				modal: true,
 				message: localize('extensionInstallWorkspaceTrustMessage', "Enabling this extension requires a trusted workspace."),
