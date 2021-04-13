@@ -299,6 +299,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public shutdown(immediate: boolean): void {
+		// don't force immediate disposal of the terminal processes on Windows as an additional
+		// mitigation for https://github.com/microsoft/vscode/issues/71966 which causes the pty host
+		// to become unresponsive, disconnecting all terminals across all windows.
 		if (immediate && !platform.isWindows) {
 			this._kill();
 		} else {
