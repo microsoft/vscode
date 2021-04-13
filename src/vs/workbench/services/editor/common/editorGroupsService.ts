@@ -532,6 +532,11 @@ export interface IEditorGroup {
 	isActive(editor: IEditorInput): boolean;
 
 	/**
+	 * Find out if a certain editor is included in the group.
+	 */
+	contains(candidate: IEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean;
+
+	/**
 	 * Move an editor from this group either within this group or to another group.
 	 */
 	moveEditor(editor: IEditorInput, target: IEditorGroup, options?: IEditorOptions | ITextEditorOptions): void;

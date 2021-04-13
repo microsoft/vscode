@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput, IEditorMoveEvent } from 'vs/workbench/common/editor';
-import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
@@ -110,8 +109,6 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 	readonly onWillDispose: Event<void>;
-
-	readonly group: EditorGroup;
 
 	/**
 	 * A promise that resolves when the group has been restored.
