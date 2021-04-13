@@ -641,10 +641,11 @@ export class ExtensionEditor extends EditorPane {
 					return;
 				}
 				// Only allow links with specific schemes
-				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
-					|| (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId)
-				) {
+				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
+				}
+				if (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId) {
+					this.openerService.open(link, { allowCommands: true }); // TODO@sandy081 use commands service
 				}
 			}, null, this.contentDisposables));
 

@@ -428,7 +428,7 @@ class MarkerWidget extends Disposable {
 
 					this._register(onOpen(e => {
 						dom.EventHelper.stop(e, true);
-						this._openerService.open(codeUri);
+						this._openerService.open(codeUri, { allowCommands: true });
 					}));
 
 					const code = new HighlightedLabel(dom.append(this._codeLink, dom.$('.marker-code')), false);

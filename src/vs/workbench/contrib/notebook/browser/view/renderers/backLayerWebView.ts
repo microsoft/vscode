@@ -817,7 +817,7 @@ var requirejs = (function() {
 
 			if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
 				|| matchesScheme(link, Schemas.command)) {
-				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true });
+				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
 			}
 		}));
 

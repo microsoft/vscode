@@ -281,7 +281,7 @@ export class GettingStartedPage extends EditorPane {
 										await this.commandService.executeCommand(command);
 									}
 								} else if (taskToRun.button.link) {
-									this.openerService.open(taskToRun.button.link);
+									this.openerService.open(taskToRun.button.link, { allowCommands: true });
 									this.gettingStartedService.progressByEvent('linkOpened:' + taskToRun.button.link);
 								} else {
 									throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
