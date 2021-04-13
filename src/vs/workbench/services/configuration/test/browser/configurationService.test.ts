@@ -45,7 +45,6 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
-import { WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -1110,7 +1109,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is read from workspace when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
@@ -1125,13 +1124,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is not read from workspace when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
 		assert.deepStrictEqual(testObject.unTrustedSettings.all, ['configurationService.folder.untrustedSetting']);
@@ -1143,14 +1142,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('change event is triggered when workspace is changed to untrusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		const event = await promise;
 		assert.deepStrictEqual(event.affectedKeys, ['configurationService.folder.untrustedSetting']);
@@ -1158,7 +1157,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
@@ -1174,13 +1173,13 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is read when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
 		assert.strictEqual(testObject.unTrustedSettings.all, undefined);
@@ -1191,14 +1190,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('change event is triggered when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		const event = await promise;
 		assert.deepStrictEqual(event.affectedKeys, ['configurationService.folder.untrustedSetting']);
@@ -1207,7 +1206,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('adding an untrusted setting triggers change event', async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		const promise = Event.toPromise(testObject.onDidChangeUntrustdSettings);
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
@@ -1829,7 +1828,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('untrusted setting is read from workspace folders when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Trusted);
+		testObject.updateWorkspaceTrust(true);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);
@@ -1846,7 +1845,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrustState(WorkspaceTrustState.Untrusted);
+		testObject.updateWorkspaceTrust(false);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);

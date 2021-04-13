@@ -13,21 +13,11 @@ export enum WorkspaceTrustScope {
 	Remote = 1
 }
 
-export enum WorkspaceTrustState {
-	Untrusted = 0,
-	Trusted = 1,
-	Unspecified = 2
-}
-
-export function workspaceTrustStateToString(trustState: WorkspaceTrustState) {
-	switch (trustState) {
-		case WorkspaceTrustState.Trusted:
-			return localize('trusted', "Trusted");
-		case WorkspaceTrustState.Untrusted:
-			return localize('untrusted', "Untrusted");
-		case WorkspaceTrustState.Unspecified:
-		default:
-			return localize('unspecified', "Unspecified");
+export function workspaceTrustToString(trustState: boolean) {
+	if (trustState) {
+		return localize('trusted', "Trusted");
+	} else {
+		return localize('untrusted', "Untrusted");
 	}
 }
 
@@ -42,13 +32,7 @@ export interface WorkspaceTrustRequestOptions {
 	readonly modal: boolean;
 }
 
-export interface WorkspaceTrustStateChangeEvent {
-	readonly previousTrustState: WorkspaceTrustState;
-	readonly currentTrustState: WorkspaceTrustState;
-}
-
-export type WorkspaceTrustChangeEvent = Event<WorkspaceTrustStateChangeEvent>;
-
+export type WorkspaceTrustChangeEvent = Event<boolean>;
 export const IWorkspaceTrustStorageService = createDecorator<IWorkspaceTrustStorageService>('workspaceTrustStorageService');
 
 export interface IWorkspaceTrustStorageService {
@@ -56,11 +40,10 @@ export interface IWorkspaceTrustStorageService {
 
 	readonly onDidStorageChange: Event<void>;
 
-	setFoldersTrustState(folder: URI[], trustState: WorkspaceTrustState): void;
-	getFoldersTrustState(folder: URI[]): WorkspaceTrustState;
+	setFoldersTrust(folders: URI[], trusted: boolean): void;
+	getFoldersTrust(folders: URI[]): boolean;
 
 	setTrustedFolders(folders: URI[]): void;
-	setUntrustedFolders(folders: URI[]): void;
 
 	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo;
 	getTrustStateInfo(): IWorkspaceTrustStateInfo;
@@ -71,9 +54,9 @@ export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustM
 export interface IWorkspaceTrustManagementService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeTrustState: WorkspaceTrustChangeEvent;
-	getWorkspaceTrustState(): WorkspaceTrustState;
-	setWorkspaceTrustState(trustState: WorkspaceTrustState): void;
+	onDidChangeTrust: WorkspaceTrustChangeEvent;
+	isWorkpaceTrusted(): boolean;
+	setWorkspaceTrust(trusted: boolean): void;
 	isWorkspaceTrustEnabled(): boolean;
 }
 
@@ -83,16 +66,16 @@ export interface IWorkspaceTrustRequestService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions>;
-	readonly onDidCompleteWorkspaceTrustRequest: Event<WorkspaceTrustState>;
+	readonly onDidCompleteWorkspaceTrustRequest: Event<boolean>;
 
 	cancelRequest(): void;
-	completeRequest(trustState?: WorkspaceTrustState): void;
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
+	completeRequest(trusted?: boolean): void;
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean>;
 }
 
 export interface IWorkspaceTrustUriInfo {
 	uri: URI,
-	trustState: WorkspaceTrustState
+	trusted: boolean
 }
 
 export interface IWorkspaceTrustStateInfo {
