@@ -83,7 +83,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		this._activeKernelMemento.saveMemento();
 		this._onDidChangeKernel.fire();
 		if (this._activeKernel) {
-			this._delegate.loadKernelPreloads(this._activeKernel.extensionLocation, this._activeKernel);
+			this._delegate.loadKernelPreloads(this._activeKernel.localResourceRoot, this._activeKernel);
 		}
 	}
 
@@ -241,7 +241,7 @@ export class NotebookEditorKernelManager extends Disposable {
 			}
 
 			if (this.activeKernel) {
-				await this._delegate.loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+				await this._delegate.loadKernelPreloads(this.activeKernel.localResourceRoot, this.activeKernel);
 
 				if (tokenSource.token.isCancellationRequested) {
 					return;
@@ -272,7 +272,7 @@ export class NotebookEditorKernelManager extends Disposable {
 				|| kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
 			if (this.activeKernel) {
-				await this._delegate.loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+				await this._delegate.loadKernelPreloads(this.activeKernel.localResourceRoot, this.activeKernel);
 			}
 
 			if (tokenSource.token.isCancellationRequested) {
@@ -294,7 +294,7 @@ export class NotebookEditorKernelManager extends Disposable {
 		// the provider doesn't have a builtin kernel, choose a kernel
 		this.activeKernel = kernels[0];
 		if (this.activeKernel) {
-			await this._delegate.loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			await this._delegate.loadKernelPreloads(this.activeKernel.localResourceRoot, this.activeKernel);
 			if (tokenSource.token.isCancellationRequested) {
 				return;
 			}

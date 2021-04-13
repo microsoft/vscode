@@ -103,14 +103,14 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 						isPreferred: kernel.isPreferred,
 						preloadUris: kernel.preloadUris,
 						preloadProvides: kernel.preloadProvides,
-						extensionLocation: kernel.localResourceRoot,
+						localResourceRoot: kernel.localResourceRoot,
 						supportedLanguages: kernel.supportedLanguages,
 						implementsInterrupt: kernel.implementsInterrupt,
 						implementsExecutionOrder: kernel.implementsExecutionOrder,
-						extension: kernel.extensionId,
+						extension: kernel.extension,
 						async resolve() { },
-						async executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.executeCells(uri, ranges); },
-						async cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.cancelCells(uri, ranges); },
+						async executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.executeNotebookCellsRequest(uri, ranges); },
+						async cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void> { kernel.cancelNotebookCellExecution(uri, ranges); },
 					};
 				});
 			}

@@ -24,7 +24,7 @@ export interface INotebookKernel2 {
 
 	readonly id: string;
 	readonly selector: NotebookSelector
-	readonly extensionId: ExtensionIdentifier;
+	readonly extension: ExtensionIdentifier;
 
 	readonly onDidChange: Event<INotebookKernel2ChangeEvent>;
 
@@ -41,8 +41,8 @@ export interface INotebookKernel2 {
 	preloadProvides: string[];
 
 	setSelected(uri: URI, value: boolean): void;
-	executeCells(uri: URI, ranges: ICellRange[]): void;
-	cancelCells(uri: URI, ranges: ICellRange[]): void
+	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
+	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void
 }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');

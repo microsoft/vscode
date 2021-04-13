@@ -165,7 +165,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 						friendlyId: dto.friendlyId,
 						label: dto.label,
 						extension: dto.extension,
-						extensionLocation: URI.revive(dto.extensionLocation),
+						localResourceRoot: URI.revive(dto.extensionLocation),
 						providerHandle: dto.providerHandle,
 						description: dto.description,
 						detail: dto.detail,

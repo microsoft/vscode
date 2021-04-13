@@ -88,7 +88,7 @@ class TestNotebookKernel implements INotebookKernel {
 	friendlyId: string = '';
 	label: string = '';
 	extension: ExtensionIdentifier = new ExtensionIdentifier('test');
-	extensionLocation: URI = URI.file('/test');
+	localResourceRoot: URI = URI.file('/test');
 	providerHandle?: number | undefined;
 	description?: string | undefined;
 	detail?: string | undefined;

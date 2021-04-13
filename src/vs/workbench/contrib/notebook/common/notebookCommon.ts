@@ -769,7 +769,7 @@ export interface INotebookKernel {
 	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
-	extensionLocation: URI;
+	localResourceRoot: URI;
 	providerHandle?: number;
 	description?: string;
 	detail?: string;

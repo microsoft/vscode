@@ -22,7 +22,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 
 	readonly id: string;
 	readonly selector: NotebookSelector;
-	readonly extensionId: ExtensionIdentifier;
+	readonly extension: ExtensionIdentifier;
 
 	implementsInterrupt: boolean;
 	label: string;
@@ -44,7 +44,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	constructor(data: INotebookKernelDto2) {
 		this.id = data.id;
 		this.selector = data.selector;
-		this.extensionId = data.extensionId;
+		this.extension = data.extensionId;
 
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
@@ -83,8 +83,8 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 	}
 
 	abstract setSelected(uri: URI, value: boolean): void;
-	abstract executeCells(uri: URI, ranges: ICellRange[]): void;
-	abstract cancelCells(uri: URI, ranges: ICellRange[]): void;
+	abstract executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
+	abstract cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void;
 }
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookKernels)
@@ -112,10 +112,10 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			setSelected(uri: URI, value: boolean): void {
 				that._proxy.$acceptSelection(handle, uri, value);
 			}
-			executeCells(uri: URI, ranges: ICellRange[]): void {
+			executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void {
 				that._proxy.$executeCells(handle, uri, ranges);
 			}
-			cancelCells(uri: URI, ranges: ICellRange[]): void {
+			cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void {
 				that._proxy.$cancelCells(handle, uri, ranges);
 			}
 		}(data);
