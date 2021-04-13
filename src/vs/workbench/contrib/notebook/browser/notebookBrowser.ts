@@ -31,22 +31,22 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
+export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
+export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+
 //#region Context Keys
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
 // Is Notebook
-export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', 'workbench.editor.notebook');
+export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
+export const NOTEBOOK_DIFF_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_DIFF_EDITOR_ID);
 
 // Editor keys
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
-export const NOTEBOOK_EDITOR_OPEN = new RawContextKey<boolean>('notebookEditorOpen', false);
 export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCellListFocused', false);
 export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
 export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
-
-// Diff Editor Keys
-export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', undefined);
@@ -333,10 +333,6 @@ export interface IActiveNotebookEditor extends INotebookEditor {
 	viewModel: NotebookViewModel;
 	getFocus(): ICellRange;
 }
-
-export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
-
-export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 
 export interface INotebookEditor extends ICommonNotebookEditor {
 
