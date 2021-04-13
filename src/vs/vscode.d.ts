@@ -1665,6 +1665,12 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the quick pick UI.
 	 */
 	export interface QuickPickOptions {
+
+		/**
+		 * An optional string that represents the tile of the quick pick.
+		 */
+		title?: string;
+
 		/**
 		 * An optional flag to include the description when filtering the picks.
 		 */
@@ -1846,6 +1852,11 @@ declare module 'vscode' {
 	 * Options to configure the behavior of the input box UI.
 	 */
 	export interface InputBoxOptions {
+
+		/**
+		 * An optional string that represents the tile of the input box.
+		 */
+		title?: string;
 
 		/**
 		 * The value to prefill in the input box.
