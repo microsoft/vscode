@@ -263,8 +263,7 @@ function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement
 			element: tab,
 			collapsed: false,
 			collapsible: hasChildren,
-			children: getChildren(tab),
-			hidden: true
+			children: getChildren(tab)
 		};
 	});
 	return result;

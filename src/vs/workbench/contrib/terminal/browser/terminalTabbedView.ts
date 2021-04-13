@@ -34,6 +34,7 @@ const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
 const MIN_TABS_WIDGET_WIDTH = 46;
 const DEFAULT_TABS_WIDGET_WIDTH = 124;
+const PLUS_BUTTON_HEIGHT = 22;
 const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
 
 export class TerminalTabbedView extends Disposable {
@@ -176,7 +177,7 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _setupSplitView(): void {
-		this._register(this._splitView.onDidSashReset(() => this._splitView.resizeView(this._tabTreeIndex, 120)));
+		this._register(this._splitView.onDidSashReset(() => this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH)));
 		this._register(this._splitView.onDidSashChange(() => this._setLastWidgetWidth()));
 
 		if (this._showTabs) {
@@ -195,7 +196,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabTreeContainer,
-			layout: width => this._tabsWidget.layout(this._height ? this._height - 22 : 0, width),
+			layout: width => this._tabsWidget.layout(this._height ? this._height - PLUS_BUTTON_HEIGHT : 0, width),
 			minimumSize: MIN_TABS_WIDGET_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
