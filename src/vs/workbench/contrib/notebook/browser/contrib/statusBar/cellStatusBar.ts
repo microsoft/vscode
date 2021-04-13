@@ -25,11 +25,14 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 		super();
 		this._updateVisibleCells();
 		this._register(this._notebookEditor.onDidChangeVisibleRanges(this._updateVisibleCells, this));
-		this._register(this._notebookEditor.onDidChangeModel(this._onDidChangeModel, this));
+		this._register(this._notebookEditor.onDidChangeModel(this._updateEverything, this));
+		this._register(this._notebookCellStatusBarService.onDidChangeProviders(this._updateEverything, this));
+		this._register(this._notebookCellStatusBarService.onDidChangeItems(this._updateEverything, this));
 	}
 
-	private _onDidChangeModel(): void {
+	private _updateEverything(): void {
 		this._visibleCells.forEach(cell => cell.dispose());
+		this._visibleCells.clear();
 		this._updateVisibleCells();
 	}
 
@@ -57,6 +60,11 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 				this._visibleCells.delete(handle);
 			}
 		}
+	}
+
+	dispose(): void {
+		this._visibleCells.forEach(cell => cell.dispose());
+		this._visibleCells.clear();
 	}
 }
 

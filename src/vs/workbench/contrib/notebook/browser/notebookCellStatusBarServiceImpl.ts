@@ -15,6 +15,9 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 	private _onDidChangeProviders = new Emitter<void>();
 	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
 
+	private _onDidChangeItems = new Emitter<void>();
+	readonly onDidChangeItems: Event<void> = this._onDidChangeItems.event;
+
 	private _providers: INotebookCellStatusBarItemProvider[] = [];
 
 	constructor() {
@@ -23,12 +26,15 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 
 	registerCellStatusBarItemProvider(provider: INotebookCellStatusBarItemProvider): IDisposable {
 		this._providers.push(provider);
+		let changeListener: IDisposable | undefined;
 		if (provider.onDidChangeStatusBarItems) {
-			// TODO, add a listener that will be disposed when the provider is disposed
-			// then update all active subscriptions
+			changeListener = provider.onDidChangeStatusBarItems(() => this._onDidChangeItems.fire());
 		}
 
+		this._onDidChangeProviders.fire();
+
 		return toDisposable(() => {
+			changeListener?.dispose();
 			const idx = this._providers.findIndex(p => p === provider);
 			this._providers.splice(idx, 1);
 		});
