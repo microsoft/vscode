@@ -33,7 +33,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
 const MIN_TABS_WIDGET_WIDTH = 36;
-const SNAP_TABS_WIDGET_WIDTH = 80;
+const SNAP_TABS_WIDGET_WIDTH = 124;
 
 export class TerminalTabbedView extends Disposable {
 
@@ -139,8 +139,8 @@ export class TerminalTabbedView extends Disposable {
 
 	private _getLastWidgetWidth(): number {
 		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
-		if (!storedValue || !parseInt(storedValue) || parseInt(storedValue) < SNAP_TABS_WIDGET_WIDTH) {
-			return MIN_TABS_WIDGET_WIDTH;
+		if (!storedValue || !parseInt(storedValue)) {
+			return SNAP_TABS_WIDGET_WIDTH;
 		}
 		return parseInt(storedValue);
 	}
@@ -156,8 +156,10 @@ export class TerminalTabbedView extends Disposable {
 		}
 		for (const tab of this._terminalService.terminalTabs) {
 			this._tabsWidget.rerender(tab);
-			for (const instance of tab.terminalInstances) {
-				this._tabsWidget.rerender(instance);
+			if (tab.terminalInstances.length > 1) {
+				for (const instance of tab.terminalInstances) {
+					this._tabsWidget.rerender(instance);
+				}
 			}
 		}
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);

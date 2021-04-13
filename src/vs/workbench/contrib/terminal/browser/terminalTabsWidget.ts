@@ -187,6 +187,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
 		let item = node.element;
+		console.log(this.shouldHideText());
 		if (this.shouldHideText()) {
 			if ('terminalInstances' in item) {
 				if (item.terminalInstances.length === 1) {
@@ -208,7 +209,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 				label = `$(${instance.icon.id}) ${instance.title}`;
 				this.fillActionBar(template);
 			} else if (item.terminalInstances.length > 1) {
-				label = `(Terminals ${item.terminalInstances.length})`;
+				label = `Terminals (${item.terminalInstances.length})`;
 				template.actionBar.clear();
 			}
 		} else {

@@ -222,8 +222,9 @@
 	padding: 2px;
 }
 
-.tabs-widget .monaco-list-row:hover .actions,
-.tabs-widget .monaco-list-row.selected .actions,
-.tabs-widget .monaco-list-row.focused .actions {
+/* .tabs-widget .monaco-list-row.selected .actions, */
+/* .tabs-widget .monaco-list-row.focused .actions */
+.tabs-widget .monaco-list-row:hover .actions
+{
 	display: block;
 }
