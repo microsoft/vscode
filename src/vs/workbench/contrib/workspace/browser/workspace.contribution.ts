@@ -13,7 +13,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, WorkspaceTrustState, WorkspaceTrustStateChangeEvent, workspaceTrustStateToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -54,6 +54,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -182,6 +183,31 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unspecified) {
 				this.toggleRequestBadge(false);
 			}
+		}));
+
+		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
+			e.updateWorkspaceTrustState(new Promise(async resolve => {
+				if (e.changes.added.length || e.changes.changed.length) {
+					const addedFoldersTrustStateInfo = e.changes.added.map(folder => this.workspaceTrustStorageService.getFolderTrustStateInfo(folder.uri));
+					if (!addedFoldersTrustStateInfo.map(i => i.trustState).every(trustState => trustState === WorkspaceTrustState.Trusted)) {
+						// Adding untrusted/unspecified content to a trusted workspace
+						const result = await this.dialogService.confirm({
+							message: localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
+							detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?"),
+							primaryButton: localize('yes', 'Yes'),
+							secondaryButton: localize('no', 'No')
+						});
+
+						// Apply changes for the added folders
+						const addedFoldersTrustState = result.confirmed ? WorkspaceTrustState.Trusted : WorkspaceTrustState.Untrusted;
+						this.workspaceTrustStorageService.setFoldersTrustState(addedFoldersTrustStateInfo.map(i => i.uri), addedFoldersTrustState);
+
+						resolve();
+					}
+				}
+
+				resolve();
+			}));
 		}));
 
 		// Don't auto-show the UX editor if the request is 5 seconds after startup
