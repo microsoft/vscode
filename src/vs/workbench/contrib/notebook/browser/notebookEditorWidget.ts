@@ -1748,10 +1748,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
 	}
 
-	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[] {
-		return this.viewModel?.deltaCellStatusBarItems(oldItems, newItems) || [];
-	}
-
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
 		this._webview?.deltaCellOutputContainerClassNames(cellId, added, removed);
 	}

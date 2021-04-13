@@ -8,10 +8,11 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export class NotebookStatusBar extends Disposable implements INotebookEditorContribution {
+export class NotebookStatusBarController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar';
 
 	private readonly _visibleCells = new Map<number, CellStatusBarHelper>();
@@ -21,17 +22,28 @@ export class NotebookStatusBar extends Disposable implements INotebookEditorCont
 		@INotebookCellStatusBarService private readonly _notebookCellStatusBarService: INotebookCellStatusBarService
 	) {
 		super();
-		this._update();
-		this._register(this._notebookEditor.onDidChangeVisibleRanges(this._update, this));
+		this._updateVisibleCells();
+		this._register(this._notebookEditor.onDidChangeVisibleRanges(this._updateVisibleCells, this));
+		this._register(this._notebookEditor.onDidChangeModel(this._onDidChangeModel, this));
 	}
 
-	private _update() {
+	private _onDidChangeModel(): void {
+		this._visibleCells.forEach(cell => cell.dispose());
+		this._updateVisibleCells();
+	}
+
+	private _updateVisibleCells(): void {
+		const vm = this._notebookEditor.viewModel;
+		if (!vm) {
+			return;
+		}
+
 		const newVisibleCells = new Set<number>();
 		this._notebookEditor.visibleRanges.forEach(range => {
 			const cells = this._notebookEditor.getCells({ start: range.start, end: range.end + 1 });
 			cells.forEach(cell => {
 				if (!this._visibleCells.has(cell.handle)) {
-					const helper = new CellStatusBarHelper(this._notebookEditor, cell, this._notebookCellStatusBarService);
+					const helper = new CellStatusBarHelper(vm, cell, this._notebookCellStatusBarService);
 					this._visibleCells.set(cell.handle, helper);
 				}
 				newVisibleCells.add(cell.handle);
@@ -56,7 +68,7 @@ class CellStatusBarHelper extends Disposable {
 	private readonly _cancelTokenSource: CancellationTokenSource;
 
 	constructor(
-		private readonly _notebookEditor: INotebookEditor,
+		private readonly _notebookViewModel: NotebookViewModel,
 		private readonly _cell: ICellViewModel,
 		private readonly _notebookCellStatusBarService: INotebookCellStatusBarService
 	) {
@@ -78,17 +90,12 @@ class CellStatusBarHelper extends Disposable {
 		}
 		this._currentlyUpdating = true;
 
-		const vm = this._notebookEditor.viewModel;
-		if (!vm) {
-			return;
-		}
-
-		const cellIndex = vm.getCellIndex(this._cell); // slow...?
-		const docUri = vm.notebookDocument.uri;
-		const viewType = vm.notebookDocument.viewType;
+		const cellIndex = this._notebookViewModel.getCellIndex(this._cell);
+		const docUri = this._notebookViewModel.notebookDocument.uri;
+		const viewType = this._notebookViewModel.notebookDocument.viewType;
 		const itemLists = await this._notebookCellStatusBarService.getStatusBarItemsForCell(docUri, cellIndex, viewType, this._cancelTokenSource.token);
 		const items = flatten(itemLists.map(itemList => itemList.items));
-		const newIds = this._notebookEditor.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
+		const newIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
 
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());
 		this._currentItemLists = itemLists;
@@ -99,9 +106,9 @@ class CellStatusBarHelper extends Disposable {
 	dispose() {
 		super.dispose();
 
-		this._notebookEditor.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
+		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());
 	}
 }
 
-registerNotebookContribution(NotebookStatusBar.id, NotebookStatusBar);
+registerNotebookContribution(NotebookStatusBarController.id, NotebookStatusBarController);
