@@ -924,7 +924,7 @@
 	height: 16px !important;
 	margin: 5px 4px !important;
 	cursor: none;
-	min-width: 1px;
+	min-width: 1px !important;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-decoration {
