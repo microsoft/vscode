@@ -13,7 +13,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, WorkspaceTrustRequestOptions, workspaceTrustToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IActivityService, IconBadge } from 'vs/workbench/services/activity/common/activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -36,6 +36,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isWeb } from 'vs/base/common/platform';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { dirname, resolve } from 'vs/base/common/path';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -51,9 +52,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IDialogService private readonly dialogService: IDialogService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -84,24 +82,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	private registerListeners(): void {
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
 			this.toggleRequestBadge(true);
-
-			type WorkspaceTrustRequestedEventClassification = {
-				modal: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				extensions: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			};
-
-			type WorkspaceTrustRequestedEvent = {
-				modal: boolean,
-				workspaceId: string,
-				extensions: string[]
-			};
-
-			this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-				modal: requestOptions.modal,
-				workspaceId: this.workspaceContextService.getWorkspace().id,
-				extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
-			});
 
 			if (requestOptions.modal) {
 				// Message
@@ -155,21 +135,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(async (trusted) => {
-			type WorkspaceTrustStateChangedEvent = {
-				workspaceId: string,
-				trusted: boolean
-			};
-
-			type WorkspaceTrustStateChangedEventClassification = {
-				workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				trusted: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			};
-
-			this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
-				workspaceId: this.workspaceContextService.getWorkspace().id,
-				trusted: trusted
-			});
-
 			// Transition from Trusted -> Untrusted
 			if (!trusted) {
 				this.hostService.reload();
@@ -328,7 +293,9 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	when: ContextKeyExpr.and(IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true), WorkspaceTrustContext.PendingRequest)
 });
 
-// Configuration
+/*
+ * Configuration
+ */
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
 		id: 'security',
@@ -369,3 +336,133 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			}
 		}
 	});
+
+/**
+ * Telemetry
+ */
+class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
+	) {
+		super();
+
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrustChangeEvent(isTrusted)));
+		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(options => this.logWorkspaceTrustRequest(options)));
+
+		this.logInitialWorkspaceTrustInfo();
+	}
+
+	private logInitialWorkspaceTrustInfo(): void {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+			return;
+		}
+
+		type WorkspaceTrustInfoEventClassification = {
+			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			untrustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+
+		type WorkspaceTrustInfoEvent = {
+			trustedFoldersCount: number,
+			untrustedFoldersCount: number
+		};
+
+		const trustStateInfo = this.workspaceTrustStorageService.getTrustStateInfo();
+		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
+			trustedFoldersCount: trustStateInfo.uriTrustInfo.filter(item => item.trusted).length,
+			untrustedFoldersCount: trustStateInfo.uriTrustInfo.filter(item => !item.trusted).length
+		});
+	}
+
+	private logWorkspaceTrustChangeEvent(isTrusted: boolean): void {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+			return;
+		}
+
+		type WorkspaceTrustStateChangedEvent = {
+			workspaceId: string,
+			isTrusted: boolean
+		};
+
+		type WorkspaceTrustStateChangedEventClassification = {
+			workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			isTrusted: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+		};
+
+		this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
+			workspaceId: this.workspaceContextService.getWorkspace().id,
+			isTrusted: isTrusted
+		});
+
+		if (isTrusted) {
+			type WorkspaceTrustFolderInfoEventClassification = {
+				trustedFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+				workspaceFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+				delta: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			};
+
+			type WorkspaceTrustFolderInfoEvent = {
+				trustedFolderDepth: number,
+				workspaceFolderDepth: number,
+				delta: number
+			};
+
+			const getDepth = (folder: string): number => {
+				let resolvedPath = resolve(folder);
+
+				let depth = 0;
+				while (dirname(resolvedPath) !== resolvedPath && depth < 100) {
+					resolvedPath = dirname(resolvedPath);
+					depth++;
+				}
+
+				return depth;
+			};
+
+			for (const folder of this.workspaceContextService.getWorkspace().folders) {
+				const { trusted, uri } = this.workspaceTrustStorageService.getFolderTrustStateInfo(folder.uri);
+				if (!trusted) {
+					continue;
+				}
+
+				const workspaceFolderDepth = getDepth(folder.uri.fsPath);
+				const trustedFolderDepth = getDepth(uri.fsPath);
+				const delta = workspaceFolderDepth - trustedFolderDepth;
+
+				this.telemetryService.publicLog2<WorkspaceTrustFolderInfoEvent, WorkspaceTrustFolderInfoEventClassification>('workspaceFolderDepthBelowTrustedFolder', { workspaceFolderDepth, trustedFolderDepth, delta });
+			}
+		}
+	}
+
+	private async logWorkspaceTrustRequest(options: WorkspaceTrustRequestOptions): Promise<void> {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+			return;
+		}
+
+		type WorkspaceTrustRequestedEventClassification = {
+			modal: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			extensions: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		};
+
+		type WorkspaceTrustRequestedEvent = {
+			modal: boolean,
+			workspaceId: string,
+			extensions: string[]
+		};
+
+		this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
+			modal: options.modal,
+			workspaceId: this.workspaceContextService.getWorkspace().id,
+			extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
+		});
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, LifecyclePhase.Restored);
