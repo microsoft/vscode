@@ -1423,8 +1423,7 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
-		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
-		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
+		// todo@API remove output when notebook marks that as transient, same for metadata
 		export function registerNotebookSerializer(notebookType: string, provider: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 	}
 
@@ -1546,10 +1545,13 @@ declare module 'vscode' {
 		 */
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext, token: CancellationToken): NotebookData | Thenable<NotebookData>;
 
+		// todo@API use NotebookData instead
 		saveNotebook(document: NotebookDocument, token: CancellationToken): Thenable<void>;
 
+		// todo@API use NotebookData instead
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, token: CancellationToken): Thenable<void>;
 
+		// todo@API use NotebookData instead
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
