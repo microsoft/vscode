@@ -222,9 +222,11 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	}
 
 	fillActionBar(template: ITerminalTabEntryTemplate): void {
+		const rename = new MenuItemAction({ id: TERMINAL_COMMAND_ID.RENAME, title: 'Rename', icon: Codicon.tag }, undefined, undefined, this._contextKeyService, this._commandService);
 		const split = new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: 'Split', icon: Codicon.splitHorizontal }, undefined, undefined, this._contextKeyService, this._commandService);
 		const kill = new MenuItemAction({ id: TERMINAL_COMMAND_ID.KILL, title: 'Kill', icon: Codicon.trashcan }, undefined, undefined, this._contextKeyService, this._commandService);
 		if (template.actionBar.viewItems.length === 0) {
+			template.actionBar.push(rename, { icon: true, label: false });
 			template.actionBar.push(split, { icon: true, label: false });
 			template.actionBar.push(kill, { icon: true, label: false });
 		}
