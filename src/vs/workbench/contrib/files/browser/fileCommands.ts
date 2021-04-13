@@ -357,9 +357,7 @@ CommandsRegistry.registerCommand({
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			const input = editorService.createEditorInput({ resource: uri });
-
-			return editorService.openEditor(input, { override: EditorOverride.PICK });
+			return editorService.openEditor({ resource: uri, options: { override: EditorOverride.PICK } });
 		}
 
 		return undefined;
@@ -682,9 +680,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (typeof args?.viewType === 'string') {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 
-			const textInput = editorService.createEditorInput({ options: { pinned: true } });
 			const group = editorGroupsService.activeGroup;
-			await editorService.openEditor(textInput, { override: args.viewType, pinned: true }, group);
+			await editorService.openEditor({ options: { override: args.viewType, pinned: true } }, group);
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}
