@@ -18,7 +18,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -30,7 +30,6 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 	private _terminalService: ITerminalService;
 	constructor(
 		container: HTMLElement,
-		menu: IMenu,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
