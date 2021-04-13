@@ -219,7 +219,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
-				clearTimeout(this._closeTimeout);
 				this._queueProcessExit();
 			}
 			this._windowsShellHelper?.checkShell();
