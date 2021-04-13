@@ -6,43 +6,92 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICellRange, INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernel2, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelBindEvent, INotebookKernel2, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { score } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
+import { ResourceMap } from 'vs/base/common/map';
 
 export class NotebookKernelService implements INotebookKernelService {
 
 	declare _serviceBrand: undefined;
 
-	private readonly _kernels = new Set<INotebookKernel2>();
+	private readonly _kernels = new Map<string, INotebookKernel2>();
+	private readonly _kernelBindings = new ResourceMap<INotebookKernel2>();
+
+	private readonly _onDidChangeNotebookKernelBinding = new Emitter<INotebookKernelBindEvent>();
 	private readonly _onDidAddKernel = new Emitter<INotebookKernel2>();
 	private readonly _onDidRemoveKernel = new Emitter<INotebookKernel2>();
 
+	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel2> = this._onDidAddKernel.event;
 	readonly onDidRemoveKernel: Event<INotebookKernel2> = this._onDidRemoveKernel.event;
 
-	addKernel(kernel: INotebookKernel2): IDisposable {
-		this._kernels.add(kernel);
+	dispose() {
+		this._onDidChangeNotebookKernelBinding.dispose();
+		this._onDidAddKernel.dispose();
+		this._onDidRemoveKernel.dispose();
+		this._kernels.clear();
+	}
+
+	registerKernel(kernel: INotebookKernel2): IDisposable {
+		if (this._kernels.has(kernel.id)) {
+			throw new Error(`KERNEL with id '${kernel.id}' already exists`);
+		}
+
+		this._kernels.set(kernel.id, kernel);
 		this._onDidAddKernel.fire(kernel);
+
 		return toDisposable(() => {
-			if (this._kernels.delete(kernel)) {
+			if (this._kernels.delete(kernel.id)) {
 				this._onDidRemoveKernel.fire(kernel);
+			}
+			for (let [uri, candidate] of this._kernelBindings) {
+				if (candidate === kernel) {
+					this._kernelBindings.delete(uri);
+					this._onDidChangeNotebookKernelBinding.fire({ notebook: uri, oldKernel: kernel, newKernel: undefined });
+				}
 			}
 		});
 	}
 
-	selectKernels(notebook: INotebookTextModel): INotebookKernel2[] {
+	getKernels(notebook: INotebookTextModel): INotebookKernel2[] {
 		const result: INotebookKernel2[] = [];
-		for (let kernel of this._kernels) {
+		for (const kernel of this._kernels.values()) {
 			if (score(kernel.selector, notebook.uri, notebook.viewType) > 0) {
 				result.push(kernel);
 			}
 		}
-		return result;
+		const boundKernel = this._kernelBindings.get(notebook.uri);
+		return result.sort((a, b) => {
+			// (1) binding a kernel
+			if (a === boundKernel) {
+				return -1;
+			} else if (b === boundKernel) {
+				return 1;
+			}
+			// (2) preferring a kernel
+			if (a.isPreferred === b.isPreferred) {
+				return 0;
+			} else if (a.isPreferred) {
+				return -1;
+			} else {
+				return 1;
+			}
+		});
+	}
+
+	// a notebook has one kernel, a kernel has N notebooks
+	// notebook <-1----N-> kernel
+	bindNotebookToKernel(notebook: INotebookTextModel, kernel: INotebookKernel2): void {
+		const oldKernel = this._kernelBindings.get(notebook.uri);
+		if (oldKernel !== kernel) {
+			this._kernelBindings.set(notebook.uri, kernel);
+			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel });
+		}
 	}
 }
 
@@ -92,7 +141,7 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 				if (!model) {
 					return [];
 				}
-				const kernels = notebookKernelService.selectKernels(model);
+				const kernels = notebookKernelService.getKernels(model);
 				return kernels.map((kernel: INotebookKernel2): INotebookKernel => {
 					return {
 						id: kernel.id,

@@ -40,9 +40,14 @@ export interface INotebookKernel2 {
 	preloadUris: URI[];
 	preloadProvides: string[];
 
-	setSelected(uri: URI, value: boolean): void;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
 	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void
+}
+
+export interface INotebookKernelBindEvent {
+	notebook: URI;
+	oldKernel: INotebookKernel2 | undefined;
+	newKernel: INotebookKernel2 | undefined;
 }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
@@ -50,10 +55,16 @@ export const INotebookKernelService = createDecorator<INotebookKernelService>('I
 export interface INotebookKernelService {
 	_serviceBrand: undefined;
 
-	onDidAddKernel: Event<INotebookKernel2>;
-	onDidRemoveKernel: Event<INotebookKernel2>;
+	readonly onDidAddKernel: Event<INotebookKernel2>;
+	readonly onDidRemoveKernel: Event<INotebookKernel2>;
+	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
 
-	addKernel(kernel: INotebookKernel2): IDisposable;
+	registerKernel(kernel: INotebookKernel2): IDisposable;
+	getKernels(notebook: INotebookTextModel): INotebookKernel2[];
 
-	selectKernels(notebook: INotebookTextModel): INotebookKernel2[];
+	/**
+	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
+	 * but a kernel can be bound to many notebooks (depending on its configuration)
+	 */
+	bindNotebookToKernel(notebook: INotebookTextModel, kernel: INotebookKernel2): void;
 }

@@ -5,7 +5,7 @@
 
 import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -82,7 +82,6 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this._onDidChange.fire(event);
 	}
 
-	abstract setSelected(uri: URI, value: boolean): void;
 	abstract executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
 	abstract cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void;
 }
@@ -109,9 +108,6 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$addKernel(handle: number, data: INotebookKernelDto2): void {
 		const that = this;
 		const kernel = new class extends MainThreadKernel {
-			setSelected(uri: URI, value: boolean): void {
-				that._proxy.$acceptSelection(handle, uri, value);
-			}
 			executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void {
 				that._proxy.$executeCells(handle, uri, ranges);
 			}
@@ -119,8 +115,17 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				that._proxy.$cancelCells(handle, uri, ranges);
 			}
 		}(data);
-		const disposable = this._notebookKernelService.addKernel(kernel);
-		this._kernels.set(handle, [kernel, disposable]);
+		const registration = this._notebookKernelService.registerKernel(kernel);
+
+		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
+			if (e.oldKernel === kernel) {
+				this._proxy.$acceptSelection(handle, e.notebook, false);
+			} else if (e.newKernel === kernel) {
+				this._proxy.$acceptSelection(handle, e.notebook, true);
+			}
+		});
+
+		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
 	}
 
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void {
