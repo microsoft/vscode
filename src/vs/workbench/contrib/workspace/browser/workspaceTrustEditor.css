@@ -61,7 +61,7 @@
 	padding-bottom: 5px;
 }
 
-.workspace-trust-editor  .workspace-trust-subsection-title {
+.workspace-trust-editor .workspace-trust-subsection-title {
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 32px;
@@ -109,6 +109,7 @@
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations .list-item-icon {
 	padding-right: 5px;
+	line-height: 24px;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.trusted .list-item-icon {
@@ -123,8 +124,8 @@
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations .list-item-text {
 	font-size: 16px;
+	line-height: 24px;
 }
-
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header {
 	display: flex;
