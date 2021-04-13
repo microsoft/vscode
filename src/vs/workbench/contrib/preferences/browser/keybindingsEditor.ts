@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { OS } from 'vs/base/common/platform';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -36,7 +36,7 @@ import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { attachStylerCallback, attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback, attachInputBoxStyler, attachCheckboxStyler, attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -948,6 +948,7 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 
 interface IKeybindingColumnTemplateData {
 	keybindingLabel: KeybindingLabel;
+	keybindingLabelStyler: IDisposable;
 }
 
 class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IKeybindingColumnTemplateData> {
@@ -956,10 +957,13 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 
 	readonly templateId: string = KeybindingColumnRenderer.TEMPLATE_ID;
 
+	constructor(@IThemeService private readonly themeService: IThemeService) { }
+
 	renderTemplate(container: HTMLElement): IKeybindingColumnTemplateData {
 		const element = DOM.append(container, $('.keybinding'));
 		const keybindingLabel = new KeybindingLabel(DOM.append(element, $('div.keybinding-label')), OS);
-		return { keybindingLabel };
+		const keybindingLabelStyler = attachKeybindingLabelStyler(keybindingLabel, this.themeService);
+		return { keybindingLabel, keybindingLabelStyler };
 	}
 
 	renderElement(keybindingItemEntry: IKeybindingItemEntry, index: number, templateData: IKeybindingColumnTemplateData, height: number | undefined): void {
@@ -970,7 +974,9 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 		}
 	}
 
-	disposeTemplate(templateData: IKeybindingColumnTemplateData): void { }
+	disposeTemplate(templateData: IKeybindingColumnTemplateData): void {
+		templateData.keybindingLabelStyler.dispose();
+	}
 }
 
 interface ISourceColumnTemplateData {
