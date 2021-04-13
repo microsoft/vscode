@@ -32,7 +32,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
-const MIN_TABS_WIDGET_WIDTH = 45;
+const MIN_TABS_WIDGET_WIDTH = 36;
 const SNAP_TABS_WIDGET_WIDTH = 80;
 
 export class TerminalTabbedView extends Disposable {
@@ -184,7 +184,7 @@ export class TerminalTabbedView extends Disposable {
 		this._splitView.addView({
 			element: this._terminalTabTree,
 			layout: width => this._tabsWidget.layout(this._height ? this._height - this._terminalTabTree.clientHeight : undefined, width),
-			minimumSize: 40,
+			minimumSize: MIN_TABS_WIDGET_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
