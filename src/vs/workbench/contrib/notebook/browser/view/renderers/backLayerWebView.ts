@@ -696,7 +696,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<script>${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
-			previewNodePadding: this.options.previewNodePadding,
 			leftMargin: this.options.leftMargin
 		})}</script>
 				${markdownRenderersSrc}
