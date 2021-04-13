@@ -166,6 +166,7 @@ export class TerminalTabbedView extends Disposable {
 				}
 			}
 		}
+		this._plusButton!.classList.toggle('align-left', widgetWidth !== MIN_TABS_WIDGET_WIDTH);
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
@@ -216,6 +217,7 @@ export class TerminalTabbedView extends Disposable {
 			dom.EventHelper.stop(e);
 			await this._openTabsContextMenu(e);
 		}));
+
 		this._tabTreeContainer.appendChild(button);
 		this._plusButton = button;
 	}

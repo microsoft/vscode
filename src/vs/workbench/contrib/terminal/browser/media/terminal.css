@@ -198,9 +198,14 @@
 }
 
 #terminal-tabs-plus-button {
-	padding-left: 10px;
 	min-height: 10;
 	flex-grow: 0;
+	text-align: center;
+}
+
+#terminal-tabs-plus-button.align-left {
+	padding-left: 10px;
+	text-align: left;
 }
 
 .tabs-container {
@@ -212,7 +217,7 @@
 	text-align: center;
 }
 
-.tabs-widget .terminal-tabs-entry.has-text {
+.tabs-widget .has-text {
 	padding-left: 10px;
 	text-align: left;
 }
