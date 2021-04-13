@@ -32,7 +32,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
-const MIN_TABS_WIDGET_WIDTH = 36;
+const MIN_TABS_WIDGET_WIDTH = 46;
 const SNAP_TABS_WIDGET_WIDTH = 124;
 
 export class TerminalTabbedView extends Disposable {

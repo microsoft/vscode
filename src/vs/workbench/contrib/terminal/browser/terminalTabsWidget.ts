@@ -48,7 +48,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[new TerminalTabsRenderer(_instantiationService, _commandService, _contextKeyService)],
+			[_instantiationService.createInstance(TerminalTabsRenderer)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: true,
@@ -151,14 +151,13 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
-	private _instantiationService: IInstantiationService;
-	private _commandService: ICommandService;
-	private _contextKeyService: IContextKeyService;
 	private _container: HTMLElement | undefined;
-	constructor(instantiationService: IInstantiationService, commandService: ICommandService, contextKeyService: IContextKeyService) {
-		this._instantiationService = instantiationService;
-		this._commandService = commandService;
-		this._contextKeyService = contextKeyService;
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
 	}
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
@@ -187,21 +186,21 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
 		let item = node.element;
-		console.log(this.shouldHideText());
 		if (this.shouldHideText()) {
-			if ('terminalInstances' in item) {
-				if (item.terminalInstances.length === 1) {
-					const instance = item.terminalInstances[0];
-					label = `$(${instance.icon.id})`;
-				} else if (item.terminalInstances.length > 1) {
-					label = `(${item.terminalInstances.length})`;
+			if ('icon' in item) {
+				const tab = this._terminalService.getTabForInstance(item);
+				const terminalIndex = tab?.terminalInstances.indexOf(item);
+				if (terminalIndex === 0) {
+					label = `┌ $(${item.icon.id})`;
+				} else if (terminalIndex === tab!.terminalInstances.length - 1) {
+					label = `└ $(${item.icon.id})`;
+				} else {
+					label = `├ $(${item.icon.id})`;
 				}
-			} else {
-				label = `$(${item.icon.id})`;
+				template.actionBar.clear();
+				template.label.setLabel(label);
+				return;
 			}
-			template.actionBar.clear();
-			template.label.setLabel(label);
-			return;
 		}
 		if ('terminalInstances' in item) {
 			if (item.terminalInstances.length === 1) {
@@ -213,7 +212,15 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 				template.actionBar.clear();
 			}
 		} else {
-			label = `$(${item.icon.id}) ${item.title}`;
+			const tab = this._terminalService.getTabForInstance(item);
+			const terminalIndex = tab?.terminalInstances.indexOf(item);
+			if (terminalIndex === 0) {
+				label = `┌ $(${item.icon.id}) ${item.title}`;
+			} else if (terminalIndex === tab!.terminalInstances.length - 1) {
+				label = `└ $(${item.icon.id}) ${item.title}`;
+			} else {
+				label = `├ $(${item.icon.id}) ${item.title}`;
+			}
 			this.fillActionBar(template);
 		}
 		template.label.setLabel(label);
@@ -249,7 +256,8 @@ function createTerminalTabsIterator(tabs: ITerminalTab[]): Iterable<ITreeElement
 			element: tab,
 			collapsed: false,
 			collapsible: hasChildren,
-			children: getChildren(tab)
+			children: getChildren(tab),
+			hidden: true
 		};
 	});
 	return result;
@@ -261,7 +269,7 @@ function getChildren(tab: ITerminalTab): Iterable<ITreeElement<ITerminalInstance
 			return {
 				element: instance,
 				collapsed: true,
-				collapsible: false,
+				collapsible: false
 			};
 		});
 	}
