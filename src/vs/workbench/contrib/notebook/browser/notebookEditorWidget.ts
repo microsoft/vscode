@@ -284,12 +284,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
 
-	get multipleKernelsAvailable() {
-		return this._kernelManger.multipleKernelsAvailable;
-	}
-
-	set multipleKernelsAvailable(state: boolean) {
-		this._kernelManger.multipleKernelsAvailable = state;
+	get availableKernelCount() {
+		return this._kernelManger.availableKernelCount;
 	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());

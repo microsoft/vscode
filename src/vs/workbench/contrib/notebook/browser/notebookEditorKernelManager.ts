@@ -89,15 +89,11 @@ export class NotebookEditorKernelManager extends Disposable {
 
 	private _activeKernelResolvePromise: Promise<void> | undefined = undefined;
 
-	private _multipleKernelsAvailable: boolean = false;
 
-	get multipleKernelsAvailable() {
-		return this._multipleKernelsAvailable;
-	}
+	private _kernelCount: number = 0;
 
-	set multipleKernelsAvailable(state: boolean) {
-		this._multipleKernelsAvailable = state;
-		this._onDidChangeAvailableKernels.fire();
+	get availableKernelCount() {
+		return this._kernelCount;
 	}
 
 	private readonly _activeKernelMemento: Memento;
@@ -176,14 +172,11 @@ export class NotebookEditorKernelManager extends Disposable {
 			return;
 		}
 
-		this._notebookKernelCount.set(availableKernels.length);
-		if (availableKernels.length > 1) {
-			this._notebookHasMultipleKernels.set(true);
-			this.multipleKernelsAvailable = true;
-		} else {
-			this._notebookHasMultipleKernels.set(false);
-			this.multipleKernelsAvailable = false;
-		}
+		this._kernelCount = availableKernels.length;
+		this._notebookKernelCount.set(this._kernelCount);
+		this._notebookHasMultipleKernels.set(this._kernelCount > 1);
+
+		this._onDidChangeAvailableKernels.fire();
 
 		let activeKernelStillExist = false;
 		if (this._activeKernel?.friendlyId) {
