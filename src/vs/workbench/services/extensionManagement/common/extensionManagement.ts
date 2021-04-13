@@ -90,6 +90,12 @@ export interface IWorkbenchExtensionEnablementService {
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
 	setEnablement(extensions: IExtension[], state: EnablementState): Promise<boolean[]>;
+
+	/**
+	 * Refresh the enablement state of the extensions that require workspace trust when
+	 * workspace trust changes.
+	 */
+	refreshEnablementByTrustRequirement(): Promise<void>;
 }
 
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');

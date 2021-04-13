@@ -23,7 +23,6 @@ import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
@@ -47,7 +46,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	private shouldShowManagementEditor = true;
 
 	constructor(
-		@IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -172,11 +170,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				previousState: trustState.previousTrustState,
 				newState: trustState.currentTrustState
 			});
-
-			// Transition from Trusted -> Untrusted/Unknown
-			if (trustState.previousTrustState === WorkspaceTrustState.Trusted && trustState.currentTrustState !== WorkspaceTrustState.Trusted) {
-				this.hostService.reload();
-			}
 
 			// Hide soft request badge
 			if (trustState.currentTrustState !== undefined && trustState.currentTrustState !== WorkspaceTrustState.Unspecified) {

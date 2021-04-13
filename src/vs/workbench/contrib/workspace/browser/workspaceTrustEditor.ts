@@ -330,18 +330,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 			};
 
 			const setTrustState = async (state: WorkspaceTrustState, uris?: URI[]) => {
-				if (state !== WorkspaceTrustState.Trusted) {
-					const message = localize('workspaceTrustTransitionMessage', "Deny Workspace Trust");
-					const detail = localize('workspaceTrustTransitionDetail', "In order to safely complete this action, all affected windows will have to be reloaded. Are you sure you want to proceed with this action?");
-					const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
-					const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
-
-					const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
-					if (!result.confirmed) {
-						return;
-					}
-				}
-
 				const folderURIs = uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri);
 				this.workspaceTrustStorageService.setFoldersTrustState(folderURIs, state);
 			};
