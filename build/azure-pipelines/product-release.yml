@@ -33,9 +33,9 @@ steps:
 
       # Determine which stages we need to watch
       $stages = @(
-        if ($(VSCODE_BUILD_STAGE_WINDOWS) -eq 'True') { 'Windows' }
-        if ($(VSCODE_BUILD_STAGE_LINUX) -eq 'True')   { 'Linux' }
-        if ($(VSCODE_BUILD_STAGE_MACOS) -eq 'True')   { 'macOS' }
+        if ('$(VSCODE_BUILD_STAGE_WINDOWS)' -eq 'True') { 'Windows' }
+        if ('$(VSCODE_BUILD_STAGE_LINUX)' -eq 'True')   { 'Linux' }
+        if ('$(VSCODE_BUILD_STAGE_MACOS)' -eq 'True')   { 'macOS' }
       )
 
       do {
