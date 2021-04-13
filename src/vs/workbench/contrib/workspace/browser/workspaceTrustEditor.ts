@@ -238,9 +238,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private createConfigurationElement(parent: HTMLElement): void {
 		this.configurationContainer = append(parent, $('.workspace-trust-settings.settings-editor'));
 
-		const titleContainer = append(this.configurationContainer, $('.workspace-trust-section-title'));
-		titleContainer.innerText = localize('configurationSectionTitle', "Configure All Workspaces");
-
 		const settingsBody = append(this.configurationContainer, $('.workspace-trust-settings-body.settings-body'));
 
 		const workspaceTrustTreeContainer = append(settingsBody, $('.workspace-trust-settings-tree-container.settings-tree-container'));
@@ -280,11 +277,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or limit functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
 		], xListIcon.classNamesArray);
 
-		this.addButtonToLimitationsElement(trustedContainer, true);
-		this.addButtonToLimitationsElement(untrustedContainer, false);
+		this.addTrustButtonToElement(trustedContainer);
+		this.addUntrustedTextToElement(untrustedContainer);
 	}
 
-	private addButtonToLimitationsElement(parent: HTMLElement, targetTrust: boolean): void {
+	private addTrustButtonToElement(parent: HTMLElement): void {
 		const workspaceFolders = this.workspaceService.getWorkspace().folders;
 
 
@@ -317,21 +314,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
 			};
 
-			const setTrustForUris = async (trusted: boolean, uris?: URI[]) => {
-				if (!trusted) {
-					const message = localize('workspaceTrustTransitionMessage', "Deny Workspace Trust");
-					const detail = localize('workspaceTrustTransitionDetail', "In order to safely complete this action, all affected windows will have to be reloaded. Are you sure you want to proceed with this action?");
-					const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
-					const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
-
-					const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
-					if (!result.confirmed) {
-						return;
-					}
-				}
-
+			const trustUris = async (uris?: URI[]) => {
 				const folderURIs = uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri);
-				this.workspaceTrustStorageService.setFoldersTrust(folderURIs, trusted);
+				this.workspaceTrustStorageService.setFoldersTrust(folderURIs, true);
 			};
 
 
@@ -340,7 +325,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				label: localize('trustButton', "Trust"),
 				menu: [],
 				run: () => {
-					setTrustForUris(true);
+					trustUris();
 				}
 			};
 
@@ -350,23 +335,25 @@ export class WorkspaceTrustEditor extends EditorPane {
 				const { name } = splitName(parentPath);
 				if (parentPath) {
 					trustChoiceWithMenu.menu.push({
-						label: localize('trustParentButton', "Trust All in {0}", name),
+						label: localize('trustParentButton', "Trust All in '{0}'", name),
 						run: () => {
-							setTrustForUris(true, [URI.file(parentPath)]);
+							trustUris([URI.file(parentPath)]);
 						}
 					});
 				}
 			}
 
 			const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+			createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), !isWorkspaceTrusted);
+		}
+	}
 
-			if (targetTrust === true) {
-				createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), !isWorkspaceTrusted);
-			}
+	private addUntrustedTextToElement(parent: HTMLElement): void {
+		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 
-			if (targetTrust === false) {
-				createButton(new Action('workspace.trust.button.deny', localize('doNotTrustButton', "Don't Trust"), undefined, isWorkspaceTrusted, async () => { setTrustForUris(false); }));
-			}
+		if (isWorkspaceTrusted) {
+			const textElement = append(parent, $('.workspace-trust-untrusted-description'));
+			textElement.innerText = localize('untrustedFolder', "This workspace is trusted via one or more of the trusted folders below.");
 		}
 	}
 

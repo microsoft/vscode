@@ -154,6 +154,10 @@
 	color: var(--workspace-trust-state-untrusted-color) !important;
 }
 
+.workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
+	font-style: italic;
+}
+
 /** Buttons Container */
 .workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row {
 	display: flex;
