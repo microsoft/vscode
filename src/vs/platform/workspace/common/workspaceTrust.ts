@@ -29,7 +29,7 @@ export interface WorkspaceTrustRequestButton {
 export interface WorkspaceTrustRequestOptions {
 	readonly buttons?: WorkspaceTrustRequestButton[];
 	readonly message?: string;
-	readonly silent: boolean;
+	readonly modal: boolean;
 }
 
 export type WorkspaceTrustChangeEvent = Event<boolean>;
@@ -70,7 +70,7 @@ export interface IWorkspaceTrustRequestService {
 
 	cancelRequest(): void;
 	completeRequest(trusted?: boolean): void;
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean>;
 }
 
 export interface IWorkspaceTrustUriInfo {

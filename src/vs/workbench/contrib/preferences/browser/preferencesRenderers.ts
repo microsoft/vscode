@@ -34,7 +34,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { IWorkspaceTrustManagementService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import * as modes from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -1059,7 +1059,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
 		}
 
-		if (this.workspaceTrustManagementService.getWorkspaceTrustState() !== WorkspaceTrustState.Trusted && configuration.requireTrust) {
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.requireTrust) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1085,7 +1085,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			});
 		}
 
-		if (this.workspaceTrustManagementService.getWorkspaceTrustState() !== WorkspaceTrustState.Trusted && configuration.requireTrust) {
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.requireTrust) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);

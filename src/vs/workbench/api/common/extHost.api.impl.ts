@@ -916,7 +916,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
 			},
-			get trusted() {
+			get isTrusted() {
 				checkProposedApiEnabled(extension);
 				return extHostWorkspace.trusted;
 			},

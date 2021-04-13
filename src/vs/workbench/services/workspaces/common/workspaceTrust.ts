@@ -288,10 +288,10 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	_serviceBrand: undefined;
 
 	private _trusted!: boolean;
-	private _trustRequestPromise?: Promise<boolean | undefined>;
-	private _trustRequestResolver?: (trusted?: boolean) => void;
-	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
-	private _modalTrustRequestResolver?: (trusted?: boolean) => void;
+	private _trustRequestPromise?: Promise<boolean>;
+	private _trustRequestResolver?: (trusted: boolean) => void;
+	private _modalTrustRequestPromise?: Promise<boolean>;
+	private _modalTrustRequestResolver?: (trusted: boolean) => void;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
 	private readonly _ctxWorkspaceTrustPendingRequest: IContextKey<boolean>;
 
@@ -343,7 +343,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 	cancelRequest(): void {
 		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(undefined);
+			this._modalTrustRequestResolver(this.trusted);
 
 			this._modalTrustRequestResolver = undefined;
 			this._modalTrustRequestPromise = undefined;
@@ -372,13 +372,13 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._onDidCompleteWorkspaceTrustRequest.fire(trusted);
 	}
 
-	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { silent: true }): Promise<boolean | undefined> {
+	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<boolean> {
 		// Trusted workspace
 		if (this.trusted) {
 			return this.trusted;
 		}
 
-		if (!options.silent) {
+		if (options.modal) {
 			// Modal request
 			if (!this._modalTrustRequestPromise) {
 				// Create promise
@@ -405,7 +405,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustPendingRequest.set(true);
 		this._onDidInitiateWorkspaceTrustRequest.fire(options);
 
-		return !options.silent ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
+		return options.modal ? this._modalTrustRequestPromise! : this._trustRequestPromise!;
 	}
 }
 

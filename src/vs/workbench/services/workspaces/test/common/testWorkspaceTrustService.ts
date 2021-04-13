@@ -74,7 +74,7 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 		throw new Error('Method not implemented.');
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
 		return Promise.resolve(true);
 	}
 }

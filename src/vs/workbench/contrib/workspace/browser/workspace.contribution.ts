@@ -98,12 +98,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			};
 
 			this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-				modal: !requestOptions.silent,
+				modal: requestOptions.modal,
 				workspaceId: this.workspaceContextService.getWorkspace().id,
 				extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.workspaceTrust).map(ext => ext.identifier.value)
 			});
 
-			if (!requestOptions.silent) {
+			if (requestOptions.modal) {
 				// Message
 				const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
 				const message = requestOptions.message ?? defaultMessage;

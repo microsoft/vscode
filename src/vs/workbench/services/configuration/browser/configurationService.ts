@@ -961,7 +961,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		this._register(configurationRegistry.onDidUpdateConfiguration(e => this.registerConfigurationSchemas()));
 		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
-		this._register(workspaceTrustManagementService.onDidChangeTrustState(e => this.registerConfigurationSchemas()));
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => this.registerConfigurationSchemas()));
 	}
 
 	private registerConfigurationSchemas(): void {
@@ -1056,7 +1056,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 
 	private checkAndFilterPropertiesRequiringTrust(properties: IStringDictionary<IConfigurationPropertySchema>): IStringDictionary<IConfigurationPropertySchema> {
-		if (this.workspaceTrustManagementService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted) {
+		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			return properties;
 		}
 
