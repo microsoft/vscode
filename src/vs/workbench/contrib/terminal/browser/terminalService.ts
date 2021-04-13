@@ -978,6 +978,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile): IShellLaunchConfig {
+		// Profile was provided
 		if (shellLaunchConfigOrProfile && 'profileName' in shellLaunchConfigOrProfile) {
 			const profile = shellLaunchConfigOrProfile;
 			return {
@@ -988,7 +989,14 @@ export class TerminalService implements ITerminalService {
 				name: profile.overrideName ? profile.profileName : undefined
 			};
 		}
-		return shellLaunchConfigOrProfile || {};
+
+		// Shell launch config was provided
+		if (shellLaunchConfigOrProfile) {
+			return shellLaunchConfigOrProfile;
+		}
+
+		// Return empty shell launch config
+		return {};
 	}
 
 	public createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;

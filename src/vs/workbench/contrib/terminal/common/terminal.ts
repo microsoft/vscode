@@ -102,6 +102,11 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	profiles: ITerminalProfiles;
+	defaultProfile: {
+		// linux: string | null;
+		osx: string | null;
+		// windows: string | null;
+	};
 	useWslProfiles: boolean;
 	showTabs: boolean;
 	tabsLocation: 'left' | 'right';

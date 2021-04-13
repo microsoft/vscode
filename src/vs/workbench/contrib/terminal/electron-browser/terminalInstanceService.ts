@@ -79,6 +79,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		let lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
 		lastActiveWorkspace = lastActiveWorkspace === null ? undefined : lastActiveWorkspace;
 
+		const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
+		this._configurationService.inspect(`terminal.integrated.defaultProfile.${platformKey}`);
+
 		const shell = getDefaultShell(
 			(key) => this._configurationService.inspect(key),
 			isWorkspaceShellAllowed,
