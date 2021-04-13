@@ -120,26 +120,33 @@ export class CellEditorStatusBar extends Disposable {
 			return;
 		}
 
-		const updateRenderedItems = () => {
-			DOM.clearNode(this.leftContributedItemsContainer);
-			DOM.clearNode(this.rightContributedItemsContainer);
+		this.itemsDisposable.add(this.currentContext.notebookEditor.onDidChangeActiveCell(() => this.updateActiveCell()));
+		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => this.updateRenderedItems()));
+		this.updateActiveCell();
+		this.updateRenderedItems();
+	}
 
-			const items = this.currentContext!.cell.getCellStatusBarItems();
-			items.sort((itemA, itemB) => {
-				return (itemB.priority ?? 0) - (itemA.priority ?? 0);
-			});
-			items.forEach(item => {
-				const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
-				if (item.alignment === CellStatusbarAlignment.Left) {
-					this.leftContributedItemsContainer.appendChild(itemView.container);
-				} else {
-					this.rightContributedItemsContainer.appendChild(itemView.container);
-				}
-			});
-		};
+	private updateActiveCell(): void {
+		const isActiveCell = this.currentContext!.notebookEditor.getActiveCell() === this.currentContext?.cell;
+		this.statusBarContainer.classList.toggle('is-active-cell', isActiveCell);
+	}
 
-		this.itemsDisposable.add(this.currentContext.cell.onDidChangeCellStatusBarItems(() => updateRenderedItems()));
-		updateRenderedItems();
+	private updateRenderedItems(): void {
+		DOM.clearNode(this.leftContributedItemsContainer);
+		DOM.clearNode(this.rightContributedItemsContainer);
+
+		const items = this.currentContext!.cell.getCellStatusBarItems();
+		items.sort((itemA, itemB) => {
+			return (itemB.priority ?? 0) - (itemA.priority ?? 0);
+		});
+		items.forEach(item => {
+			const itemView = this.itemsDisposable.add(this.instantiationService.createInstance(CellStatusBarItem, this.currentContext!, item));
+			if (item.alignment === CellStatusbarAlignment.Left) {
+				this.leftContributedItemsContainer.appendChild(itemView.container);
+			} else {
+				this.rightContributedItemsContainer.appendChild(itemView.container);
+			}
+		});
 	}
 }
 
@@ -159,6 +166,10 @@ class CellStatusBarItem extends Disposable {
 
 		if (this._itemModel.opacity) {
 			this.container.style.opacity = this._itemModel.opacity;
+		}
+
+		if (this._itemModel.onlyShowWhenActive) {
+			this.container.classList.add('cell-status-item-show-when-active');
 		}
 
 		let ariaLabel: string;

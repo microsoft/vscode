@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -27,14 +28,20 @@ class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProv
 	async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList> {
 		const doc = this._notebookService.getNotebookTextModel(uri);
 		const cell = doc?.cells[index];
-		const text = typeof cell?.metadata.runState === 'undefined' ? 'Press ctrl+enter to run' : undefined;
-		const item = text ? <INotebookCellStatusBarItem>{
+		if (typeof cell?.metadata.runState !== 'undefined') {
+			return { items: [] };
+		}
+
+		const text = isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run';
+		const item = <INotebookCellStatusBarItem>{
 			text,
+			tooltip: text,
 			alignment: CellStatusbarAlignment.Left,
-			opacity: '0.7'
-		} : undefined;
+			opacity: '0.7',
+			onlyShowWhenActive: true
+		};
 		return {
-			items: item ? [item] : []
+			items: [item]
 		};
 	}
 }
