@@ -198,14 +198,12 @@
 }
 
 #terminal-tabs-plus-button {
-	padding-left: 24px;
-	position : sticky;
+	padding-left: 10px;
 	min-height: 10;
 }
 
-.tabs-widget .terminal-tabs-entry.format-widget-row {
-	text-overflow: clip;
-	padding-left: 16px;
+.tabs-widget .terminal-tabs-entry {
+	padding-left: 10px;
 }
 
 .monaco-workbench .tabs-widget .codicon {
@@ -213,10 +211,7 @@
 }
 
 .tabs-widget .monaco-tl-twistie.force-no-twistie {
-	background-image: none !important;
-	width: 0 !important;
-	padding-right: 0 !important;
-	visibility: hidden;
+	display: none !important;
 }
 
 .tabs-widget .actions {
