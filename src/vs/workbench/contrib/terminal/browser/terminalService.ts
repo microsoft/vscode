@@ -996,7 +996,7 @@ export class TerminalService implements ITerminalService {
 	public createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile): ITerminalInstance {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
 
-		if (!shellLaunchConfig.isExtensionCustomPtyTerminal && !this.isProcessSupportRegistered) {
+		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
 			throw new Error('Could not create terminal when process support is not registered');
 		}
 		if (shellLaunchConfig.hideFromUser) {

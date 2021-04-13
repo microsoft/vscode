@@ -260,6 +260,8 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	}
 
 	focus(): void {
+		checkProposedApiEnabled(this._extension);
+
 		if (!this._visible) {
 			this.visible = true;
 		}
@@ -268,6 +270,8 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	}
 
 	showValidationMessage(message: string, type: vscode.SourceControlInputBoxValidationType) {
+		checkProposedApiEnabled(this._extension);
+
 		this._proxy.$showValidationMessage(this._sourceControlHandle, message, type as any);
 	}
 

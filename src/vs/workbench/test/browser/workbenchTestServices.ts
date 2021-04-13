@@ -124,8 +124,8 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalsLayoutInfo, ITerminalsLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -230,7 +230,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
-	instantiationService.stub(IWorkspaceTrustService, new TestWorkspaceTrustService());
+	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 	instantiationService.stub(ILocalTerminalService, new TestLocalTerminalService());
 
@@ -500,6 +500,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
+	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }
 	hasWindowBorder(): boolean { return false; }
@@ -621,6 +622,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidChangeEditorPartOptions = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
+	whenCreated: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasRestorableState = false;
 
@@ -698,6 +700,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isPinned(_editor: IEditorInput): boolean { return false; }
 	isSticky(_editor: IEditorInput): boolean { return false; }
 	isActive(_editor: IEditorInput): boolean { return false; }
+	contains(candidate: IEditorInput, options?: { supportSideBySide?: boolean | undefined; strictEquals?: boolean | undefined; }): boolean { return false; }
 	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions | ITextEditorOptions): void { }
 	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions | ITextEditorOptions): void { }
 	async closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { }
@@ -1224,12 +1227,12 @@ export class TestReadonlyTextFileEditorModel extends TextFileEditorModel {
 
 export class TestEditorInput extends EditorInput {
 
-	constructor(public resource: URI, private typeId: string) {
+	constructor(public resource: URI, private readonly _typeId: string) {
 		super();
 	}
 
-	getTypeId(): string {
-		return this.typeId;
+	override get typeId(): string {
+		return this._typeId;
 	}
 
 	override resolve(): Promise<IEditorModel | null> {
@@ -1363,14 +1366,14 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 
 	constructor(
 		public resource: URI,
-		private typeId: string
+		private _typeId: string
 	) {
 		super();
 	}
 
-	getTypeId() { return this.typeId; }
+	override get typeId() { return this._typeId; }
 	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
-	override matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
+	override matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.typeId === this.typeId); }
 	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
@@ -1438,7 +1441,7 @@ export async function createEditorPart(instantiationService: IInstantiationServi
 	part.create(document.createElement('div'));
 	part.layout(1080, 800);
 
-	await part.whenRestored;
+	await part.whenCreated;
 
 	return part;
 }

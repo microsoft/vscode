@@ -367,34 +367,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForPosition(line, column) + getEditorTopPadding();
 	}
 
-	cursorAtBeginEnd(): boolean {
-		if (!this._textEditor) {
-			return false;
-		}
-
-		if (!this.textModel) {
-			return false;
-		}
-
-		// only validate primary cursor
-		const selection = this._textEditor.getSelection();
-
-		// only validate empty cursor
-		if (!selection || !selection.isEmpty()) {
-			return false;
-		}
-
-		if (selection.startLineNumber === 1 && selection.startColumn === 1) {
-			return true;
-		}
-
-		if (selection.startLineNumber === this.textModel?.getLineCount() && selection.startColumn === this.textModel?.getLineMaxColumn(selection.startLineNumber)) {
-			return true;
-		}
-
-		return false;
-	}
-
 	cursorAtBoundary(): CursorAtBoundary {
 		if (!this._textEditor) {
 			return CursorAtBoundary.None;
@@ -484,14 +456,11 @@ export abstract class BaseCellViewModel extends Disposable {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
-		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
-			documentMetadata.cellHasExecutionOrder;
 
 		return {
 			...(this.metadata || {}),
 			...{
 				editable,
-				hasExecutionOrder
 			}
 		};
 	}

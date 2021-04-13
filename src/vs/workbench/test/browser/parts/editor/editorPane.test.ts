@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor, TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
@@ -73,8 +73,8 @@ class TestInput extends EditorInput {
 		return ids[1];
 	}
 
-	getTypeId(): string {
-		return '';
+	override get typeId(): string {
+		return 'testInput';
 	}
 
 	override resolve(): any {
@@ -86,8 +86,8 @@ class OtherTestInput extends EditorInput {
 
 	readonly resource = undefined;
 
-	getTypeId(): string {
-		return '';
+	override get typeId(): string {
+		return 'otherTestInput';
 	}
 
 	override resolve(): any {
@@ -185,11 +185,18 @@ suite('Workbench EditorPane', () => {
 	});
 
 	test('Editor Input Serializer', function () {
+		const testInput = new TestEditorInput(URI.file('/fake'), 'testTypeId');
 		workbenchInstantiationService().invokeFunction(accessor => EditorInputRegistry.start(accessor));
-		const disposable = EditorInputRegistry.registerEditorInputSerializer('testInputId', TestInputSerializer);
+		const disposable = EditorInputRegistry.registerEditorInputSerializer(testInput.typeId, TestInputSerializer);
 
-		let factory = EditorInputRegistry.getEditorInputSerializer('testInputId');
+		let factory = EditorInputRegistry.getEditorInputSerializer('testTypeId');
 		assert(factory);
+
+		factory = EditorInputRegistry.getEditorInputSerializer(testInput);
+		assert(factory);
+
+		// throws when registering serializer for same type
+		assert.throws(() => EditorInputRegistry.registerEditorInputSerializer(testInput.typeId, TestInputSerializer));
 
 		disposable.dispose();
 	});
@@ -304,7 +311,7 @@ suite('Workbench EditorPane', () => {
 			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
 				super();
 			}
-			getTypeId() { return 'testEditorInputForMementoTest'; }
+			override get typeId() { return 'testEditorInputForMementoTest'; }
 			async override resolve(): Promise<IEditorModel | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
@@ -342,7 +349,7 @@ suite('Workbench EditorPane', () => {
 			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
 				super();
 			}
-			getTypeId() { return 'testEditorInputForMementoTest'; }
+			override get typeId() { return 'testEditorInputForMementoTest'; }
 			async override resolve(): Promise<IEditorModel | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {

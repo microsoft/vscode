@@ -84,6 +84,7 @@ import { ExtHostUriOpeners } from 'vs/workbench/api/common/extHostUriOpener';
 import { IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -141,6 +142,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
 	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, initData.environment, extHostLogService, extensionStoragePaths));
+	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, extHostNotebook));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
 	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.environment));
@@ -914,16 +916,16 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
 			},
-			get trustState() {
+			get isTrusted() {
 				checkProposedApiEnabled(extension);
-				return extHostWorkspace.trustState;
+				return extHostWorkspace.trusted;
 			},
 			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension);
 				return extHostWorkspace.requestWorkspaceTrust(options);
 			},
-			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
-				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
+			onDidReceiveWorkspaceTrust: (listener, thisArgs?, disposables?) => {
+				return extHostWorkspace.onDidReceiveWorkspaceTrust(listener, thisArgs, disposables);
 			}
 		};
 
@@ -1059,10 +1061,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options);
 			},
-			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: {
-				transientOutputs: boolean;
-				transientMetadata: { [K in keyof vscode.NotebookCellMetadata]?: boolean }
-			}) => {
+			registerNotebookContentProvider: (viewType, provider, options) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options);
 			},
@@ -1105,6 +1104,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createNotebookCellExecutionTask(uri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookCellExecution(uri, index, kernelId);
+			},
+			createNotebookKernel(options) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebookKernels.createKernel(extension, options);
 			}
 		};
 

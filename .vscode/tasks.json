@@ -210,6 +210,21 @@
 			"group": "build",
 			"label": "npm: tsec-compile-check",
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+		},
+		{
+			"type": "npm",
+			"script": "no-implicit-override-watch",
+			"problemMatcher": [
+				{
+					"base": "$tsc-watch",
+					"applyTo": "allDocuments",
+					"owner": "tsc-no-imp"
+				}
+			],
+			"group": "build",
+			"label": "npm: no-implicit-override-watch",
+			"detail": "tsc --watch -p src/tsconfig.json --noEmit --noImplicitOverride",
+			"isBackground": true
 		}
 	]
 }

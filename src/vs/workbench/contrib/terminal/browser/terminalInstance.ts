@@ -464,6 +464,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			rendererType: xtermRendererType,
 			wordSeparator: config.wordSeparators
 		});
+		this.toggleEscapeSequenceLogging();
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
 		this._updateUnicodeVersion();
@@ -1044,10 +1045,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		if (ev.sync) {
-			this._xtermCore?.writeSync(ev.data, 0);
+		const messageId = ++this._latestXtermWriteData;
+		if (ev.trackCommit) {
+			ev.writePromise = new Promise<void>(r => {
+				this._xterm?.write(ev.data, () => {
+					this._latestXtermParseData = messageId;
+					this._processManager.acknowledgeDataEvent(ev.data.length);
+					r();
+				});
+			});
 		} else {
-			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
 				this._processManager.acknowledgeDataEvent(ev.data.length);
@@ -1630,7 +1637,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._configHelper.config.environmentChangesRelaunch &&
 			!this._processManager.hasWrittenData &&
 			!this._shellLaunchConfig.isFeatureTerminal &&
-			!this._shellLaunchConfig.isExtensionCustomPtyTerminal
+			!this._shellLaunchConfig.customPtyImplementation
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess
 		) {

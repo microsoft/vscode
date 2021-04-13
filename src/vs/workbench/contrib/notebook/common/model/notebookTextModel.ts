@@ -226,7 +226,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		metadata: NotebookDocumentMetadata,
 		options: TransientOptions,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
-		@IModelService _modelService: IModelService,
+		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
 	) {
 		super();
@@ -306,6 +306,20 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _getCellIndexWithOutputIdHandle(outputId: string) {
 		return this.cells.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
+	}
+
+	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {
+		this.transientOptions = transientOptions;
+		this._cellhandlePool = 0;
+		this.applyEdits(
+			[
+				{ editType: CellEditType.Replace, index: 0, count: this.cells.length, cells },
+				{ editType: CellEditType.DocumentMetadata, metadata }
+			],
+			true,
+			undefined, () => undefined,
+			undefined
+		);
 	}
 
 	applyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: ISelectionState | undefined, endSelectionsComputer: () => ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined, computeUndoRedo: boolean = true): boolean {
@@ -435,6 +449,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, this.transientOptions,
 				this._modeService
 			);
+			const textModel = this._modelService.getModel(cellUri);
+			if (textModel) {
+				cell.textModel = textModel;
+				cell.language = cellDto.language;
+			}
 			const dirtyStateListener = cell.onDidChangeContent(() => {
 				this._increaseVersionId();
 				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);

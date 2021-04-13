@@ -13,6 +13,10 @@ export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
 
+	public override get typeId(): string {
+		return WebviewInput.typeId;
+	}
+
 	private _name: string;
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
@@ -47,10 +51,6 @@ export class WebviewInput extends EditorInput {
 			}
 		}
 		super.dispose();
-	}
-
-	public getTypeId(): string {
-		return WebviewInput.typeId;
 	}
 
 	public override getName(): string {
@@ -99,7 +99,7 @@ export class WebviewInput extends EditorInput {
 		this._group = group;
 	}
 
-	public override supportsSplitEditor() {
+	public override canSplit() {
 		return false;
 	}
 

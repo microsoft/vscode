@@ -69,7 +69,7 @@ export class EditorsObserver extends Disposable {
 		this._register(this.editorGroupsService.onDidAddGroup(group => this.onGroupAdded(group)));
 		this._register(this.editorGroupsService.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 
-		this.editorGroupsService.whenRestored.then(() => this.loadState());
+		this.editorGroupsService.whenCreated.then(() => this.loadState());
 	}
 
 	private onGroupAdded(group: IEditorGroup): void {
@@ -362,7 +362,7 @@ export class EditorsObserver extends Disposable {
 				let serializableEditorsOfGroup = mapGroupToSerializableEditorsOfGroup.get(group);
 				if (!serializableEditorsOfGroup) {
 					serializableEditorsOfGroup = group.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-						const editorSerializer = registry.getEditorInputSerializer(editor.getTypeId());
+						const editorSerializer = registry.getEditorInputSerializer(editor);
 
 						return editorSerializer?.canSerialize(editor);
 					});

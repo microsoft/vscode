@@ -15,7 +15,11 @@ export class ExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.extensions.input2';
 
-	get resource() {
+	override get typeId(): string {
+		return ExtensionsInput.ID;
+	}
+
+	override get resource() {
 		return URI.from({
 			scheme: Schemas.extension,
 			path: join(this.extension.identifier.id, 'extension')
@@ -28,15 +32,11 @@ export class ExtensionsInput extends EditorInput {
 		super();
 	}
 
-	getTypeId(): string {
-		return ExtensionsInput.ID;
-	}
-
 	override getName(): string {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
-	override supportsSplitEditor(): boolean {
+	override canSplit(): boolean {
 		return false;
 	}
 

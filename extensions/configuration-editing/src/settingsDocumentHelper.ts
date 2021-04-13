@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { getLocation, Location, parse } from 'jsonc-parser';
 import * as nls from 'vscode-nls';
-import { provideInstalledExtensionProposals } from './extensionsProposals';
+import { provideInstalledExtensionProposals, provideWorkspaceTrustExtensionProposals } from './extensionsProposals';
 
 const localize = nls.loadMessageBundle();
 
@@ -58,6 +58,15 @@ export class SettingsDocument {
 				alreadyConfigured = Object.keys(parse(this.document.getText())['remote.extensionKind']);
 			} catch (e) {/* ignore error */ }
 			return provideInstalledExtensionProposals(alreadyConfigured, `: [\n\t"ui"\n]`, range, true);
+		}
+
+		// security.workspace.trust.extensionRequest
+		if (location.path[0] === 'security.workspace.trust.extensionRequest' && location.path.length === 2 && location.isAtPropertyKey) {
+			let alreadyConfigured: string[] = [];
+			try {
+				alreadyConfigured = Object.keys(parse(this.document.getText())['security.workspace.trust.extensionRequest']);
+			} catch (e) {/* ignore error */ }
+			return provideWorkspaceTrustExtensionProposals(alreadyConfigured, range);
 		}
 
 		return this.provideLanguageOverridesCompletionItems(location, position);

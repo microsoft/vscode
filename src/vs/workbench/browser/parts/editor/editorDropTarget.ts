@@ -363,7 +363,7 @@ class DropOverlay extends Themable {
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor?.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
+		if (draggedEditor?.editor instanceof EditorInput && !draggedEditor.editor.canSplit()) {
 			return false;
 		}
 

@@ -356,7 +356,7 @@ class HelpItem extends HelpItemBase {
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
-		await this.openerService.open(URI.parse(url));
+		await this.openerService.open(URI.parse(url), { allowCommands: true });
 	}
 }
 

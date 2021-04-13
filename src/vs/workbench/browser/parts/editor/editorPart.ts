@@ -30,6 +30,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { Promises } from 'vs/base/common/async';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -205,11 +206,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return (this.gridWidget && this.gridWidget.orientation === Orientation.VERTICAL) ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
+	private whenCreatedResolve: (() => void) | undefined;
+	readonly whenCreated = new Promise<void>(resolve => (this.whenCreatedResolve = resolve));
+
 	private whenRestoredResolve: (() => void) | undefined;
-	private readonly _whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
-	get whenRestored(): Promise<void> {
-		return this._whenRestored;
-	}
+	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
 
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
@@ -834,8 +835,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
 
+		// Signal created
+		this.whenCreatedResolve?.();
+
 		// Signal restored
-		this.whenRestoredResolve?.();
+		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
+			this.whenRestoredResolve?.();
+		});
 
 		return this.container;
 	}

@@ -9,13 +9,15 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { Iterable } from 'vs/base/common/iterator';
 import { equals } from 'vs/base/common/objects';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
+import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
 
 export type ResultChangeEvent =
 	| { completed: LiveTestResult }
@@ -44,6 +46,11 @@ export interface ITestResultService {
 	 * Discards all completed test results.
 	 */
 	clear(): void;
+
+	/**
+	 * Creates a new, live test result.
+	 */
+	createLiveResult(collections: ReadonlyArray<IMainThreadTestCollection>, req: RunTestsRequest): LiveTestResult;
 
 	/**
 	 * Adds a new test result to the collection.
@@ -123,6 +130,14 @@ export class TestResultService implements ITestResultService {
 		}
 
 		return undefined;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public createLiveResult(collections: ReadonlyArray<IMainThreadTestCollection>, req: RunTestsRequest) {
+		const id = generateUuid();
+		return this.push(LiveTestResult.from(id, collections, this.storage.getOutputController(id), req));
 	}
 
 	/**

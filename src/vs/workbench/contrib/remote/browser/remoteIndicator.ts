@@ -25,6 +25,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
@@ -247,11 +248,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private getWorkspaceLabel() {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const workspaceLocation = workspace.configuration || (workspace.folders.length === 1 ? workspace.folders[0].uri : undefined);
+		const workspaceLocation = getVirtualWorkspaceLocation(workspace);
 		if (workspaceLocation) {
 			return this.labelService.getHostLabel(workspaceLocation.scheme, workspaceLocation.authority);
 		}
-
 		return undefined;
 	}
 
@@ -280,23 +280,42 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private showRemoteMenu(menu: IMenu) {
+		const getCategoryLabel = (action: MenuItemAction) => {
+			if (action.item.category) {
+				return typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
+			}
+			return undefined;
+		};
+
 		const computeItems = () => {
 			const actions = menu.getActions();
-			const items: (IQuickPickItem
-				| IQuickPickSeparator)[] = [];
-			for (let actionGroup of actions) {
-				if (items.length) {
-					items.push({ type: 'separator' });
-				}
+			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 
+			for (let actionGroup of actions) {
+
+				// group by category
+				const actionsByCategory: { [category: string]: MenuItemAction[] } = {};
+				const categories: string[] = [];
 				for (let action of actionGroup[1]) {
 					if (action instanceof MenuItemAction) {
-						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
-						if (action.item.category) {
-							const category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
-							label = nls.localize('cat.title', "{0}: {1}", category, label);
+						const category = getCategoryLabel(action) || '';
+						let list = actionsByCategory[category];
+						if (!list) {
+							actionsByCategory[category] = list = [];
+							categories.push(category);
 						}
-
+						list.push(action);
+					}
+				}
+				for (let category of categories) {
+					if (category) {
+						items.push({ type: 'separator', label: category });
+					} else {
+						items.push({ type: 'separator' });
+					}
+					items.push({ type: 'separator', label: category });
+					for (let action of actionsByCategory[category]) {
+						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
 						items.push({
 							type: 'item',
 							id: action.item.id,
@@ -322,6 +341,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const quickPick = this.quickInputService.createQuickPick();
 		quickPick.items = computeItems();
+		quickPick.sortByLabel = false;
 		quickPick.canSelectMany = false;
 		once(quickPick.onDidAccept)((_ => {
 			const selectedItems = quickPick.selectedItems;

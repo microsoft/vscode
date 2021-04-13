@@ -24,7 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
-	override getTypeId(): string {
+	override get typeId(): string {
 		return PreferencesEditorInput.ID;
 	}
 
@@ -48,7 +48,7 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, textModelResolverService, textFileService, editorService, editorGroupService, fileService, labelService, filesConfigurationService);
 	}
 
-	override getTypeId(): string {
+	override get typeId(): string {
 		return DefaultPreferencesEditorInput.ID;
 	}
 
@@ -84,7 +84,7 @@ export class KeybindingsEditorInput extends EditorInput {
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return KeybindingsEditorInput.ID;
 	}
 
@@ -129,7 +129,7 @@ export class SettingsEditor2Input extends EditorInput {
 		return otherInput instanceof SettingsEditor2Input;
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return SettingsEditor2Input.ID;
 	}
 

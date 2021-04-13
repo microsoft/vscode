@@ -652,7 +652,6 @@ suite('ExtHostTypes', function () {
 	test('NotebookMetadata - defaults', function () {
 		const obj = new types.NotebookDocumentMetadata();
 		assert.strictEqual(obj.cellEditable, notebookDocumentMetadataDefaults.cellEditable);
-		assert.strictEqual(obj.cellHasExecutionOrder, notebookDocumentMetadataDefaults.cellHasExecutionOrder);
 		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
 		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
 		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
@@ -669,7 +668,7 @@ suite('ExtHostTypes', function () {
 	});
 
 	test('NotebookCellMetadata - with', function () {
-		const obj = new types.NotebookCellMetadata(true, false, true);
+		const obj = new types.NotebookCellMetadata(true, true);
 
 		const newObj = obj.with({ statusMessage: 'hello' });
 		assert.ok(obj !== newObj);

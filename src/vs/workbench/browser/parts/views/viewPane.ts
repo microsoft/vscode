@@ -554,7 +554,7 @@ export abstract class ViewPane extends Pane implements IView {
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
-						this.openerService.open(node.href);
+						this.openerService.open(node.href, { allowCommands: true });
 					}, null, disposables);
 					disposables.add(button);
 					disposables.add(attachButtonStyler(button, this.themeService));

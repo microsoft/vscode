@@ -12,14 +12,15 @@ import { Schemas } from 'vs/base/common/network';
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
 export class GettingStartedInput extends EditorInput {
+
 	static readonly ID = gettingStartedInputTypeId;
+
+	override get typeId(): string {
+		return GettingStartedInput.ID;
+	}
 
 	get resource(): URI | undefined {
 		return URI.from({ scheme: Schemas.walkThrough, authority: 'vscode_getting_started_page' });
-	}
-
-	getTypeId(): string {
-		return GettingStartedInput.ID;
 	}
 
 	override matches(other: unknown) {

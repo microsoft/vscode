@@ -28,6 +28,10 @@ export class LogViewerInput extends ResourceEditorInput {
 
 	static readonly ID = 'workbench.editorinputs.output';
 
+	override get typeId(): string {
+		return LogViewerInput.ID;
+	}
+
 	constructor(
 		outputChannelDescriptor: IFileOutputChannelDescriptor,
 		@ITextModelService textModelResolverService: ITextModelService,
@@ -51,10 +55,6 @@ export class LogViewerInput extends ResourceEditorInput {
 			labelService,
 			filesConfigurationService
 		);
-	}
-
-	override getTypeId(): string {
-		return LogViewerInput.ID;
 	}
 }
 
