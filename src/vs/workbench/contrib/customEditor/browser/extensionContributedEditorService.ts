@@ -44,7 +44,7 @@ interface ContributionPoint {
 	editorInfo: ContributedEditorInfo,
 	options: ContributionPointOptions,
 	createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-	createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput
+	createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => IEditorInput
 }
 
 type ContributionPoints = Array<ContributionPoint>;
@@ -82,7 +82,7 @@ export interface IExtensionContributedEditorService {
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
 		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput
+		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => IEditorInput
 	): IDisposable;
 }
 
@@ -162,7 +162,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
 		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => DiffEditorInput
+		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => IEditorInput
 	): IDisposable {
 		if (this._contributionPoints.get(scheme ?? globPattern) === undefined) {
 			this._contributionPoints.set(scheme ?? globPattern, []);

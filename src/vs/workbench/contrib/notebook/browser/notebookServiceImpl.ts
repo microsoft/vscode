@@ -40,6 +40,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 
 export class NotebookKernelProviderInfoStore {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
@@ -185,7 +186,15 @@ export class NotebookProviderInfoStore extends Disposable {
 					priority: notebookProviderInfo.priority,
 				},
 				{},
-				(resource, editorID, group) => NotebookEditorInput.create(this._instantiationService, resource, editorID)));
+				(resource, editorID, group) => NotebookEditorInput.create(this._instantiationService, resource, editorID),
+				(diffEditorInput, editorID, group) => {
+					const modifiedInput = diffEditorInput.modifiedInput;
+					const originalInput = diffEditorInput.originalInput;
+					const notebookUri = modifiedInput.resource!;
+					const originalNotebookUri = originalInput.resource!;
+					return NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), editorID);
+				}
+			));
 		}
 	}
 
