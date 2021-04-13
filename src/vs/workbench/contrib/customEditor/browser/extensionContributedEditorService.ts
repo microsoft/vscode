@@ -52,6 +52,7 @@ type ContributionPoints = Array<ContributionPoint>;
 export type ContributionPointOptions = {
 	singlePerGroup?: boolean | (() => boolean);
 	singlePerResource?: boolean | (() => boolean);
+	canHandleDiff?: boolean | (() => boolean);
 };
 
 export type ContributedEditorInfo = {
@@ -142,6 +143,11 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 
 				const selectedContribution = this.getContributionPoint(editor instanceof DiffEditorInput ? editor.modifiedInput.resource! : editor.resource!, override);
 				if (!selectedContribution) {
+					return;
+				}
+
+				const handlesDiff = typeof selectedContribution.options.canHandleDiff === 'function' ? selectedContribution.options.canHandleDiff() : selectedContribution.options.canHandleDiff;
+				if (editor instanceof DiffEditorInput && handlesDiff === false) {
 					return;
 				}
 

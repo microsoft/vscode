@@ -27,7 +27,7 @@ import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -91,6 +91,8 @@ export class NotebookProviderInfoStore extends Disposable {
 		extensionService: IExtensionService,
 		private readonly _extensionContributedEditorService: IExtensionContributedEditorService,
 		private readonly _instantiationService: IInstantiationService,
+		private readonly _configurationService: IConfigurationService,
+		private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
@@ -185,7 +187,9 @@ export class NotebookProviderInfoStore extends Disposable {
 					instanceOf: (editorInput) => editorInput instanceof NotebookEditorInput,
 					priority: notebookProviderInfo.priority,
 				},
-				{},
+				{
+					canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized()
+				},
 				(resource, editorID, group) => NotebookEditorInput.create(this._instantiationService, resource, editorID),
 				(diffEditorInput, editorID, group) => {
 					const modifiedInput = diffEditorInput.modifiedInput;
@@ -320,7 +324,12 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 	) {
 		super();
 
-		this._notebookProviderInfoStore = new NotebookProviderInfoStore(this._storageService, this._extensionService, this._extensionContributedEditorService, this._instantiationService);
+		this._notebookProviderInfoStore = new NotebookProviderInfoStore(
+			this._storageService,
+			this._extensionService, this._extensionContributedEditorService,
+			this._instantiationService, this._configurationService,
+			this._accessibilityService
+		);
 		this._register(this._notebookProviderInfoStore);
 
 		notebookProviderExtensionPoint.setHandler((extensions) => {

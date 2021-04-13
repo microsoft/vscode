@@ -7,6 +7,8 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
@@ -31,6 +33,12 @@ suite('NotebookProviderInfoStore', function () {
 
 			},
 			new class extends mock<IInstantiationService>() {
+
+			},
+			new class extends mock<IConfigurationService>() {
+
+			},
+			new class extends mock<IAccessibilityService>() {
 
 			}
 		);
