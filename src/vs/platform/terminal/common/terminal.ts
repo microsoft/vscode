@@ -405,7 +405,11 @@ export const enum FlowControlConstants {
 
 export interface IProcessDataEvent {
 	data: string;
-	sync: boolean;
+	trackCommit: boolean;
+	/**
+	 * When trackCommit is set, this will be set to a promise that resolves when the data is parsed.
+	 */
+	writePromise?: Promise<void>;
 }
 
 export interface ITerminalDimensions {

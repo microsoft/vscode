@@ -146,7 +146,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._onProcessResolvedShellLaunchConfig.fire(e);
 	}
 
-	handleReplay(e: IPtyHostProcessReplayEvent) {
+	async handleReplay(e: IPtyHostProcessReplayEvent) {
 		try {
 			this._inReplay = true;
 			for (const innerEvent of e.events) {
@@ -154,7 +154,9 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 					// never override with 0x0 as that is a marker for an unknown initial size
 					this._onProcessOverrideDimensions.fire({ cols: innerEvent.cols, rows: innerEvent.rows, forceExactSize: true });
 				}
-				this._onProcessData.fire({ data: innerEvent.data, sync: true });
+				const e: IProcessDataEvent = { data: innerEvent.data, trackCommit: true };
+				this._onProcessData.fire(e);
+				await e.writePromise;
 			}
 		} finally {
 			this._inReplay = false;
