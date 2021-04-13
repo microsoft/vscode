@@ -21,7 +21,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 
-	private readonly _kernelData = new Map<number, { id: string, executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, onDidChangeSelection: Emitter<{ selected: boolean, uri: URI }> }>();
+	private readonly _kernelData = new Map<number, { id: string, executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, onDidChangeSelection: Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }> }>();
 	private _handlePool: number = 0;
 
 	constructor(
@@ -39,7 +39,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
-		const emitter = new Emitter<{ selected: boolean, uri: URI }>();
+		const emitter = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }>();
 		this._kernelData.set(handle, { id: options.id, executeHandler: options.executeHandler, onDidChangeSelection: emitter });
 
 		const data: INotebookKernelDto2 = {
@@ -73,8 +73,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
-
-			// onDidChangeSelection: emitter.event,
+			onDidChangeNotebookAssociation: emitter.event,
 			get label() {
 				return data.label;
 			},
@@ -133,7 +132,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj) {
 			obj.onDidChangeSelection.fire({
 				selected: value,
-				uri: URI.revive(uri)
+				notebook: this._extHostNotebook.lookupNotebookDocument(URI.revive(uri))!.notebookDocument
 			});
 		}
 	}

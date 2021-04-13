@@ -1448,19 +1448,15 @@ declare module 'vscode' {
 		// select notebook of a type and/or by file-pattern
 		readonly selector: NotebookSelector;
 
-		// selection is tricky/bogous because a kernel can be selected for
-		// different notebook documents. A handler-approach might be the better
-		// fit here, e.g:
-		// selectionHandler?: (notebook: NotebookDocument, selected: boolean) => void;
-
-		// // is this kernel selected
-		// readonly selected: boolean;
-		// // fired when kernel is selected/unselected
-		// readonly onDidChangeSelection: Event<boolean>;
+		/**
+		 * A kernel can apply to one or many notebook documents but a notebook has only one active
+		 * kernel. This event fires whenever a notebook has been associated to a kernel or when
+		 * that association has been removed.
+		 */
+		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
 		// kernels can establish IPC channels to (visible) notebook editors
 		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
-
 
 		// UI properties (get/set)
 		label: string;

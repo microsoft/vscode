@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICellRange, INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelBindEvent, INotebookKernel2, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { score } from 'vs/workbench/contrib/notebook/common/notebookSelector';
@@ -14,6 +14,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { ResourceMap } from 'vs/base/common/map';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 
 export class NotebookKernelService implements INotebookKernelService {
 
@@ -86,10 +87,14 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	// a notebook has one kernel, a kernel has N notebooks
 	// notebook <-1----N-> kernel
-	bindNotebookToKernel(notebook: INotebookTextModel, kernel: INotebookKernel2): void {
+	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel2 | undefined): void {
 		const oldKernel = this._kernelBindings.get(notebook.uri);
 		if (oldKernel !== kernel) {
-			this._kernelBindings.set(notebook.uri, kernel);
+			if (kernel) {
+				this._kernelBindings.set(notebook.uri, kernel);
+			} else {
+				this._kernelBindings.delete(notebook.uri);
+			}
 			this._onDidChangeNotebookKernelBinding.fire({ notebook: notebook.uri, oldKernel, newKernel: kernel });
 		}
 	}
@@ -105,14 +110,12 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 	constructor(
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@INotebookService notebookService: INotebookService,
+		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 
 		const disposables = new DisposableStore();
 
 		const emitter = new Emitter<URI | undefined>();
-
-
-
 		const kernels = new Map<INotebookKernel2, IDisposable>();
 
 		disposables.add(notebookKernelService.onDidAddKernel(kernel => {
@@ -130,7 +133,7 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 			}
 		}));
 
-
+		// kernel -> provider
 		const registration = notebookService.registerNotebookKernelProvider({
 			onDidChangeKernels: emitter.event,
 			providerExtensionId: 'notAnExtension',
@@ -141,8 +144,7 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 				if (!model) {
 					return [];
 				}
-				const kernels = notebookKernelService.getKernels(model);
-				return kernels.map((kernel: INotebookKernel2): INotebookKernel => {
+				return notebookKernelService.getKernels(model).map((kernel: INotebookKernel2): INotebookKernel => {
 					return {
 						id: kernel.id,
 						friendlyId: kernel.id,
@@ -165,7 +167,34 @@ class KernelAdaptorBridge implements IWorkbenchContribution {
 			}
 		});
 
+		// kernel binding
+		const editorListener = new Map<string, IDisposable>();
+		disposables.add(notebookEditorService.onDidAddNotebookEditor(e => {
+			const r1 = e.onDidChangeKernel(() => {
+				if (!e.viewModel) {
+					return;
+				}
+				let kernel: INotebookKernel2 | undefined;
+				if (e.activeKernel) {
+					for (const candidate of kernels.keys()) {
+						if (e.activeKernel.friendlyId === candidate.id) {
+							kernel = candidate;
+							break;
+						}
+					}
+				}
+				notebookKernelService.updateNotebookKernelBinding(e.viewModel.notebookDocument, kernel);
+			});
+			editorListener.set(e.getId(), r1);
+		}));
+		disposables.add(notebookEditorService.onDidRemoveNotebookEditor(e => {
+			editorListener.get(e.getId())?.dispose();
+			editorListener.delete(e.getId());
+		}));
+
+
 		this.dispose = () => {
+			dispose(editorListener.values());
 			disposables.dispose();
 			emitter.dispose();
 			registration.dispose();
