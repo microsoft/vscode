@@ -96,7 +96,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		return this._uri;
 	}
 
-	public override get version(): number {
+	public get version(): number {
 		return this._versionId;
 	}
 

@@ -109,18 +109,29 @@ export const enum ConfigurationScope {
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
+
 	scope?: ConfigurationScope;
+
+	/**
+	 * When enabled, value of this configuration will be read only from trusted sources.
+	 * For eg., If the workspace is not trusted, then the value of this configuration is not read from workspace settings file.
+	 */
 	requireTrust?: boolean;
+
 	included?: boolean;
+
 	tags?: string[];
+
 	/**
 	 * When enabled this setting is ignored during sync and user can override this.
 	 */
 	ignoreSync?: boolean;
+
 	/**
 	 * When enabled this setting is ignored during sync and user cannot override this.
 	 */
 	disallowSyncIgnore?: boolean;
+
 	enumItemLabels?: string[];
 }
 

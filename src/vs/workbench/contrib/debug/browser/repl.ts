@@ -336,18 +336,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.textContent = `
-				.repl .repl-tree .expression {
-					font-size: ${fontSize}px;
-				}
-
-				.repl .repl-tree .expression {
-					line-height: ${lineHeight};
-				}
-
-				.repl .repl-tree .monaco-tl-twistie {
-					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
-				}
-
 				.repl .repl-input-wrapper .repl-input-chevron {
 					line-height: ${replInputLineHeight}px
 				}
@@ -357,6 +345,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				}
 			`;
 			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
+			this.container.style.setProperty(`--vscode-repl-font-size`, `${fontSize}px`);
+			this.container.style.setProperty(`--vscode-repl-font-size-for-twistie`, `${fontSize * 1.4 / 2 - 8}px`);
+			this.container.style.setProperty(`--vscode-repl-line-height`, lineHeight);
 
 			this.tree.rerender();
 

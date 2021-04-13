@@ -18,7 +18,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption, EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -554,19 +554,26 @@ class EditorTextRenderer {
 
 		const colorMap = this.getDefaultColorMap();
 		const fontInfo = editor.getOptions().get(EditorOption.fontInfo);
-		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
-
+		const fontFamilyVar = '--notebook-editor-font-family';
+		const fontSizeVar = '--notebook-editor-font-size';
+		const fontWeightVar = '--notebook-editor-font-weight';
 
 		const style = ``
 			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
 			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
-			+ `font-family: ${fontFamily};`
-			+ `font-weight: ${fontInfo.fontWeight};`
-			+ `font-size: ${fontInfo.fontSize}px;`
+			+ `font-family: var(${fontFamilyVar});`
+			+ `font-weight: var(${fontWeightVar});`
+			+ `font-size: var(${fontSizeVar});`
 			+ `line-height: ${fontInfo.lineHeight}px;`
 			+ `white-space: pre;`;
 
 		const element = DOM.$('div', { style });
+
+		const fontSize = fontInfo.fontSize;
+		const fontWeight = fontInfo.fontWeight;
+		element.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
+		element.style.setProperty(fontSizeVar, `${fontSize}px`);
+		element.style.setProperty(fontWeightVar, fontWeight);
 
 		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
 		element.innerHTML = linesHtml as string;

@@ -37,7 +37,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, getExtensionWorkspaceTrustRequestType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
@@ -48,6 +48,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -118,6 +119,7 @@ export class ExtensionsListView extends ViewPane {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -559,15 +561,15 @@ export class ExtensionsListView extends ViewPane {
 
 		value = value.replace(/@trustRequired/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
-		const result = local.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never' && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+		const result = local.filter(extension => extension.local && this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never' && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
 
 		if (onStartOnly) {
-			const onStartExtensions = result.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onStart');
+			const onStartExtensions = result.filter(extension => extension.local && this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onStart');
 			return this.sortExtensions(onStartExtensions, options);
 		}
 
 		if (onDemandOnly) {
-			const onDemandExtensions = result.filter(extension => extension.local && getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onDemand');
+			const onDemandExtensions = result.filter(extension => extension.local && this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onDemand');
 			return this.sortExtensions(onDemandExtensions, options);
 		}
 

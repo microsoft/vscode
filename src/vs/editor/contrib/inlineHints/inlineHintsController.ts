@@ -146,6 +146,9 @@ export class InlineHintsController implements IEditorContribution {
 		const newDecorationsTypeIds: string[] = [];
 		const newDecorationsData: IModelDeltaDecoration[] = [];
 
+		const fontFamilyVar = '--inlineHintsFontFamily';
+		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
+
 		for (const { list: hints } of hintsData) {
 
 			for (let j = 0; j < hints.length && newDecorationsData.length < MAX_DECORATORS; j++) {
@@ -159,7 +162,7 @@ export class InlineHintsController implements IEditorContribution {
 					color: `${fontColor}`,
 					margin: `0px ${marginAfter}px 0px ${marginBefore}px`,
 					fontSize: `${fontSize}px`,
-					fontFamily: fontFamily,
+					fontFamily: `var(${fontFamilyVar})`,
 					padding: `0px ${(fontSize / 4) | 0}px`,
 					borderRadius: `${(fontSize / 4) | 0}px`,
 				};

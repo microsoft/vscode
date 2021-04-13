@@ -953,24 +953,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region allow title property to QuickPickOptions/InputBoxOptions: https://github.com/microsoft/vscode/issues/77423
-
-	interface QuickPickOptions {
-		/**
-		 * An optional string that represents the tile of the quick pick.
-		 */
-		title?: string;
-	}
-
-	interface InputBoxOptions {
-		/**
-		 * An optional string that represents the tile of the input box.
-		 */
-		title?: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum NotebookCellKind {

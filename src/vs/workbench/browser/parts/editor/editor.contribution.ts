@@ -136,7 +136,7 @@ class UntitledTextEditorInputSerializer implements IEditorInputSerializer {
 			return undefined;
 		}
 
-		const untitledTextEditorInput = <UntitledTextEditorInput>editorInput;
+		const untitledTextEditorInput = editorInput as UntitledTextEditorInput;
 
 		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
@@ -165,7 +165,7 @@ class UntitledTextEditorInputSerializer implements IEditorInputSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledTextEditorInput {
-		return instantiationService.invokeFunction<UntitledTextEditorInput>(accessor => {
+		return instantiationService.invokeFunction(accessor => {
 			const deserialized: ISerializedUntitledTextEditorInput = JSON.parse(serializedEditorInput);
 			const resource = URI.revive(deserialized.resourceJSON);
 			const mode = deserialized.modeId;

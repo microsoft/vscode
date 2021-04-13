@@ -307,18 +307,6 @@ export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): 
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
 }
 
-export function getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType {
-	if (manifest.workspaceTrust?.request !== undefined) {
-		return manifest.workspaceTrust.request;
-	}
-
-	if (!manifest.main) {
-		return 'never';
-	}
-
-	return 'onStart';
-}
-
 export interface IScannedExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;

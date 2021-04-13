@@ -255,6 +255,7 @@ async function processResourceRequest(event, requestUrl) {
 		channel: 'load-resource',
 		id: requestId,
 		path: resourcePath,
+		query: requestUrl.search.replace(/^\?/, ''),
 		ifNoneMatch: cached?.headers.get('ETag'),
 	});
 

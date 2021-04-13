@@ -612,7 +612,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			});
 		}
 
-		// Empty workbench
+		// Empty workbench configured to open untitled file if empty
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
 			if (this.editorGroupService.hasRestorableState) {
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
@@ -663,10 +663,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		restorePromises.push((async () => {
 			mark('code/willRestoreEditors');
 
-			// first ensure the editor part is restored
-			await this.editorGroupService.whenRestored;
+			// first ensure the editor part is created
+			await this.editorGroupService.whenCreated;
 
 			// then see for editors to open as instructed
+			// it is important that we trigger this from
+			// the overall restore flow to reduce possible
+			// flicker on startup: we want any editor to
+			// open to get a chance to open first before
+			// signaling that layout is restored, but we do
+			// not need to await the editors from having
+			// fully loaded.
 			let editors: IResourceEditorInputType[];
 			if (Array.isArray(this.state.editor.editorsToOpen)) {
 				editors = this.state.editor.editorsToOpen;
@@ -674,11 +681,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				editors = await this.state.editor.editorsToOpen;
 			}
 
+			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
-				await this.editorService.openEditors(editors);
+				openEditorsPromise = this.editorService.openEditors(editors);
 			}
 
-			mark('code/didRestoreEditors');
+			// do not block the overall layout restore flow from potentially
+			// slow editors to resolve on startup
+			(async () => {
+				try {
+					// await instructed editors to open and groups having
+					// fully restored (which means visible editors have
+					// loaded)
+					await Promise.all([
+						openEditorsPromise,
+						this.editorGroupService.whenRestored
+					]);
+				} finally {
+					// the `code/didRestoreEditors` perf mark is specifically
+					// for when visible editors have resolved, so we only mark
+					// if when editor group service has restored.
+					mark('code/didRestoreEditors');
+
+					this.restored = true;
+					this.whenRestoredResolve?.();
+				}
+			})();
 		})());
 
 		// Restore default views (only when `IDefaultLayout` is provided)
@@ -824,8 +852,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
 	}
 
+	private whenRestoredResolve: (() => void) | undefined;
+	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private restored = false;
+
 	isRestored(): boolean {
-		return this.lifecycleService.phase >= LifecyclePhase.Restored;
+		return this.lifecycleService.phase >= LifecyclePhase.Restored && this.restored;
 	}
 
 	hasFocus(part: Parts): boolean {
