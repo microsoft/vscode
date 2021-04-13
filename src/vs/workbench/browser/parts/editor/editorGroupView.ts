@@ -103,8 +103,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private active: boolean | undefined;
 	private dimension: Dimension | undefined;
 
-	private isRestored = false;
-
 	private readonly scopedInstantiationService: IInstantiationService;
 
 	private readonly titleContainer: HTMLElement;
@@ -118,6 +116,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private readonly disposedEditorsWorker = this._register(new RunOnceWorker<EditorInput>(editors => this.handleDisposedEditors(editors), 0));
 
 	private readonly mapEditorToPendingConfirmation = new Map<EditorInput, Promise<boolean>>();
+
+	private whenRestoredResolve: (() => void) | undefined;
+	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private isRestored = false;
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
@@ -211,7 +213,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		//#endregion
 
 		// Restore editors if provided
-		this.restoreEditors(from);
+		const restoreEditorsPromise = this.restoreEditors(from) ?? Promise.resolve();
+
+		// Signal restored once editors have restored
+		restoreEditorsPromise.finally(() => {
+			this.isRestored = true;
+			this.whenRestoredResolve?.();
+		});
 
 		// Register Listeners
 		this.registerListeners();
@@ -437,7 +445,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.titleAreaControl;
 	}
 
-	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup | null): void {
+	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup | null): Promise<void> | undefined {
 		if (this._group.count === 0) {
 			return; // nothing to show
 		}
@@ -463,7 +471,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
-		this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options).then(() => {
+		return this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options).then(() => {
 
 			// Set focused now if this is the active group and focus has
 			// not changed meanwhile. This prevents focus from being
@@ -472,9 +480,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (this.accessor.activeGroup === this && activeElement === document.activeElement) {
 				this.focus();
 			}
-
-			// Signal restored
-			this.isRestored = true;
 		});
 	}
 

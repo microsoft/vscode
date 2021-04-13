@@ -500,6 +500,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
+	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }
 	hasWindowBorder(): boolean { return false; }
@@ -621,6 +622,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidChangeEditorPartOptions = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
+	whenCreated: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasRestorableState = false;
 
@@ -1438,7 +1440,7 @@ export async function createEditorPart(instantiationService: IInstantiationServi
 	part.create(document.createElement('div'));
 	part.layout(1080, 800);
 
-	await part.whenRestored;
+	await part.whenCreated;
 
 	return part;
 }

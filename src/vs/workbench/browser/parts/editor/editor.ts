@@ -113,6 +113,14 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly group: EditorGroup;
 
+	/**
+	 * A promise that resolves when the group has been restored.
+	 *
+	 * For a group with active editor, the promise will resolve
+	 * when the active editor has finished to resolve.
+	 */
+	readonly whenRestored: Promise<void>;
+
 	readonly titleHeight: IEditorGroupTitleHeight;
 
 	readonly isEmpty: boolean;
