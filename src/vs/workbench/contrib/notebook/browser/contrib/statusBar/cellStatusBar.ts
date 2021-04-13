@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten } from 'vs/base/common/arrays';
+import { Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -63,9 +64,9 @@ class CellStatusBarHelper extends Disposable {
 	private _currentItemIds: string[] = [];
 	private _currentItemLists: INotebookCellStatusBarItemList[] = [];
 
-	private _currentlyUpdating = false;
-
 	private readonly _cancelTokenSource: CancellationTokenSource;
+
+	private readonly _updateThrottler = new Throttler();
 
 	constructor(
 		private readonly _notebookViewModel: NotebookViewModel,
@@ -76,31 +77,33 @@ class CellStatusBarHelper extends Disposable {
 
 		this._cancelTokenSource = this._register(new CancellationTokenSource());
 
-		this._update();
-		this._register(this._cell.model.onDidChangeContent(() => this._update()));
-		this._register(this._cell.model.onDidChangeLanguage(() => this._update()));
-		this._register(this._cell.model.onDidChangeMetadata(() => this._update()));
-		this._register(this._cell.model.onDidChangeOutputs(() => this._update()));
+		this._updateSoon();
+		this._register(this._cell.model.onDidChangeContent(() => this._updateSoon()));
+		this._register(this._cell.model.onDidChangeLanguage(() => this._updateSoon()));
+		this._register(this._cell.model.onDidChangeMetadata(() => this._updateSoon()));
+		this._register(this._cell.model.onDidChangeOutputs(() => this._updateSoon()));
+	}
+
+	private _updateSoon(): void {
+		this._updateThrottler.queue(() => this._update());
 	}
 
 	private async _update() {
-		if (this._currentlyUpdating) {
-			// TODO, timeout? Cancel pending?
-			return;
-		}
-		this._currentlyUpdating = true;
-
 		const cellIndex = this._notebookViewModel.getCellIndex(this._cell);
 		const docUri = this._notebookViewModel.notebookDocument.uri;
 		const viewType = this._notebookViewModel.notebookDocument.viewType;
 		const itemLists = await this._notebookCellStatusBarService.getStatusBarItemsForCell(docUri, cellIndex, viewType, this._cancelTokenSource.token);
+		if (this._cancelTokenSource.token.isCancellationRequested) {
+			itemLists.forEach(itemList => itemList.dispose && itemList.dispose());
+			return;
+		}
+
 		const items = flatten(itemLists.map(itemList => itemList.items));
 		const newIds = this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items }]);
 
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());
 		this._currentItemLists = itemLists;
 		this._currentItemIds = newIds;
-		this._currentlyUpdating = false;
 	}
 
 	dispose() {
