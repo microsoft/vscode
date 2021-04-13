@@ -27,6 +27,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -384,7 +385,7 @@ registerAction2(class extends Action2 {
 			id: 'notebook.find',
 			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
 			keybinding: {
-				when: ContextKeyExpr.or(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR),
+				when: ContextKeyExpr.or(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, EditorContextKeys.focus.toNegated())),
 				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
