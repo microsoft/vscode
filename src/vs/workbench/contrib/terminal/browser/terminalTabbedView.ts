@@ -32,7 +32,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
-const MIN_TABS_WIDGET_WIDTH = 35;
+const MIN_TABS_WIDGET_WIDTH = 45;
 const SNAP_TABS_WIDGET_WIDTH = 80;
 
 export class TerminalTabbedView extends Disposable {
@@ -146,19 +146,25 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _setLastWidgetWidth(): void {
-		if (!this._width || this._splitView.getViewSize(this._tabTreeIndex) <= 0) {
+		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
+		if (!this._width || widgetWidth <= 0) {
 			return;
 		}
-		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
 		if (widgetWidth < SNAP_TABS_WIDGET_WIDTH) {
 			widgetWidth = MIN_TABS_WIDGET_WIDTH;
 			this._splitView.resizeView(this._tabTreeIndex, widgetWidth);
+		}
+		for (const tab of this._terminalService.terminalTabs) {
+			this._tabsWidget.rerender(tab);
+			for (const instance of tab.terminalInstances) {
+				this._tabsWidget.rerender(instance);
+			}
 		}
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
 	private _setupSplitView(): void {
-		this._register(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
+		this._register(this._splitView.onDidSashReset(() => this._splitView.resizeView(this._tabTreeIndex, 120)));
 		this._register(this._splitView.onDidSashChange(() => this._setLastWidgetWidth()));
 
 		if (this._showTabs) {

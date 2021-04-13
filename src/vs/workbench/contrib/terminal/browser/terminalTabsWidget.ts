@@ -154,6 +154,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	private _instantiationService: IInstantiationService;
 	private _commandService: ICommandService;
 	private _contextKeyService: IContextKeyService;
+	private _container: HTMLElement | undefined;
 	constructor(instantiationService: IInstantiationService, commandService: ICommandService, contextKeyService: IContextKeyService) {
 		this._instantiationService = instantiationService;
 		this._commandService = commandService;
@@ -161,6 +162,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	}
 
 	renderTemplate(container: HTMLElement): ITerminalTabEntryTemplate {
+		this._container = container;
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
@@ -178,20 +180,36 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 		return { element, label, actionBar };
 	}
 
+	shouldHideText(): boolean {
+		return this._container ? this._container.offsetWidth < 70 : false;
+	}
+
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
 		let item = node.element;
-
+		if (this.shouldHideText()) {
+			if ('terminalInstances' in item) {
+				if (item.terminalInstances.length === 1) {
+					const instance = item.terminalInstances[0];
+					label = `$(${instance.icon.id})`;
+				} else if (item.terminalInstances.length > 1) {
+					label = `(${item.terminalInstances.length})`;
+				}
+			} else {
+				label = `$(${item.icon.id})`;
+			}
+			template.actionBar.clear();
+			template.label.setLabel(label);
+			return;
+		}
 		if ('terminalInstances' in item) {
 			if (item.terminalInstances.length === 1) {
 				const instance = item.terminalInstances[0];
 				label = `$(${instance.icon.id}) ${instance.title}`;
 				this.fillActionBar(template);
 			} else if (item.terminalInstances.length > 1) {
-				label = `(${item.terminalInstances.length})`;
-				if (template.actionBar.viewItems.length > 0) {
-					template.actionBar.clear();
-				}
+				label = `(Terminals ${item.terminalInstances.length})`;
+				template.actionBar.clear();
 			}
 		} else {
 			label = `$(${item.icon.id}) ${item.title}`;
