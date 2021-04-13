@@ -1496,7 +1496,7 @@ declare module 'vscode' {
 		label: string;
 		description?: string;
 		selector: NotebookSelector;
-		supportedLanguages: string[];
+		supportedLanguages?: string[];
 		hasExecutionOrder?: boolean;
 		executeHandler: (executions: NotebookCellExecutionTask[]) => void;
 		interruptHandler?: (notebook: NotebookDocument) => void

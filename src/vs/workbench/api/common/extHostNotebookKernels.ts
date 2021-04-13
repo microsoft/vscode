@@ -12,6 +12,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellRange } from 'vs/workbench/api/common/extHostTypeConverters';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 type ExecuteHandler = (executions: vscode.NotebookCellExecutionTask[]) => void;
 type InterruptHandler = (notebook: vscode.NotebookDocument) => void;
@@ -47,7 +48,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: options.label,
-			supportedLanguages: options.supportedLanguages,
+			supportedLanguages: isNonEmptyArray(options.supportedLanguages) ? options.supportedLanguages : ['plaintext'],
 			supportsInterrupt: Boolean(options.interruptHandler),
 			hasExecutionOrder: options.hasExecutionOrder,
 		};
@@ -92,7 +93,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return data.supportedLanguages;
 			},
 			set supportedLanguages(value) {
-				data.supportedLanguages = value;
+				data.supportedLanguages = isNonEmptyArray(value) ? value : ['plaintext'];
 				_update();
 			},
 			get hasExecutionOrder() {
