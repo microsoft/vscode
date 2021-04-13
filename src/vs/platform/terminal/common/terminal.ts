@@ -44,7 +44,7 @@ export interface IPtyHostAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon?: string;
+	icon: string | undefined;
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;

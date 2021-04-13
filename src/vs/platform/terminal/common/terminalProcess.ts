@@ -56,7 +56,7 @@ export interface IProcessDetails {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon?: string;
+	icon: string | undefined;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
