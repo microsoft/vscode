@@ -21,7 +21,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 
-	private readonly _kernelData = new Map<number, { id: string, executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, selected: boolean, onDidChangeSelection: Emitter<boolean> }>();
+	private readonly _kernelData = new Map<number, { id: string, executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, onDidChangeSelection: Emitter<{ selected: boolean, uri: URI }> }>();
 	private _handlePool: number = 0;
 
 	constructor(
@@ -39,8 +39,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
-		const emitter = new Emitter<boolean>();
-		this._kernelData.set(handle, { id: options.id, executeHandler: options.executeHandler, selected: false, onDidChangeSelection: emitter });
+		const emitter = new Emitter<{ selected: boolean, uri: URI }>();
+		this._kernelData.set(handle, { id: options.id, executeHandler: options.executeHandler, onDidChangeSelection: emitter });
 
 		const data: INotebookKernelDto2 = {
 			id: options.id,
@@ -73,7 +73,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
-			// get selected() { return that._kernelData.get(handle)?.selected ?? false; },
+
 			// onDidChangeSelection: emitter.event,
 			get label() {
 				return data.label;
@@ -128,11 +128,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		};
 	}
 
-	$acceptSelection(handle: number, value: boolean): void {
+	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {
 		const obj = this._kernelData.get(handle);
 		if (obj) {
-			obj.selected = value;
-			obj.onDidChangeSelection.fire(value);
+			obj.onDidChangeSelection.fire({
+				selected: value,
+				uri: URI.revive(uri)
+			});
 		}
 	}
 

@@ -1952,7 +1952,7 @@ export interface ExtHostNotebookEditorsShape {
 }
 
 export interface ExtHostNotebookKernelsShape {
-	$acceptSelection(handle: number, value: boolean): void;
+	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
 	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
 	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
 }

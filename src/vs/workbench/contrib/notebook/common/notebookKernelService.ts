@@ -40,7 +40,7 @@ export interface INotebookKernel2 {
 	preloadUris: URI[];
 	preloadProvides: string[];
 
-	setSelected(value: boolean): void;
+	setSelected(uri: URI, value: boolean): void;
 	executeCells(uri: URI, ranges: ICellRange[]): void;
 	cancelCells(uri: URI, ranges: ICellRange[]): void
 }

@@ -365,7 +365,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	readonly activeKernel: INotebookKernel | undefined;
+	activeKernel: INotebookKernel | undefined;
 	readonly availableKernelCount: number;
 	readonly onDidScroll: Event<void>;
 	readonly onDidChangeAvailableKernels: Event<void>;

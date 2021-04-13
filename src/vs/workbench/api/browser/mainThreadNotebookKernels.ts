@@ -82,7 +82,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this._onDidChange.fire(event);
 	}
 
-	abstract setSelected(value: boolean): void;
+	abstract setSelected(uri: URI, value: boolean): void;
 	abstract executeCells(uri: URI, ranges: ICellRange[]): void;
 	abstract cancelCells(uri: URI, ranges: ICellRange[]): void;
 }
@@ -109,8 +109,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$addKernel(handle: number, data: INotebookKernelDto2): void {
 		const that = this;
 		const kernel = new class extends MainThreadKernel {
-			setSelected(value: boolean): void {
-				that._proxy.$acceptSelection(handle, value);
+			setSelected(uri: URI, value: boolean): void {
+				that._proxy.$acceptSelection(handle, uri, value);
 			}
 			executeCells(uri: URI, ranges: ICellRange[]): void {
 				that._proxy.$executeCells(handle, uri, ranges);

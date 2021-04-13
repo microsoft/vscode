@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -324,9 +324,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.NotebookContentProvider,
-		options?: {
-			transientOutputs: boolean;
-			transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
+		options?: vscode.NotebookDocumentContentOptions & {
 			viewOptions?: {
 				displayName: string;
 				filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];

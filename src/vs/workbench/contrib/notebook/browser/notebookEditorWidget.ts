@@ -278,6 +278,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._kernelManger.activeKernel;
 	}
 
+	set activeKernel(value) {
+		this._kernelManger.activeKernel = value;
+	}
+
 	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
 
 	get availableKernelCount() {
