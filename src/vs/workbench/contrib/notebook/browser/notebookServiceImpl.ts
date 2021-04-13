@@ -23,11 +23,11 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebookMarkdownRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -41,6 +41,7 @@ import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customE
 import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 export class NotebookKernelProviderInfoStore {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
@@ -190,13 +191,25 @@ export class NotebookProviderInfoStore extends Disposable {
 				{
 					canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized()
 				},
-				(resource, editorID, group) => NotebookEditorInput.create(this._instantiationService, resource, editorID),
+				(resource, editorID, options, group) => {
+					const data = CellUri.parse(resource);
+					let notebookUri: URI = resource;
+					let cellOptions: IResourceEditorInput | undefined;
+
+					if (data) {
+						notebookUri = data.notebook;
+						cellOptions = { resource: resource };
+					}
+
+					const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions });
+					return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, editorID), options: notebookOptions };
+				},
 				(diffEditorInput, editorID, group) => {
 					const modifiedInput = diffEditorInput.modifiedInput;
 					const originalInput = diffEditorInput.originalInput;
 					const notebookUri = modifiedInput.resource!;
 					const originalNotebookUri = originalInput.resource!;
-					return NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), editorID);
+					return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), editorID) };
 				}
 			));
 		}

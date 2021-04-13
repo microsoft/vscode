@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, distinct } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
@@ -16,7 +16,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, EditorOverride } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,12 +31,11 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
-import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NotebookEditorOptions, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
@@ -73,7 +72,6 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
-import { ContributedEditorPriority } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -213,9 +211,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		// @IConfigurationService private readonly configurationService: IConfigurationService,
-		// @IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IExtensionContributedEditorService private readonly extensionContributedEditorService: IExtensionContributedEditorService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
@@ -228,43 +223,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
 				return getCellUndoRedoComparisonKey(uri);
-			}
-		}));
-
-		this._register(this.extensionContributedEditorService.contributedEditorOverride({
-			getEditorOverrides: (resource: URI, currentEditor: IEditorInput | undefined) => {
-
-				const associatedEditors = distinct([
-					...this.getUserAssociatedNotebookEditors(resource),
-					...this.getContributedEditors(resource)
-				], editor => editor.id).sort((a, b) => {
-					// if a content provider is exclusive, it has higher order
-					if (a.exclusive && b.exclusive) {
-						return 0;
-					}
-
-					if (a.exclusive) {
-						return -1;
-					}
-
-					if (b.exclusive) {
-						return 1;
-					}
-
-					return 0;
-				});
-
-				return associatedEditors.map(info => {
-					return {
-						label: info.displayName,
-						id: info.id,
-						active: currentEditor instanceof NotebookEditorInput && currentEditor.viewType === info.id,
-						detail: info.providerDisplayName
-					};
-				});
-			},
-			open: (editor, options, group) => {
-				return this.onEditorOpening(editor, options, group);
 			}
 		}));
 
@@ -290,162 +248,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 	getContributedEditors(resource: URI) {
 		return this.notebookService.getContributedNotebookProviders(resource);
-	}
-
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-
-		let id = typeof options?.override === 'string' ? options.override : undefined;
-		if (id === undefined && originalInput.resource?.scheme === Schemas.untitled) {
-			return undefined;
-		}
-
-		// if (originalInput instanceof DiffEditorInput && this.configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized()) {
-		// 	return this._handleDiffEditorInput(originalInput, options, group);
-		// }
-
-		if (!originalInput.resource) {
-			return undefined;
-		}
-
-		// Run reopen with ...
-		if (id) {
-			// from the editor tab context menu
-			if (originalInput instanceof NotebookEditorInput) {
-				if (originalInput.viewType === id) {
-					// reopen with the same type
-					return undefined;
-				} else {
-					return {
-						override: (async () => {
-							const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, id);
-							const originalEditorIndex = group.getIndexOfEditor(originalInput);
-
-							await group.closeEditor(originalInput);
-							originalInput.dispose();
-							const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: EditorOverride.DISABLED });
-							if (newEditor) {
-								return newEditor;
-							} else {
-								return undefined;
-							}
-						})()
-					};
-				}
-			} else {
-				// from the file explorer
-				const existingEditors = this.editorService.findEditors(originalInput.resource, group).filter(editor => editor instanceof NotebookEditorInput) as NotebookEditorInput[];
-
-				if (existingEditors.length) {
-					// there are notebook editors with the same resource
-
-					if (existingEditors.find(editor => editor.viewType === id)) {
-						return { override: this.editorService.openEditor(existingEditors.find(editor => editor.viewType === id)!, { ...options, override: EditorOverride.DISABLED }, group) };
-					} else {
-						return {
-							override: (async () => {
-								const firstEditor = existingEditors[0]!;
-								const originalEditorIndex = group.getIndexOfEditor(firstEditor);
-
-								await group.closeEditor(firstEditor);
-								firstEditor.dispose();
-								const notebookInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource!, id);
-								const newEditor = await group.openEditor(notebookInput, { ...options, index: originalEditorIndex, override: EditorOverride.DISABLED });
-
-								if (newEditor) {
-									return newEditor;
-								} else {
-									return undefined;
-								}
-							})()
-						};
-					}
-				}
-			}
-		}
-
-		// Click on the editor tab
-		if (id === undefined && originalInput instanceof NotebookEditorInput) {
-			const existingEditors = this.editorService.findEditors(originalInput.resource, group).filter(editor => editor instanceof NotebookEditorInput && editor === originalInput);
-
-			if (existingEditors.length) {
-				// same
-				return undefined;
-			}
-		}
-
-		if (originalInput instanceof NotebookDiffEditorInput) {
-			return undefined;
-		}
-
-		let notebookUri: URI = originalInput.resource;
-		let cellOptions: IResourceEditorInput | undefined;
-
-		const data = CellUri.parse(originalInput.resource);
-		if (data) {
-			notebookUri = data.notebook;
-			cellOptions = { resource: originalInput.resource, options };
-		}
-
-		if (id === undefined && originalInput instanceof ResourceEditorInput) {
-			const exitingNotebookEditor = <NotebookEditorInput | undefined>group.editors.find(editor => editor instanceof NotebookEditorInput && isEqual(editor.resource, notebookUri));
-			id = exitingNotebookEditor?.viewType;
-		}
-
-		if (id === undefined) {
-			const existingEditors = this.editorService.findEditors(notebookUri, group).filter(editor =>
-				!(editor instanceof NotebookEditorInput)
-				&& !(editor instanceof NotebookDiffEditorInput)
-			);
-
-			if (existingEditors.length) {
-				return undefined;
-			}
-
-			const userAssociatedEditors = this.extensionContributedEditorService.getAssociationsForResource(notebookUri);
-			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
-
-			if (userAssociatedEditors.length && !notebookEditor.length) {
-				// user pick a non-notebook editor for this resource
-				return undefined;
-			}
-
-			// user might pick a notebook editor
-
-			const associatedEditors = distinct([
-				...this.getUserAssociatedNotebookEditors(notebookUri),
-				...(this.getContributedEditors(notebookUri).filter(editor => editor.priority === ContributedEditorPriority.default))
-			], editor => editor.id);
-
-			if (!associatedEditors.length) {
-				// there is no notebook editor contribution which is enabled by default
-				return undefined;
-			}
-		}
-
-		const infos = this.notebookService.getContributedNotebookProviders(notebookUri);
-		let info = infos.find(info => (!id || info.id === id) && info.exclusive) || infos.find(info => !id || info.id === id);
-
-		if (!info && id !== undefined) {
-			info = this.notebookService.getContributedNotebookProvider(id);
-		}
-
-		if (!info) {
-			return undefined;
-		}
-
-
-		/**
-		 * Scenario: we are reopening a file editor input which is pinned, we should open in a new editor tab.
-		 */
-		let index = undefined;
-		if (group.activeEditor === originalInput && isEqual(originalInput.resource, notebookUri)) {
-			const originalEditorIndex = group.getIndexOfEditor(originalInput);
-			index = group.isPinned(originalInput) ? originalEditorIndex + 1 : originalEditorIndex;
-		}
-
-		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, info.id);
-		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: EditorOverride.DISABLED, index });
-		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 }
 

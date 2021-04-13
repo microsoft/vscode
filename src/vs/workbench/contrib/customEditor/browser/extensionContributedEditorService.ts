@@ -15,7 +15,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
-import { EditorOptions, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorInput, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
@@ -43,8 +43,8 @@ interface ContributionPoint {
 	priority: number,
 	editorInfo: ContributedEditorInfo,
 	options: ContributionPointOptions,
-	createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-	createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => IEditorInput
+	createEditorInput: EditorInputFactoryFunction
+	createDiffEditorInput?: DiffEditorInputFactoryFunction
 }
 
 type ContributionPoints = Array<ContributionPoint>;
@@ -64,6 +64,10 @@ export type ContributedEditorInfo = {
 	priority: ContributedEditorPriority;
 };
 
+type EditorInputFactoryFunction = (resource: URI, editorID: string, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+
+type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, editorID: string, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+
 export interface IExtensionContributedEditorService {
 	readonly _serviceBrand: undefined;
 	contributedEditorOverride(handler: IExtensionContributedEditorHandler): IDisposable;
@@ -82,8 +86,8 @@ export interface IExtensionContributedEditorService {
 		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
-		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => IEditorInput
+		createEditorInput: EditorInputFactoryFunction,
+		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable;
 }
 
@@ -167,8 +171,8 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
-		createEditorInput: (resource: URI, editorID: string, group: IEditorGroup) => IEditorInput,
-		createDiffEditorInput?: (diffEditorInput: DiffEditorInput, editorID: string, group: IEditorGroup) => IEditorInput
+		createEditorInput: EditorInputFactoryFunction,
+		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable {
 		if (this._contributionPoints.get(scheme ?? globPattern) === undefined) {
 			this._contributionPoints.set(scheme ?? globPattern, []);
@@ -230,24 +234,27 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 
 	private async doHandleEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, selectedContribution: ContributionPoint) {
 
+		// If no activation option is provided, populate it.
+		if (options && typeof options.activation === 'undefined') {
+			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
+		}
+
 		// If it's a diff editor we trigger the create diff editor input
 		if (editor instanceof DiffEditorInput) {
 			if (!selectedContribution.createDiffEditorInput) {
 				return;
 			}
-			const input = selectedContribution.createDiffEditorInput(editor, selectedContribution.editorInfo.id, group);
-			return group.openEditor(input, options);
+			const inputWithOptions = selectedContribution.createDiffEditorInput(editor, selectedContribution.editorInfo.id, options, group);
+			return group.openEditor(inputWithOptions.editor, inputWithOptions.options ?? options);
 		}
 
 		// We only call this function from one place and there we do the check to ensure editor.resource is not undefined
 		const resource = editor.resource!;
 
-		const input = selectedContribution.createEditorInput(resource, selectedContribution.editorInfo.id, group);
-
-		// If no activation option is provided, populate it.
-		if (options && typeof options.activation === 'undefined') {
-			options = { ...options, activation: options.preserveFocus ? EditorActivation.RESTORE : undefined };
-		}
+		// Respect options passed back
+		const inputWithOptions = selectedContribution.createEditorInput(resource, selectedContribution.editorInfo.id, options, group);
+		options = inputWithOptions.options ?? options;
+		const input = inputWithOptions.editor;
 
 		// If the editor states it can only be opened once per resource we must close all existing ones first
 		const singleEditorPerResource = typeof selectedContribution.options.singlePerResource === 'function' ? selectedContribution.options.singlePerResource() : selectedContribution.options.singlePerResource;
