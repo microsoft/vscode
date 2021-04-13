@@ -186,8 +186,16 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
 		let item = node.element;
+		template.element.classList.toggle('has-text', !this.shouldHideText());
 		if (this.shouldHideText()) {
-			if ('icon' in item) {
+			if ('terminalInstances' in item) {
+				if (item.terminalInstances.length === 1) {
+					const instance = item.terminalInstances[0];
+					label = `$(${instance.icon.id})`;
+				} else if (item.terminalInstances.length > 1) {
+					label = `Tab (${item.terminalInstances.length})`;
+				}
+			} else {
 				const tab = this._terminalService.getTabForInstance(item);
 				const terminalIndex = tab?.terminalInstances.indexOf(item);
 				if (terminalIndex === 0) {
@@ -197,10 +205,10 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 				} else {
 					label = `├ $(${item.icon.id})`;
 				}
-				template.actionBar.clear();
-				template.label.setLabel(label);
-				return;
 			}
+			template.actionBar.clear();
+			template.label.setLabel(label);
+			return;
 		}
 		if ('terminalInstances' in item) {
 			if (item.terminalInstances.length === 1) {
@@ -208,7 +216,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 				label = `$(${instance.icon.id}) ${instance.title}`;
 				this.fillActionBar(template);
 			} else if (item.terminalInstances.length > 1) {
-				label = `Terminals (${item.terminalInstances.length})`;
+				label = `Tab (${item.terminalInstances.length})`;
 				template.actionBar.clear();
 			}
 		} else {

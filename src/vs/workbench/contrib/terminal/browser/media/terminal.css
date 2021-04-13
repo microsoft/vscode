@@ -203,7 +203,12 @@
 }
 
 .tabs-widget .terminal-tabs-entry {
+	text-align: center;
+}
+
+.tabs-widget .terminal-tabs-entry.has-text {
 	padding-left: 10px;
+	text-align: left;
 }
 
 .monaco-workbench .tabs-widget .codicon {
