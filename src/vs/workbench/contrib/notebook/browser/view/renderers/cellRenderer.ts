@@ -837,7 +837,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		if (metadata.runState === NotebookCellExecutionState.Executing) {
 			if (metadata.runStartTime) {
-				templateData.elementDisposables.add(templateData.timer.start(metadata.runStartTime));
+				templateData.elementDisposables.add(templateData.timer.start(metadata.runStartTime, metadata.runStartTimeAdjustment ?? 0));
 			} else {
 				templateData.timer.clear();
 			}
@@ -1015,12 +1015,11 @@ export class TimerRenderer {
 
 	private intervalTimer: number | undefined;
 
-	start(startTime: number): IDisposable {
+	start(startTime: number, adjustment: number): IDisposable {
 		this.stop();
-
 		DOM.show(this.container);
 		const intervalTimer = setInterval(() => {
-			const duration = Date.now() - startTime;
+			const duration = Date.now() - startTime + adjustment;
 			this.container.textContent = this.formatDuration(duration);
 		}, 100);
 		this.intervalTimer = intervalTimer as unknown as number | undefined;

@@ -1622,6 +1622,7 @@ export namespace NotebookDocumentContentOptions {
 				lastRunDuration: true,
 				runState: true,
 				runStartTime: true,
+				runStartTimeAdjustment: true,
 				lastRunSuccess: true
 			}
 		};
