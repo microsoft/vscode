@@ -33,7 +33,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
 const MIN_TABS_WIDGET_WIDTH = 46;
-const SNAP_TABS_WIDGET_WIDTH = 124;
+const DEFAULT_TABS_WIDGET_WIDTH = 124;
+const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
 
 export class TerminalTabbedView extends Disposable {
 
@@ -144,7 +145,7 @@ export class TerminalTabbedView extends Disposable {
 	private _getLastWidgetWidth(): number {
 		const storedValue = this._storageService.get(TABS_WIDGET_WIDTH_KEY, StorageScope.WORKSPACE);
 		if (!storedValue || !parseInt(storedValue)) {
-			return SNAP_TABS_WIDGET_WIDTH;
+			return DEFAULT_TABS_WIDGET_WIDTH;
 		}
 		return parseInt(storedValue);
 	}
@@ -154,10 +155,7 @@ export class TerminalTabbedView extends Disposable {
 		if (!this._width || widgetWidth <= 0) {
 			return;
 		}
-		if (widgetWidth < SNAP_TABS_WIDGET_WIDTH) {
-			widgetWidth = MIN_TABS_WIDGET_WIDTH;
-			this._splitView.resizeView(this._tabTreeIndex, widgetWidth);
-		}
+		widgetWidth = this._updateWidgetWidth(widgetWidth);
 		for (const tab of this._terminalService.terminalTabs) {
 			this._tabsWidget.rerender(tab);
 			if (tab.terminalInstances.length > 1) {
@@ -168,6 +166,17 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._plusButton!.classList.toggle('align-left', widgetWidth !== MIN_TABS_WIDGET_WIDTH);
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private _updateWidgetWidth(width: number): number {
+		if (width < MIDPOINT_WIDGET_WIDTH && width > MIN_TABS_WIDGET_WIDTH) {
+			width = MIN_TABS_WIDGET_WIDTH;
+			this._splitView.resizeView(this._tabTreeIndex, width);
+		} else if (width > MIDPOINT_WIDGET_WIDTH && width < DEFAULT_TABS_WIDGET_WIDTH) {
+			width = DEFAULT_TABS_WIDGET_WIDTH;
+			this._splitView.resizeView(this._tabTreeIndex, width);
+		}
+		return width;
 	}
 
 	private _setupSplitView(): void {
@@ -203,7 +212,6 @@ export class TerminalTabbedView extends Disposable {
 		this._height = height;
 		this._width = width;
 		this._splitView.layout(width);
-		this._tabsWidget.getHTMLElement().style.zIndex = `10`;
 		if (this._showTabs) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 		}

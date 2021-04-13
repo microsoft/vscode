@@ -201,11 +201,13 @@
 	min-height: 10;
 	flex-grow: 0;
 	text-align: center;
+	z-index: 10;
 }
 
 #terminal-tabs-plus-button.align-left {
 	padding-left: 10px;
 	text-align: left;
+	z-index: 10;
 }
 
 .tabs-container {
@@ -217,7 +219,7 @@
 	text-align: center;
 }
 
-.tabs-widget .has-text {
+.tabs-widget .terminal-tabs-entry.has-text {
 	padding-left: 10px;
 	text-align: left;
 }
@@ -238,8 +240,6 @@
 	padding: 2px;
 }
 
-/* .tabs-widget .monaco-list-row.selected .actions, */
-/* .tabs-widget .monaco-list-row.focused .actions */
 .tabs-widget .monaco-list-row:hover .actions
 {
 	display: block;

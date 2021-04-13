@@ -179,12 +179,13 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.offsetWidth < 70 : false;
+		return this._container ? this._container.clientWidth < 124 : false;
 	}
 
 	renderElement(node: ITreeNode<ITabTreeNode>, index: number, template: ITerminalTabEntryTemplate): void {
 		let label = '';
 		let item = node.element;
+		console.log(this.shouldHideText());
 		template.element.classList.toggle('has-text', !this.shouldHideText());
 		if (this.shouldHideText()) {
 			if ('terminalInstances' in item) {
