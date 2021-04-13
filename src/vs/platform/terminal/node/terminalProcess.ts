@@ -300,7 +300,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public shutdown(immediate: boolean): void {
-		if (immediate) {
+		if (immediate && !platform.isWindows) {
 			this._kill();
 		} else {
 			if (!this._closeTimeout && !this._isDisposed) {
