@@ -10,7 +10,7 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 
-export class ExtensionEnablementOrchestrator extends Disposable implements IWorkbenchContribution {
+export class ExtensionEnablementByWorkspaceTrustRequirement extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -25,13 +25,13 @@ export class ExtensionEnablementOrchestrator extends Disposable implements IWork
 	private async onDidChangeTrustState(event: WorkspaceTrustStateChangeEvent): Promise<void> {
 		// Untrusted -> Trusted
 		if (event.currentTrustState === WorkspaceTrustState.Trusted) {
-			await this.extensionEnablementService.refreshEnablementByTrustRequirement();
+			await this.extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
 		}
 
 		// Trusted -> Untrusted
 		if (event.currentTrustState === WorkspaceTrustState.Untrusted) {
 			this.extensionService.stopExtensionHosts();
-			await this.extensionEnablementService.refreshEnablementByTrustRequirement();
+			await this.extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
 			this.extensionService.startExtensionHosts();
 		}
 	}

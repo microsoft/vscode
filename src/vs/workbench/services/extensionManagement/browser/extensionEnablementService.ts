@@ -69,7 +69,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		// Trusted extensions notification
 		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			if (this.workspaceTrustManagementService.getWorkspaceTrustState() !== WorkspaceTrustState.Trusted) {
-				this._getExtensionsByTrustRequirement().then(extensions => {
+				this._getExtensionsByWorkspaceTrustRequirement().then(extensions => {
 					if (extensions.length) {
 						this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: false });
 					}
@@ -432,13 +432,13 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
-	private async _getExtensionsByTrustRequirement(): Promise<IExtension[]> {
+	private async _getExtensionsByWorkspaceTrustRequirement(): Promise<IExtension[]> {
 		const extensions = await this.extensionManagementService.getInstalled();
 		return extensions.filter(e => this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(e.manifest) === 'onStart');
 	}
 
-	public async refreshEnablementByTrustRequirement(): Promise<void> {
-		const extensions = await this._getExtensionsByTrustRequirement();
+	public async updateEnablementByWorkspaceTrustRequirement(): Promise<void> {
+		const extensions = await this._getExtensionsByWorkspaceTrustRequirement();
 		this._onEnablementChanged.fire(extensions);
 	}
 
