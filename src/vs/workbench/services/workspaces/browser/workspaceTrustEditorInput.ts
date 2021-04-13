@@ -11,14 +11,14 @@ import { EditorInput } from 'vs/workbench/common/editor';
 export class WorkspaceTrustEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.workspaceTrust';
 
+	override get typeId(): string {
+		return WorkspaceTrustEditorInput.ID;
+	}
+
 	readonly resource: URI = URI.from({
 		scheme: Schemas.vscodeWorkspaceTrust,
 		path: `workspaceTrustEditor`
 	});
-
-	getTypeId(): string {
-		return WorkspaceTrustEditorInput.ID;
-	}
 
 	override matches(otherInput: unknown): boolean {
 		return otherInput instanceof WorkspaceTrustEditorInput;

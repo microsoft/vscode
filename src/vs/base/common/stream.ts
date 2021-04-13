@@ -626,6 +626,15 @@ export function toStream<T>(t: T, reducer: IReducer<T>): ReadableStream<T> {
 }
 
 /**
+ * Helper 
+ */
+export function emptyStream(): ReadableStream<never> {
+	const stream = newWriteableStream<never>(() => { throw new Error('not supported'); });
+	stream.end();
+	return stream;
+}
+
+/**
  * Helper to convert a T into a Readable<T>.
  */
 export function toReadable<T>(t: T): Readable<T> {

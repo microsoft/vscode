@@ -2004,6 +2004,7 @@ export interface MainThreadTestingShape {
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
 	$updateTestStateInRun(runId: string, testId: string, state: TestResultState, duration?: number): void;
 	$appendTestMessageInRun(runId: string, testId: string, message: ITestMessage): void;
+	$appendOutputToRun(runId: string, output: VSBuffer): void;
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
 	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void;
 }

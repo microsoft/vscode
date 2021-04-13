@@ -25,6 +25,10 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
+	override get typeId(): string {
+		return ResourceEditorInput.ID;
+	}
+
 	private cachedModel: ResourceEditorModel | undefined = undefined;
 	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
 
@@ -42,10 +46,6 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
-	}
-
-	getTypeId(): string {
-		return ResourceEditorInput.ID;
 	}
 
 	override getName(): string {

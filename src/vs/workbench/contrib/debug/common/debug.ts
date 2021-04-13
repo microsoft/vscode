@@ -397,6 +397,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly logMessage?: string;
 	readonly verified: boolean;
 	readonly supported: boolean;
+	readonly message?: string;
 	readonly sessionsThatVerified: string[];
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
@@ -407,7 +408,6 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endLineNumber?: number;
 	readonly column?: number;
 	readonly endColumn?: number;
-	readonly message?: string;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number, column: number | undefined };
 }
@@ -416,10 +416,9 @@ export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	readonly name: string;
 }
 
-export interface IExceptionBreakpoint extends IEnablement {
+export interface IExceptionBreakpoint extends IBaseBreakpoint {
 	readonly filter: string;
 	readonly label: string;
-	readonly condition: string | undefined;
 	readonly description: string | undefined;
 }
 

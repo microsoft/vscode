@@ -238,9 +238,19 @@ export interface IExtensionService {
 	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 
 	/**
+	 * Stops the extension hosts.
+	 */
+	stopExtensionHosts(): void;
+
+	/**
 	 * Restarts the extension host.
 	 */
-	restartExtensionHost(): void;
+	restartExtensionHost(): Promise<void>;
+
+	/**
+	 * Starts the extension hosts.
+	 */
+	startExtensionHosts(): Promise<void>;
 
 	/**
 	 * Modify the environment of the remote extension host
@@ -306,7 +316,9 @@ export class NullExtensionService implements IExtensionService {
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
-	restartExtensionHost(): void { }
+	stopExtensionHosts(): void { }
+	async restartExtensionHost(): Promise<void> { }
+	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }

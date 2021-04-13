@@ -161,7 +161,7 @@ class EditorRegistry implements IEditorRegistry {
 		if (descriptors.length > 0) {
 
 			// Ask the input for its preferred Editor
-			const preferredEditorId = input.getPreferredEditorId(descriptors.map(d => d.getId()));
+			const preferredEditorId = input.getPreferredEditorId(descriptors.map(descriptor => descriptor.getId()));
 			if (preferredEditorId) {
 				return this.getEditorById(preferredEditorId);
 			}

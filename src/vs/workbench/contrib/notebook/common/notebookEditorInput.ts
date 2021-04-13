@@ -55,7 +55,7 @@ export class NotebookEditorInput extends EditorInput {
 		super.dispose();
 	}
 
-	getTypeId(): string {
+	override get typeId(): string {
 		return NotebookEditorInput.ID;
 	}
 

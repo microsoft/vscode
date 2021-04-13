@@ -21,6 +21,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	static readonly ID: string = 'workbench.editors.untitledEditorInput';
 
+	override get typeId(): string {
+		return UntitledTextEditorInput.ID;
+	}
+
 	private modelResolve: Promise<void> | undefined = undefined;
 
 	constructor(
@@ -45,10 +49,6 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 		// a reverted untitled text editor model renders this input disposed
 		this._register(model.onDidRevert(() => this.dispose()));
-	}
-
-	getTypeId(): string {
-		return UntitledTextEditorInput.ID;
 	}
 
 	override getName(): string {

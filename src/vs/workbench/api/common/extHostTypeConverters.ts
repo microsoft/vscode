@@ -1707,6 +1707,7 @@ export namespace TestResults {
 		const serialized: ISerializedTestResults = {
 			completedAt: results.completedAt,
 			id,
+			output: results.output,
 			items: [],
 		};
 

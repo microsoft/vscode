@@ -138,6 +138,8 @@ export interface ISerializedTestResults {
 	id: string;
 	/** Time the results were compelted */
 	completedAt: number;
+	/** Raw output, given for tests published by extensiosn */
+	output?: string;
 	/** Subset of test result items */
 	items: SerializedTestResultItem[];
 }

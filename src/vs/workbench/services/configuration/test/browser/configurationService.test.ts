@@ -650,7 +650,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				'configurationService.folder.untrustedSetting': {
 					'type': 'string',
 					'default': 'isSet',
-					requireTrustedTarget: true
+					requireTrust: true
 				},
 			}
 		});
@@ -1259,13 +1259,13 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				'configurationService.workspace.testUntrustedSetting1': {
 					'type': 'string',
 					'default': 'isSet',
-					requireTrustedTarget: true,
+					requireTrust: true,
 					scope: ConfigurationScope.RESOURCE
 				},
 				'configurationService.workspace.testUntrustedSetting2': {
 					'type': 'string',
 					'default': 'isSet',
-					requireTrustedTarget: true,
+					requireTrust: true,
 					scope: ConfigurationScope.RESOURCE
 				}
 			}

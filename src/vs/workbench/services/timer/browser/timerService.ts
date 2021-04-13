@@ -572,7 +572,7 @@ export abstract class AbstractTimerService implements ITimerService {
 			windowKind: this._lifecycleService.startupKind,
 			windowCount: await this._getWindowCount(),
 			viewletId: activeViewlet?.getId(),
-			editorIds: this._editorService.visibleEditors.map(input => input.getTypeId()),
+			editorIds: this._editorService.visibleEditors.map(input => input.typeId),
 			panelId: activePanel ? activePanel.getId() : undefined,
 
 			// timers
