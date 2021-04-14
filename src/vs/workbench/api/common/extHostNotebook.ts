@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, INotebookKernelInfoDto2, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, INotebookKernelInfoDto2, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -17,8 +17,8 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import * as vscode from 'vscode';
+import { CellEditType, ICellRange, INotebookExclusiveDocumentFilter, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import type * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
@@ -28,6 +28,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { hash } from 'vs/base/common/hash';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { Cache } from 'vs/workbench/api/common/cache';
 
 class ExtHostWebviewCommWrapper extends Disposable {
 	private readonly _onDidReceiveDocumentMessage = new Emitter<any>();
@@ -214,6 +215,7 @@ type NotebookContentProviderData = {
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookKernelProviderHandlePool: number = 0;
+	private static _notebookStatusBarItemProviderHandlePool: number = 0;
 
 	private readonly _notebookProxy: MainThreadNotebookShape;
 	private readonly _notebookDocumentsProxy: MainThreadNotebookDocumentsShape;
@@ -221,6 +223,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	private readonly _notebookContentProviders = new Map<string, NotebookContentProviderData>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
+	private readonly _notebookStatusBarItemProviders = new Map<number, vscode.NotebookCellStatusBarItemProvider>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
@@ -263,6 +266,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
 
 	private _activeExecutions = new ResourceMap<NotebookCellExecutionTask>();
+
+	private _statusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
 
 	constructor(
 		mainContext: IMainContext,
@@ -386,6 +391,30 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
+	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, selector: vscode.NotebookDocumentFilter, provider: vscode.NotebookCellStatusBarItemProvider) {
+		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
+		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
+
+		this._notebookStatusBarItemProviders.set(handle, provider);
+		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, {
+			viewType: selector.viewType,
+			filenamePattern: selector.filenamePattern ? typeConverters.NotebookExclusiveDocumentPattern.from(selector.filenamePattern) : undefined
+		});
+
+		let subscription: vscode.Disposable | undefined;
+		if (eventHandle !== undefined) {
+			subscription = provider.onDidChangeCellStatusBarItems!(_ => this._notebookProxy.$emitCellStatusBarEvent(eventHandle));
+		}
+
+		return new extHostTypes.Disposable(() => {
+			this._notebookStatusBarItemProviders.delete(handle);
+			this._notebookProxy.$unregisterNotebookCellStatusBarItemProvider(handle, eventHandle);
+			if (subscription) {
+				subscription.dispose();
+			}
+		});
+	}
+
 	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
 		return new NotebookEditorDecorationType(this._notebookEditorsProxy, options).value;
 	}
@@ -464,6 +493,37 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				await adapter.resolveNotebook(kernelId, document, webComm.contentProviderComm, token);
 			}
 		});
+	}
+
+	async $provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined> {
+		const provider = this._notebookStatusBarItemProviders.get(handle);
+		const revivedUri = URI.revive(uri);
+		const document = this._documents.get(revivedUri);
+		if (!document || !provider) {
+			return;
+		}
+
+		const cell = document.getCellFromIndex(index);
+		if (!cell) {
+			return;
+		}
+
+		const result = await provider.provideCellStatusBarItems(cell.cell, token);
+		if (!result) {
+			return undefined;
+		}
+
+		const disposables = new DisposableStore();
+		const cacheId = this._statusBarCache.add([disposables]);
+		const items = (result && result.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables))) ?? undefined;
+		return {
+			cacheId,
+			items
+		};
+	}
+
+	$releaseNotebookCellStatusBarItems(cacheId: number): void {
+		this._statusBarCache.delete(cacheId);
 	}
 
 	async $resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void> {
@@ -909,25 +969,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.apiEditor);
 		}
 	}
-
-	createNotebookCellStatusBarItemInternal(cell: vscode.NotebookCell, alignment: extHostTypes.NotebookCellStatusBarAlignment | undefined, priority: number | undefined) {
-		const statusBarItem = new NotebookCellStatusBarItemInternal(this._notebookProxy, this._commandsConverter, cell, alignment, priority);
-
-		// Look up the ExtHostCell for this NotebookCell URI, bind to its disposable lifecycle
-		const parsedUri = CellUri.parse(cell.document.uri);
-		if (parsedUri) {
-			const document = this._documents.get(parsedUri.notebook);
-			if (document) {
-				const cell = document.getCell(parsedUri.handle);
-				if (cell) {
-					Event.once(cell.onDidDispose)(() => statusBarItem.dispose());
-				}
-			}
-		}
-
-		return statusBarItem;
-	}
-
 	createNotebookCellExecution(docUri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
 		const document = this.lookupNotebookDocument(docUri);
 		if (!document) {
@@ -958,181 +999,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 }
 
-export class NotebookCellStatusBarItemInternal extends Disposable {
-	private static NEXT_ID = 0;
-
-	private readonly _id = NotebookCellStatusBarItemInternal.NEXT_ID++;
-	private readonly _internalCommandRegistration: DisposableStore;
-
-	private _isDisposed = false;
-	private _alignment: extHostTypes.NotebookCellStatusBarAlignment;
-
-	constructor(
-		private readonly _proxy: MainThreadNotebookShape,
-		private readonly _commands: CommandsConverter,
-		private readonly _cell: vscode.NotebookCell,
-		alignment: extHostTypes.NotebookCellStatusBarAlignment | undefined,
-		private _priority: number | undefined) {
-		super();
-		this._internalCommandRegistration = this._register(new DisposableStore());
-		this._alignment = alignment ?? extHostTypes.NotebookCellStatusBarAlignment.Left;
-	}
-
-	private _apiItem: vscode.NotebookCellStatusBarItem | undefined;
-	get apiItem(): vscode.NotebookCellStatusBarItem {
-		if (!this._apiItem) {
-			this._apiItem = createNotebookCellStatusBarApiItem(this);
-		}
-
-		return this._apiItem;
-	}
-
-	get cell(): vscode.NotebookCell {
-		return this._cell;
-	}
-
-	get alignment(): extHostTypes.NotebookCellStatusBarAlignment {
-		return this._alignment;
-	}
-
-	set alignment(v: extHostTypes.NotebookCellStatusBarAlignment) {
-		this._alignment = v;
-		this.update();
-	}
-
-	get priority(): number | undefined {
-		return this._priority;
-	}
-
-	set priority(v: number | undefined) {
-		this._priority = v;
-		this.update();
-	}
-
-	private _text: string = '';
-	get text(): string {
-		return this._text;
-	}
-
-	set text(v: string) {
-		this._text = v;
-		this.update();
-	}
-
-	private _tooltip: string | undefined;
-	get tooltip(): string | undefined {
-		return this._tooltip;
-	}
-
-	set tooltip(v: string | undefined) {
-		this._tooltip = v;
-		this.update();
-	}
-
-	private _command?: {
-		readonly fromApi: string | vscode.Command,
-		readonly internal: ICommandDto,
-	};
-	get command(): string | vscode.Command | undefined {
-		return this._command?.fromApi;
-	}
-
-	set command(command: string | vscode.Command | undefined) {
-		if (this._command?.fromApi === command) {
-			return;
-		}
-
-		this._internalCommandRegistration.clear();
-		if (typeof command === 'string') {
-			this._command = {
-				fromApi: command,
-				internal: this._commands.toInternal({ title: '', command }, this._internalCommandRegistration),
-			};
-		} else if (command) {
-			this._command = {
-				fromApi: command,
-				internal: this._commands.toInternal(command, this._internalCommandRegistration),
-			};
-		} else {
-			this._command = undefined;
-		}
-		this.update();
-	}
-
-	private _accessibilityInformation: vscode.AccessibilityInformation | undefined;
-	get accessibilityInformation(): vscode.AccessibilityInformation | undefined {
-		return this._accessibilityInformation;
-	}
-
-	set accessibilityInformation(v: vscode.AccessibilityInformation | undefined) {
-		this._accessibilityInformation = v;
-		this.update();
-	}
-
-	private _visible: boolean = false;
-	show(): void {
-		this._visible = true;
-		this.update();
-	}
-
-	hide(): void {
-		this._visible = false;
-		this.update();
-	}
-
-	override dispose(): void {
-		this.hide();
-		this._isDisposed = true;
-		this._internalCommandRegistration.dispose();
-	}
-
-	private update(): void {
-		if (this._isDisposed) {
-			return;
-		}
-
-		const entry: INotebookCellStatusBarEntry = {
-			alignment: this.alignment === extHostTypes.NotebookCellStatusBarAlignment.Left ? CellStatusbarAlignment.LEFT : CellStatusbarAlignment.RIGHT,
-			cellResource: this.cell.document.uri,
-			command: this._command?.internal,
-			text: this.text,
-			tooltip: this.tooltip,
-			accessibilityInformation: this.accessibilityInformation,
-			priority: this.priority,
-			visible: this._visible
-		};
-
-		this._proxy.$setStatusBarEntry(this._id, entry);
-	}
-}
-
-function createNotebookCellStatusBarApiItem(internalItem: NotebookCellStatusBarItemInternal): vscode.NotebookCellStatusBarItem {
-	return Object.freeze({
-		cell: internalItem.cell,
-		get alignment() { return internalItem.alignment; },
-		set alignment(v: NotebookCellStatusBarItemInternal['alignment']) { internalItem.alignment = v; },
-
-		get priority() { return internalItem.priority; },
-		set priority(v: NotebookCellStatusBarItemInternal['priority']) { internalItem.priority = v; },
-
-		get text() { return internalItem.text; },
-		set text(v: NotebookCellStatusBarItemInternal['text']) { internalItem.text = v; },
-
-		get tooltip() { return internalItem.tooltip; },
-		set tooltip(v: NotebookCellStatusBarItemInternal['tooltip']) { internalItem.tooltip = v; },
-
-		get command() { return internalItem.command; },
-		set command(v: NotebookCellStatusBarItemInternal['command']) { internalItem.command = v; },
-
-		get accessibilityInformation() { return internalItem.accessibilityInformation; },
-		set accessibilityInformation(v: NotebookCellStatusBarItemInternal['accessibilityInformation']) { internalItem.accessibilityInformation = v; },
-
-		show() { internalItem.show(); },
-		hide() { internalItem.hide(); },
-		dispose() { internalItem.dispose(); }
-	});
-}
-
 enum NotebookCellExecutionTaskState {
 	Init,
 	Started,
@@ -1160,7 +1026,7 @@ class NotebookCellExecutionTask extends Disposable {
 
 		this._executionOrder = _cell.internalMetadata.executionOrder;
 		this.mixinMetadata({
-			runState: NotebookCellExecutionState.Pending,
+			runState: extHostTypes.NotebookCellExecutionState.Pending,
 			lastRunDuration: null,
 			executionOrder: null
 		});
@@ -1223,7 +1089,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: NotebookCellExecutionState.Executing,
+					runState: extHostTypes.NotebookCellExecutionState.Executing,
 					runStartTime: context?.startTime
 				});
 			},
@@ -1237,7 +1103,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that._onDidChangeState.fire();
 
 				that.mixinMetadata({
-					runState: NotebookCellExecutionState.Idle,
+					runState: extHostTypes.NotebookCellExecutionState.Idle,
 					lastRunSuccess: result?.success ?? null,
 					lastRunDuration: result?.duration ?? null,
 				});

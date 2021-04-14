@@ -1740,7 +1740,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.deltaCellDecorations(cellDecorations || [], []);
 	}
 
-
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
 		return this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
 	}
