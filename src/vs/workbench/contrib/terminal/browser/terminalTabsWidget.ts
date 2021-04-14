@@ -201,8 +201,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 				}
 			}
 			template.actionBar.clear();
-			template.label.setLabel(label);
-			return;
+			return this.setLabel(item, template, label);
 		}
 		if ('terminalInstances' in item) {
 			if (item.terminalInstances.length === 1) {
@@ -225,7 +224,32 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 			}
 			this.fillActionBar(template);
 		}
-		template.label.setLabel(label);
+		return this.setLabel(item, template, label);
+	}
+
+	setLabel(node: ITabTreeNode, template: ITerminalTabEntryTemplate, label: string): void {
+		if (label.includes('Tab')) {
+			template.label.setLabel(label);
+			return;
+		}
+
+		const instance = 'terminalInstances' in node ? node.terminalInstances[0] : node;
+
+		const statusIconId = instance.statusList.primary?.icon?.id;
+		if (statusIconId) {
+			template.label.setLabel(`${label} $(${statusIconId})`);
+		} else {
+			template.label.setLabel(label);
+		}
+
+		instance.statusList.onDidChangePrimaryStatus(e => {
+			const statusIconId = e?.icon?.id;
+			if (statusIconId) {
+				template.label.setLabel(`${label} $(${statusIconId})`);
+			} else {
+				template.label.setLabel(label);
+			}
+		});
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
