@@ -655,7 +655,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private whenReadyResolve: (() => void) | undefined;
-	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+	protected readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
 
 	private whenRestoredResolve: (() => void) | undefined;
 	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));

@@ -39,7 +39,7 @@ export abstract class BackupTracker extends Disposable {
 		protected readonly backupFileService: IBackupFileService,
 		protected readonly workingCopyService: IWorkingCopyService,
 		protected readonly logService: ILogService,
-		protected readonly lifecycleService: ILifecycleService,
+		private readonly lifecycleService: ILifecycleService,
 		protected readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();

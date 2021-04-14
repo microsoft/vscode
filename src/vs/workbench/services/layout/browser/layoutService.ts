@@ -122,12 +122,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	layout(): void;
 
 	/**
-	 * A promise that resolves when the parts have been asked to restore
-	 * but before e.g. the editor part having loaded visible editors.
-	 */
-	readonly whenReady: Promise<void>;
-
-	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
 	 * this means that the contents of visible editors have loaded.
 	 */

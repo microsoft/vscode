@@ -131,7 +131,7 @@ export class Workbench extends Layout {
 			// Services
 			const instantiationService = this.initServices(this.serviceCollection);
 
-			instantiationService.invokeFunction(async accessor => {
+			instantiationService.invokeFunction(accessor => {
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -160,7 +160,7 @@ export class Workbench extends Layout {
 				this.layout();
 
 				// Restore
-				this.restore(accessor.get(ILogService), lifecycleService);
+				this.restore(lifecycleService);
 			});
 
 			return instantiationService;
@@ -399,7 +399,7 @@ export class Workbench extends Layout {
 		});
 	}
 
-	private restore(logService: ILogService, lifecycleService: ILifecycleService): void {
+	private restore(lifecycleService: ILifecycleService): void {
 
 		// Ask each part to restore
 		try {
