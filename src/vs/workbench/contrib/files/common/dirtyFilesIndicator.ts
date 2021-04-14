@@ -36,7 +36,7 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onWorkingCopyDidChangeDirty(workingCopy)));
 
 		// Lifecycle
-		this.lifecycleService.onShutdown(() => this.dispose());
+		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {

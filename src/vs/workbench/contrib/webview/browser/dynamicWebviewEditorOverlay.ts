@@ -65,7 +65,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public onDidDispose = this._onDidDispose.event;
 
-	dispose() {
+	override dispose() {
 		this._isDisposed = true;
 		this.container.remove();
 		this._onDidDispose.fire();
@@ -258,14 +258,14 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		}
 	}
 
-	focus(): void { this.withWebview(webview => webview.focus()); }
-	reload(): void { this.withWebview(webview => webview.reload()); }
-	selectAll(): void { this.withWebview(webview => webview.selectAll()); }
-	copy(): void { this.withWebview(webview => webview.copy()); }
-	paste(): void { this.withWebview(webview => webview.paste()); }
-	cut(): void { this.withWebview(webview => webview.cut()); }
-	undo(): void { this.withWebview(webview => webview.undo()); }
-	redo(): void { this.withWebview(webview => webview.redo()); }
+	focus(): void { this._webview.value?.focus(); }
+	reload(): void { this._webview.value?.reload(); }
+	selectAll(): void { this._webview.value?.selectAll(); }
+	copy(): void { this._webview.value?.copy(); }
+	paste(): void { this._webview.value?.paste(); }
+	cut(): void { this._webview.value?.cut(); }
+	undo(): void { this._webview.value?.undo(); }
+	redo(): void { this._webview.value?.redo(); }
 
 	showFind() {
 		if (this._webview.value) {
@@ -279,11 +279,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		this._webview.value?.hideFind();
 	}
 
-	runFindAction(previous: boolean): void { this.withWebview(webview => webview.runFindAction(previous)); }
-
-	public getInnerWebview() {
-		return this._webview.value;
-	}
+	runFindAction(previous: boolean): void { this._webview.value?.runFindAction(previous); }
 
 	private withWebview(f: (webview: Webview) => void): void {
 		if (this._webview.value) {
@@ -292,10 +288,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	}
 
 	windowDidDragStart() {
-		this.withWebview(webview => webview.windowDidDragStart());
+		this._webview.value?.windowDidDragStart();
 	}
 
 	windowDidDragEnd() {
-		this.withWebview(webview => webview.windowDidDragEnd());
+		this._webview.value?.windowDidDragEnd();
 	}
 }

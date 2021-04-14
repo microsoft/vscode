@@ -357,9 +357,7 @@ CommandsRegistry.registerCommand({
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			const input = editorService.createEditorInput({ resource: uri });
-
-			return editorService.openEditor(input, { override: EditorOverride.PICK });
+			return editorService.openEditor({ resource: uri, options: { override: EditorOverride.PICK } });
 		}
 
 		return undefined;
@@ -440,6 +438,7 @@ function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyAr
 async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
 	const editorService = accessor.get(IEditorService);
 	const notificationService = accessor.get(INotificationService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	try {
 		await editorService.save(editors, options);
@@ -450,7 +449,7 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
 				actions: {
 					primary: [
-						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => editorService.save(editors, options) }),
+						toAction({ id: 'workbench.action.files.saveEditors', label: nls.localize('retry', "Retry"), run: () => instantiationService.invokeFunction(accessor => doSaveEditors(accessor, editors, options)) }),
 						toAction({ id: 'workbench.action.files.revertEditors', label: nls.localize('discard', "Discard"), run: () => editorService.revert(editors) })
 					]
 				}
@@ -681,9 +680,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (typeof args?.viewType === 'string') {
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 
-			const textInput = editorService.createEditorInput({ options: { pinned: true } });
 			const group = editorGroupsService.activeGroup;
-			await editorService.openEditor(textInput, { override: args.viewType, pinned: true }, group);
+			await editorService.openEditor({ options: { override: args.viewType, pinned: true } }, group);
 		} else {
 			await editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 		}

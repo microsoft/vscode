@@ -137,7 +137,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		for (let i = 0, len = extensionsDescriptions.length; i < len; i++) {
 			const extensionDescription = extensionsDescriptions[i];
 
-			let profileInfo: IExtensionProfileInformation | null = null;
+			let extProfileInfo: IExtensionProfileInformation | null = null;
 			if (profileInfo) {
 				let extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
 				let extensionTotalTime = 0;
@@ -146,7 +146,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					const endTime = extensionSegments[2 * j + 1];
 					extensionTotalTime += (endTime - startTime);
 				}
-				profileInfo = {
+				extProfileInfo = {
 					segments: extensionSegments,
 					totalTime: extensionTotalTime
 				};
@@ -157,7 +157,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				description: extensionDescription,
 				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
 				status: statusMap[extensionDescription.identifier.value],
-				profileInfo: profileInfo || undefined,
+				profileInfo: extProfileInfo || undefined,
 				unresponsiveProfile: this._getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
@@ -477,7 +477,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 		super(id, label);
 	}
 
-	public async run(e?: any): Promise<any> {
+	public async override run(e?: any): Promise<any> {
 		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true, pinned: true });
 	}
 }

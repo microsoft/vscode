@@ -230,7 +230,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		const editor = this.editorService.activeEditor;
 
 		// Ensure that the welcome editor won't get opened more than once
-		if (editor?.getTypeId() === startupEditorTypeID || this.editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
+		if (editor?.typeId === startupEditorTypeID || this.editorService.editors.some(e => e.typeId === startupEditorTypeID)) {
 			return;
 		}
 		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
@@ -269,7 +269,7 @@ export class WelcomePageAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
+	public override run(): Promise<void> {
 		return this.instantiationService.createInstance(WelcomePage)
 			.openEditor()
 			.then(() => undefined);
@@ -418,7 +418,7 @@ class WelcomePage extends Disposable {
 
 	) {
 		super();
-		this._register(lifecycleService.onShutdown(() => this.dispose()));
+		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);

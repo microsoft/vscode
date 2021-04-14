@@ -7,6 +7,8 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -45,8 +47,26 @@ export interface IConfigurationCache {
 
 }
 
+export type UntrustedSettings = {
+	userLocal?: ReadonlyArray<string>;
+	userRemote?: ReadonlyArray<string>;
+	workspace?: ReadonlyArray<string>;
+	workspaceFolder?: ResourceMap<ReadonlyArray<string>>;
+	all?: ReadonlyArray<string>;
+};
+
 export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
+	/**
+	 * List of untrusted settings
+	 */
+	readonly unTrustedSettings: UntrustedSettings;
+
+	/**
+	 * Event that triggers when the list of untrusted settings changes
+	 */
+	readonly onDidChangeUntrustdSettings: Event<UntrustedSettings>;
+
 	/**
 	 * A promise that resolves when the remote configuration is loaded in a remote window.
 	 * The promise is resolved immediately if the window is not remote.

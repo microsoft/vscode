@@ -9,13 +9,12 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
-import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { ProcessExplorerStyles, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import * as dom from 'vs/base/browser/dom';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { append, $ } from 'vs/base/browser/dom';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ByteSize } from 'vs/platform/files/common/files';
@@ -105,11 +104,11 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, voi
 	templateId: string = 'header';
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const data = Object.create(null);
-		const row = dom.append(container, dom.$('.row'));
-		data.name = dom.append(row, dom.$('.nameLabel'));
-		data.CPU = dom.append(row, dom.$('.cpu'));
-		data.memory = dom.append(row, dom.$('.memory'));
-		data.PID = dom.append(row, dom.$('.pid'));
+		const row = append(container, $('.row'));
+		data.name = append(row, $('.nameLabel'));
+		data.CPU = append(row, $('.cpu'));
+		data.memory = append(row, $('.memory'));
+		data.PID = append(row, $('.pid'));
 		return data;
 	}
 	renderElement(node: ITreeNode<ProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
@@ -128,8 +127,8 @@ class MachineRenderer implements ITreeRenderer<MachineProcessInformation, void, 
 	templateId: string = 'machine';
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
 		const data = Object.create(null);
-		const row = dom.append(container, dom.$('.row'));
-		data.name = dom.append(row, dom.$('.nameLabel'));
+		const row = append(container, $('.row'));
+		data.name = append(row, $('.nameLabel'));
 		return data;
 	}
 	renderElement(node: ITreeNode<MachineProcessInformation, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
@@ -144,8 +143,8 @@ class ErrorRenderer implements ITreeRenderer<IRemoteDiagnosticError, void, IProc
 	templateId: string = 'error';
 	renderTemplate(container: HTMLElement): IProcessRowTemplateData {
 		const data = Object.create(null);
-		const row = dom.append(container, dom.$('.row'));
-		data.name = dom.append(row, dom.$('.nameLabel'));
+		const row = append(container, $('.row'));
+		data.name = append(row, $('.nameLabel'));
 		return data;
 	}
 	renderElement(node: ITreeNode<IRemoteDiagnosticError, void>, index: number, templateData: IProcessRowTemplateData, height: number | undefined): void {
@@ -163,12 +162,12 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 	templateId: string = 'process';
 	renderTemplate(container: HTMLElement): IProcessItemTemplateData {
 		const data = <IProcessItemTemplateData>Object.create(null);
-		const row = dom.append(container, dom.$('.row'));
+		const row = append(container, $('.row'));
 
-		data.name = dom.append(row, dom.$('.nameLabel'));
-		data.CPU = dom.append(row, dom.$('.cpu'));
-		data.memory = dom.append(row, dom.$('.memory'));
-		data.PID = dom.append(row, dom.$('.pid'));
+		data.name = append(row, $('.nameLabel'));
+		data.CPU = append(row, $('.cpu'));
+		data.memory = append(row, $('.memory'));
+		data.PID = append(row, $('.pid'));
 
 		return data;
 	}
@@ -226,8 +225,6 @@ class ProcessExplorer {
 
 	private mapPidToWindowTitle = new Map<number, string>();
 
-	private listeners = new DisposableStore();
-
 	private nativeHostService: INativeHostService;
 
 	private tree: DataTree<any, ProcessTree | MachineProcessInformation | ProcessItem | ProcessInformation | IRemoteDiagnosticError, any> | undefined;
@@ -277,7 +274,6 @@ class ProcessExplorer {
 				e.stopPropagation();
 				e.preventDefault();
 
-				this.dispose();
 				ipcRenderer.send('vscode:closeProcessExplorer');
 			}
 
@@ -477,16 +473,12 @@ class ProcessExplorer {
 			}
 		}, 200);
 	}
-
-	public dispose() {
-		this.listeners.dispose();
-	}
 }
 
-export function startup({ windowId, data }: { windowId: number, data: ProcessExplorerData }): void {
-	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
+export function startup(configuration: ProcessExplorerWindowConfiguration): void {
+	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
 	document.body.classList.add(platformClass); // used by our fonts
-	applyZoom(data.zoomLevel);
+	applyZoom(configuration.data.zoomLevel);
 
-	new ProcessExplorer(windowId, data);
+	new ProcessExplorer(configuration.windowId, configuration.data);
 }

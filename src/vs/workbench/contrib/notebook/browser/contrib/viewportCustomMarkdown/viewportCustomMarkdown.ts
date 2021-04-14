@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as DOM from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CellEditState, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellKind, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { BUILTIN_RENDERER_ID, CellKind, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 class NotebookClipboardContribution extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.viewportCustomMarkdown';
 	private readonly _warmupViewport: RunOnceScheduler;
 
-	constructor(private readonly _notebookEditor: INotebookEditor) {
+	constructor(private readonly _notebookEditor: INotebookEditor,
+		@INotebookService private readonly _notebookService: INotebookService) {
 		super();
 
 		this._warmupViewport = new RunOnceScheduler(() => this._warmupViewportNow(), 200);
@@ -28,8 +32,40 @@ class NotebookClipboardContribution extends Disposable implements INotebookEdito
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.viewModel?.viewCells[index];
 
-			if (cell?.cellKind === CellKind.Markdown && cell?.editState === CellEditState.Preview) {
+			if (cell?.cellKind === CellKind.Markdown && cell?.editState === CellEditState.Preview && !cell.metadata?.inputCollapsed) {
 				this._notebookEditor.createMarkdownPreview(cell);
+			} else if (cell?.cellKind === CellKind.Code) {
+				const viewCell = (cell as CodeCellViewModel);
+				const outputs = viewCell.outputsViewModels;
+				for (let output of outputs) {
+					const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
+					if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
+						continue;
+					}
+
+					const pickedMimeTypeRenderer = mimeTypes[pick];
+
+					if (!pickedMimeTypeRenderer) {
+						return;
+					}
+
+					if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
+						const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
+						if (renderer?.getType() === RenderOutputType.Html) {
+							const renderResult = renderer!.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), undefined) as IInsetRenderOutput;
+							this._notebookEditor.createOutput(viewCell, renderResult, 0);
+						}
+						return;
+					}
+					const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
+
+					if (!renderer) {
+						return;
+					}
+
+					const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
+					this._notebookEditor.createOutput(viewCell, result, 0);
+				}
 			}
 		});
 	}

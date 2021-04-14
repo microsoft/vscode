@@ -69,6 +69,7 @@ import { insane } from 'vs/base/common/insane/insane';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 
 function removeEmbeddedSVGs(documentContent: string): string {
 	return insane(documentContent, {
@@ -201,6 +202,7 @@ export class ExtensionEditor extends EditorPane {
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
+	private readonly keybindingLabelStylers = this.contentDisposables.add(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
 	private editorLoadComplete: boolean = false;
 
@@ -209,7 +211,7 @@ export class ExtensionEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IThemeService protected themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -282,7 +284,8 @@ export class ExtensionEditor extends EditorPane {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
 				}
 				return undefined;
-			}
+			},
+			focusOnlyEnabledItems: true
 		}));
 
 		const subtextContainer = append(details, $('.subtext-container'));
@@ -343,7 +346,7 @@ export class ExtensionEditor extends EditorPane {
 		return disposables;
 	}
 
-	async setInput(input: ExtensionsInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ExtensionsInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (this.template) {
 			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
@@ -464,6 +467,7 @@ export class ExtensionEditor extends EditorPane {
 
 		template.extensionActionBar.clear();
 		template.extensionActionBar.push(actions, { icon: true, label: true });
+		template.extensionActionBar.setFocusable(true);
 		for (const disposable of [...actions, ...widgets, extensionContainers]) {
 			this.transientDisposables.add(disposable);
 		}
@@ -522,14 +526,14 @@ export class ExtensionEditor extends EditorPane {
 		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationFn()));
 	}
 
-	clearInput(): void {
+	override clearInput(): void {
 		this.contentDisposables.clear();
 		this.transientDisposables.clear();
 
 		super.clearInput();
 	}
 
-	focus(): void {
+	override focus(): void {
 		this.activeElement?.focus();
 	}
 
@@ -639,10 +643,11 @@ export class ExtensionEditor extends EditorPane {
 					return;
 				}
 				// Only allow links with specific schemes
-				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
-					|| (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId)
-				) {
+				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
+				}
+				if (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId) {
+					this.openerService.open(link, { allowCommands: true }); // TODO@sandy081 use commands service
 				}
 			}, null, this.contentDisposables));
 
@@ -1425,9 +1430,12 @@ export class ExtensionEditor extends EditorPane {
 			return false;
 		}
 
+		this.keybindingLabelStylers.clear();
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
-			new KeybindingLabel(element, OS).set(keybinding);
+			const kbl = new KeybindingLabel(element, OS);
+			kbl.set(keybinding);
+			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 

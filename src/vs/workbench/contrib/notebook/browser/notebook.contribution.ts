@@ -16,7 +16,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,13 +23,13 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, ICustomEditorInputFactory, IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -49,6 +48,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
@@ -70,8 +72,6 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
-import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -441,11 +441,12 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	private readonly _dirtyListener: IDisposable;
 
 	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
 	) {
 
-		type E = { resource: URI, isDirty: boolean };
+		type E = IResolvedNotebookEditorModel;
 		this._dirtyListener = Event.debounce<E, E[]>(
 			this._notebookEditorModelService.onDidChangeDirty,
 			(last, current) => !last ? [current] : [...last, current],
@@ -457,13 +458,13 @@ class NotebookFileTracker implements IWorkbenchContribution {
 		this._dirtyListener.dispose();
 	}
 
-	private _openMissingDirtyNotebookEditors(inputs: { resource: URI, isDirty: boolean }[]): void {
-		const result: IResourceEditorInput[] = [];
-		for (let input of inputs) {
-			if (input.isDirty && !this._editorService.isOpen({ resource: input.resource })) {
+	private _openMissingDirtyNotebookEditors(models: IResolvedNotebookEditorModel[]): void {
+		const result: IEditorInputWithOptions[] = [];
+		for (let model of models) {
+			if (model.isDirty() && !this._editorService.isOpen({ resource: model.resource })) {
 				result.push({
-					resource: input.resource,
-					options: { inactive: true, preserveFocus: true, pinned: true }
+					editor: NotebookEditorInput.create(this._instantiationService, model.resource, model.viewType),
+					options: { inactive: true, preserveFocus: true, pinned: true, }
 				});
 			}
 		}
@@ -485,6 +486,7 @@ registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl)
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverServiceImpl, true);
 registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
 registerSingleton(INotebookEditorService, NotebookEditorWidgetService, true);
+registerSingleton(INotebookKernelService, NotebookKernelService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

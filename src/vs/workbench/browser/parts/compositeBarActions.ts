@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { dispose, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -21,6 +21,9 @@ import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDr
 import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
+import { IHoverService, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
+import { domEvent } from 'vs/base/browser/event';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -101,7 +104,7 @@ export class ActivityAction extends Action {
 		this._onDidChangeBadge.fire(this);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._onDidChangeActivity.dispose();
 		this._onDidChangeBadge.dispose();
 
@@ -122,9 +125,14 @@ export interface ICompositeBarColors {
 	dragAndDropBorder?: Color;
 }
 
+export const enum ActivityHoverAlignment {
+	LEFT, RIGHT, BELOW, ABOVE
+}
+
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	colors: (theme: IColorTheme) => ICompositeBarColors;
+	getHoverAlignment: () => ActivityHoverAlignment;
 	hasPopup?: boolean;
 }
 
@@ -132,18 +140,24 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	protected container!: HTMLElement;
 	protected label!: HTMLElement;
 	protected badge!: HTMLElement;
-	protected options!: IActivityActionViewItemOptions;
+	protected override readonly options: IActivityActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private mouseUpTimeout: any;
+	private title: string = '';
+
+	private readonly hoverDisposable = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
-		@IThemeService protected readonly themeService: IThemeService
+		@IThemeService protected readonly themeService: IThemeService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(null, action, options);
+
+		this.options = options;
 
 		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));
@@ -195,7 +209,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 
 		this.container = container;
@@ -239,6 +253,31 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		this.updateActivity();
 		this.updateStyles();
+
+		this.container.setAttribute('title', '');
+		this.container.removeAttribute('title');
+
+		this._register(domEvent(container, EventType.MOUSE_OVER, true)(() => {
+			if (!this.hoverDisposable.value) {
+				const { left, right, bottom } = this.container.getBoundingClientRect();
+				const hoverAlignment = this.options.getHoverAlignment();
+				const anchorPosition: AnchorPosition | undefined = hoverAlignment === ActivityHoverAlignment.ABOVE ? AnchorPosition.ABOVE : hoverAlignment === ActivityHoverAlignment.BELOW ? AnchorPosition.BELOW : undefined;
+				const target: IHoverTarget | HTMLElement = anchorPosition === undefined ? {
+					targetElements: [this.container],
+					x: hoverAlignment === ActivityHoverAlignment.RIGHT ? right + 2 : left - 2,
+					y: bottom - 10,
+					dispose: () => { }
+				} : this.container;
+				this.hoverDisposable.value = this.hoverService.showHover({
+					target,
+					anchorPosition,
+					text: this.title,
+				});
+			}
+		}));
+
+		this._register(domEvent(container, EventType.MOUSE_LEAVE, true)(() => this.hoverDisposable.value = undefined));
+
 	}
 
 	private onThemeChange(theme: IColorTheme): void {
@@ -326,7 +365,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.updateTitle(title);
 	}
 
-	protected updateLabel(): void {
+	protected override updateLabel(): void {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
@@ -344,15 +383,15 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	}
 
 	private updateTitle(title: string): void {
+		this.title = title;
 		[this.label, this.badge, this.container].forEach(element => {
 			if (element) {
 				element.setAttribute('aria-label', title);
-				element.title = title;
 			}
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.mouseUpTimeout) {
@@ -375,7 +414,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		});
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		this.showMenu();
 	}
 }
@@ -390,10 +429,12 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => IAction,
 		colors: (theme: IColorTheme) => ICompositeBarColors,
+		getHoverAlignment: () => ActivityHoverAlignment,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(action, { icon: true, colors, hasPopup: true }, themeService);
+		super(action, { icon: true, colors, hasPopup: true, getHoverAlignment }, themeService, hoverService);
 	}
 
 	showMenu(): void {
@@ -434,7 +475,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.actions) {
@@ -451,7 +492,7 @@ class ManageExtensionAction extends Action {
 		super('activitybar.manage.extension', localize('manageExtension', "Manage Extension"));
 	}
 
-	run(id: string): Promise<void> {
+	override run(id: string): Promise<void> {
 		return this.commandService.executeCommand('_extensions.manage', id);
 	}
 }
@@ -463,20 +504,20 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	private compositeActivity: IActivity | undefined;
 
 	constructor(
-		private compositeActivityAction: ActivityAction,
-		private toggleCompositePinnedAction: IAction,
-		private compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
-		private contextMenuActionsProvider: () => IAction[],
-		colors: (theme: IColorTheme) => ICompositeBarColors,
-		icon: boolean,
-		private dndHandler: ICompositeDragAndDrop,
-		private compositeBar: ICompositeBar,
+		options: IActivityActionViewItemOptions,
+		private readonly compositeActivityAction: ActivityAction,
+		private readonly toggleCompositePinnedAction: IAction,
+		private readonly compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
+		private readonly contextMenuActionsProvider: () => IAction[],
+		private readonly dndHandler: ICompositeDragAndDrop,
+		private readonly compositeBar: ICompositeBar,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(compositeActivityAction, { draggable: true, colors, icon }, themeService);
+		super(compositeActivityAction, options, themeService, hoverService);
 
 		if (!CompositeActionViewItem.manageExtensionAction) {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
@@ -497,7 +538,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	protected get activity(): IActivity {
+	protected override get activity(): IActivity {
 		if (!this.compositeActivity) {
 			this.compositeActivity = {
 				...this.compositeActivityAction.activity,
@@ -517,7 +558,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		return keybinding ? localize('titleKeybinding', "{0} ({1})", name, keybinding.getLabel()) : name;
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 
 		this.updateChecked();
@@ -652,7 +693,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		});
 	}
 
-	protected updateChecked(): void {
+	protected override updateChecked(): void {
 		if (this.getAction().checked) {
 			this.container.classList.add('checked');
 			this.container.setAttribute('aria-label', this.container.title);
@@ -667,7 +708,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this.updateStyles();
 	}
 
-	protected updateEnabled(): void {
+	protected override updateEnabled(): void {
 		if (!this.element) {
 			return;
 		}
@@ -679,7 +720,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.label.remove();
 	}
@@ -696,7 +737,7 @@ export class ToggleCompositePinnedAction extends Action {
 		this.checked = !!this.activity && this.compositeBar.isPinned(this.activity.id);
 	}
 
-	async run(context: string): Promise<void> {
+	async override run(context: string): Promise<void> {
 		const id = this.activity ? this.activity.id : context;
 
 		if (this.compositeBar.isPinned(id)) {

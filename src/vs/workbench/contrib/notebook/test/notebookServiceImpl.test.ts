@@ -23,8 +23,8 @@ suite('NotebookProviderInfoStore', function () {
 
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
-				get() { return ''; }
-				store() { }
+				override get() { return ''; }
+				override store() { }
 			},
 			new class extends mock<IExtensionService>() {
 				onDidRegisterExtensions = Event.None;
@@ -40,6 +40,7 @@ suite('NotebookProviderInfoStore', function () {
 			},
 			new class extends mock<IAccessibilityService>() {
 
+				override onDidRegisterExtensions = Event.None;
 			}
 		);
 

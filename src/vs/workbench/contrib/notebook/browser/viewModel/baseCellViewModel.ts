@@ -17,7 +17,7 @@ import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChang
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -61,6 +61,20 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this._editState === CellEditState.Preview) {
 			this.focusMode = CellFocusMode.Container;
 		}
+	}
+
+	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
+	get lineNumbers(): 'on' | 'off' | 'inherit' {
+		return this._lineNumbers;
+	}
+
+	set lineNumbers(lineNumbers: 'on' | 'off' | 'inherit') {
+		if (lineNumbers === this._lineNumbers) {
+			return;
+		}
+
+		this._lineNumbers = lineNumbers;
+		this._onDidChangeState.fire({ cellLineNumberChanged: true });
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -110,7 +124,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		public id: string,
-		private readonly _configurationService: IConfigurationService
+		private readonly _configurationService: IConfigurationService,
+		private readonly _modelService: ITextModelService,
 	) {
 		super();
 
@@ -122,6 +137,10 @@ export abstract class BaseCellViewModel extends Disposable {
 			if (e.affectsConfiguration(ShowCellStatusBarKey)) {
 				this.layoutChange({});
 			}
+
+			if (e.affectsConfiguration('notebook.lineNumbers')) {
+				this.lineNumbers = 'inherit';
+			}
 		}));
 	}
 
@@ -130,7 +149,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		return showCellStatusBar ? CELL_STATUSBAR_HEIGHT : 0;
 	}
 
-	// abstract resolveTextModel(): Promise<model.ITextModel>;
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
@@ -192,7 +210,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this.model.textModel = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
 		this._onDidChangeEditorAttachState.fire();
@@ -350,34 +367,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForPosition(line, column) + getEditorTopPadding();
 	}
 
-	cursorAtBeginEnd(): boolean {
-		if (!this._textEditor) {
-			return false;
-		}
-
-		if (!this.textModel) {
-			return false;
-		}
-
-		// only validate primary cursor
-		const selection = this._textEditor.getSelection();
-
-		// only validate empty cursor
-		if (!selection || !selection.isEmpty()) {
-			return false;
-		}
-
-		if (selection.startLineNumber === 1 && selection.startColumn === 1) {
-			return true;
-		}
-
-		if (selection.startLineNumber === this.textModel?.getLineCount() && selection.startColumn === this.textModel?.getLineMaxColumn(selection.startLineNumber)) {
-			return true;
-		}
-
-		return false;
-	}
-
 	cursorAtBoundary(): CursorAtBoundary {
 		if (!this._textEditor) {
 			return CursorAtBoundary.None;
@@ -418,7 +407,23 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.textBuffer;
 	}
 
-	abstract resolveTextModel(): Promise<model.ITextModel>;
+	/**
+	 * Text model is used for editing.
+	 */
+	async resolveTextModel(): Promise<model.ITextModel> {
+		if (!this._textModelRef || !this.textModel) {
+			this._textModelRef = await this._modelService.createModelReference(this.uri);
+			if (!this._textModelRef) {
+				throw new Error(`Cannot resolve text model for ${this.uri}`);
+			}
+
+			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+		}
+
+		return this.textModel!;
+	}
+
+	protected abstract onDidChangeTextModelContent(): void;
 
 	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
@@ -451,14 +456,11 @@ export abstract class BaseCellViewModel extends Disposable {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
-		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
-			documentMetadata.cellHasExecutionOrder;
 
 		return {
 			...(this.metadata || {}),
 			...{
 				editable,
-				hasExecutionOrder
 			}
 		};
 	}

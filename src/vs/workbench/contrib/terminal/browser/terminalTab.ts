@@ -281,7 +281,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		this._onInstancesChanged.fire();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		super.dispose();
 		if (this._container && this._tabElement) {
 			this._container.removeChild(this._tabElement);
@@ -343,10 +343,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		}
 
 		// Fire events and dispose tab if it was the last instance
-		this._onInstancesChanged.fire();
 		if (this._terminalInstances.length === 0) {
 			this._onDisposed.fire(this);
 			this.dispose();
+		} else {
+			this._onInstancesChanged.fire();
 		}
 	}
 
@@ -403,6 +404,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public get title(): string {
+		if (this._terminalInstances.length === 0) {
+			// Normally consumers should not call into title at all after the tab is disposed but
+			// this is required when the tab is used as part of a tree.
+			return '';
+		}
 		let title = this._titleWithConnectionStatus(this.terminalInstances[0]);
 		for (let i = 1; i < this.terminalInstances.length; i++) {
 			const instance = this.terminalInstances[i];

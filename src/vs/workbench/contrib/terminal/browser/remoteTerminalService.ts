@@ -65,8 +65,14 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			channel.onProcessReplay(e => this._ptys.get(e.id)?.handleReplay(e.event));
 			channel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
 
+			const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
 			channel.onExecuteCommand(async e => {
 				const reqId = e.reqId;
+				const commandId = e.commandId;
+				if (!allowedCommands.includes(commandId)) {
+					channel!.sendCommandResult(reqId, true, 'Invalid remote cli command: ' + commandId);
+					return;
+				}
 				const commandArgs = e.commandArgs.map(arg => revive(arg));
 				try {
 					const result = await this._commandService.executeCommand(e.commandId, ...commandArgs);
@@ -178,7 +184,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				title: termDto.title,
 				cwd: termDto.cwd,
 				workspaceId: termDto.workspaceId,
-				workspaceName: termDto.workspaceName
+				workspaceName: termDto.workspaceName,
+				icon: termDto.icon
 			};
 		});
 	}
@@ -191,11 +198,11 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel.setTerminalLayoutInfo(layout);
 	}
 
-	public reduceConnectionGraceTime(): void {
+	public async reduceConnectionGraceTime(): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error('Cannot reduce grace time when there is no remote');
 		}
-		this._remoteTerminalChannel.reduceConnectionGraceTime();
+		return this._remoteTerminalChannel.reduceConnectionGraceTime();
 	}
 
 	public async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> {

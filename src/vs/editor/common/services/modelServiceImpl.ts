@@ -774,7 +774,7 @@ export class ModelSemanticColoring extends Disposable {
 		this._fetchDocumentSemanticTokens.schedule(0);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._currentDocumentResponse) {
 			this._currentDocumentResponse.dispose();
 			this._currentDocumentResponse = null;

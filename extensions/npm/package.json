@@ -24,11 +24,13 @@
     "minimatch": "^3.0.4",
     "request-light": "^0.4.0",
     "vscode-nls": "^4.1.1",
+    "which": "^2.0.2",
     "which-pm": "^2.0.0"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.19.9"
+    "@types/node": "^12.19.9",
+    "@types/which": "^2.0.0"
   },
   "resolutions": {
     "which-pm/load-yaml-file/**/argparse": "1.0.9"
@@ -42,6 +44,10 @@
     "workspaceContains:package.json",
     "onView:npm"
   ],
+  "workspaceTrust": {
+    "request": "onDemand",
+    "description": "This extension calls the `tasks.executeTask()` API, which requires trust to run."
+  },
   "contributes": {
     "languages": [
       {

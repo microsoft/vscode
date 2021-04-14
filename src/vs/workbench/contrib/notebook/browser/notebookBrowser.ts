@@ -13,7 +13,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
@@ -55,6 +55,7 @@ export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEd
 export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false); // bool
 export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false); // bool
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
+export const NOTEBOOK_CELL_LINE_NUMBERS = new RawContextKey<'on' | 'off' | 'inherit'>('notebookCellLineNumbers', 'inherit'); // off, none, inherit
 export type NotebookCellExecutionStateContext = 'idle' | 'pending' | 'executing' | 'succeeded' | 'failed';
 export const NOTEBOOK_CELL_EXECUTION_STATE = new RawContextKey<NotebookCellExecutionStateContext>('notebookCellExecutionState', undefined);
 export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
@@ -108,14 +109,14 @@ export interface ICellOutputViewModel {
 	 * When rendering an output, `model` should always be used as we convert legacy `text/error` output to `display_data` output under the hood.
 	 */
 	model: ICellOutput;
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 	supportAppend(): boolean;
 	toRawJSON(): any;
 }
 
 export interface IDisplayOutputViewModel extends ICellOutputViewModel {
-	resolveMimeTypes(textModel: NotebookTextModel): [readonly IOrderedMimeType[], number];
+	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 }
 
@@ -137,6 +138,7 @@ export interface IGenericCellViewModel {
 }
 
 export interface IDisplayOutputLayoutUpdateRequest {
+	readonly cell: IGenericCellViewModel;
 	output: IDisplayOutputViewModel;
 	cellTop: number;
 	outputOffset: number;
@@ -152,7 +154,7 @@ export interface ICommonCellInfo {
 export interface INotebookCellOutputLayoutInfo {
 	width: number;
 	height: number;
-	fontInfo: BareFontInfo;
+	fontInfo: FontInfo;
 }
 
 export interface IFocusNotebookCellOptions {
@@ -181,7 +183,7 @@ export interface ICommonNotebookEditor {
 export interface NotebookLayoutInfo {
 	width: number;
 	height: number;
-	fontInfo: BareFontInfo;
+	fontInfo: FontInfo;
 }
 
 export interface NotebookLayoutChangeEvent {
@@ -198,7 +200,7 @@ export enum CodeCellLayoutState {
 }
 
 export interface CodeCellLayoutInfo {
-	readonly fontInfo: BareFontInfo | null;
+	readonly fontInfo: FontInfo | null;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly totalHeight: number;
@@ -218,11 +220,11 @@ export interface CodeCellLayoutChangeEvent {
 	outputShowMoreContainerHeight?: number;
 	totalHeight?: boolean;
 	outerWidth?: number;
-	font?: BareFontInfo;
+	font?: FontInfo;
 }
 
 export interface MarkdownCellLayoutInfo {
-	readonly fontInfo: BareFontInfo | null;
+	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
 	readonly bottomToolbarOffset: number;
@@ -230,7 +232,7 @@ export interface MarkdownCellLayoutInfo {
 }
 
 export interface MarkdownCellLayoutChangeEvent {
-	font?: BareFontInfo;
+	font?: FontInfo;
 	outerWidth?: number;
 	totalHeight?: number;
 }
@@ -247,6 +249,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	language: string;
 	cellKind: CellKind;
 	editState: CellEditState;
+	lineNumbers: 'on' | 'off' | 'inherit';
 	focusMode: CellFocusMode;
 	outputIsHovered: boolean;
 	getText(): string;
@@ -363,7 +366,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
 	activeKernel: INotebookKernel | undefined;
-	multipleKernelsAvailable: boolean;
+	readonly availableKernelCount: number;
 	readonly onDidScroll: Event<void>;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
@@ -752,6 +755,7 @@ export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): 
 }
 
 export interface IOutputTransformContribution {
+	getType(): RenderOutputType;
 	getMimetypes(): string[];
 	/**
 	 * Dispose this contribution.
@@ -821,6 +825,7 @@ export interface CellViewModelStateChangeEvent {
 	readonly outputIsHoveredChanged?: boolean;
 	readonly outputIsFocusedChanged?: boolean;
 	readonly cellIsHoveredChanged?: boolean;
+	readonly cellLineNumberChanged?: boolean;
 }
 
 export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {

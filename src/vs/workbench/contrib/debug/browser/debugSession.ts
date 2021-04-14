@@ -97,7 +97,7 @@ export class DebugSession implements IDebugSession {
 		const toDispose: IDisposable[] = [];
 		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
 		if (lifecycleService) {
-			toDispose.push(lifecycleService.onShutdown(() => {
+			toDispose.push(lifecycleService.onDidShutdown(() => {
 				this.shutdown();
 				dispose(toDispose);
 			}));
@@ -287,7 +287,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	/**
-	 * end the current debug adapter session
+	 * terminate the current debug adapter session
 	 */
 	async terminate(restart = false): Promise<void> {
 		if (!this.raw) {
@@ -300,7 +300,7 @@ export class DebugSession implements IDebugSession {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				await this.raw.terminate(restart);
 			} else {
-				await this.raw.disconnect(restart);
+				await this.raw.disconnect({ restart, terminateDebuggee: true });
 			}
 		}
 
@@ -320,7 +320,7 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		if (this.raw) {
-			await this.raw.disconnect(restart);
+			await this.raw.disconnect({ restart, terminateDebuggee: false });
 		}
 
 		if (!restart) {
@@ -408,7 +408,15 @@ export class DebugSession implements IDebugSession {
 				})
 			} : { filters: exbpts.map(exb => exb.filter) };
 
-			await this.raw.setExceptionBreakpoints(args);
+			const response = await this.raw.setExceptionBreakpoints(args);
+			if (response && response.body && response.body.breakpoints) {
+				const data = new Map<string, DebugProtocol.Breakpoint>();
+				for (let i = 0; i < exbpts.length; i++) {
+					data.set(exbpts[i].getId(), response.body.breakpoints[i]);
+				}
+
+				this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
+			}
 		}
 	}
 
@@ -797,7 +805,7 @@ export class DebugSession implements IDebugSession {
 						// Disconnect the debug session on configuration done error #10596
 						this.notificationService.error(e);
 						if (this.raw) {
-							this.raw.disconnect();
+							this.raw.disconnect({});
 						}
 					}
 				}
@@ -877,7 +885,7 @@ export class DebugSession implements IDebugSession {
 			if (event.body && event.body.restart) {
 				await this.debugService.restartSession(this, event.body.restart);
 			} else if (this.raw) {
-				await this.raw.disconnect();
+				await this.raw.disconnect({});
 			}
 		}));
 
@@ -961,6 +969,8 @@ export class DebugSession implements IDebugSession {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
 			const functionBreakpoint = this.model.getFunctionBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
+			const dataBreakpoint = this.model.getDataBreakpoints().find(dbp => dbp.getIdFromAdapter(this.getId()) === id);
+			const exceptionBreakpoint = this.model.getExceptionBreakpoints().find(excbp => excbp.getIdFromAdapter(this.getId()) === id);
 
 			if (event.body.reason === 'new' && event.body.breakpoint.source && event.body.breakpoint.line) {
 				const source = this.getSource(event.body.breakpoint.source);
@@ -982,6 +992,9 @@ export class DebugSession implements IDebugSession {
 				if (functionBreakpoint) {
 					this.model.removeFunctionBreakpoints(functionBreakpoint.getId());
 				}
+				if (dataBreakpoint) {
+					this.model.removeDataBreakpoints(dataBreakpoint.getId());
+				}
 			}
 
 			if (event.body.reason === 'changed') {
@@ -994,6 +1007,14 @@ export class DebugSession implements IDebugSession {
 				}
 				if (functionBreakpoint) {
 					const data = new Map<string, DebugProtocol.Breakpoint>([[functionBreakpoint.getId(), event.body.breakpoint]]);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
+				}
+				if (dataBreakpoint) {
+					const data = new Map<string, DebugProtocol.Breakpoint>([[dataBreakpoint.getId(), event.body.breakpoint]]);
+					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
+				}
+				if (exceptionBreakpoint) {
+					const data = new Map<string, DebugProtocol.Breakpoint>([[exceptionBreakpoint.getId(), event.body.breakpoint]]);
 					this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 				}
 			}
@@ -1047,7 +1068,7 @@ export class DebugSession implements IDebugSession {
 	private shutdown(): void {
 		dispose(this.rawListeners);
 		if (this.raw) {
-			this.raw.disconnect();
+			this.raw.disconnect({});
 			this.raw.dispose();
 			this.raw = undefined;
 		}

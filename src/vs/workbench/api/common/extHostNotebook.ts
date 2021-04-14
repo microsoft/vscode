@@ -17,7 +17,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellMetadata, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellStatusbarAlignment, CellUri, ICellRange, INotebookCellStatusBarEntry, INotebookExclusiveDocumentFilter, NotebookCellExecutionState, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, NullablePartialNotebookCellMetadata, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
@@ -124,7 +124,20 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				description: kernel.description,
 				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
-				preloads: kernel.preloads,
+				preloads: kernel.preloads?.map(preload => {
+					// todo@connor4312: back compat on 2020-04-12, remove after transition
+					if (URI.isUri(preload)) {
+						preload = { uri: preload, provides: [] };
+					}
+
+					return {
+						uri: preload.uri, provides: typeof preload.provides === 'string'
+							? [preload.provides]
+							: preload.provides === undefined
+								? []
+								: preload.provides
+					};
+				}),
 				supportedLanguages: kernel.supportedLanguages,
 				implementsInterrupt: !!kernel.interrupt
 			};
@@ -311,9 +324,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.NotebookContentProvider,
-		options?: {
-			transientOutputs: boolean;
-			transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
+		options?: vscode.NotebookDocumentContentOptions & {
 			viewOptions?: {
 				displayName: string;
 				filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];
@@ -416,7 +427,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			resolvedOptions = {
 				position: typeConverters.ViewColumn.from(options.viewColumn),
 				preserveFocus: options.preserveFocus,
-				selection: options.selection && typeConverters.NotebookCellRange.from(options.selection),
+				selections: options.selections && options.selections.map(typeConverters.NotebookCellRange.from),
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined
 			};
 		} else {
@@ -669,6 +680,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	}
 
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
+
+		if (this._editors.has(editorId)) {
+			throw new Error(`editor with id ALREADY EXSIST: ${editorId}`);
+		}
+
 		const revivedUri = document.uri;
 		let webComm = this._webviewComm.get(editorId);
 
@@ -686,13 +702,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
 		);
 
-
-		this._editors.get(editorId)?.editor.dispose();
 		this._editors.set(editorId, { editor });
 	}
 
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void {
-		let editorChanged = false;
 
 		if (delta.removedDocuments) {
 			for (const uri of delta.removedDocuments) {
@@ -702,15 +715,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				if (document) {
 					document.dispose();
 					this._documents.delete(revivedUri);
-					this._textDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: document.notebookDocument.cells.map(cell => cell.document.uri) });
+					this._textDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: document.notebookDocument.getCells().map(cell => cell.document.uri) });
 					this._onDidCloseNotebookDocument.fire(document.notebookDocument);
 				}
 
 				for (const e of this._editors.values()) {
 					if (e.editor.notebookData.uri.toString() === revivedUri.toString()) {
-						e.editor.dispose();
 						this._editors.delete(e.editor.id);
-						editorChanged = true;
 					}
 				}
 			}
@@ -782,7 +793,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 				if (document) {
 					this._createExtHostEditor(document, editorModelData.id, editorModelData);
-					editorChanged = true;
 				}
 			}
 		}
@@ -794,7 +804,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				const editor = this._editors.get(editorid);
 
 				if (editor) {
-					editorChanged = true;
 					this._editors.delete(editorid);
 
 					if (this._activeNotebookEditor?.id === editor.editor.id) {
@@ -804,12 +813,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					removedEditors.push(editor);
 				}
 			}
-		}
-
-		if (editorChanged) {
-			removedEditors.forEach(e => {
-				e.editor.dispose();
-			});
 		}
 
 		if (delta.visibleEditors) {
@@ -1007,7 +1010,7 @@ export class NotebookCellStatusBarItemInternal extends Disposable {
 		this.update();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.hide();
 		this._isDisposed = true;
 		this._internalCommandRegistration.dispose();

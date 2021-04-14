@@ -45,7 +45,7 @@ export interface ICommandAction {
 	tooltip?: string;
 	icon?: Icon;
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string };
+	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -157,6 +157,7 @@ export class MenuId {
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly TerminalContext = new MenuId('TerminalContext');
+	static readonly TerminalTabsContext = new MenuId('TerminalTabsContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -321,7 +322,7 @@ export class ExecuteCommandAction extends Action {
 		super(id, label);
 	}
 
-	run(...args: any[]): Promise<any> {
+	override run(...args: any[]): Promise<any> {
 		return this._commandService.executeCommand(this.id, ...args);
 	}
 }
@@ -337,7 +338,7 @@ export class SubmenuItemAction extends SubmenuAction {
 		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, [], 'submenu');
 	}
 
-	get actions(): readonly IAction[] {
+	override get actions(): readonly IAction[] {
 		const result: IAction[] = [];
 		const menu = this._menuService.createMenu(this.item.submenu, this._contextKeyService);
 		const groups = menu.getActions(this._options);
@@ -386,11 +387,15 @@ export class MenuItemAction implements IAction {
 
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
-				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString
+				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString, title?: string | ILocalizedString
 			};
 			this.checked = contextKeyService.contextMatchesRules(toggled.condition);
 			if (this.checked && toggled.tooltip) {
 				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+			}
+
+			if (toggled.title) {
+				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
 			}
 		}
 

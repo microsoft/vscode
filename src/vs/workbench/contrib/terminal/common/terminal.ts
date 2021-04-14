@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
@@ -103,6 +103,8 @@ export interface ITerminalConfiguration {
 	};
 	profiles: ITerminalProfiles;
 	useWslProfiles: boolean;
+	showTabs: boolean;
+	tabsLocation: 'left' | 'right';
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
@@ -191,6 +193,7 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
+	icon: string | undefined;
 }
 
 /**
@@ -237,7 +240,9 @@ export interface ITerminalProfile {
 	isAutoDetected?: boolean;
 	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
+	env?: ITerminalEnvironment;
 	overrideName?: boolean;
+	icon?: string;
 }
 
 export const enum ProfileSource {
@@ -250,6 +255,8 @@ export interface ITerminalExecutable {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
+	icon?: string;
+	env?: ITerminalEnvironment;
 }
 
 export interface ITerminalProfileSource {
@@ -257,6 +264,8 @@ export interface ITerminalProfileSource {
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	args?: string | string[] | undefined;
+	icon?: string;
+	env?: ITerminalEnvironment;
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | null;
@@ -583,6 +592,7 @@ export interface ITerminalContributions {
 export interface ITerminalTypeContribution {
 	title: string;
 	command: string;
+	icon?: string;
 }
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
@@ -605,6 +615,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						},
 						title: {
 							description: nls.localize('vscode.extension.contributes.terminal.types.title', "Title for this type of terminal."),
+							type: 'string',
+						},
+						icon: {
+							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
 							type: 'string',
 						},
 					},

@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { emptyStream } from 'vs/base/common/stream';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { getTestSubscriptionKey, ISerializedTestResults, ITestMessage, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, ITestResultService, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { HydratedTestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtHostContext, ExtHostTestingResource, ExtHostTestingShape, IExtHostContext, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
@@ -70,7 +73,15 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void {
-		this.resultService.push(new HydratedTestResult(results, persist));
+		this.resultService.push(new HydratedTestResult(
+			results,
+			() => Promise.resolve(
+				results.output
+					? bufferToStream(VSBuffer.fromString(results.output))
+					: emptyStream(),
+			),
+			persist,
+		));
 	}
 
 	/**
@@ -82,6 +93,17 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			r.updateState(testId, state, duration);
 		}
 	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public $appendOutputToRun(runId: string, output: VSBuffer): void {
+		const r = this.resultService.getResult(runId);
+		if (r && r instanceof LiveTestResult) {
+			r.output.append(output);
+		}
+	}
+
 
 	/**
 	 * @inheritdoc
@@ -151,7 +173,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		return result.id;
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 		for (const subscription of this.testSubscriptions.values()) {
 			subscription.dispose();

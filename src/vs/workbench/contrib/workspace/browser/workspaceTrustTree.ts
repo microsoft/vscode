@@ -28,7 +28,7 @@ import { NonCollapsibleObjectTreeModel } from 'vs/workbench/contrib/preferences/
 import { AbstractListSettingWidget, focusedRowBackground, focusedRowBorder, ISettingListChangeEvent, rowHoverBackground, settingsHeaderForeground, settingsSelectBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { attachButtonStyler, attachInputBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IWorkspaceTrustStateInfo, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustStateInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { IAction } from 'vs/base/common/actions';
 import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -59,7 +59,7 @@ export class WorkspaceTrustSettingsTreeEntry {
 }
 
 export interface IWorkspaceTrustSettingItemTemplate<T = any> {
-	onChange?: (value: T) => void;
+	onChange?: (value: T, type: WorkspaceTrustSettingListItemChangeType) => void;
 
 	toDispose: DisposableStore;
 	context?: WorkspaceTrustSettingsTreeEntry;
@@ -76,8 +76,8 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 	constructor(
 		container: HTMLElement,
 		@ILabelService protected readonly labelService: ILabelService,
-		@IThemeService protected readonly themeService: IThemeService,
-		@IContextViewService protected readonly contextViewService: IContextViewService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(container, themeService, contextViewService);
 	}
@@ -109,7 +109,7 @@ class WorkspaceTrustFolderSettingWidget extends AbstractListSettingWidget<IWorks
 		] as IAction[];
 	}
 
-	protected renderHeader() {
+	protected override renderHeader() {
 		const header = $('.setting-list-row-header');
 		const hostHeader = append(header, $('.setting-list-object-key'));
 		const pathHeader = append(header, $('.setting-list-object-value'));
@@ -225,9 +225,11 @@ interface IWorkspaceTrustSettingListItemTemplate extends IWorkspaceTrustSettingI
 	validationErrorMessageElement: HTMLElement;
 }
 
+export type WorkspaceTrustSettingListItemChangeType = 'added' | 'removed' | 'changed';
 export interface IWorkspaceTrustSettingChangeEvent {
 	key: string;
 	value: URI[] | undefined; // undefined => reset/unconfigure
+	type: WorkspaceTrustSettingListItemChangeType;
 }
 
 
@@ -339,9 +341,9 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 
 		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
-				const newList = this.computeNewList(template, e);
+				const { list: newList, changeType } = this.computeNewList(template, e);
 				if (newList !== null && template.onChange) {
-					template.onChange(newList);
+					template.onChange(newList, changeType);
 				}
 			})
 		);
@@ -349,9 +351,11 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 		return template;
 	}
 
-	private computeNewList(template: IWorkspaceTrustSettingListItemTemplate, e: ISettingListChangeEvent<IWorkspaceTrustUriDataItem>): URI[] | undefined | null {
+	private computeNewList(template: IWorkspaceTrustSettingListItemTemplate, e: ISettingListChangeEvent<IWorkspaceTrustUriDataItem>): { list: URI[] | null, changeType: WorkspaceTrustSettingListItemChangeType } {
 		if (template.context) {
 			let newValue: URI[] = [];
+
+			let changeType: WorkspaceTrustSettingListItemChangeType = 'changed';
 			if (isArray(template.context.value)) {
 				newValue = [...template.context.value];
 			}
@@ -360,28 +364,32 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 				// Delete value
 				if (!e.item?.path && e.originalItem.path && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
+					changeType = 'removed';
 				}
 				// Update value
 				else if (e.item?.path && e.originalItem.path) {
 					if (e.targetIndex > -1) {
 						newValue[e.targetIndex] = URI.revive(e.item);
+						changeType = e.targetIndex < template.context.value.length ? 'changed' : 'added';
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
 						newValue.push(URI.revive(e.item));
+						changeType = 'added';
 					}
 				}
 				// Add value
 				else if (e.item?.path && !e.originalItem.path && e.targetIndex >= newValue.length) {
 					newValue.push(URI.revive(e.item));
+					changeType = 'added';
 				}
 			}
 
-			return newValue;
+			return { list: newValue, changeType };
 		}
 
-		return undefined;
+		return { list: null, changeType: 'changed' };
 	}
 
 	renderElement(node: ITreeNode<WorkspaceTrustSettingsTreeEntry, never>, index: number, template: IWorkspaceTrustSettingListItemTemplate): void {
@@ -395,17 +403,17 @@ export class WorkspaceTrustSettingArrayRenderer extends Disposable implements IT
 
 		template.descriptionElement.innerText = element.setting.description;
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value });
+		const onChange = (value: any, type: WorkspaceTrustSettingListItemChangeType) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type });
 		this.renderValue(element, template, onChange);
 	}
 
-	protected renderValue(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, onChange: (value: URI[] | undefined) => void): void {
+	protected renderValue(dataElement: WorkspaceTrustSettingsTreeEntry, template: IWorkspaceTrustSettingListItemTemplate, onChange: (value: URI[] | undefined, type: WorkspaceTrustSettingListItemChangeType) => void): void {
 		const value = getListDisplayValue(dataElement);
 		template.listWidget.setValue(value);
 		template.context = dataElement;
 
-		template.onChange = (v) => {
-			onChange(v);
+		template.onChange = (v, t) => {
+			onChange(v, t);
 			renderArrayValidations(dataElement, template, v, false);
 		};
 
@@ -556,7 +564,7 @@ export class WorkspaceTrustTree extends WorkbenchObjectTree<WorkspaceTrustSettin
 		}));
 	}
 
-	protected createModel(user: string, view: IList<ITreeNode<WorkspaceTrustSettingsTreeEntry>>, options: IObjectTreeOptions<WorkspaceTrustSettingsTreeEntry>): ITreeModel<WorkspaceTrustSettingsTreeEntry | null, void, WorkspaceTrustSettingsTreeEntry | null> {
+	protected override createModel(user: string, view: IList<ITreeNode<WorkspaceTrustSettingsTreeEntry>>, options: IObjectTreeOptions<WorkspaceTrustSettingsTreeEntry>): ITreeModel<WorkspaceTrustSettingsTreeEntry | null, void, WorkspaceTrustSettingsTreeEntry | null> {
 		return new NonCollapsibleObjectTreeModel<WorkspaceTrustSettingsTreeEntry>(user, view, options);
 	}
 }
@@ -568,20 +576,13 @@ export class WorkspaceTrustTreeModel {
 	update(trustInfo: IWorkspaceTrustStateInfo): void {
 		this.settings = [];
 		if (trustInfo.uriTrustInfo) {
-			const trustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trustState === WorkspaceTrustState.Trusted).map(folder => folder.uri);
-			const untrustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trustState === WorkspaceTrustState.Untrusted).map(folder => folder.uri);
+			const trustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trusted).map(folder => folder.uri);
 
 			this.settings.push(new WorkspaceTrustSettingsTreeEntry(
 				'trustedFolders',
 				localize('trustedFolders', "Trusted Folders"),
-				localize('trustedFoldersDescription', "All workspaces under the following folders will be trusted. In the event of a conflict with untrusted folders, the nearest parent will determine trust."),
+				localize('trustedFoldersDescription', "All workspaces under the following folders will be trusted."),
 				trustedFolders));
-
-			this.settings.push(new WorkspaceTrustSettingsTreeEntry(
-				'untrustedFolders',
-				localize('untrustedFolders', "Untrusted Folders"),
-				localize('untrustedFoldersDescription', "All workspaces under the following folders will not be trusted. In the event of a conflict with trusted folders, the nearest parent will determine trust."),
-				untrustedFolders));
 		}
 	}
 }

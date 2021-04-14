@@ -31,6 +31,18 @@ const terminalProfileSchema: IJSONSchema = {
 		overrideName: {
 			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
 			type: 'boolean'
+		},
+		icon: {
+			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
+			type: 'string'
+		},
+		env: {
+			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+			type: 'object',
+			additionalProperties: {
+				type: ['string', 'null']
+			},
+			default: {}
 		}
 	}
 };
@@ -117,14 +129,16 @@ export const terminalConfiguration: IConfigurationNode = {
 			type: 'object',
 			default: {
 				'PowerShell': {
-					source: 'PowerShell'
+					source: 'PowerShell',
+					icon: 'terminal-powershell'
 				},
 				'Command Prompt': {
 					path: [
 						'${env:windir}\\Sysnative\\cmd.exe',
 						'${env:windir}\\System32\\cmd.exe'
 					],
-					args: []
+					args: [],
+					icon: 'terminal-cmd'
 				},
 				'Git Bash': {
 					source: 'Git Bash'
@@ -143,6 +157,18 @@ export const terminalConfiguration: IConfigurationNode = {
 							overrideName: {
 								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
 								type: 'boolean'
+							},
+							icon: {
+								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
+								type: 'string'
+							},
+							env: {
+								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+								type: 'object',
+								additionalProperties: {
+									type: ['string', 'null']
+								},
+								default: {}
 							}
 						}
 					},
@@ -171,10 +197,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					path: 'tmux',
+					icon: 'terminal-tmux'
 				},
 				'pwsh': {
-					path: 'pwsh'
+					path: 'pwsh',
+					icon: 'terminal-powershell'
 				}
 			},
 			additionalProperties: {
@@ -204,10 +232,12 @@ export const terminalConfiguration: IConfigurationNode = {
 					path: 'fish'
 				},
 				'tmux': {
-					path: 'tmux'
+					path: 'tmux',
+					icon: 'terminal-tmux'
 				},
 				'pwsh': {
-					path: 'pwsh'
+					path: 'pwsh',
+					icon: 'terminal-powershell'
 				}
 			},
 			additionalProperties: {
@@ -221,6 +251,17 @@ export const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.useWslProfiles', 'Controls whether or not WSL distros are shown in the terminal dropdown'),
 			type: 'boolean',
 			default: true
+		},
+		'terminal.integrated.showTabs': {
+			description: localize('terminal.integrated.showTabs', 'Controls whether or not the terminal tabs widget is shown'),
+			type: 'boolean',
+			default: false
+		},
+		'terminal.integrated.tabsLocation': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': 'left',
+			'description': localize('terminal.integrated.tabsLocation', "Controls the location of the terminal tabs, either left or right of the terminal container.")
 		},
 		'terminal.integrated.macOptionIsMeta': {
 			description: localize('terminal.integrated.macOptionIsMeta', "Controls whether to treat the option key as the meta key in the terminal on macOS."),

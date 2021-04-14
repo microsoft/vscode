@@ -56,7 +56,7 @@ export class BinaryEditorModel extends EditorModel {
 		return this.etag;
 	}
 
-	async resolve(): Promise<void> {
+	async override resolve(): Promise<void> {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.canHandleResource(this.resource)) {

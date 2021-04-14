@@ -7,7 +7,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { combinedDisposable, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -26,8 +26,8 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 	private readonly _onDidSaveNotebook = new Emitter<URI>();
 	readonly onDidSaveNotebook: Event<URI> = this._onDidSaveNotebook.event;
 
-	private readonly _onDidChangeDirty = new Emitter<{ resource: URI, isDirty: boolean }>();
-	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }> = this._onDidChangeDirty.event;
+	private readonly _onDidChangeDirty = new Emitter<IResolvedNotebookEditorModel>();
+	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel> = this._onDidChangeDirty.event;
 
 	private readonly _dirtyStates = new ResourceMap<boolean>();
 
@@ -73,13 +73,29 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			throw new Error(`CANNOT open ${key}, no provider found`);
 		}
 
+		// Whenever a notebook model is dirty we automatically reference it so that
+		// we can ensure that at least one reference exists. That guarantees that
+		// a model with unsaved changes is never disposed.
+		let onDirtyAutoReference: IReference<any> | undefined;
+
 		this._modelListener.set(result, combinedDisposable(
 			result.onDidSave(() => this._onDidSaveNotebook.fire(result.resource)),
 			result.onDidChangeDirty(() => {
 				const isDirty = result.isDirty();
 				this._dirtyStates.set(result.resource, isDirty);
-				this._onDidChangeDirty.fire({ resource: result.resource, isDirty });
+
+				// isDirty -> add reference
+				// !isDirty -> free reference
+				if (isDirty && !onDirtyAutoReference) {
+					onDirtyAutoReference = this.acquire(key, viewType);
+				} else if (onDirtyAutoReference) {
+					onDirtyAutoReference.dispose();
+					onDirtyAutoReference = undefined;
+				}
+
+				this._onDidChangeDirty.fire(result);
 			}),
+			toDisposable(() => onDirtyAutoReference?.dispose()),
 		));
 		return result;
 	}
@@ -102,7 +118,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	private readonly _data: NotebookModelReferenceCollection;
 
 	readonly onDidSaveNotebook: Event<URI>;
-	readonly onDidChangeDirty: Event<{ resource: URI, isDirty: boolean }>;
+	readonly onDidChangeDirty: Event<IResolvedNotebookEditorModel>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -153,32 +169,11 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 
 		const reference = this._data.acquire(resource.toString(), viewType);
 		const model = await reference.object;
-		const autoRef = NotebookModelResolverServiceImpl._autoReferenceDirtyModel(model, () => this._data.acquire(resource.toString(), viewType));
 		return {
 			object: model,
 			dispose() {
 				reference.dispose();
-				autoRef.dispose();
 			}
 		};
-	}
-
-	private static _autoReferenceDirtyModel(model: IResolvedNotebookEditorModel, ref: () => IDisposable): IDisposable {
-
-		const references = new DisposableStore();
-		const listener = model.onDidChangeDirty(() => {
-			if (model.isDirty()) {
-				references.add(ref());
-			} else {
-				references.clear();
-			}
-		});
-
-		const onceListener = Event.once(model.notebook.onWillDispose)(() => {
-			listener.dispose();
-			references.dispose();
-		});
-
-		return combinedDisposable(references, listener, onceListener);
 	}
 }

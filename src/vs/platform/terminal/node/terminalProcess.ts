@@ -232,7 +232,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._sendProcessId(ptyProcess.pid);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		if (this._titleInterval) {
 			clearInterval(this._titleInterval);
@@ -330,7 +330,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._startWrite();
 	}
 
-	public processBinary(data: string): void {
+	public async processBinary(data: string): Promise<void> {
 		this.input(data, true);
 	}
 
@@ -358,10 +358,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _doWrite(): void {
 		const object = this._writeQueue.shift()!;
 		if (object.isBinary) {
-			this._logService.info('IPty#write (binary)', `${object.data.length} characters`);
 			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
 		} else {
-			this._logService.info('IPty#write', `${object.data.length} characters`);
 			this._ptyProcess!.write(object.data);
 		}
 	}
@@ -496,7 +494,7 @@ class DelayedResizer extends Disposable {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		clearTimeout(this._timeout);
 	}

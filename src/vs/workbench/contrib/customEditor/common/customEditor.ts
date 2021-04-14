@@ -41,6 +41,7 @@ export interface ICustomEditorService {
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
 
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
+	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined
 }
 
 export interface ICustomEditorModelManager {

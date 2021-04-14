@@ -11,6 +11,9 @@
   "activationEvents": [
     "onDebugResolve"
   ],
+  "workspaceTrust": {
+    "request": "never"
+  },
   "enableProposedApi": true,
   "main": "./out/extension",
   "scripts": {

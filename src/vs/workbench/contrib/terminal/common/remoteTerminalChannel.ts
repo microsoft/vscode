@@ -96,7 +96,7 @@ export class RemoteTerminalChannelClient {
 		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
 	public get onProcessBinary(): Event<{ id: number, event: string }> {
-		return this._channel.listen<{ id: number, event: string }>('$onProcessBinaryEvent');
+		return this._channel.listen<{ id: number, event: string }>('$onProcessBinary');
 	}
 	public get onProcessExit(): Event<{ id: number, event: number | undefined }> {
 		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
@@ -240,6 +240,9 @@ export class RemoteTerminalChannelClient {
 	}
 	public reduceConnectionGraceTime(): Promise<void> {
 		return this._channel.call('$reduceConnectionGraceTime');
+	}
+	public processBinary(id: number, data: string): Promise<void> {
+		return this._channel.call('$processBinary', [id, data]);
 	}
 	public start(id: number): Promise<ITerminalLaunchError | void> {
 		return this._channel.call('$start', [id]);

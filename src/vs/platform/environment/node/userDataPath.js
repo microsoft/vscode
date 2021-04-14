@@ -10,23 +10,39 @@
 	'use strict';
 
 	/**
+	 * @typedef {import('../../environment/common/argv').NativeParsedArgs} NativeParsedArgs
+	 *
 	 * @param {typeof import('path')} path
 	 * @param {typeof import('os')} os
 	 * @param {string} productName
+	 * @param {string} cwd
 	 */
-	function factory(path, os, productName) {
+	function factory(path, os, productName, cwd) {
 
 		/**
-		 * @param {import('../../environment/common/argv').NativeParsedArgs} cliArgs
+		 * @param {NativeParsedArgs} cliArgs
 		 *
 		 * @returns {string}
 		 */
 		function getUserDataPath(cliArgs) {
-			return path.resolve(doGetUserDataPath(cliArgs));
+			const userDataPath = doGetUserDataPath(cliArgs);
+			const pathsToResolve = [userDataPath];
+
+			// If the user-data-path is not absolute, make
+			// sure to resolve it against the passed in
+			// current working directory. We cannot use the
+			// node.js `path.resolve()` logic because it will
+			// not pick up our `VSCODE_CWD` environment variable
+			// (https://github.com/microsoft/vscode/issues/120269)
+			if (!path.isAbsolute(userDataPath)) {
+				pathsToResolve.unshift(cwd);
+			}
+
+			return path.resolve(...pathsToResolve);
 		}
 
 		/**
-		 * @param {import('../../environment/common/argv').NativeParsedArgs} cliArgs
+		 * @param {NativeParsedArgs} cliArgs
 		 *
 		 * @returns {string}
 		 */
@@ -81,18 +97,25 @@
 	}
 
 	if (typeof define === 'function') {
-		define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources'], function (require, /** @type {typeof import('path')} */ path, /** @type {typeof import('os')} */ os, /** @type {typeof import('../../../base/common/network')} */ network, /** @type {typeof import("../../../base/common/resources")} */ resources) {
+		define(['require', 'path', 'os', 'vs/base/common/network', 'vs/base/common/resources', 'vs/base/common/process'], function (
+			require,
+			/** @type {typeof import('path')} */ path,
+			/** @type {typeof import('os')} */ os,
+			/** @type {typeof import('../../../base/common/network')} */ network,
+			/** @type {typeof import("../../../base/common/resources")} */ resources,
+			/** @type {typeof import("../../../base/common/process")} */ process
+		) {
 			const rootPath = resources.dirname(network.FileAccess.asFileUri('', require));
 			const pkg = require.__$__nodeRequire(resources.joinPath(rootPath, 'package.json').fsPath);
 
-			return factory(path, os, pkg.name);
+			return factory(path, os, pkg.name, process.cwd());
 		}); // amd
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
 		const pkg = require('../../../../../package.json');
 		const path = require('path');
 		const os = require('os');
 
-		module.exports = factory(path, os, pkg.name); // commonjs
+		module.exports = factory(path, os, pkg.name, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
 	} else {
 		throw new Error('Unknown context');
 	}

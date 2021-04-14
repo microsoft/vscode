@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from 'vs/base/common/actions';
+import { coalesce } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -12,6 +14,11 @@ import { isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
+import * as nls from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -25,8 +32,6 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import * as nls from 'vs/nls';
-import { coalesce } from 'vs/base/common/arrays';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -98,6 +103,13 @@ export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly shiftKey: boolean;
+}
+
+export interface IContextMenuMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'contextMenuMarkdownPreview';
+	readonly cellId: string;
+	readonly clientX: number;
+	readonly clientY: number;
 }
 
 export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
@@ -178,16 +190,18 @@ export interface ICreationRequestMessage {
 	| { type: RenderOutputType.Extension; outputId: string; value: unknown; metadata: unknown; mimeType: string };
 	cellId: string;
 	outputId: string;
-	top: number;
+	cellTop: number;
+	outputOffset: number;
 	left: number;
 	requiredPreloads: ReadonlyArray<IPreloadResource>;
-	initiallyHidden?: boolean;
+	readonly initiallyHidden?: boolean;
 	apiNamespace?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
-	id: string;
-	top: number;
+	outputId: string;
+	cellTop: number;
+	outputOffset: number;
 	forceDisplay: boolean;
 }
 
@@ -223,7 +237,8 @@ export interface IShowOutputMessage {
 	type: 'showOutput';
 	cellId: string;
 	outputId: string;
-	top: number;
+	cellTop: number;
+	outputOffset: number;
 }
 
 export interface IFocusOutputMessage {
@@ -308,6 +323,7 @@ export type FromWebviewMessage =
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
 	| IClickMarkdownPreviewMessage
+	| IContextMenuMarkdownPreviewMessage
 	| IMouseEnterMarkdownPreviewMessage
 	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
@@ -367,7 +383,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markdownPreviewMapping = new Map<string, { version: number, visible: boolean }>();
+	readonly markdownPreviewMapping = new Map<string, { contentHash: number, visible: boolean }>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -399,6 +415,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -561,6 +580,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					</style>
 				</template>
 				<style>
+					#container .output_container {
+						width: 100%;
+					}
+
 					#container > div > div.output {
 						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
 						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
@@ -673,8 +696,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<script>${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
-			previewNodePadding: this.options.previewNodePadding,
-			leftMargin: this.options.leftMargin
 		})}</script>
 				${markdownRenderersSrc}
 			</body>
@@ -794,7 +815,7 @@ var requirejs = (function() {
 
 			if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
 				|| matchesScheme(link, Schemas.command)) {
-				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true });
+				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
 			}
 		}));
 
@@ -947,6 +968,31 @@ var requirejs = (function() {
 						}
 						break;
 					}
+				case 'contextMenuMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							// Focus the cell first
+							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+
+							// Then show the context menu
+							const webviewRect = this.element.getBoundingClientRect();
+							this.contextMenuService.showContextMenu({
+								getActions: () => {
+									const result: IAction[] = [];
+									const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
+									createAndFillInContextMenuActions(menu, undefined, result);
+									menu.dispose();
+									return result;
+								},
+								getAnchor: () => ({
+									x: webviewRect.x + data.clientX,
+									y: webviewRect.y + data.clientY
+								})
+							});
+						}
+						break;
+					}
 				case 'toggleMarkdownPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
@@ -1078,49 +1124,56 @@ var requirejs = (function() {
 		return webview;
 	}
 
-	shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number) {
+	private shouldUpdateInset(cell: IGenericCellViewModel, output: ICellOutputViewModel, cellTop: number, outputOffset: number): boolean {
 		if (this._disposed) {
-			return;
+			return false;
 		}
 
 		if (cell.metadata?.outputCollapsed) {
 			return false;
 		}
 
-		const outputCache = this.insetMapping.get(output)!;
-		const outputIndex = cell.outputsViewModels.indexOf(output);
-		const outputOffset = cellTop + cell.getOutputOffset(outputIndex);
-
 		if (this.hiddenInsetMapping.has(output)) {
 			return true;
 		}
 
-		if (outputOffset === outputCache.cachedCreation.top) {
+		const outputCache = this.insetMapping.get(output);
+		if (!outputCache) {
+			return false;
+		}
+
+		if (outputOffset === outputCache.cachedCreation.outputOffset && cellTop === outputCache.cachedCreation.cellTop) {
 			return false;
 		}
 
 		return true;
 	}
 
-	updateScrollTops(outputs: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
+	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		const widgets = coalesce(outputs.map((item): IContentWidgetTopRequest | undefined => {
-			const outputCache = this.insetMapping.get(item.output);
+		const widgets = coalesce(outputRequests.map((request): IContentWidgetTopRequest | undefined => {
+			const outputCache = this.insetMapping.get(request.output);
 			if (!outputCache) {
 				return;
 			}
+
+			if (!request.forceDisplay && !this.shouldUpdateInset(request.cell, request.output, request.cellTop, request.outputOffset)) {
+				return;
+			}
+
 			const id = outputCache.outputId;
-			const outputOffset = item.outputOffset;
-			outputCache.cachedCreation.top = outputOffset;
-			this.hiddenInsetMapping.delete(item.output);
+			outputCache.cachedCreation.cellTop = request.cellTop;
+			outputCache.cachedCreation.outputOffset = request.outputOffset;
+			this.hiddenInsetMapping.delete(request.output);
 
 			return {
-				id: id,
-				top: outputOffset,
-				forceDisplay: item.forceDisplay,
+				outputId: id,
+				cellTop: request.cellTop,
+				outputOffset: request.outputOffset,
+				forceDisplay: request.forceDisplay,
 			};
 		}));
 
@@ -1135,7 +1188,7 @@ var requirejs = (function() {
 		});
 	}
 
-	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
+	private async createMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentHash: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -1146,7 +1199,7 @@ var requirejs = (function() {
 		}
 
 		const initialTop = cellTop;
-		this.markdownPreviewMapping.set(cellId, { version: contentVersion, visible: true });
+		this.markdownPreviewMapping.set(cellId, { contentHash, visible: true });
 
 		this._sendMessageToWebview({
 			type: 'createMarkdownPreview',
@@ -1157,13 +1210,13 @@ var requirejs = (function() {
 		});
 	}
 
-	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentVersion: number) {
+	async showMarkdownPreview(cellId: string, cellHandle: number, content: string, cellTop: number, contentHash: number) {
 		if (this._disposed) {
 			return;
 		}
 
 		if (!this.markdownPreviewMapping.has(cellId)) {
-			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentVersion);
+			return this.createMarkdownPreview(cellId, cellHandle, content, cellTop, contentHash);
 		}
 
 		const entry = this.markdownPreviewMapping.get(cellId);
@@ -1172,19 +1225,19 @@ var requirejs = (function() {
 			return;
 		}
 
-		if (entry.version !== contentVersion || !entry.visible) {
+		if (entry.contentHash !== contentHash || !entry.visible) {
 			this._sendMessageToWebview({
 				type: 'showMarkdownPreview',
 				id: cellId,
 				handle: cellHandle,
 				// If the content has not changed, we still want to make sure the
 				// preview is visible but don't need to send anything over
-				content: entry.version === contentVersion ? undefined : content,
+				content: entry.contentHash === contentHash ? undefined : content,
 				top: cellTop
 			});
 		}
 
-		entry.version = contentVersion;
+		entry.contentHash = contentHash;
 		entry.visible = true;
 	}
 
@@ -1284,7 +1337,7 @@ var requirejs = (function() {
 		});
 
 		for (const cell of cells) {
-			this.markdownPreviewMapping.set(cell.cellId, { version: 0, visible: false });
+			this.markdownPreviewMapping.set(cell.cellId, { contentHash: 0, visible: false });
 		}
 
 		this._sendMessageToWebview({
@@ -1300,8 +1353,6 @@ var requirejs = (function() {
 			return;
 		}
 
-		const initialTop = cellTop + offset;
-
 		if (this.insetMapping.has(content.source)) {
 			const outputCache = this.insetMapping.get(content.source);
 
@@ -1311,7 +1362,8 @@ var requirejs = (function() {
 					type: 'showOutput',
 					cellId: outputCache.cellInfo.cellId,
 					outputId: outputCache.outputId,
-					top: initialTop
+					cellTop: cellTop,
+					outputOffset: offset
 				});
 				return;
 			}
@@ -1320,7 +1372,8 @@ var requirejs = (function() {
 		const messageBase = {
 			type: 'html',
 			cellId: cellInfo.cellId,
-			top: initialTop,
+			cellTop: cellTop,
+			outputOffset: offset,
 			left: 0,
 			requiredPreloads: [],
 		} as const;
@@ -1537,7 +1590,7 @@ var requirejs = (function() {
 		this._preloadsCache.clear();
 	}
 
-	dispose() {
+	override dispose() {
 		this._disposed = true;
 		this.webview?.dispose();
 		super.dispose();

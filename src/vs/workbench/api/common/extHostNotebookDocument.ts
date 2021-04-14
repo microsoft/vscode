@@ -160,7 +160,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		super();
 	}
 
-	dispose() {
+	override dispose() {
 		this._disposed = true;
 		super.dispose();
 		dispose(this._cellDisposableMapping.values());
@@ -179,7 +179,6 @@ export class ExtHostNotebookDocument extends Disposable {
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get isClosed() { return that._disposed; },
 				get metadata() { return that._metadata; },
-				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
 				get cellCount() { return that._cells.length; },
 				cellAt(index) {
 					index = that._validateIndex(index);

@@ -22,7 +22,6 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { flatten } from 'vs/base/common/arrays';
 
 class ExtensionTunnel implements vscode.Tunnel {
 	private _onDispose: Emitter<void> = new Emitter();
@@ -240,17 +239,20 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $providePortAttributes(handles: number[], ports: number[], pid: number | undefined, commandline: string | undefined, cancellationToken: vscode.CancellationToken): Promise<ProvidedPortAttributes[]> {
-		const providedAttributes = await Promise.all(handles.map(handle => {
+		const providedAttributes: vscode.ProviderResult<vscode.PortAttributes>[] = [];
+		for (const handle of handles) {
 			const provider = this._portAttributesProviders.get(handle);
 			if (!provider) {
 				return [];
 			}
-			return provider.provider.providePortAttributes(ports, pid, commandline, cancellationToken);
-		}));
+			providedAttributes.push(...(await Promise.all(ports.map(async (port) => {
+				return provider.provider.providePortAttributes(port, pid, commandline, cancellationToken);
+			}))));
+		}
 
-		const allAttributes = <vscode.PortAttributes[][]>providedAttributes.filter(attribute => !!attribute && attribute.length > 0);
+		const allAttributes = <vscode.PortAttributes[]>providedAttributes.filter(attribute => !!attribute);
 
-		return (allAttributes.length > 0) ? flatten(allAttributes).map(attributes => {
+		return (allAttributes.length > 0) ? allAttributes.map(attributes => {
 			return {
 				autoForwardAction: <ProvidedOnAutoForward><unknown>attributes.autoForwardAction,
 				port: attributes.port

@@ -35,7 +35,8 @@ import { ITestItem, ITestMessage, ITestState, TestResultItem } from 'vs/workbenc
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResult, ITestResultService, ResultChangeEvent, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface ITestDto {
@@ -292,7 +293,7 @@ abstract class TestingOutputPeek extends PeekViewWidget {
 		@IThemeService themeService: IThemeService,
 		@IPeekViewService peekViewService: IPeekViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
@@ -328,7 +329,7 @@ abstract class TestingOutputPeek extends PeekViewWidget {
 	/**
 	 * @override
 	 */
-	protected _doLayoutBody(height: number, width: number) {
+	protected override _doLayoutBody(height: number, width: number) {
 		super._doLayoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
 	}
@@ -414,7 +415,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
-	protected _doLayoutBody(height: number, width: number) {
+	protected override _doLayoutBody(height: number, width: number) {
 		super._doLayoutBody(height, width);
 		this.diff.value?.layout(this.dimension);
 	}
@@ -467,7 +468,7 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 	/**
 	 * @override
 	 */
-	protected _doLayoutBody(height: number, width: number) {
+	protected override _doLayoutBody(height: number, width: number) {
 		super._doLayoutBody(height, width);
 		this.preview.value?.layout(this.dimension);
 	}
@@ -489,7 +490,7 @@ class SimpleDiffEditorModel extends EditorModel {
 		super();
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 		this._original.dispose();
 		this._modified.dispose();

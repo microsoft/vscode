@@ -120,7 +120,7 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		return this._localPtyService.listProcesses();
 	}
 
-	public reduceConnectionGraceTime(): void {
+	public async reduceConnectionGraceTime(): Promise<void> {
 		this._localPtyService.reduceConnectionGraceTime();
 	}
 
@@ -138,10 +138,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		};
 		let result = await this._localPtyService.getTerminalLayoutInfo(layoutArgs);
 		return result;
-	}
-
-	public processBinary(id: number, data: string): void {
-		this._localPtyService.processBinary(id, data);
 	}
 
 	private _getWorkspaceId(): string {
