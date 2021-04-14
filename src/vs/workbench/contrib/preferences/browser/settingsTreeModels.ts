@@ -8,13 +8,13 @@ import { escapeRegExpCharacters, isFalsyOrWhitespace } from 'vs/base/common/stri
 import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
@@ -353,7 +353,7 @@ export class SettingsTreeModel {
 	constructor(
 		protected _viewState: ISettingsEditorViewState,
 		private _isWorkspaceTrusted: boolean,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 	) {
 	}
 
@@ -466,14 +466,25 @@ interface IInspectResult {
 	targetSelector: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
 }
 
-function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
+export function inspectSetting(key: string, target: SettingsTarget, configurationService: IWorkbenchConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
 	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
 		target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
 			target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
 				'workspaceFolderValue';
-	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
+	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
+	if (!isConfigured) {
+		if (target === ConfigurationTarget.USER_LOCAL) {
+			isConfigured = !!configurationService.unTrustedSettings.userLocal?.includes(key);
+		} else if (target === ConfigurationTarget.USER_REMOTE) {
+			isConfigured = !!configurationService.unTrustedSettings.userRemote?.includes(key);
+		} else if (target === ConfigurationTarget.WORKSPACE) {
+			isConfigured = !!configurationService.unTrustedSettings.workspace?.includes(key);
+		} else if (target instanceof URI) {
+			isConfigured = !!configurationService.unTrustedSettings.workspaceFolder?.get(target)?.includes(key);
+		}
+	}
 
 	return { isConfigured, inspected, targetSelector };
 }
@@ -622,7 +633,7 @@ export class SearchResultModel extends SettingsTreeModel {
 	constructor(
 		viewState: ISettingsEditorViewState,
 		isWorkspaceTrusted: boolean,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) {
 		super(viewState, isWorkspaceTrusted, configurationService);
