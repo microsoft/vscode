@@ -5,6 +5,7 @@
 
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import * as htmlContent from 'vs/base/common/htmlContent';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -1612,6 +1613,20 @@ export namespace NotebookDecorationRenderOptions {
 	}
 }
 
+export namespace NotebookStatusBarItem {
+	export function from(item: vscode.NotebookCellStatusBarItem, commandsConverter: CommandsConverter, disposables: DisposableStore): notebooks.INotebookCellStatusBarItem {
+		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
+		return {
+			alignment: item.alignment === types.NotebookCellStatusBarAlignment.Left ? notebooks.CellStatusbarAlignment.Left : notebooks.CellStatusbarAlignment.Right,
+			command: commandsConverter.toInternal(command, disposables), // TODO@roblou
+			text: item.text,
+			tooltip: item.tooltip,
+			accessibilityInformation: item.accessibilityInformation,
+			priority: item.priority
+		};
+	}
+}
+
 export namespace NotebookDocumentContentOptions {
 	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
@@ -1622,6 +1637,7 @@ export namespace NotebookDocumentContentOptions {
 				lastRunDuration: true,
 				runState: true,
 				runStartTime: true,
+				runStartTimeAdjustment: true,
 				lastRunSuccess: true
 			}
 		};

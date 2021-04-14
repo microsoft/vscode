@@ -1069,6 +1069,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookKernelProvider(extension, selector, provider);
 			},
+			registerNotebookCellStatusBarItemProvider: (selector: vscode.NotebookDocumentFilter, provider: vscode.NotebookCellStatusBarItemProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, selector, provider);
+			},
 			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookEditorDecorationType(options);
@@ -1097,17 +1101,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return new ExtHostNotebookConcatDocument(extHostNotebook, extHostDocuments, notebook, selector);
 			},
-			createCellStatusBarItem(cell: vscode.NotebookCell, alignment?: vscode.NotebookCellStatusBarAlignment, priority?: number): vscode.NotebookCellStatusBarItem {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.createNotebookCellStatusBarItemInternal(cell, alignment, priority);
-			},
 			createNotebookCellExecutionTask(uri: vscode.Uri, index: number, kernelId: string): vscode.NotebookCellExecutionTask | undefined {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.createNotebookCellExecution(uri, index, kernelId);
 			},
-			createNotebookKernel(options) {
+			createNotebookController(options) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebookKernels.createKernel(extension, options);
+			},
+			createNotebookRendererCommunication(rendererId) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.createNotebookCommunication(rendererId);
 			}
 		};
 
@@ -1255,6 +1259,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
+			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestItem: extHostTypes.TestItem,
 			TestResultState: extHostTypes.TestResultState,
