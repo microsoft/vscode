@@ -48,7 +48,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { IWorkspaceTrustRequestService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -281,7 +281,7 @@ export class DebugService implements IDebugService {
 			message,
 
 		});
-		if (trust !== WorkspaceTrustState.Trusted) {
+		if (!trust) {
 			return false;
 		}
 		this.startInitializingState();
