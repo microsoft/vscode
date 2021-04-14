@@ -962,17 +962,6 @@ declare module 'vscode' {
 
 	export class NotebookCellMetadata {
 		/**
-		 * todo@API this can be renamed to `contentEditable`.
-		 * Controls whether a cell's editor is editable/readonly.
-		 */
-		readonly editable?: boolean;
-		/**
-		 * todo@API this can be removed and only kept internally? It's a UI thing and should be controlled by detecting wether there is a debugging session, or through a user setting (like line numbers)
-		 * Controls if the cell has a margin to support the breakpoint UI.
-		 * This metadata is ignored for markdown cell.
-		 */
-		readonly breakpointMargin?: boolean;
-		/**
 		 * Whether a code cell's editor is collapsed
 		 */
 		readonly outputCollapsed?: boolean;
@@ -985,9 +974,15 @@ declare module 'vscode' {
 		 */
 		readonly custom?: Record<string, any>;
 
-		constructor(editable?: boolean, breakpointMargin?: boolean, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
+		/**
+		 * todo@API duplicates status bar API
+		 * @deprecated
+		 */
+		readonly statusMessage?: string;
 
-		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>);
+
+		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
 	}
 
 	export interface NotebookCellExecutionSummary {

@@ -2941,35 +2941,20 @@ export class NotebookCellRange {
 }
 
 export class NotebookCellMetadata {
-
 	constructor(
-		readonly editable?: boolean,
-		readonly breakpointMargin?: boolean,
 		readonly inputCollapsed?: boolean,
 		readonly outputCollapsed?: boolean,
-		readonly custom?: Record<string, any>,
+		readonly custom?: Record<string, any>
 	) { }
 
 	with(change: {
-		editable?: boolean | null,
-		breakpointMargin?: boolean | null,
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
 		custom?: Record<string, any> | null,
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, inputCollapsed, outputCollapsed, custom } = change;
+		let { inputCollapsed, outputCollapsed, custom } = change;
 
-		if (editable === undefined) {
-			editable = this.editable;
-		} else if (editable === null) {
-			editable = undefined;
-		}
-		if (breakpointMargin === undefined) {
-			breakpointMargin = this.breakpointMargin;
-		} else if (breakpointMargin === null) {
-			breakpointMargin = undefined;
-		}
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
 		} else if (inputCollapsed === null) {
@@ -2986,9 +2971,7 @@ export class NotebookCellMetadata {
 			custom = undefined;
 		}
 
-		if (editable === this.editable &&
-			breakpointMargin === this.breakpointMargin &&
-			inputCollapsed === this.inputCollapsed &&
+		if (inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
 			custom === this.custom
 		) {
@@ -2996,8 +2979,6 @@ export class NotebookCellMetadata {
 		}
 
 		return new NotebookCellMetadata(
-			editable,
-			breakpointMargin,
 			inputCollapsed,
 			outputCollapsed,
 			custom,

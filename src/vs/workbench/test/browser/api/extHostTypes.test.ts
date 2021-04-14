@@ -672,12 +672,10 @@ suite('ExtHostTypes', function () {
 
 		const newObj = obj.with({ inputCollapsed: false });
 		assert.ok(obj !== newObj);
-		assert.strictEqual(obj.inputCollapsed, undefined);
-		assert.strictEqual(obj.editable, true);
+		assert.strictEqual(obj.inputCollapsed, true);
 		assert.strictEqual(obj.custom, undefined);
 
-		assert.strictEqual(newObj.inputCollapsed, false);
-		assert.strictEqual(newObj.editable, true);
+		assert.strictEqual(newObj.inputCollapsed, true);
 		assert.strictEqual(newObj.custom, undefined);
 
 	});
