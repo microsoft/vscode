@@ -291,29 +291,20 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			const actions = menu.getActions();
 			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 
-			for (let actionGroup of actions) {
+			let lastCategoryName: string | undefined = undefined;
 
-				// group by category
-				const actionsByCategory: { [category: string]: MenuItemAction[] } = {};
-				const categories: string[] = [];
+			for (let actionGroup of actions) {
+				let hasGroupCategory = false;
 				for (let action of actionGroup[1]) {
 					if (action instanceof MenuItemAction) {
-						const category = getCategoryLabel(action) || '';
-						let list = actionsByCategory[category];
-						if (!list) {
-							actionsByCategory[category] = list = [];
-							categories.push(category);
+						if (!hasGroupCategory) {
+							const category = getCategoryLabel(action);
+							if (category !== lastCategoryName) {
+								items.push({ type: 'separator', label: category });
+								lastCategoryName = category;
+							}
+							hasGroupCategory = true;
 						}
-						list.push(action);
-					}
-				}
-				for (let category of categories) {
-					if (category) {
-						items.push({ type: 'separator', label: category });
-					} else {
-						items.push({ type: 'separator' });
-					}
-					for (let action of actionsByCategory[category]) {
 						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
 						items.push({
 							type: 'item',
