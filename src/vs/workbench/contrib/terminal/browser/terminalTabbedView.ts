@@ -162,7 +162,6 @@ export class TerminalTabbedView extends Disposable {
 				}
 			}
 		}
-		this._plusButton!.classList.toggle('align-left', widgetWidth !== MIN_TABS_WIDGET_WIDTH);
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
@@ -209,6 +208,7 @@ export class TerminalTabbedView extends Disposable {
 	layout(width: number, height: number): void {
 		this._height = height;
 		this._width = width;
+		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth >= DEFAULT_TABS_WIDGET_WIDTH);
 		this._splitView.layout(width);
 		if (this._showTabs) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());

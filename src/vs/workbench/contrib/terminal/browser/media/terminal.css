@@ -213,7 +213,7 @@
 	padding: 4px 10px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .plus-button.align-left {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .plus-button {
 	text-align: left;
 }
 
@@ -221,7 +221,7 @@
 	text-align: center;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry.has-text {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-widget .terminal-tabs-entry {
 	padding-left: 10px;
 	text-align: left;
 }

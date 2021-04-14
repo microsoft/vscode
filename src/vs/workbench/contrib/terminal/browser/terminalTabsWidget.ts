@@ -144,6 +144,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITerminalTabEntryTemplate> {
 	templateId = 'terminal.tabs';
+
 	constructor(
 		private readonly _container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
