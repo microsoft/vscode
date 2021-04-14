@@ -1468,7 +1468,7 @@ declare module 'vscode' {
 		asWebviewUri(localResource: Uri): Uri;
 	}
 
-	export interface NotebookKernel2 {
+	export interface NotebookController {
 
 		readonly id: string;
 
@@ -1528,7 +1528,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		export function createNotebookKernel(options: NotebookKernelOptions): NotebookKernel2;
+		export function createNotebookController(options: NotebookKernelOptions): NotebookController;
 	}
 
 	//#endregion
