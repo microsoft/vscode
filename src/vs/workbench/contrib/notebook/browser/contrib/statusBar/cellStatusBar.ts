@@ -9,9 +9,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellRangesToIndexes, INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookStatusBarController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar';
@@ -43,16 +43,18 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 		}
 
 		const newVisibleCells = new Set<number>();
-		this._notebookEditor.visibleRanges.forEach(range => {
-			const cells = this._notebookEditor.getCells({ start: range.start, end: range.end + 1 });
-			cells.forEach(cell => {
+		const rangesWithEnd = this._notebookEditor.visibleRanges
+			.map(range => ({ start: range.start, end: range.end + 1 }));
+		cellRangesToIndexes(rangesWithEnd)
+			.map(index => vm.cellAt(index))
+			.filter((cell: CellViewModel | undefined): cell is CellViewModel => !!cell)
+			.map(cell => {
 				if (!this._visibleCells.has(cell.handle)) {
 					const helper = new CellStatusBarHelper(vm, cell, this._notebookCellStatusBarService);
 					this._visibleCells.set(cell.handle, helper);
 				}
 				newVisibleCells.add(cell.handle);
 			});
-		});
 
 		for (let handle of this._visibleCells.keys()) {
 			if (!newVisibleCells.has(handle)) {

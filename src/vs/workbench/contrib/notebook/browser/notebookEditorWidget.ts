@@ -1665,10 +1665,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._listViewInfoAccessor.getCellsFromViewRange(startIndex, endIndex);
 	}
 
-	getCells(range: ICellRange): ReadonlyArray<ICellViewModel> {
-		return this.viewModel?.getCells(range) ?? [];
-	}
-
 	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
 		this._listViewInfoAccessor.setCellEditorSelection(cell, range);
 	}

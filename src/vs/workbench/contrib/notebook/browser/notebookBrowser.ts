@@ -606,12 +606,6 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	getCellsFromViewRange(startIndex: number, endIndex: number): ReadonlyArray<ICellViewModel>;
 
 	/**
-	 * Get the cells in the given range.
-	 * TODO - is this the right way to do this?
-	 */
-	getCells(range: ICellRange): ReadonlyArray<ICellViewModel>;
-
-	/**
 	 * Set hidden areas on cell text models.
 	 */
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
