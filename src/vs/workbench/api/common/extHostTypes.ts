@@ -2989,24 +2989,17 @@ export class NotebookCellMetadata {
 export class NotebookDocumentMetadata {
 
 	constructor(
-		readonly editable: boolean = true,
 		readonly custom: { [key: string]: any; } = {},
 		readonly trusted: boolean = true,
 	) { }
 
 	with(change: {
-		editable?: boolean | null,
 		custom?: { [key: string]: any; } | null,
 		trusted?: boolean | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, custom, trusted } = change;
+		let { custom, trusted } = change;
 
-		if (editable === undefined) {
-			editable = this.editable;
-		} else if (editable === null) {
-			editable = undefined;
-		}
 		if (custom === undefined) {
 			custom = this.custom;
 		} else if (custom === null) {
@@ -3018,8 +3011,7 @@ export class NotebookDocumentMetadata {
 			trusted = undefined;
 		}
 
-		if (editable === this.editable &&
-			custom === this.custom &&
+		if (custom === this.custom &&
 			trusted === this.trusted
 		) {
 			return this;
@@ -3027,7 +3019,6 @@ export class NotebookDocumentMetadata {
 
 
 		return new NotebookDocumentMetadata(
-			editable,
 			custom,
 			trusted
 		);

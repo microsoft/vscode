@@ -652,7 +652,6 @@ suite('ExtHostTypes', function () {
 	test('NotebookMetadata - defaults', function () {
 		const obj = new types.NotebookDocumentMetadata();
 		assert.deepStrictEqual(obj.custom, notebookDocumentMetadataDefaults.custom);
-		assert.strictEqual(obj.editable, notebookDocumentMetadataDefaults.editable);
 		assert.strictEqual(obj.trusted, notebookDocumentMetadataDefaults.trusted);
 	});
 

@@ -1006,14 +1006,6 @@ declare module 'vscode' {
 	}
 
 	export class NotebookDocumentMetadata {
-
-		/**
-		 * todo@API. If it's called `editable` then this should also control if a cell is edtiable or not (through UI at least).
-		 * Controls if users can add or delete cells
-		 * Defaults to true
-		 */
-		readonly editable: boolean;
-
 		/**
 		 * Additional attributes of the document metadata.
 		 */
@@ -1024,7 +1016,7 @@ declare module 'vscode' {
 		 */
 		readonly trusted: boolean;
 
-		constructor(editable?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
+		constructor(custom?: { [key: string]: any; }, trusted?: boolean);
 
 		with(change: { editable?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}

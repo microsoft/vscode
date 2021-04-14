@@ -89,6 +89,9 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
+	isReadonly(): boolean {
+		return false;
+	}
 
 	isDirty() {
 		return this._dirty;

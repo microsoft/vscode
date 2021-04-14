@@ -14,7 +14,7 @@ import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapab
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
-import { IFileStatWithMetadata, IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileStatWithMetadata, IFileService, FileChangeType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -104,6 +104,10 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 	isDirty(): boolean {
 		return this._dirty;
+	}
+
+	isReadonly(): boolean {
+		return false;
 	}
 
 	private _isUntitled(): boolean {
@@ -399,6 +403,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 	}
@@ -421,6 +426,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	isDirty(): boolean {
 		return this._workingCopy?.isDirty() ?? false;
+	}
+
+	isReadonly(): boolean {
+		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	revert(options?: IRevertOptions): Promise<void> {

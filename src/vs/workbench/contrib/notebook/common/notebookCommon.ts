@@ -57,13 +57,11 @@ export enum NotebookRunState {
 }
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
-	editable: true,
 	custom: {},
 	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
-	editable: boolean;
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
 }
@@ -661,6 +659,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly notebook: NotebookTextModel | undefined;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
+	isReadonly(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;

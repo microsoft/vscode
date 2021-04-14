@@ -1430,7 +1430,7 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.custom, data.trusted);
+		return new types.NotebookDocumentMetadata(data.custom, data.trusted);
 	}
 }
 
