@@ -29,6 +29,8 @@ import { newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalI
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -148,7 +150,8 @@ export class TerminalTabbedView extends Disposable {
 		return parseInt(storedValue);
 	}
 
-	private _setLastWidgetWidth(): void {
+	private _handleOnDidSashChange(): void {
+		this._refreshHasTextClass();
 		let widgetWidth = this._splitView.getViewSize(this._tabTreeIndex);
 		if (!this._width || widgetWidth <= 0) {
 			return;
@@ -178,7 +181,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _setupSplitView(): void {
 		this._register(this._splitView.onDidSashReset(() => this._splitView.resizeView(this._tabTreeIndex, DEFAULT_TABS_WIDGET_WIDTH)));
-		this._register(this._splitView.onDidSashChange(() => this._setLastWidgetWidth()));
+		this._register(this._splitView.onDidSashChange(() => this._handleOnDidSashChange()));
 
 		if (this._showTabs) {
 			this._addTabTree();
@@ -208,11 +211,15 @@ export class TerminalTabbedView extends Disposable {
 	layout(width: number, height: number): void {
 		this._height = height;
 		this._width = width;
-		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth >= DEFAULT_TABS_WIDGET_WIDTH);
+		this._refreshHasTextClass();
 		this._splitView.layout(width);
 		if (this._showTabs) {
 			this._splitView.resizeView(this._tabTreeIndex, this._getLastWidgetWidth());
 		}
+	}
+
+	private _refreshHasTextClass() {
+		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth >= DEFAULT_TABS_WIDGET_WIDTH);
 	}
 
 	private _createButton(): void {
@@ -224,8 +231,8 @@ export class TerminalTabbedView extends Disposable {
 			await this._openTabsContextMenu(e);
 		}));
 
-		this._tabTreeContainer.appendChild(button);
-		this._plusButton = button;
+		const actionBar = new ActionBar(this._tabTreeContainer);
+		actionBar.push(this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined), { icon: true, label: false });
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
