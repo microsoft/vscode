@@ -319,7 +319,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.workspaceTrustStorageService.setFoldersTrust(folderURIs, true);
 			};
 
-
 			const trustChoiceWithMenu: IPromptChoiceWithMenu = {
 				isSecondary: false,
 				label: localize('trustButton', "Trust"),
