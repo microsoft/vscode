@@ -756,7 +756,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private checkFoldersTrustState(changes: IWorkspaceFoldersChangeEvent, action: () => void): void {
 		this._onWillChangeWorkspaceFolders.fire({
-			updateWorkspaceTrustState(updateWorkspaceTrustStatePromise) {
+			join(updateWorkspaceTrustStatePromise) {
 				updateWorkspaceTrustStatePromise.then(() => {
 					action();
 				});

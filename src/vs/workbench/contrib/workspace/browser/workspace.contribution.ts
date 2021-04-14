@@ -150,7 +150,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 
 			// Workspace is trusted
-			return e.updateWorkspaceTrustState(new Promise(async resolve => {
+			return e.join(new Promise(async resolve => {
 				if (e.changes.added.length || e.changes.changed.length) {
 					const addedFoldersTrustStateInfo = e.changes.added.map(folder => this.workspaceTrustStorageService.getFolderTrustStateInfo(folder.uri));
 					if (!addedFoldersTrustStateInfo.map(i => i.trusted).every(trusted => trusted)) {
