@@ -16,6 +16,7 @@ export interface FormattedTextRenderOptions {
 	readonly className?: string;
 	readonly inline?: boolean;
 	readonly actionHandler?: IContentActionHandler;
+	readonly renderPreformattedSegements?: boolean;
 }
 
 export function renderText(text: string, options: FormattedTextRenderOptions = {}): HTMLElement {
@@ -26,7 +27,7 @@ export function renderText(text: string, options: FormattedTextRenderOptions = {
 
 export function renderFormattedText(formattedText: string, options: FormattedTextRenderOptions = {}): HTMLElement {
 	const element = createElement(options);
-	_renderFormattedText(element, parseFormattedText(formattedText), options.actionHandler);
+	_renderFormattedText(element, parseFormattedText(formattedText, options.renderPreformattedSegements), options.actionHandler, options.renderPreformattedSegements);
 	return element;
 }
 
@@ -75,6 +76,7 @@ const enum FormatType {
 	Italics,
 	Action,
 	ActionClose,
+	Preformatted,
 	NewLine
 }
 
@@ -85,7 +87,7 @@ interface IFormatParseTree {
 	children?: IFormatParseTree[];
 }
 
-function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler) {
+function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionHandler?: IContentActionHandler, renderPreformattedSegements?: boolean) {
 	let child: Node | undefined;
 
 	if (treeNode.type === FormatType.Text) {
@@ -94,6 +96,9 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 		child = document.createElement('b');
 	} else if (treeNode.type === FormatType.Italics) {
 		child = document.createElement('i');
+	} else if (treeNode.type === FormatType.Preformatted && renderPreformattedSegements) {
+		child = document.createElement('pre');
+		(child as HTMLPreElement).style.display = 'inline';
 	} else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
 		a.href = '#';
@@ -114,12 +119,12 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 
 	if (child && Array.isArray(treeNode.children)) {
 		treeNode.children.forEach((nodeChild) => {
-			_renderFormattedText(child!, nodeChild, actionHandler);
+			_renderFormattedText(child!, nodeChild, actionHandler, renderPreformattedSegements);
 		});
 	}
 }
 
-function parseFormattedText(content: string): IFormatParseTree {
+export function parseFormattedText(content: string, parsePreformattedSegments: boolean = false): IFormatParseTree {
 
 	const root: IFormatParseTree = {
 		type: FormatType.Root,
@@ -134,19 +139,19 @@ function parseFormattedText(content: string): IFormatParseTree {
 	while (!stream.eos()) {
 		let next = stream.next();
 
-		const isEscapedFormatType = (next === '\\' && formatTagType(stream.peek()) !== FormatType.Invalid);
+		const isEscapedFormatType = (next === '\\' && formatTagType(stream.peek(), parsePreformattedSegments) !== FormatType.Invalid);
 		if (isEscapedFormatType) {
 			next = stream.next(); // unread the backslash if it escapes a format tag type
 		}
 
-		if (!isEscapedFormatType && isFormatTag(next) && next === stream.peek()) {
+		if (!isEscapedFormatType && isFormatTag(next, parsePreformattedSegments) && next === stream.peek()) {
 			stream.advance();
 
 			if (current.type === FormatType.Text) {
 				current = stack.pop()!;
 			}
 
-			const type = formatTagType(next);
+			const type = formatTagType(next, parsePreformattedSegments);
 			if (current.type === type || (current.type === FormatType.Action && type === FormatType.ActionClose)) {
 				current = stack.pop()!;
 			} else {
@@ -200,11 +205,11 @@ function parseFormattedText(content: string): IFormatParseTree {
 	return root;
 }
 
-function isFormatTag(char: string): boolean {
-	return formatTagType(char) !== FormatType.Invalid;
+function isFormatTag(char: string, supportPreformattedSegments: boolean): boolean {
+	return formatTagType(char, supportPreformattedSegments) !== FormatType.Invalid;
 }
 
-function formatTagType(char: string): FormatType {
+function formatTagType(char: string, supportPreformattedSegments: boolean): FormatType {
 	switch (char) {
 		case '*':
 			return FormatType.Bold;
@@ -214,6 +219,8 @@ function formatTagType(char: string): FormatType {
 			return FormatType.Action;
 		case ']':
 			return FormatType.ActionClose;
+		case '`':
+			return supportPreformattedSegments ? FormatType.Preformatted : FormatType.Invalid;
 		default:
 			return FormatType.Invalid;
 	}
