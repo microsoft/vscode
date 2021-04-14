@@ -124,7 +124,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 	}
 }
 
-export function parseFormattedText(content: string, parsePreformattedSegments: boolean = false): IFormatParseTree {
+function parseFormattedText(content: string, parsePreformattedSegments: boolean = false): IFormatParseTree {
 
 	const root: IFormatParseTree = {
 		type: FormatType.Root,
