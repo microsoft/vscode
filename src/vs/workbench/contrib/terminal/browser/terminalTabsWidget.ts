@@ -22,6 +22,8 @@ import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryAc
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = DOM.$;
 
@@ -104,7 +106,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	constructor(
 		private readonly _container: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
 
@@ -113,7 +117,15 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
 
-		const label = new IconLabel(element, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		const label = new IconLabel(element, {
+			supportHighlights: true,
+			supportDescriptionHighlights: true,
+			supportIcons: true,
+			hoverDelegate: {
+				delay: this._configurationService.getValue<number>('workbench.hover.delay'),
+				showHover: e => this._hoverService.showHover(e)
+			}
+		});
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
 		const actionBar = new ActionBar(actionsContainer, {
@@ -153,14 +165,28 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		}
 
+		let title = instance.title;
+		const statuses = instance.statusList.statuses;
+		if (statuses.length) {
+			title += `\n\n---\n\nStatuses:`;
+			title += statuses.map(e => `\n- ${e.id}`);
+		}
+
+		let label: string;
 		if (!hasText) {
 			template.actionBar.clear();
-			template.label.setLabel(`${prefix}$(${instance.icon.id})`);
-			return;
+			label = `${prefix}$(${instance.icon.id})`;
 		} else {
 			this.fillActionBar(instance, template);
-			template.label.setLabel(`${prefix}$(${instance.icon.id}) ${instance.title}`);
+			label = `${prefix}$(${instance.icon.id}) ${instance.title}`;
 		}
+
+		template.label.setLabel(label, undefined, {
+			title: {
+				markdown: new MarkdownString(title),
+				markdownNotSupportedFallback: undefined
+			}
+		});
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
