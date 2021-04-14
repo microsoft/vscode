@@ -1413,7 +1413,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
-				title: { value: configureTerminalSettingsTitle, original: 'Configure Terminal Settings' },
+				title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -1426,7 +1426,7 @@ export function registerTerminalActions() {
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
-			title: configureTerminalSettingsTitle
+			title: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings")
 		},
 		group: ContextMenuTabsGroup.Configure
 	});
