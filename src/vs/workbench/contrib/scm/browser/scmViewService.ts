@@ -67,7 +67,7 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		this._visibleRepositories = visibleRepositories;
+		this._visibleRepositories = this.sortRepositories(visibleRepositories);
 		this._visibleRepositoriesSet = set;
 		this._onDidSetVisibleRepositories.fire({ added, removed });
 
