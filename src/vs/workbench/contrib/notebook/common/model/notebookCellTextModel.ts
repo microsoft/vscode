@@ -43,7 +43,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	set metadata(newMetadata: NotebookCellMetadata) {
 		const runStateChanged = this._metadata.runState !== newMetadata.runState;
-		newMetadata.runStartTimeAdjustment = computeRunStartTimeAdjustment(this._metadata, newMetadata);
+		newMetadata = {
+			...newMetadata,
+			...{ runStartTimeAdjustment: computeRunStartTimeAdjustment(this._metadata, newMetadata) }
+		};
 		this._metadata = newMetadata;
 		this._hash = null;
 		this._onDidChangeMetadata.fire({ runStateChanged });
