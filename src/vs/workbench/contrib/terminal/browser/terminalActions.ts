@@ -641,15 +641,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).doWithActiveInstance(async t => {
-				const name = await accessor.get(IQuickInputService).input({
-					value: t.title,
-					prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
-				});
-				if (name) {
-					t.setTitle(name, TitleEventSource.Api);
-				}
-			});
+			return accessor.get(ITerminalService).getActiveInstance()?.rename();
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {

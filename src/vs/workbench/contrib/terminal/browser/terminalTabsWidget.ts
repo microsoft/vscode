@@ -10,7 +10,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ITerminalInstance, ITerminalService, ITerminalTab } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
@@ -23,6 +23,7 @@ import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryAc
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
+import { Action } from 'vs/base/common/actions';
 
 const $ = DOM.$;
 
@@ -208,7 +209,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 			if (item.terminalInstances.length === 1) {
 				const instance = item.terminalInstances[0];
 				label = `$(${instance.icon.id}) ${instance.title}`;
-				this.fillActionBar(template);
+				console.log('render item', instance.instanceId);
+				this.fillActionBar(instance, template);
 			} else if (item.terminalInstances.length > 1) {
 				label = `Tab (${item.terminalInstances.length})`;
 				template.actionBar.clear();
@@ -223,7 +225,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 			} else {
 				label = `├ $(${item.icon.id}) ${item.title}`;
 			}
-			this.fillActionBar(template);
+			console.log('render item', item.instanceId);
+			this.fillActionBar(item, template);
 		}
 		template.label.setLabel(label);
 	}
@@ -231,15 +234,15 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
 	}
 
-	fillActionBar(template: ITerminalTabEntryTemplate): void {
-		const rename = new MenuItemAction({ id: TERMINAL_COMMAND_ID.RENAME, title: localize('terminal.rename', "Rename"), icon: Codicon.tag }, undefined, undefined, this._contextKeyService, this._commandService);
-		const split = new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: localize('terminal.split', "Split"), icon: Codicon.splitHorizontal }, undefined, undefined, this._contextKeyService, this._commandService);
-		const kill = new MenuItemAction({ id: TERMINAL_COMMAND_ID.KILL, title: localize('terminal.kill', "Kill"), icon: Codicon.trashcan }, undefined, undefined, this._contextKeyService, this._commandService);
-		if (template.actionBar.viewItems.length === 0) {
-			template.actionBar.push(rename, { icon: true, label: false });
-			template.actionBar.push(split, { icon: true, label: false });
-			template.actionBar.push(kill, { icon: true, label: false });
-		}
+	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
+		const rename = new Action(TERMINAL_COMMAND_ID.RENAME, localize('terminal.rename', "Rename"), ThemeIcon.asClassName(Codicon.tag), true, () => instance.rename());
+		const split = new Action(TERMINAL_COMMAND_ID.SPLIT, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => this._terminalService.splitInstance(instance));
+		const kill = new Action(TERMINAL_COMMAND_ID.KILL, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => instance.dispose(true));
+		// TODO: Cache these in a way that will use the correct instance
+		template.actionBar.clear();
+		template.actionBar.push(rename, { icon: true, label: false });
+		template.actionBar.push(split, { icon: true, label: false });
+		template.actionBar.push(kill, { icon: true, label: false });
 	}
 }
 

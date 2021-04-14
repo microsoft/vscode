@@ -53,6 +53,7 @@ import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/t
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -222,7 +223,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -1719,6 +1721,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('TerminalInstance.registerLinkProvider before link manager was ready');
 		}
 		return this._linkManager.registerExternalLinkProvider(this, provider);
+	}
+
+	public async rename() {
+		const name = await this._quickInputService.input({
+			value: this.title,
+			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+		});
+		if (name) {
+			this.setTitle(name, TitleEventSource.Api);
+		}
 	}
 }
 
