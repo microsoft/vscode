@@ -6,7 +6,7 @@
 import { flatten } from 'vs/base/common/arrays';
 import { Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -83,7 +83,8 @@ class CellStatusBarHelper extends Disposable {
 	) {
 		super();
 
-		this._cancelTokenSource = this._register(new CancellationTokenSource());
+		this._cancelTokenSource = new CancellationTokenSource();
+		this._register(toDisposable(() => this._cancelTokenSource.dispose(true)));
 
 		this._updateSoon();
 		this._register(this._cell.model.onDidChangeContent(() => this._updateSoon()));
