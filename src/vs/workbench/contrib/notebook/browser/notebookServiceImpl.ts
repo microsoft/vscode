@@ -175,9 +175,9 @@ export class NotebookProviderInfoStore extends Disposable {
 
 	private registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): void {
 		for (const selector of notebookProviderInfo.selectors) {
-			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || (selector as glob.IRelativePattern).pattern || selector;
+			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
 			this._register(this._extensionContributedEditorService.registerContributionPoint(
-				globPattern.toString(),
+				globPattern,
 				priorityToRank(notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority),
 				{
 					id: notebookProviderInfo.id,

@@ -38,7 +38,7 @@ interface IContributedEditorInput extends IEditorInput {
 }
 
 interface ContributionPoint {
-	globPattern: string,
+	globPattern: string | glob.IRelativePattern,
 	priority: number,
 	editorInfo: ContributedEditorInfo,
 	options: ContributionPointOptions,
@@ -80,7 +80,7 @@ export interface IExtensionContributedEditorService {
 	 * @param createEditorInput The factory method for creating inputs
 	 */
 	registerContributionPoint(
-		globPattern: string,
+		globPattern: string | glob.IRelativePattern,
 		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
@@ -102,7 +102,7 @@ export interface IExtensionContributedEditorHandler {
 export class ExtensionContributedEditorService extends Disposable implements IExtensionContributedEditorService {
 	readonly _serviceBrand: undefined;
 
-	private _contributionPoints: Map<string, ContributionPoints> = new Map<string, ContributionPoints>();
+	private _contributionPoints: Map<string | glob.IRelativePattern, ContributionPoints> = new Map<string | glob.IRelativePattern, ContributionPoints>();
 	private readonly _editorChoiceStorageID = 'extensionContributedEditorService.editorChoice';
 
 	private readonly extensionContributedEditors: IExtensionContributedEditorHandler[] = [];
@@ -164,7 +164,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 	}
 
 	registerContributionPoint(
-		globPattern: string,
+		globPattern: string | glob.IRelativePattern,
 		priority: number,
 		editorInfo: ContributedEditorInfo,
 		options: ContributionPointOptions,
@@ -207,7 +207,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		for (const key of this._contributionPoints.keys()) {
 			const contributionPoints = this._contributionPoints.get(key)!;
 			for (const contributionPoint of contributionPoints) {
-				const matchOnPath = contributionPoint?.globPattern.indexOf(posix.sep) >= 0;
+				const matchOnPath = typeof contributionPoint.globPattern === 'string' && contributionPoint?.globPattern.indexOf(posix.sep) >= 0;
 				const target = matchOnPath ? resource.path : basename(resource);
 				if (glob.match(contributionPoint.globPattern, target)) {
 					contributions.push(contributionPoint);
