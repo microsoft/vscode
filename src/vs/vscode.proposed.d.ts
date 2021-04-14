@@ -1429,6 +1429,45 @@ declare module 'vscode' {
 
 	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
+	export interface NotebookRendererCommunication {
+
+		/**
+		 *
+		 */
+		dispose(): void;
+
+		/**
+		 * The editor this object communicates with. A single notebook
+		 * document can have multiple attached webviews and editors, when the
+		 * notebook is split for instance. The editor ID lets you differentiate
+		 * between them.
+		 */
+		readonly editor: NotebookEditor;
+
+		/**
+		 *
+		 */
+		readonly rendererId: string;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serializable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
 	export interface NotebookKernel2 {
 
 		readonly id: string;
@@ -1443,8 +1482,10 @@ declare module 'vscode' {
 		 */
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
-		// kernels can establish IPC channels to (visible) notebook editors
-		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
+		// kernels can establish IPC channels to notebook editors
+		// todo@API create per editor or allow to postMessage(EDITOR, message) and onDidReceive: Event<{EDITOR, message}>
+		// todo@API have this global on vscode.notebook?
+		createNotebookRendererCommunication(editor: NotebookEditor, rendererId: string): NotebookRendererCommunication;
 
 		// UI properties (get/set)
 		label: string;

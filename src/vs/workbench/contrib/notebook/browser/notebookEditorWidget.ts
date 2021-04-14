@@ -52,7 +52,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/no
 import { errorStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { BackLayerWebView, INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
 import { CodeCellRenderer, ListTopCellToolbar, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
@@ -1063,9 +1063,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			});
 
-			this._localStore.add(this._webview.onMessage(({ message, forRenderer }) => {
+			this._localStore.add(this._webview.onMessage(e => {
 				if (this.viewModel) {
-					this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), forRenderer, message);
+					this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), e.forRenderer, e.message);
+					this._onDidReceiveMessage.fire(e);
 				}
 			}));
 
@@ -2297,6 +2298,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._outputRenderer;
 	}
 
+	//#region --- webview IPC ----
+
+	private readonly _onDidReceiveMessage = new Emitter<INotebookWebviewMessage>();
+
+	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
+
 	postMessage(forRendererId: string | undefined, message: any) {
 		if (this._webview?.isResolved()) {
 			if (forRendererId === undefined) {
@@ -2306,6 +2313,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}
 	}
+
+	//#endregion
 
 	addClassName(className: string) {
 		this._overlayContainer.classList.add(className);

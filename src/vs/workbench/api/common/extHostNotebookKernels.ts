@@ -114,15 +114,26 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			createNotebookCellExecutionTask(cell) {
+				if (isDisposed) {
+					throw new Error('object disposed');
+				}
 				//todo@jrieken
 				return that._extHostNotebook.createNotebookCellExecution(cell.document.uri, cell.index, data.id)!;
 			},
+			createNotebookRendererCommunication(editor, rendererId) {
+				if (isDisposed) {
+					throw new Error('object disposed');
+				}
+				return that._extHostNotebook.createNotebookCommunication(editor, rendererId);
+			},
 			dispose: () => {
-				isDisposed = true;
-				this._kernelData.delete(handle);
-				commandDisposables.dispose();
-				emitter.dispose();
-				this._proxy.$removeKernel(handle);
+				if (!isDisposed) {
+					isDisposed = true;
+					this._kernelData.delete(handle);
+					commandDisposables.dispose();
+					emitter.dispose();
+					this._proxy.$removeKernel(handle);
+				}
 			}
 		};
 	}

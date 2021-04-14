@@ -19,11 +19,15 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/objects';
 
-class MainThreadEditor {
+class MainThreadNotebook {
+
+	readonly ipcHandles = new Map<number, string>();
+
 	constructor(
 		readonly editor: INotebookEditor,
 		readonly disposables: DisposableStore
 	) { }
+
 	dispose() {
 		this.disposables.dispose();
 	}
@@ -34,7 +38,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _mainThreadEditors = new Map<string, MainThreadEditor>();
+	private readonly _mainThreadEditors = new Map<string, MainThreadNotebook>();
 
 	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
 
@@ -86,7 +90,20 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 				});
 			}));
 
-			this._mainThreadEditors.set(editor.getId(), new MainThreadEditor(editor, editorDisposables));
+			editorDisposables.add(editor.onDidReceiveMessage(e => {
+				const handles: number[] = [];
+				for (let [handle, rendererId] of wrapper.ipcHandles) {
+					if (rendererId === e.forRenderer) {
+						handles.push(handle);
+					}
+				}
+				if (handles.length > 0) {
+					this._proxy.$acceptEditorIpcMessage(handles, e.message);
+				}
+			}));
+
+			const wrapper = new MainThreadNotebook(editor, editorDisposables);
+			this._mainThreadEditors.set(editor.getId(), wrapper);
 		}
 	}
 
@@ -127,6 +144,35 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		//todo@jrieken use proper selection logic!
 		return editor.textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
+
+	//#region --- IPC
+
+	async $createNotebookIPC(editorId: string, handle: number, rendererId: string): Promise<boolean> {
+		const wrapper = this._mainThreadEditors.get(editorId);
+		if (!wrapper) {
+			return false;
+		}
+		wrapper.ipcHandles.set(handle, rendererId);
+		return true;
+	}
+
+	async $removeNotebookIpc(editorId: string, handle: number) {
+		const wrapper = this._mainThreadEditors.get(editorId);
+		if (wrapper) {
+			wrapper.ipcHandles.delete(handle);
+		}
+	}
+
+	async $postMessage(editorId: string, handle: number, forRendererId: string | undefined, message: unknown): Promise<boolean> {
+		const wrapper = this._mainThreadEditors.get(editorId);
+		if (!wrapper || !wrapper.ipcHandles.has(handle)) {
+			return false;
+		}
+		wrapper.editor.postMessage(forRendererId, message);
+		return true;
+	}
+
+	//#endregion
 
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions = new NotebookEditorOptions({

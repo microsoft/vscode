@@ -660,6 +660,65 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
+	private readonly _editorIpcObjects = new Map<number, { emitter: Emitter<any> }>();
+
+	createNotebookCommunication(editor: vscode.NotebookEditor, rendererId: string): vscode.NotebookRendererCommunication {
+		// todo@jrieken should this be created for a specific renderer?
+		// how else would this be working when sending/receiving messages
+
+		let actualEditor: ExtHostNotebookEditor | undefined;
+		for (let candidate of this._editors.values()) {
+			if (candidate.editor.editor === editor) {
+				actualEditor = candidate.editor;
+				break;
+			}
+		}
+
+		if (!actualEditor) {
+			throw new Error(`the provided editor is NOT KNOWN`);
+		}
+
+		const editorId = actualEditor.id;
+		const that = this;
+		const handle = this._handlePool++;
+
+		const emitter = new Emitter<unknown>();
+
+		const registration = this._notebookEditorsProxy.$createNotebookIPC(editorId, handle, rendererId);
+
+		const result: vscode.NotebookRendererCommunication = {
+			editor,
+			rendererId,
+			onDidReceiveMessage: emitter.event,
+			dispose(): void {
+				emitter.dispose();
+				that._editorIpcObjects.delete(handle);
+				that._notebookEditorsProxy.$removeNotebookIpc(editorId, handle);
+			},
+			async postMessage(message: unknown) {
+				if (!that._editors.has(editorId)) {
+					return false;
+				}
+				if (!await registration) {
+					return false;
+				}
+				return that._notebookEditorsProxy.$postMessage(editorId, handle, rendererId, message);
+			},
+			asWebviewUri(localResource) {
+				return asWebviewUri(that._webviewInitData, editorId, localResource);
+			}
+		};
+
+		this._editorIpcObjects.set(handle, { emitter });
+		return result;
+	}
+
+	$acceptEditorIpcMessage(handles: number[], message: unknown): void {
+		for (const handle of handles) {
+			this._editorIpcObjects.get(handle)?.emitter.fire(message);
+		}
+	}
+
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void {
 		for (const id in data) {
 			const editor = this._editors.get(id);
