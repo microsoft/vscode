@@ -41,9 +41,12 @@ suite('vscode API - env', () => {
 		} else if (typeof remoteName === 'string') {
 			// running in remote, so we only expect workspace extensions
 			assert.ok(knownWorkspaceExtension);
-			assert.ok(knownUiAndWorkspaceExtension);
+			if (env.uiKind === UIKind.Desktop) {
+				assert.ok(!knownUiAndWorkspaceExtension); // we currently can only access extensions that run on same host
+			} else {
+				assert.ok(knownUiAndWorkspaceExtension);
+			}
 			assert.equal(ExtensionKind.Workspace, knownWorkspaceExtension!.extensionKind);
-			assert.equal(ExtensionKind.Workspace, knownUiAndWorkspaceExtension!.extensionKind);
 		} else {
 			assert.fail();
 		}
