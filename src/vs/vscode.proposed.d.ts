@@ -2163,7 +2163,7 @@ declare module 'vscode' {
 		/**
 		 * Registers a provider that discovers tests in workspaces and documents.
 		 */
-		export function registerTestProvider<T extends TestItem>(testProvider: TestProvider<T>): Disposable;
+		export function registerTestProvider<T>(testProvider: TestProvider<T>): Disposable;
 
 		/**
 		 * Runs tests. The "run" contains the list of tests to run as well as a
@@ -2171,7 +2171,7 @@ declare module 'vscode' {
 		 * that "run" is called, all tests given in the run have their state
 		 * automatically set to {@link TestResultState.Queued}.
 		 */
-		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
+		export function runTests<T>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that retrieves tests in the given workspace folder.
@@ -2196,7 +2196,10 @@ declare module 'vscode' {
 		 * persisted in VS Code. This may be false if the results are coming from
 		 * a file already saved externally, such as a coverage information file.
 		 */
-		export function createTestRunTask<T extends TestItem>(request: TestRunRequest<T>, persist?: boolean): TestRunTask<T>;
+		export function createTestRunTask<T>(request: TestRunRequest<T>, persist?: boolean): TestRunTask<T>;
+
+		export function createTestItem<T>(options: TestItemOptions, data: T): TestItem<void>;
+		export function createTestItem<T>(options: TestItemOptions): TestItem<T>;
 
 		/**
 		* List of test results stored by VS Code, sorted in descnding
@@ -2214,7 +2217,7 @@ declare module 'vscode' {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem>;
+		readonly tests: ReadonlyArray<TestItem<never>>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -2244,17 +2247,17 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<TestItem>;
+		readonly added: ReadonlyArray<TestItem<never>>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<TestItem>;
+		readonly updated: ReadonlyArray<TestItem<never>>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<TestItem>;
+		readonly removed: ReadonlyArray<TestItem<never>>;
 	}
 
 	/**
@@ -2265,7 +2268,7 @@ declare module 'vscode' {
 	 *
 	 * @todo rename from provider
 	 */
-	export interface TestProvider<T extends TestItem = TestItem> {
+	export interface TestProvider<T> {
 		/**
 		 * Requests that tests be provided for the given workspace. This will
 		 * be called when tests need to be enumerated for the workspace, such as
@@ -2278,7 +2281,7 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 * @returns the root test item for the workspace
 		 */
-		provideWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<T>;
+		provideWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestItem<T>>;
 
 		/**
 		 * Requests that tests be provided for the given document. This will be
@@ -2297,41 +2300,41 @@ declare module 'vscode' {
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 * @returns the root test item for the workspace
 		 */
-		provideDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<T>;
-	}
+		provideDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<TestItem<T>>;
 
-	/**
-	 * A type that can run tests provided by a {@link TestProvider}.
-	 */
-	export class TestRunner {
 		/**
 		 * Requets to execute tests. This should cause {@link onDidChangeTest} to
 		 * fire with update test states during the run. If this runner can execute
 		 * the provided tests, then it should call `vscode.test.createTestRunTask`
 		 * prior to returning.
-		 * 
+		 *
 		 * @param options Options for this test run
 		 * @param cancellationToken Token that signals the used asked to abort the test run.
 		 */
-		runTests(options: TestRunRequest, token: CancellationToken): Thenable<void> | void;
+		runTests(options: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
+
+		possibleTaskTypes: string[];
+		onDidChangePossibleTaskTypes: Event<void>;
 	}
 
 	/**
 	 * Options given to {@link test.runTests}.
 	 */
-	export interface TestRunRequest<T extends TestItem = TestItem> {
+	export interface TestRunRequest<T> {
 		/**
 		 * Array of specific tests to run. The {@link TestProvider.testRoot} may
 		 * be provided as an indication to run all tests.
 		 */
-		tests: T[];
+		tests: TestItem<T>[];
 
 		/**
 		 * An array of tests the user has marked as excluded in VS Code. May be
 		 * omitted if no exclusions were requested. Test providers should not run
 		 * excluded tests or any children of excluded tests.
 		 */
-		exclude?: T[];
+		exclude?: TestItem<T>[];
+
+		onlyTheseTaskTypes: string[];
 
 		/**
 		 * Whether or not tests in this run should be debugged.
@@ -2342,7 +2345,9 @@ declare module 'vscode' {
 	/**
 	 * Options given to {@link TestProvider.runTests}
 	 */
-	export interface TestRunTask<T extends TestItem> {
+	export interface TestRunTask<T = void> {
+		name: string;
+
 		/**
 		 * Updates the state of the test in the run. By default, all tests involved
 		 * in the run will have a "queued" state until they are updated by this method.
@@ -2354,7 +2359,7 @@ declare module 'vscode' {
 		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run
 		 */
-		setState(test: T, state: TestResultState, duration?: number): void;
+		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
 
 		/**
 		 * Appends a message, such as an assertion error, to the test item.
@@ -2366,7 +2371,7 @@ declare module 'vscode' {
 		 * @param state The state to assign to the test
 		 *
 		 */
-		appendMessage(test: T, message: TestMessage): void;
+		appendMessage(test: TestItem<T>, message: TestMessage): void;
 
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
@@ -2408,7 +2413,7 @@ declare module 'vscode' {
 		 * Removes the child test item by reference or ID from the collection.
 		 * @param child Child ID or instance to remove.
 		 */
-		delete(child: T | string): void;
+		['delete'](child: T | string): void;
 
 		/**
 		 * Removes all children from the collection.
@@ -2416,11 +2421,45 @@ declare module 'vscode' {
 		clear(): void;
 	}
 
+	export interface TestItemOptions {
+		/**
+		 * Unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of the TestItem.
+		 */
+		id: string;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or directory.
+		 */
+		uri: Uri;
+
+		/**
+		 * Display name describing the test case.
+		 */
+		label: string;
+	}
+
+	/**
+	 * Indicates the the activity state of the {@link TestItem}
+	 */
+	export enum TestItemStatus {
+		/**
+		 * The test item may be children who have not been discovered yet.
+		 */
+		Pending = 0,
+
+		/**
+		 * All children of the test item, if any, have been discovered.
+		 */
+		Resolved = 1,
+	}
+
 	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export class TestItem<TChildren = any> {
+	export interface TestItem<T> {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2434,10 +2473,20 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
-		 * A set of children this item has. You can add new children to it, which
-		 * will propagate to the editor UI.
+		 * A mapping of children by ID to the associated TestItem instances.
 		 */
-		readonly children: TestChildrenCollection<TChildren>;
+		readonly children: ReadonlyMap<string, TestItem<T>>;
+
+		/**
+		 * Indicates the status of the TestItem, specifically how its children
+		 * are discovered. The editor will show TestItems in the `Pending` state
+		 * and with a `resolveHandler` as being expandable, and will call the
+		 * `resolveHandler` to request items.
+		 *
+		 * A TestItem in the `resolved` state is assumed to have discovered and be
+		 * watching for changes in its children.
+		 */
+		status: TestItemStatus;
 
 		/**
 		 * Display name describing the test case.
@@ -2456,6 +2505,13 @@ declare module 'vscode' {
 		range?: Range;
 
 		/**
+		 * May be set to an error associated with loading the test. Note that this
+		 * is not a test result and should only be used to represent errors in
+		 * discovery, such as syntax errors.
+		 */
+		error?: string | MarkdownString;
+
+		/**
 		 * Whether this test item can be run by providing it in the
 		 * {@link TestRunRequest.tests} array. Defaults to `true`.
 		 */
@@ -2468,22 +2524,6 @@ declare module 'vscode' {
 		debuggable: boolean;
 
 		/**
-		 * Whether this test item can be expanded in the tree view, implying it
-		 * has (or may have) children. If this is true, VS Code may call
-		 * the {@link TestItem.discoverChildren} method.
-		 */
-		expandable: boolean;
-
-		/**
-		 * Creates a new TestItem instance.
-		 * @param id Value of the "id" property
-		 * @param label Value of the "label" property.
-		 * @param uri Value of the "uri" property.
-		 * @param expandable Value of the "expandable" property.
-		 */
-		constructor(id: string, label: string, uri: Uri, expandable: boolean);
-
-		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
 		 * automatically rerun after a short delay. Invoking this on a
@@ -2494,13 +2534,13 @@ declare module 'vscode' {
 		invalidate(): void;
 
 		/**
-		 * Requests the children of the test item. Extensions should override this
-		 * method for any test that can discover children.
+		 * A function provided by the extension that the editor may call to request
+		 * children of the item, if the {@link TestItem.status} is `Pending`.
 		 *
-		 * When called, the item should discover tests and update its's `children`.
+		 * When called, the item should discover tests and call {@link TestItem.addChild}.
 		 * The provider will be marked as 'busy' when this method is called, and
-		 * the provider should report `{ busy: false }` to {@link Progress.report}
-		 * once discovery is complete.
+		 * the provider should set its {@link TestItem.status} to `Resolved` when
+		 * discovery is finished.
 		 *
 		 * The item should continue watching for changes to the children and
 		 * firing updates until the token is cancelled. The process of watching
@@ -2512,9 +2552,20 @@ declare module 'vscode' {
 		 *
 		 * @param token Cancellation for the request. Cancellation will be
 		 * requested if the test changes before the previous call completes.
-		 * @returns a provider result of child test items
 		 */
-		discoverChildren(progress: Progress<{ busy: boolean }>, token: CancellationToken): void;
+		resolveHandler?: (token: CancellationToken) => void;
+
+		/**
+		 * Attaches a child, created from the {@link test.createTestItem} function,
+		 * to this item. A `TestItem` may be a child of at most one other item.
+		 */
+		addChild(child: TestItem<T>): void;
+
+		/**
+		 * Removes the test and its children from the tree. Any tokens passed to
+		 * child `resolveHandler` methods will be cancelled.
+		 */
+		dispose(): void;
 	}
 
 	/**
