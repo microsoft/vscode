@@ -233,6 +233,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		const unregisterThing = (handle: number) => {
 			const entry = this._notebookCellStatusBarRegistrations.get(handle);
 			if (entry) {
+				this._notebookCellStatusBarRegistrations.get(handle)?.dispose();
 				this._notebookCellStatusBarRegistrations.delete(handle);
 			}
 		};
