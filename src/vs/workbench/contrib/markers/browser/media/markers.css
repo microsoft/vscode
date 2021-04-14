@@ -206,8 +206,8 @@
 	padding: 2px;
 }
 
-.markers-panel .monaco-tl-contents .actions .action-label {
-	width: 16px;
+.markers-panel .monaco-tl-contents .actions .action-item {
+	margin: 0 4px;
 }
 
 .markers-panel .monaco-tl-contents .multiline-actions .action-item.disabled,
