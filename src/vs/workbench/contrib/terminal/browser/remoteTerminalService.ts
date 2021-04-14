@@ -184,7 +184,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				title: termDto.title,
 				cwd: termDto.cwd,
 				workspaceId: termDto.workspaceId,
-				workspaceName: termDto.workspaceName
+				workspaceName: termDto.workspaceName,
+				icon: termDto.icon
 			};
 		});
 	}
