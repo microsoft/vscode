@@ -420,8 +420,9 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
-				['tunnelType', element.tunnel.tunnelType],
-				['tunnelCloseable', element.tunnel.closeable]
+				[TunnelTypeContextKey.key, element.tunnel.tunnelType],
+				[TunnelCloseableContextKey.key, element.tunnel.closeable],
+				[TunnelPrivacyContextKey.key, element.tunnel.privacy]
 			];
 		const contextKeyService = this.contextKeyService.createOverlay(context);
 		const disposableStore = new DisposableStore();
