@@ -962,13 +962,15 @@ declare module 'vscode' {
 
 	export class NotebookCellMetadata {
 		/**
-		 * Whether a code cell's editor is collapsed
-		 */
-		readonly outputCollapsed?: boolean;
-		/**
 		 * Whether a code cell's outputs are collapsed
 		 */
 		readonly inputCollapsed?: boolean;
+
+		/**
+		 * Whether a code cell's editor is collapsed
+		 */
+		readonly outputCollapsed?: boolean;
+
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
@@ -982,7 +984,7 @@ declare module 'vscode' {
 
 		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>);
 
-		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null }): NotebookCellMetadata;
 	}
 
 	export interface NotebookCellExecutionSummary {
@@ -1011,12 +1013,7 @@ declare module 'vscode' {
 		 * Defaults to true
 		 */
 		readonly editable: boolean;
-		/**
-		 * todo@API maybe removed?
-		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
-		 * Defaults to true.
-		 */
-		readonly cellEditable: boolean;
+
 		/**
 		 * Additional attributes of the document metadata.
 		 */
@@ -1027,9 +1024,9 @@ declare module 'vscode' {
 		 */
 		readonly trusted: boolean;
 
-		constructor(editable?: boolean, cellEditable?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
+		constructor(editable?: boolean, custom?: { [key: string]: any; }, trusted?: boolean);
 
-		with(change: { editable?: boolean | null, cellEditable?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
+		with(change: { editable?: boolean | null, custom?: { [key: string]: any; } | null, trusted?: boolean | null, }): NotebookDocumentMetadata
 	}
 
 	export interface NotebookDocumentContentOptions {

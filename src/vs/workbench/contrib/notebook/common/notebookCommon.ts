@@ -58,14 +58,12 @@ export enum NotebookRunState {
 
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
-	cellEditable: true,
 	custom: {},
 	trusted: true
 };
 
 export interface NotebookDocumentMetadata {
 	editable: boolean;
-	cellEditable: boolean;
 	custom?: { [key: string]: unknown };
 	trusted: boolean;
 }

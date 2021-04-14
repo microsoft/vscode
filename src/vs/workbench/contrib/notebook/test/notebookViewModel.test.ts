@@ -155,7 +155,7 @@ suite('NotebookViewModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, trusted: true };
 
 
 
@@ -179,7 +179,7 @@ suite('NotebookViewModel', () => {
 					editable: false,
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, trusted: true };
 
 				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
@@ -198,12 +198,6 @@ suite('NotebookViewModel', () => {
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(4)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
-					editable: false,
-				});
-
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, trusted: true };
-
-				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
 				});
 			}

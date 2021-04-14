@@ -2990,29 +2990,22 @@ export class NotebookDocumentMetadata {
 
 	constructor(
 		readonly editable: boolean = true,
-		readonly cellEditable: boolean = true,
 		readonly custom: { [key: string]: any; } = {},
 		readonly trusted: boolean = true,
 	) { }
 
 	with(change: {
 		editable?: boolean | null,
-		cellEditable?: boolean | null,
 		custom?: { [key: string]: any; } | null,
 		trusted?: boolean | null,
 	}): NotebookDocumentMetadata {
 
-		let { editable, cellEditable, custom, trusted } = change;
+		let { editable, custom, trusted } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
 		} else if (editable === null) {
 			editable = undefined;
-		}
-		if (cellEditable === undefined) {
-			cellEditable = this.cellEditable;
-		} else if (cellEditable === null) {
-			cellEditable = undefined;
 		}
 		if (custom === undefined) {
 			custom = this.custom;
@@ -3026,7 +3019,6 @@ export class NotebookDocumentMetadata {
 		}
 
 		if (editable === this.editable &&
-			cellEditable === this.cellEditable &&
 			custom === this.custom &&
 			trusted === this.trusted
 		) {
@@ -3036,7 +3028,6 @@ export class NotebookDocumentMetadata {
 
 		return new NotebookDocumentMetadata(
 			editable,
-			cellEditable,
 			custom,
 			trusted
 		);
