@@ -640,4 +640,3 @@ export class CheckForVSCodeUpdateAction extends Action {
 		return this.updateService.checkForUpdates(this.environmentService.sessionId);
 	}
 }
-

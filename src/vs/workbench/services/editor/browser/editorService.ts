@@ -91,7 +91,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerListeners(): void {
 
 		// Editor & group changes
-		this.editorGroupService.whenRestored.then(() => this.onEditorsRestored());
+		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
 		this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
 		this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire());
@@ -115,7 +115,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private lastActiveEditor: IEditorInput | undefined = undefined;
 
-	private onEditorsRestored(): void {
+	private onEditorGroupsReady(): void {
 
 		// Register listeners to each opened group
 		this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group as IEditorGroupView));

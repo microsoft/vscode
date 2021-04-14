@@ -197,6 +197,49 @@
 	padding: 0 22px 0 6px;
 }
 
-.monaco-workbench .tabs-widget .codicon {
+#terminal-tabs-plus-button {
+	min-height: 10;
+	flex-grow: 0;
+	text-align: center;
+	z-index: 10;
+}
+
+#terminal-tabs-plus-button.align-left {
+	padding-left: 10px;
+	text-align: left;
+	z-index: 10;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry {
+	text-align: center;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry.has-text {
+	padding-left: 10px;
+	text-align: left;
+}
+
+.monaco-workbench .pane-body.integrated-terminal  .tabs-widget .codicon {
 	vertical-align: text-bottom;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-tl-twistie.force-no-twistie {
+	display: none !important;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .actions {
+	display: none;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .actions .action-label {
+	padding: 2px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .monaco-list-row:hover .actions {
+	display: block;
 }

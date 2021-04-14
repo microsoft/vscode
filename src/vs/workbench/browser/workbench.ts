@@ -427,11 +427,13 @@ export class Workbench extends Layout {
 				this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
 			}, 2500);
 
-			// Perf: signal workbench started
-			mark('code/didStartWorkbench');
-
-			// Perf reporting (devtools)
-			performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
+			// Update perf marks only when the layout is fully
+			// restored. We want the time it takes to restore
+			// editors to be included in these numbers
+			this.whenRestored.finally(() => {
+				mark('code/didStartWorkbench');
+				performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
+			});
 		}
 	}
 }

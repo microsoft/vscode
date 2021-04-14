@@ -69,7 +69,7 @@ export class EditorsObserver extends Disposable {
 		this._register(this.editorGroupsService.onDidAddGroup(group => this.onGroupAdded(group)));
 		this._register(this.editorGroupsService.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
 
-		this.editorGroupsService.whenRestored.then(() => this.loadState());
+		this.editorGroupsService.whenReady.then(() => this.loadState());
 	}
 
 	private onGroupAdded(group: IEditorGroup): void {

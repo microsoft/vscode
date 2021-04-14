@@ -172,7 +172,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 	public get isDisconnected(): boolean { return this._processManager.isDisconnected; }
-	public get icon(): Codicon { return this.shellLaunchConfig.icon ? (iconRegistry.get(this.shellLaunchConfig.icon) || Codicon.terminal) : Codicon.terminal; }
+	public get icon(): Codicon { return this._getIcon(); }
 
 	private readonly _onExit = new Emitter<number | undefined>();
 	public get onExit(): Event<number | undefined> { return this._onExit.event; }
@@ -293,6 +293,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		});
+	}
+
+	private _getIcon(): Codicon {
+		if (this.shellLaunchConfig.icon) {
+			return iconRegistry.get(this.shellLaunchConfig.icon) || Codicon.terminal;
+		} else if (this.shellLaunchConfig?.attachPersistentProcess?.icon) {
+			return iconRegistry.get(this.shellLaunchConfig.attachPersistentProcess.icon) || Codicon.terminal;
+		}
+		return Codicon.terminal;
 	}
 
 	public addDisposable(disposable: IDisposable): void {
@@ -455,6 +464,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			rendererType: xtermRendererType,
 			wordSeparator: config.wordSeparators
 		});
+		this.toggleEscapeSequenceLogging();
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
 		this._updateUnicodeVersion();
@@ -1035,10 +1045,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
-		if (ev.sync) {
-			this._xtermCore?.writeSync(ev.data, 0);
+		const messageId = ++this._latestXtermWriteData;
+		if (ev.trackCommit) {
+			ev.writePromise = new Promise<void>(r => {
+				this._xterm?.write(ev.data, () => {
+					this._latestXtermParseData = messageId;
+					this._processManager.acknowledgeDataEvent(ev.data.length);
+					r();
+				});
+			});
 		} else {
-			const messageId = ++this._latestXtermWriteData;
 			this._xterm?.write(ev.data, () => {
 				this._latestXtermParseData = messageId;
 				this._processManager.acknowledgeDataEvent(ev.data.length);

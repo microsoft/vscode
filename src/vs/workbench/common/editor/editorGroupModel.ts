@@ -44,7 +44,7 @@ export interface ISerializedEditorInput {
 	readonly value: string;
 }
 
-export interface ISerializedEditorGroup {
+export interface ISerializedEditorGroupModel {
 	readonly id: number;
 	readonly editors: ISerializedEditorInput[];
 	readonly mru: number[];
@@ -52,13 +52,13 @@ export interface ISerializedEditorGroup {
 	sticky?: number;
 }
 
-export function isSerializedEditorGroup(obj?: unknown): obj is ISerializedEditorGroup {
-	const group = obj as ISerializedEditorGroup;
+export function isSerializedEditorGroupModel(obj?: unknown): obj is ISerializedEditorGroupModel {
+	const group = obj as ISerializedEditorGroupModel;
 
 	return !!(obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru));
 }
 
-export class EditorGroup extends Disposable {
+export class EditorGroupModel extends Disposable {
 
 	private static IDS = 0;
 
@@ -107,16 +107,16 @@ export class EditorGroup extends Disposable {
 	private focusRecentEditorAfterClose: boolean | undefined;
 
 	constructor(
-		labelOrSerializedGroup: ISerializedEditorGroup | undefined,
+		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
-		if (isSerializedEditorGroup(labelOrSerializedGroup)) {
+		if (isSerializedEditorGroupModel(labelOrSerializedGroup)) {
 			this._id = this.deserialize(labelOrSerializedGroup);
 		} else {
-			this._id = EditorGroup.IDS++;
+			this._id = EditorGroupModel.IDS++;
 		}
 
 		this.onConfigurationUpdated();
@@ -722,25 +722,25 @@ export class EditorGroup extends Disposable {
 		return editor.matches(candidate);
 	}
 
-	clone(): EditorGroup {
-		const group = this.instantiationService.createInstance(EditorGroup, undefined);
+	clone(): EditorGroupModel {
+		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
 
 		// Copy over group properties
-		group.editors = this.editors.slice(0);
-		group.mru = this.mru.slice(0);
-		group.preview = this.preview;
-		group.active = this.active;
-		group.sticky = this.sticky;
+		clone.editors = this.editors.slice(0);
+		clone.mru = this.mru.slice(0);
+		clone.preview = this.preview;
+		clone.active = this.active;
+		clone.sticky = this.sticky;
 
 		// Ensure to register listeners for each editor
-		for (const editor of group.editors) {
-			group.registerEditorListeners(editor);
+		for (const editor of clone.editors) {
+			clone.registerEditorListeners(editor);
 		}
 
-		return group;
+		return clone;
 	}
 
-	serialize(): ISerializedEditorGroup {
+	serialize(): ISerializedEditorGroupModel {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		// Serialize all editor inputs so that we can store them.
@@ -794,15 +794,15 @@ export class EditorGroup extends Disposable {
 		};
 	}
 
-	private deserialize(data: ISerializedEditorGroup): number {
+	private deserialize(data: ISerializedEditorGroupModel): number {
 		const registry = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories);
 
 		if (typeof data.id === 'number') {
 			this._id = data.id;
 
-			EditorGroup.IDS = Math.max(data.id + 1, EditorGroup.IDS); // make sure our ID generator is always larger
+			EditorGroupModel.IDS = Math.max(data.id + 1, EditorGroupModel.IDS); // make sure our ID generator is always larger
 		} else {
-			this._id = EditorGroup.IDS++; // backwards compatibility
+			this._id = EditorGroupModel.IDS++; // backwards compatibility
 		}
 
 		this.editors = coalesce(data.editors.map((e, index) => {

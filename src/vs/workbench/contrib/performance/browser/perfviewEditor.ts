@@ -186,7 +186,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['register extensions & spawn extension host', metrics.timers.ellapsedExtensions, '[renderer]', undefined]);
 		table.push(['restore viewlet', metrics.timers.ellapsedViewletRestore, '[renderer]', metrics.viewletId]);
 		table.push(['restore panel', metrics.timers.ellapsedPanelRestore, '[renderer]', metrics.panelId]);
-		table.push(['restore editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
+		table.push(['restore & resolve visible editors', metrics.timers.ellapsedEditorRestore, '[renderer]', `${metrics.editorIds.length}: ${metrics.editorIds.join(', ')}`]);
 		table.push(['overall workbench load', metrics.timers.ellapsedWorkbench, '[renderer]', undefined]);
 		table.push(['workbench ready', metrics.ellapsed, '[main->renderer]', undefined]);
 		table.push(['renderer ready', metrics.timers.ellapsedRenderer, '[renderer]', undefined]);

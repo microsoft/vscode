@@ -15,6 +15,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -357,8 +358,8 @@ export interface IStartupMetrics {
 		readonly ellapsedPanelRestore: number;
 
 		/**
-		 * The time it took to restore editors - that is text editor and complex editor likes the settings UI
-		 * or webviews (markdown preview).
+		 * The time it took to restore and fully resolve visible editors - that is text editor
+		 * and complex editor likes the settings UI or webviews (markdown preview).
 		 *
 		 * * Happens in the renderer-process
 		 * * Measured with the `willRestoreEditors` and `didRestoreEditors` performance marks.
@@ -482,10 +483,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		Promise.all([
-			this._extensionService.whenInstalledExtensionsRegistered(),
-			_lifecycleService.when(LifecyclePhase.Restored)
+			this._extensionService.whenInstalledExtensionsRegistered(), // extensions registered
+			_lifecycleService.when(LifecyclePhase.Restored),			// workbench created and parts restored
+			layoutService.whenRestored									// layout restored (including visible editors resolved)
 		]).then(() => {
 			// set perf mark from renderer
 			this.setPerformanceMarks('renderer', perf.getMarks());

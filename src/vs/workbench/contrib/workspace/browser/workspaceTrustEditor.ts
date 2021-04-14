@@ -34,7 +34,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustStorageService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -48,7 +48,6 @@ import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/brow
 
 const untrustedIcon = registerCodicon('workspace-untrusted-icon', Codicon.workspaceUntrusted);
 const trustedIcon = registerCodicon('workspace-trusted-icon', Codicon.workspaceTrusted);
-const unspecified = registerCodicon('workspace-unspecified-icon', Codicon.workspaceUnspecified);
 
 const checkListIcon = registerCodicon('workspace-trusted-check-icon', Codicon.check);
 const xListIcon = registerCodicon('workspace-trusted-x-icon', Codicon.x);
@@ -121,52 +120,42 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private registerListeners(): void {
-		this._register(this.workspaceTrustManagementService.onDidChangeTrustState(() => this.render()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
 		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		this._register(Event.any(configurationRegistry.onDidUpdateConfiguration, configurationRegistry.onDidSchemaChange)(() => this.render()));
 	}
 
-	private getHeaderContainerClass(trustState: WorkspaceTrustState): string {
-		switch (trustState) {
-			case WorkspaceTrustState.Trusted:
-				return 'workspace-trust-header workspace-trust-trusted';
-			case WorkspaceTrustState.Untrusted:
-				return 'workspace-trust-header workspace-trust-untrusted';
-			case WorkspaceTrustState.Unspecified:
-				return 'workspace-trust-header workspace-trust-unknown';
+	private getHeaderContainerClass(trusted: boolean): string {
+		if (trusted) {
+			return 'workspace-trust-header workspace-trust-trusted';
 		}
+
+		return 'workspace-trust-header workspace-trust-untrusted';
 	}
 
-	private getHeaderTitleText(trustState: WorkspaceTrustState): string {
-		switch (trustState) {
-			case WorkspaceTrustState.Trusted:
-				return localize('trustedHeader', "This workspace is trusted");
-			case WorkspaceTrustState.Untrusted:
-				return localize('untrustedHeader', "This workspace is not trusted");
-			case WorkspaceTrustState.Unspecified:
-				return localize('unspecifiedHeader', "Do you want to trust this workspace?");
+	private getHeaderTitleText(trusted: boolean): string {
+		if (trusted) {
+			return localize('trustedHeader', "This workspace is trusted");
 		}
+
+		return localize('untrustedHeader', "This workspace is not trusted");
 	}
 
-	private getHeaderDescriptionText(trustState: WorkspaceTrustState): string {
-		switch (trustState) {
-			case WorkspaceTrustState.Trusted:
-			case WorkspaceTrustState.Untrusted:
-			case WorkspaceTrustState.Unspecified:
-				return localize('unknownSpecifiedDescription', "Some features are disabled until trust is granted to the workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
+	private getHeaderDescriptionText(trusted: boolean): string {
+		if (trusted) {
+			return localize('trustedDescription', "All features are enabled because trust has been granted to the workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
 		}
+
+		return localize('untrustedDescription', "Some features are disabled until trust is granted to the workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
 	}
 
-	private getHeaderTitleIconClassNames(trustState: WorkspaceTrustState): string[] {
-		switch (trustState) {
-			case WorkspaceTrustState.Trusted:
-				return trustedIcon.classNamesArray;
-			case WorkspaceTrustState.Untrusted:
-				return untrustedIcon.classNamesArray;
-			case WorkspaceTrustState.Unspecified:
-				return unspecified.classNamesArray;
+	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
+		if (trusted) {
+			return trustedIcon.classNamesArray;
 		}
+
+		return untrustedIcon.classNamesArray;
 	}
 
 	private rendering = false;
@@ -180,17 +169,17 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = true;
 		this.rerenderDisposables.clear();
 
-		const currentTrustState = this.workspaceTrustManagementService.getWorkspaceTrustState();
-		this.rootElement.classList.toggle('trusted', currentTrustState === WorkspaceTrustState.Trusted);
-		this.rootElement.classList.toggle('untrusted', currentTrustState === WorkspaceTrustState.Untrusted);
+		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+		this.rootElement.classList.toggle('trusted', isWorkspaceTrusted);
+		this.rootElement.classList.toggle('untrusted', !isWorkspaceTrusted);
 
 		// Header Section
-		this.headerTitleText.innerText = this.getHeaderTitleText(currentTrustState);
+		this.headerTitleText.innerText = this.getHeaderTitleText(isWorkspaceTrusted);
 		this.headerTitleIcon.className = 'workspace-trust-title-icon';
-		this.headerTitleIcon.classList.add(...this.getHeaderTitleIconClassNames(currentTrustState));
+		this.headerTitleIcon.classList.add(...this.getHeaderTitleIconClassNames(isWorkspaceTrusted));
 		this.headerDescription.innerText = '';
 
-		const linkedText = parseLinkedText(this.getHeaderDescriptionText(currentTrustState));
+		const linkedText = parseLinkedText(this.getHeaderDescriptionText(isWorkspaceTrusted));
 		const p = append(this.headerDescription, $('p'));
 		for (const node of linkedText.nodes) {
 			if (typeof node === 'string') {
@@ -203,7 +192,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			}
 		}
 
-		this.headerContainer.className = this.getHeaderContainerClass(currentTrustState);
+		this.headerContainer.className = this.getHeaderContainerClass(isWorkspaceTrusted);
 
 		// Settings
 		const settingsRequiringTrustedWorkspaceCount = this.getSettingsRequiringTrustedTargetCount();
@@ -249,9 +238,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private createConfigurationElement(parent: HTMLElement): void {
 		this.configurationContainer = append(parent, $('.workspace-trust-settings.settings-editor'));
 
-		const titleContainer = append(this.configurationContainer, $('.workspace-trust-section-title'));
-		titleContainer.innerText = localize('configurationSectionTitle', "Configure All Workspaces");
-
 		const settingsBody = append(this.configurationContainer, $('.workspace-trust-settings-body.settings-body'));
 
 		const workspaceTrustTreeContainer = append(settingsBody, $('.workspace-trust-settings-tree-container.settings-tree-container'));
@@ -273,8 +259,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private renderAffectedFeatures(numSettings: number, numExtensions: number): void {
 		clearNode(this.affectedFeaturesContainer);
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
-		this.renderLimitationsHeaderElement(trustedContainer, localize('trustedWorkspace', "Trusted Workspace"), this.getHeaderTitleIconClassNames(WorkspaceTrustState.Trusted));
-
+		this.renderLimitationsHeaderElement(trustedContainer, localize('trustedWorkspace', "Trusted Workspace"), this.getHeaderTitleIconClassNames(true));
 		this.renderLimitationsListElement(trustedContainer, [
 			localize('trustedTasks', "Tasks will be allowed to run"),
 			localize('trustedDebugging', "Debugging will be enabled"),
@@ -283,7 +268,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		], checkListIcon.classNamesArray);
 
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
-		this.renderLimitationsHeaderElement(untrustedContainer, localize('untrustedWorkspace', "Untrusted Workspace"), this.getHeaderTitleIconClassNames(WorkspaceTrustState.Untrusted));
+		this.renderLimitationsHeaderElement(untrustedContainer, localize('untrustedWorkspace', "Untrusted Workspace"), this.getHeaderTitleIconClassNames(false));
 
 		this.renderLimitationsListElement(untrustedContainer, [
 			localize('untrustedTasks', "Tasks will be disabled"),
@@ -292,11 +277,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedExtensions', "[{0} extensions](command:{1}) will be disabled or limit functionality", numExtensions, 'workbench.extensions.action.listTrustRequiredExtensions')
 		], xListIcon.classNamesArray);
 
-		this.addButtonToLimitationsElement(trustedContainer, WorkspaceTrustState.Trusted);
-		this.addButtonToLimitationsElement(untrustedContainer, WorkspaceTrustState.Untrusted);
+		this.addTrustButtonToElement(trustedContainer);
+		this.addUntrustedTextToElement(untrustedContainer);
 	}
 
-	private addButtonToLimitationsElement(parent: HTMLElement, targetState: WorkspaceTrustState): void {
+	private addTrustButtonToElement(parent: HTMLElement): void {
 		const workspaceFolders = this.workspaceService.getWorkspace().folders;
 
 
@@ -329,21 +314,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 				this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
 			};
 
-			const setTrustState = async (state: WorkspaceTrustState, uris?: URI[]) => {
-				if (state !== WorkspaceTrustState.Trusted) {
-					const message = localize('workspaceTrustTransitionMessage', "Deny Workspace Trust");
-					const detail = localize('workspaceTrustTransitionDetail', "In order to safely complete this action, all affected windows will have to be reloaded. Are you sure you want to proceed with this action?");
-					const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
-					const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
-
-					const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
-					if (!result.confirmed) {
-						return;
-					}
-				}
-
+			const trustUris = async (uris?: URI[]) => {
 				const folderURIs = uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri);
-				this.workspaceTrustStorageService.setFoldersTrustState(folderURIs, state);
+				this.workspaceTrustStorageService.setFoldersTrust(folderURIs, true);
 			};
 
 
@@ -352,7 +325,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				label: localize('trustButton', "Trust"),
 				menu: [],
 				run: () => {
-					setTrustState(WorkspaceTrustState.Trusted);
+					trustUris();
 				}
 			};
 
@@ -362,23 +335,25 @@ export class WorkspaceTrustEditor extends EditorPane {
 				const { name } = splitName(parentPath);
 				if (parentPath) {
 					trustChoiceWithMenu.menu.push({
-						label: localize('trustParentButton', "Trust All in {0}", name),
+						label: localize('trustParentButton', "Trust All in '{0}'", name),
 						run: () => {
-							setTrustState(WorkspaceTrustState.Trusted, [URI.file(parentPath)]);
+							trustUris([URI.file(parentPath)]);
 						}
 					});
 				}
 			}
 
-			const currentTrustState = this.workspaceTrustManagementService.getWorkspaceTrustState();
+			const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+			createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), !isWorkspaceTrusted);
+		}
+	}
 
-			if (targetState === WorkspaceTrustState.Trusted) {
-				createButton(new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), currentTrustState !== WorkspaceTrustState.Trusted);
-			}
+	private addUntrustedTextToElement(parent: HTMLElement): void {
+		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 
-			if (targetState === WorkspaceTrustState.Untrusted) {
-				createButton(new Action('workspace.trust.button.deny', localize('doNotTrustButton', "Don't Trust"), undefined, currentTrustState !== WorkspaceTrustState.Untrusted, async () => { setTrustState(WorkspaceTrustState.Untrusted); }));
-			}
+		if (isWorkspaceTrusted) {
+			const textElement = append(parent, $('.workspace-trust-untrusted-description'));
+			textElement.innerText = localize('untrustedFolder', "This workspace is trusted via one or more of the trusted folders below.");
 		}
 	}
 
@@ -438,10 +413,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		if (isArray(change.value)) {
 			if (change.key === 'trustedFolders') {
 				applyChangesWithPrompt(change.type === 'changed' || change.type === 'removed', () => this.workspaceTrustStorageService.setTrustedFolders(change.value!));
-			}
-
-			if (change.key === 'untrustedFolders') {
-				applyChangesWithPrompt(change.type === 'changed' || change.type === 'added', () => this.workspaceTrustStorageService.setUntrustedFolders(change.value!));
 			}
 		}
 	}

@@ -30,6 +30,7 @@ import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GettingStartedPage } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -39,16 +40,17 @@ export const enum GettingStartedCategory {
 	Advanced = 'Advanced'
 }
 
+type LegacyButtonConfig =
+	| { title: string, command?: never, link: string }
+	| { title: string, command: string, link?: never, sideBySide?: boolean };
+
 export interface IGettingStartedTask {
 	id: string
 	title: string
-	description: string
+	description: LinkedText[]
 	category: GettingStartedCategory | string
 	when: ContextKeyExpression
 	order: number
-	button:
-	| { title: string, command?: never, link: string }
-	| { title: string, command: string, link?: never, sideBySide?: boolean }
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never }
 	media: { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
 }
@@ -206,6 +208,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					item = await this.getTaskOverrides(item, category.id);
 					this.registerTask({
 						...item,
+						description: parseDescription(item.description),
 						category: category.id,
 						order: index,
 						when: ContextKeyExpr.deserialize(item.when) ?? ContextKeyExpr.true(),
@@ -271,7 +274,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				if (existingCategory.content.type === 'startEntry') { throw Error('Unexpected content type'); }
 				const existingItem = assertIsDefined(existingCategory.content.items.find(_item => _item.id === item.id));
 				existingItem.title = title ?? existingItem.title;
-				existingItem.description = description ?? existingItem.description;
+				existingItem.description = description ? parseDescription(description) : existingItem.description;
 				existingItem.media.path = media ? convertPaths(media) : existingItem.media.path;
 				this._onDidChangeTask.fire(this.getTaskProgress(existingItem));
 			} else {
@@ -321,7 +324,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 
 			if (!this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions')) {
-				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set.');
+				console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set. Set `workbench.welcomePage.experimental.extensionContributions` to begin using this experimental feature.');
 				return;
 			}
 
@@ -350,22 +353,27 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					when: ContextKeyExpr.deserialize(section.when) ?? ContextKeyExpr.true(),
 				});
 				try {
-					section.tasks.forEach((task, index) =>
+					section.tasks.forEach((task, index) => {
+						const description = parseDescription(task.description);
+						const buttonDescription = (task as any as { button: LegacyButtonConfig }).button;
+						if (buttonDescription) {
+							description.push({ nodes: [{ href: buttonDescription.link ?? `command:${buttonDescription.command}`, label: buttonDescription.title }] });
+						}
+
+						const fullyQualifiedID = extension.identifier.value + '#' + section.id + '#' + task.id;
 						this.registerTask({
-							button: task.button,
-							description: task.description,
+							description: description,
 							media: { type: 'image', altText: task.media.altText, path: convertPaths(task.media.path) },
 							doneOn: task.doneOn?.command
 								? { commandExecuted: task.doneOn.command }
-								: task.button.command
-									? { commandExecuted: task.button.command }
-									: { eventFired: `linkOpened:${task.button.link}` },
-							id: extension.identifier.value + '#' + task.id,
+								: { eventFired: 'markDone:' + fullyQualifiedID },
+							id: fullyQualifiedID,
 							title: task.title,
 							when: ContextKeyExpr.deserialize(task.when) ?? ContextKeyExpr.true(),
 							category: categoryID,
 							order: index,
-						}));
+						});
+					});
 				} catch (e) {
 					console.error('Error registering walkthrough tasks for ', categoryID, e);
 				}
@@ -523,6 +531,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		return task;
 	}
 }
+
+const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
 
 const convertPaths = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
 	const convertPath = (path: string) => path.startsWith('https://')

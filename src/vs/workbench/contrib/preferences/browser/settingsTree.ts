@@ -771,7 +771,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 						};
 						this._onDidClickSettingLink.fire(e);
 					} else {
-						this._openerService.open(content).catch(onUnexpectedError);
+						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 					}
 				},
 				disposeables

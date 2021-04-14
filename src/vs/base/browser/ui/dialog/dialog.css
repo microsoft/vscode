@@ -37,14 +37,8 @@
 	padding-bottom: 4px;
 }
 
-.monaco-dialog-box .action-label {
-	height: 16px;
-	min-width: 16px;
-	background-size: 16px;
-	background-position: 50%;
-	background-repeat: no-repeat;
-	margin: 0px;
-	margin-left: 4px;
+.monaco-dialog-box .dialog-toolbar-row .actions-container {
+	justify-content: flex-end;
 }
 
 /** Dialog: Message Row */

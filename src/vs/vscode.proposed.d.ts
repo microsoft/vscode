@@ -953,24 +953,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region allow title property to QuickPickOptions/InputBoxOptions: https://github.com/microsoft/vscode/issues/77423
-
-	interface QuickPickOptions {
-		/**
-		 * An optional string that represents the tile of the quick pick.
-		 */
-		title?: string;
-	}
-
-	interface InputBoxOptions {
-		/**
-		 * An optional string that represents the tile of the input box.
-		 */
-		title?: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum NotebookCellKind {
@@ -2853,66 +2835,34 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/120173
-
-	export enum WorkspaceTrustState {
-		/**
-		 * The workspace is untrusted, and it will have limited functionality.
-		 */
-		Untrusted = 0,
-
-		/**
-		 * The workspace is trusted, and all functionality will be available.
-		 */
-		Trusted = 1,
-
-		/**
-		 * The initial state of the workspace.
-		 *
-		 * If trust will be required, users will be prompted to make a choice.
-		 */
-		Unspecified = 2
-	}
-
-	/**
-	 * The event data that is fired when the trust state of the workspace changes.
-	 * When trust is revoked, the workspace will be reloaded. Therefore, extensions are
-	 * not expected to handle transitions out of a trusted state.
-	 */
-	export interface WorkspaceTrustStateChangeEvent {
-		/**
-		 * New trust state of the workspace
-		 */
-		readonly newTrustState: WorkspaceTrustState;
-	}
-
 	/**
 	 * The object describing the properties of the workspace trust request
 	 */
 	export interface WorkspaceTrustRequestOptions {
 		/**
 		 * When true, a modal dialog will be used to request workspace trust.
-		 * When false, a badge will be displayed on the Setting activity bar item
+		 * When false, a badge will be displayed on the settings gear activity bar item.
 		 */
 		readonly modal: boolean;
 	}
 
 	export namespace workspace {
 		/**
-		 * The trust state of the current workspace
+		 * When true, the user has explicitly trusted the contents of the workspace.
 		 */
-		export const trustState: WorkspaceTrustState;
+		export const isTrusted: boolean;
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
 		 * @param options Optional object describing the properties of the
-		 * workspace trust request
+		 * workspace trust request. Defaults to { modal: false }
 		 */
-		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState | undefined>;
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean>;
 
 		/**
-		 * Event that fires when the trust state of the current workspace changes
+		 * Event that fires when the current workspace has been trusted.
 		 */
-		export const onDidChangeWorkspaceTrustState: Event<WorkspaceTrustStateChangeEvent>;
+		export const onDidReceiveWorkspaceTrust: Event<void>;
 	}
 
 	//#endregion
