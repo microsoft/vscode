@@ -72,6 +72,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 
 /*--------------------------------------------------------------------------------------------- */
 

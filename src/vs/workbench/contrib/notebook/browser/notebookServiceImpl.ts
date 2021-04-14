@@ -27,7 +27,7 @@ import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/cont
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, DisplayOrderKey, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NotebookRendererMatch, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -38,6 +38,11 @@ import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEdit
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { Lazy } from 'vs/base/common/lazy';
+import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
+import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 export class NotebookKernelProviderInfoStore {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];

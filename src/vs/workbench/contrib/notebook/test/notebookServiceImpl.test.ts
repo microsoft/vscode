@@ -27,7 +27,7 @@ suite('NotebookProviderInfoStore', function () {
 				override store() { }
 			},
 			new class extends mock<IExtensionService>() {
-				onDidRegisterExtensions = Event.None;
+				override onDidRegisterExtensions = Event.None;
 			},
 			new class extends mock<IExtensionContributedEditorService>() {
 
@@ -40,7 +40,6 @@ suite('NotebookProviderInfoStore', function () {
 			},
 			new class extends mock<IAccessibilityService>() {
 
-				override onDidRegisterExtensions = Event.None;
 			}
 		);
 
