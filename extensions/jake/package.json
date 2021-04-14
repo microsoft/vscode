@@ -63,7 +63,8 @@
             "type": "string",
             "description": "%jake.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
   },
