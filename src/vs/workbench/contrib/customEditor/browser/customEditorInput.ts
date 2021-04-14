@@ -51,7 +51,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		});
 	}
 
-	public static typeId = 'workbench.editors.webviewEditor';
+	public static override readonly typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
 	private _defaultDirtyState: boolean | undefined;

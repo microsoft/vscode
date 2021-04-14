@@ -19,10 +19,10 @@ export class TerminalDecorationsProvider {
 	private readonly toDispose = new DisposableStore();
 
 	provideDecorations(instance: ITerminalInstance): ITerminalDecorationData | undefined {
-		if (instance.statusList.primary) {
+		if (instance.statusList.primary && instance.statusList.primary.icon) {
 			return {
 				tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id),
-				statusIcon: `$(${instance.statusList.primary.icon!.id})`,
+				statusIcon: `$(${instance.statusList.primary.icon.id})`,
 				color: this.getColorForSeverity(instance.statusList.primary.severity),
 			};
 		}
