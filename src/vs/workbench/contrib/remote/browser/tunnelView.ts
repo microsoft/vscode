@@ -1513,7 +1513,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 	group: '0_manage',
-	order: 1,
+	order: 4,
 	command: {
 		id: LabelTunnelAction.ID,
 		title: LabelTunnelAction.LABEL,
@@ -1523,7 +1523,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 	group: '0_manage',
-	order: 2,
+	order: 5,
 	command: {
 		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,
