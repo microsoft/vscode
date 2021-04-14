@@ -49,7 +49,6 @@ interface ContributionPoint {
 type ContributionPoints = Array<ContributionPoint>;
 
 export type ContributionPointOptions = {
-	singlePerGroup?: boolean | (() => boolean);
 	singlePerResource?: boolean | (() => boolean);
 	canHandleDiff?: boolean | (() => boolean);
 };
@@ -73,7 +72,6 @@ export interface IExtensionContributedEditorService {
 	getAssociationsForResource(resource: URI): EditorAssociations;
 	/**
 	 * Registers a specific editor contribution.
-	 * @param scheme The scheme of this contribution, if defined it takes precedent
 	 * @param globPattern The glob pattern for this contribution point
 	 * @param editorInfo Information about the contribution point
 	 * @param options Specific options which apply to this contribution
@@ -201,8 +199,6 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 
 	private findMatchingContributions(resource: URI): ContributionPoint[] {
 		let contributions: ContributionPoint[] = [];
-		// First we match scheme
-		contributions = contributions.concat(this._contributionPoints.get(resource.scheme) ?? []);
 		// Then all glob patterns
 		for (const key of this._contributionPoints.keys()) {
 			const contributionPoints = this._contributionPoints.get(key)!;
@@ -229,6 +225,12 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		const contributionPoint = contributionPoints.find(contribPoint => contribPoint.priority >= priorityToRank(ContributedEditorPriority.builtin));
 		// If the user has a setting we use that, else choise the highest priority editor that is built-in+
 		const selectedViewType = associationsFromSetting[0]?.viewType || contributionPoint?.editorInfo.id;
+
+		if (associationsFromSetting.length === 0 && contributionPoint?.editorInfo.priority === ContributedEditorPriority.default) {
+			setTimeout(() => {
+				console.log('Conflicting defaults!');
+			}, 500);
+		}
 
 		return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === selectedViewType);
 	}
@@ -263,33 +265,25 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			this.closeExistingEditorsForResource(resource, selectedContribution.editorInfo.id, group);
 		}
 
-
-		// Check to see if there already an editor for the resource in the group.
-		// If there is, we want to open that instead of creating a new editor.
-		// This ensures that we preserve whatever type of editor was previously being used
-		// when the user switches back to it.
-		// const strictMatchEditorInput = group.editors.find(e => e === editor && !this._fileEditorInputFactory.isFileEditorInput(e));
-		// if (strictMatchEditorInput) {
-		// 	return;
-		// }
-
 		// If an existing editor for a resource exists within the group and we're reopening it, replace it.
 		const existing = firstOrDefault(this.editorService.findEditors(resource, group));
 		if (existing) {
 			if (!input.matches(existing)) {
-				await this.editorService.replaceEditors([{
+				await group.replaceEditors([{
 					editor: existing,
 					replacement: input,
 					forceReplaceDirty: existing.resource?.scheme === Schemas.untitled,
 					options: options ? EditorOptions.create(options) : undefined,
-				}], group);
+				}]);
 
 				if (selectedContribution.editorInfo.instanceOf(existing)) {
 					existing.dispose();
 				}
 			}
+			return;
+		} else {
+			return group.openEditor(input, options);
 		}
-		return group.openEditor(input, options);
 	}
 
 	private closeExistingEditorsForResource(
