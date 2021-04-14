@@ -2346,10 +2346,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.updateScrollHeight();
 
-			DOM.scheduleAtNextAnimationFrame(() => {
-				this._debug('ack height', height);
-				this._webview?.ackHeight(cellId, outputId, height);
-			});
+			this._debug('ack height', height);
+			this._webview?.ackHeight(cellId, outputId, height);
 		}, 10);
 	}
 
