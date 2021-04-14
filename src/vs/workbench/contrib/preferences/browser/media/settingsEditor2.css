@@ -388,13 +388,18 @@
 	-webkit-user-select: text;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description {
 	display: flex;
+	font-weight: 600;
 	margin: 6px 0 12px 0;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description > span {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span {
 	padding-right: 5px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-trust-description > span.codicon.codicon-workspace-untrusted {
+	color: var(--workspace-trust-state-untrusted-color) !important;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message {
