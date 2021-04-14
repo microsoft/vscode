@@ -153,13 +153,8 @@ export class TerminalTabbedView extends Disposable {
 			return;
 		}
 		widgetWidth = this._updateWidgetWidth(widgetWidth);
-		for (const tab of this._terminalService.terminalTabs) {
-			this._tabsWidget.rerender(tab);
-			if (tab.terminalInstances.length > 1) {
-				for (const instance of tab.terminalInstances) {
-					this._tabsWidget.rerender(instance);
-				}
-			}
+		for (const instance of this._terminalService.terminalInstances) {
+			this._tabsWidget.rerender(instance);
 		}
 		this._storageService.store(TABS_WIDGET_WIDTH_KEY, widgetWidth, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
