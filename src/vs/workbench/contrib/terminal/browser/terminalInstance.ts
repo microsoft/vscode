@@ -464,7 +464,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			rendererType: xtermRendererType,
 			wordSeparator: config.wordSeparators
 		});
-		this.toggleEscapeSequenceLogging();
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
 		this._updateUnicodeVersion();
