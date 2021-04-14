@@ -7,12 +7,7 @@ import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-
-interface PromiseRecord {
-	promise: Promise<void>;
-	resolve: () => void;
-	reject: (error?: any) => void;
-}
+import { DeferredPromise } from 'vs/base/common/async';
 
 export class ExtensionMemento implements vscode.Memento {
 
@@ -24,7 +19,7 @@ export class ExtensionMemento implements vscode.Memento {
 	private _value?: { [n: string]: any; };
 	private readonly _storageListener: IDisposable;
 
-	private _promiseRecords: { [key: string]: PromiseRecord } = {};
+	private _deferredPromises: Map<string, DeferredPromise<void>> = new Map();
 	private _timeout: any;
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
@@ -61,49 +56,36 @@ export class ExtensionMemento implements vscode.Memento {
 	update(key: string, value: any): Promise<void> {
 		this._value![key] = value;
 
-
-		let record = this._promiseRecords[key];
+		let record = this._deferredPromises.get(key);
 		if (record !== undefined) {
-			return record.promise;
+			return record.p;
 		}
 
-		let resolveFn: () => void | undefined;
-		let rejectFn: () => void | undefined;
-		let promise = new Promise<void>((resolve, reject) => {
-			resolveFn = resolve;
-			rejectFn = reject;
-		});
-
-		record = {
-			promise,
-			resolve: resolveFn!,
-			reject: rejectFn!,
-		};
-
-		this._promiseRecords[key] = record;
+		const promise = new DeferredPromise<void>();
+		this._deferredPromises.set(key, promise);
 
 		if (this._timeout) {
 			clearTimeout(this._timeout);
 		}
 
 		this._timeout = setTimeout(() => {
-			const records = this._promiseRecords;
-			this._promiseRecords = {};
+			const records = this._deferredPromises;
+			this._deferredPromises = new Map();
 			(async () => {
 				try {
 					await this._storage.setValue(this._shared, this._id, this._value!);
-					for (key of Object.keys(records)) {
-						records[key].resolve();
+					for (value of records.values()) {
+						value.resolve();
 					}
 				} catch (e) {
-					for (key of Object.keys(records)) {
-						records[key].reject(e);
+					for (value of records.entries()) {
+						value.resolve();
 					}
 				}
 			})();
 		}, 0);
 
-		return promise;
+		return promise.p;
 	}
 
 	dispose(): void {
