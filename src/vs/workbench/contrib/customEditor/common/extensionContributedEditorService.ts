@@ -14,11 +14,11 @@ export function priorityToRank(priority: ContributedEditorPriority): number {
 	switch (priority) {
 		case ContributedEditorPriority.exclusive:
 			return 5;
-		case ContributedEditorPriority.builtin:
-			return 4;
-		// Text editor is ~3.5 priority
 		case ContributedEditorPriority.default:
+			return 4;
+		case ContributedEditorPriority.builtin:
 			return 3;
+		// Text editor is priority 2
 		case ContributedEditorPriority.option:
 		default:
 			return 1;
