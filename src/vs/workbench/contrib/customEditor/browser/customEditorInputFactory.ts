@@ -45,7 +45,7 @@ interface DeserializedCustomEditor extends DeserializedWebview {
 
 export class CustomEditorInputSerializer extends WebviewEditorInputSerializer {
 
-	public static readonly ID = CustomEditorInput.typeId;
+	public static override readonly ID = CustomEditorInput.typeId;
 
 	public constructor(
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,

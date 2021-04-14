@@ -122,5 +122,7 @@ function getExtensionManifest(properties: any = {}): IExtensionManifest {
 }
 
 function getWorkspaceTrustManagementService(isEnabled: boolean): WorkspaceTrustManagementService {
-	return new class extends mock<WorkspaceTrustManagementService>() { isWorkspaceTrustEnabled() { return isEnabled; } };
+	return new class extends mock<WorkspaceTrustManagementService>() {
+		override isWorkspaceTrustEnabled() { return isEnabled; }
+	};
 }

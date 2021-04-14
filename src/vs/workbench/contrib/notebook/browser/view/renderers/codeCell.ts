@@ -364,7 +364,7 @@ export class CodeCell extends Disposable {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
-	dispose() {
+	override dispose() {
 		this.viewCell.detachTextEditor();
 		this._outputContainerRenderer.dispose();
 		this._activeCellRunPlaceholder?.dispose();
