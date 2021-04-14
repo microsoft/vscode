@@ -144,17 +144,11 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
 			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 
-			// Workspace is untrusted
-			if (!trusted) {
-				return Promise.resolve();
-			}
-
-			// Workspace is trusted
 			return e.join(new Promise(async resolve => {
-				if (e.changes.added.length || e.changes.changed.length) {
+				// Workspace is trusted and there are added/changed folders
+				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
 					const addedFoldersTrustStateInfo = e.changes.added.map(folder => this.workspaceTrustStorageService.getFolderTrustStateInfo(folder.uri));
 					if (!addedFoldersTrustStateInfo.map(i => i.trusted).every(trusted => trusted)) {
-						// Adding untrusted/unspecified content to a trusted workspace
 						const result = await this.dialogService.confirm({
 							message: localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
 							detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?"),
@@ -162,7 +156,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 							secondaryButton: localize('no', 'No')
 						});
 
-						// Apply changes for the added folders
+						// Mark added/changed folders as trusted
 						this.workspaceTrustStorageService.setFoldersTrust(addedFoldersTrustStateInfo.map(i => i.uri), result.confirmed);
 
 						resolve();
