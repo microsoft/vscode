@@ -54,7 +54,6 @@ import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, Gro
 import { IEditorService, IOpenEditorOverrideHandler, ISaveEditorsOptions, IRevertAllEditorsOptions, IResourceEditorInputType, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
-import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -500,6 +499,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
+	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }
@@ -622,7 +622,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidChangeEditorPartOptions = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
-	whenCreated: Promise<void> = Promise.resolve(undefined);
+	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasRestorableState = false;
 
@@ -631,6 +631,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	get activeGroup(): IEditorGroup { return this.groups[0]; }
 	get count(): number { return this.groups.length; }
 
+	isRestored(): boolean { return true; }
 	getGroups(_order?: GroupsOrder): ReadonlyArray<IEditorGroup> { return this.groups; }
 	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
 	getLabel(_identifier: number): string { return 'Group 1'; }
@@ -659,7 +660,6 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
-	get group(): EditorGroup { throw new Error('not implemented'); }
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: IEditorInput;
 	previewEditor!: IEditorInput;
@@ -1441,7 +1441,7 @@ export async function createEditorPart(instantiationService: IInstantiationServi
 	part.create(document.createElement('div'));
 	part.layout(1080, 800);
 
-	await part.whenCreated;
+	await part.whenReady;
 
 	return part;
 }

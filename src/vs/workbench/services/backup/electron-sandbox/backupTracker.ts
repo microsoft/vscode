@@ -8,7 +8,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -23,6 +23,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { Promises, raceCancellation } from 'vs/base/common/async';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
 
@@ -38,7 +39,8 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@ILogService logService: ILogService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IProgressService private readonly progressService: IProgressService
+		@IProgressService private readonly progressService: IProgressService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(backupFileService, workingCopyService, logService, lifecycleService, filesConfigurationService);
 	}
@@ -310,8 +312,8 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 	}
 
 	private noVeto(backupsToDiscard: IWorkingCopy[]): boolean | Promise<boolean> {
-		if (this.lifecycleService.phase < LifecyclePhase.Restored) {
-			return false; // if editors have not restored, we are not up to speed with backups and thus should not discard them
+		if (!this.editorGroupService.isRestored()) {
+			return false; // if editors have not restored, we are very likely not up to speed with backups and thus should not discard them
 		}
 
 		return Promises.settled(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
@@ -323,7 +325,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// given we have no known dirty working copy. This helps
 		// to clean up stale backups as for example reported in
 		// https://github.com/microsoft/vscode/issues/92962
-		if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
+		if (this.editorGroupService.isRestored()) {
 			try {
 				await this.backupFileService.discardBackups();
 			} catch (error) {

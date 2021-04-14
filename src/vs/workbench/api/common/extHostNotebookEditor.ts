@@ -115,10 +115,6 @@ export class ExtHostNotebookEditor {
 				get document() {
 					return that.notebookData.notebookDocument;
 				},
-				get selection() {
-					const primarySelection = that._selections[0];
-					return primarySelection && that.notebookData.getCellFromIndex(primarySelection.start)?.cell;
-				},
 				get selections() {
 					return that._selections;
 				},

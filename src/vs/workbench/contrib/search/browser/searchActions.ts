@@ -461,6 +461,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		if (nextFocusElement) {
 			this.viewer.reveal(nextFocusElement);
 			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
 		this.element.parent().remove(<any>this.element);
@@ -498,6 +499,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 			if (nextFocusElement) {
 				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
 
 			tree.domFocus();
@@ -521,6 +523,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		return this.folderMatch.replaceAll().then(() => {
 			if (nextFocusElement) {
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
 			this.viewer.domFocus();
 		});
@@ -550,6 +553,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		const elementToFocus = this.getElementToFocusAfterReplace();
 		if (elementToFocus) {
 			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
+			this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
 		}
 
 		const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);

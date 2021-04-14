@@ -80,7 +80,8 @@ import { isWorkspaceFolder, TaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, TaskQui
 import { ILogService } from 'vs/platform/log/common/log';
 import { once } from 'vs/base/common/functional';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceTrustRequestService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -343,13 +344,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const customContext = CustomExecutionSupportedContext.bindTo(this.contextKeyService);
 			customContext.set(custom);
 		}
+		const isVirtual = !!VirtualWorkspaceContext.getValue(this.contextKeyService);
 		if (shell !== undefined) {
 			const shellContext = ShellExecutionSupportedContext.bindTo(this.contextKeyService);
-			shellContext.set(shell);
+			shellContext.set(shell && !isVirtual);
 		}
 		if (process !== undefined) {
 			const processContext = ProcessExecutionSupportedContext.bindTo(this.contextKeyService);
-			processContext.set(process);
+			processContext.set(process && !isVirtual);
 		}
 		this._onDidRegisterSupportedExecutions.fire();
 	}
@@ -2457,7 +2459,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			{
 				modal: true,
 				message: nls.localize('TaskService.requestTrust', "Listing and running tasks requires that some of the files in this workspace be executed as code.")
-			})) === WorkspaceTrustState.Trusted;
+			})) === true;
 	}
 
 	private runTaskCommand(arg?: any): void {

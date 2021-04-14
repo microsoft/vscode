@@ -92,23 +92,29 @@ export const enum LifecyclePhase {
 
 	/**
 	 * The first phase signals that we are about to startup getting ready.
+	 *
+	 * Note: doing work in this phase blocks an editor from showing to
+	 * the user, so please rather consider to use `Restored` phase.
 	 */
 	Starting = 1,
 
 	/**
-	 * Services are ready and the view is about to restore its state.
+	 * Services are ready and the window is about to restore its UI state.
+	 *
+	 * Note: doing work in this phase blocks an editor from showing to
+	 * the user, so please rather consider to use `Restored` phase.
 	 */
 	Ready = 2,
 
 	/**
-	 * Views, panels and editors have restored. For editors this means, that
-	 * they show their contents fully.
+	 * Views, panels and editors have restored. Editors are given a bit of
+	 * time to restore their contents.
 	 */
 	Restored = 3,
 
 	/**
 	 * The last phase after views, panels and editors have restored and
-	 * some time has passed (few seconds).
+	 * some time has passed (2-5 seconds).
 	 */
 	Eventually = 4
 }

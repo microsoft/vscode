@@ -1114,7 +1114,8 @@
           "option": {
             "type": "string"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ],
     "problemPatterns": [

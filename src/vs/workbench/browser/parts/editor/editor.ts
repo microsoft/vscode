@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput, IEditorMoveEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
@@ -104,11 +104,9 @@ export interface IEditorGroupTitleHeight {
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;
+
 	readonly onDidOpenEditorFail: Event<IEditorInput>;
-	readonly onWillMoveEditor: Event<IEditorMoveEvent>;
-	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
-	readonly onWillDispose: Event<void>;
 
 	/**
 	 * A promise that resolves when the group has been restored.
@@ -120,7 +118,6 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly titleHeight: IEditorGroupTitleHeight;
 
-	readonly isEmpty: boolean;
 	readonly isMinimized: boolean;
 
 	readonly disposed: boolean;

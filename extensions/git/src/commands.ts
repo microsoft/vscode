@@ -797,7 +797,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const from = path.relative(repository.root, fromUri.path);
+		const from = path.relative(repository.root, fromUri.fsPath);
 		let to = await window.showInputBox({
 			value: from,
 			valueSelection: [from.length - path.basename(from).length, from.length]

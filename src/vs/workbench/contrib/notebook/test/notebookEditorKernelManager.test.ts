@@ -88,12 +88,13 @@ class TestNotebookKernel implements INotebookKernel {
 	friendlyId: string = '';
 	label: string = '';
 	extension: ExtensionIdentifier = new ExtensionIdentifier('test');
-	extensionLocation: URI = URI.file('/test');
+	localResourceRoot: URI = URI.file('/test');
 	providerHandle?: number | undefined;
 	description?: string | undefined;
 	detail?: string | undefined;
 	isPreferred?: boolean | undefined;
-	preloads?: URI[] | undefined;
+	preloadUris: URI[] = [];
+	preloadProvides: string[] = [];
 	supportedLanguages?: string[] | undefined;
 	async resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void> { }
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void> {

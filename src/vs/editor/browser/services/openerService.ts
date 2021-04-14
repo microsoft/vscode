@@ -21,9 +21,14 @@ class CommandOpener implements IOpener {
 
 	constructor(@ICommandService private readonly _commandService: ICommandService) { }
 
-	async open(target: URI | string) {
+	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
 		if (!matchesScheme(target, Schemas.command)) {
 			return false;
+		}
+		if (!options?.allowCommands) {
+			// silently ignore commands when command-links are disabled, also
+			// surpress other openers by returning TRUE
+			return true;
 		}
 		// run command or bail out if command isn't known
 		if (typeof target === 'string') {

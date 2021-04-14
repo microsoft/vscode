@@ -1766,6 +1766,6 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 		description: provider.description,
 		detail: provider.detail,
 		isPreferred: provider.isPreferred,
-		preloads: provider.preloads?.map(preload => URI.revive(preload)) || []
+		preloads: provider.preloadUris,
 	}));
 });

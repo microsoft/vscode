@@ -5,18 +5,18 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, WorkspaceTrustChangeEvent, WorkspaceTrustState, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, WorkspaceTrustChangeEvent, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageService {
 	_serviceBrand: undefined;
 
 	onDidStorageChange: Event<void> = Event.None;
 
-	setFoldersTrustState(folder: URI[], trustState: WorkspaceTrustState): void {
+	setFoldersTrust(folder: URI[], trusted: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 
-	getFoldersTrustState(folder: URI[]): WorkspaceTrustState {
+	getFoldersTrust(folder: URI[]): boolean {
 		throw new Error('Method not implemented.');
 	}
 
@@ -40,13 +40,13 @@ export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageS
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
-	onDidChangeTrustState: WorkspaceTrustChangeEvent = Event.None;
+	onDidChangeTrust: WorkspaceTrustChangeEvent = Event.None;
 
-	getWorkspaceTrustState(): WorkspaceTrustState {
-		return WorkspaceTrustState.Trusted;
+	isWorkpaceTrusted(): boolean {
+		return true;
 	}
 
-	setWorkspaceTrustState(trustState: WorkspaceTrustState): void {
+	setWorkspaceTrust(trusted: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -54,8 +54,8 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return true;
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
-		return Promise.resolve(WorkspaceTrustState.Trusted);
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
+		return Promise.resolve(true);
 	}
 }
 
@@ -63,18 +63,18 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 	_serviceBrand: undefined;
 
 	onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions> = Event.None;
-	onDidCompleteWorkspaceTrustRequest: Event<WorkspaceTrustState> = Event.None;
+	onDidCompleteWorkspaceTrustRequest: Event<boolean> = Event.None;
 
 
 	cancelRequest(): void {
 		throw new Error('Method not implemented.');
 	}
 
-	completeRequest(trustState?: WorkspaceTrustState): void {
+	completeRequest(trusted?: boolean): void {
 		throw new Error('Method not implemented.');
 	}
 
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined> {
-		return Promise.resolve(WorkspaceTrustState.Trusted);
+	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 }

@@ -278,18 +278,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._kernelManger.activeKernel;
 	}
 
-	set activeKernel(kernel: INotebookKernel | undefined) {
-		this._kernelManger.activeKernel = kernel;
+	set activeKernel(value) {
+		this._kernelManger.activeKernel = value;
 	}
 
 	private _currentKernelTokenSource: CancellationTokenSource | undefined = undefined;
 
-	get multipleKernelsAvailable() {
-		return this._kernelManger.multipleKernelsAvailable;
-	}
-
-	set multipleKernelsAvailable(state: boolean) {
-		this._kernelManger.multipleKernelsAvailable = state;
+	get availableKernelCount() {
+		return this._kernelManger.availableKernelCount;
 	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
@@ -1003,13 +999,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernel) {
-		if (kernel.preloads && kernel.preloads.length) {
-			if (!this._webview?.isResolved()) {
-				await this._resolveWebview();
-			}
-
-			this._webview?.updateKernelPreloads([extensionLocation], kernel.preloads.map(preload => URI.revive(preload)));
+		const preloadUris = kernel.preloadUris;
+		if (!preloadUris.length) {
+			return;
 		}
+
+		if (!this._webview?.isResolved()) {
+			await this._resolveWebview();
+		}
+
+		this._webview?.updateKernelPreloads([extensionLocation], kernel.preloadUris);
 	}
 
 	private _updateForMetadata(): void {

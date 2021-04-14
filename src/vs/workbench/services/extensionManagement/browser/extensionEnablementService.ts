@@ -25,7 +25,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 
@@ -68,7 +68,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		// Trusted extensions notification
 		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			if (this.workspaceTrustManagementService.getWorkspaceTrustState() !== WorkspaceTrustState.Trusted) {
+			if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 				this._getExtensionsByWorkspaceTrustRequirement().then(extensions => {
 					if (extensions.length) {
 						this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: false });
@@ -172,9 +172,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		const result = await Promises.settled(extensions.map(e => {
 			if (this._isDisabledByTrustRequirement(e)) {
-				return this.workspaceTrustRequestService.requestWorkspaceTrust()
+				return this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: true })
 					.then(trustState => {
-						if (trustState === WorkspaceTrustState.Trusted) {
+						if (trustState) {
 							return this._setEnablement(e, newState);
 						} else {
 							return Promise.resolve(false);
@@ -277,7 +277,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByTrustRequirement(extension: IExtension): boolean {
-		if (this.workspaceTrustManagementService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted) {
+		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			return false;
 		}
 

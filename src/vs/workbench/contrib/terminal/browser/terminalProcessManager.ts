@@ -138,11 +138,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
 		this._dataFilter.onProcessData(ev => {
 			const data = (typeof ev === 'string' ? ev : ev.data);
-			const sync = (typeof ev === 'string' ? false : ev.sync);
+			const trackCommit = (typeof ev === 'string' ? false : ev.trackCommit);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire({ data: beforeProcessDataEvent.data, sync });
+				this._onProcessData.fire({ data: beforeProcessDataEvent.data, trackCommit });
 			}
 		});
 	}
@@ -446,7 +446,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					// For normal terminals write a message indicating what happened and relaunch
 					// using the previous shellLaunchConfig
 					let message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
-					this._onProcessData.fire({ data: formatMessageForTerminal(message), sync: false });
+					this._onProcessData.fire({ data: formatMessageForTerminal(message), trackCommit: false });
 					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, this._isScreenReaderModeEnabled, false);
 				}
 			}
@@ -682,7 +682,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		} else {
 			this._logService.trace(`Seamless terminal relaunch - resetting content`);
 			// Fire full reset (RIS) followed by the new data so the update happens in the same frame
-			this._onProcessData.fire({ data: `\x1bc${secondData}`, sync: false });
+			this._onProcessData.fire({ data: `\x1bc${secondData}`, trackCommit: false });
 		}
 
 		// Set up the new data listener

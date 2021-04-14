@@ -19,7 +19,7 @@ import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupVi
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
+import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorDropTarget, IEditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { Color } from 'vs/base/common/color';
@@ -206,11 +206,16 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return (this.gridWidget && this.gridWidget.orientation === Orientation.VERTICAL) ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	private whenCreatedResolve: (() => void) | undefined;
-	readonly whenCreated = new Promise<void>(resolve => (this.whenCreatedResolve = resolve));
+	private whenReadyResolve: (() => void) | undefined;
+	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
 
 	private whenRestoredResolve: (() => void) | undefined;
 	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private restored = false;
+
+	isRestored(): boolean {
+		return this.restored;
+	}
 
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
@@ -513,13 +518,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
 	}
 
-	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroup | null): IEditorGroupView {
+	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {
 
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
 			groupView = EditorGroupView.createCopy(from, this, this.count, this.instantiationService);
-		} else if (isSerializedEditorGroup(from)) {
+		} else if (isSerializedEditorGroupModel(from)) {
 			groupView = EditorGroupView.createFromSerialized(from, this, this.count, this.instantiationService);
 		} else {
 			groupView = EditorGroupView.createNew(this, this.count, this.instantiationService);
@@ -835,11 +840,12 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
 
-		// Signal created
-		this.whenCreatedResolve?.();
+		// Signal ready
+		this.whenReadyResolve?.();
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
+			this.restored = true;
 			this.whenRestoredResolve?.();
 		});
 
@@ -1005,7 +1011,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Create new
 		const groupViews: IEditorGroupView[] = [];
 		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
-			fromJSON: (serializedEditorGroup: ISerializedEditorGroup | null) => {
+			fromJSON: (serializedEditorGroup: ISerializedEditorGroupModel | null) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
 					groupView = reuseGroupViews.shift()!;

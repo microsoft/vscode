@@ -22,7 +22,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -159,7 +159,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private environmentService!: IWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
 	private configurationService!: IConfigurationService;
-	private lifecycleService!: ILifecycleService;
 	private storageService!: IStorageService;
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
@@ -246,7 +245,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Services
 		this.environmentService = accessor.get(IWorkbenchEnvironmentService);
 		this.configurationService = accessor.get(IConfigurationService);
-		this.lifecycleService = accessor.get(ILifecycleService);
 		this.hostService = accessor.get(IHostService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
@@ -656,15 +654,31 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
-	protected async restoreWorkbenchLayout(): Promise<void> {
-		const restorePromises: Promise<void>[] = [];
+	private whenReadyResolve: (() => void) | undefined;
+	protected readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+
+	private whenRestoredResolve: (() => void) | undefined;
+	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private restored = false;
+
+	isRestored(): boolean {
+		return this.restored;
+	}
+
+	protected restoreParts(): void {
+
+		// distinguish long running restore operations that
+		// are required for the layout to be ready from those
+		// that are needed to signal restoring is done
+		const layoutReadyPromises: Promise<unknown>[] = [];
+		const layoutRestoredPromises: Promise<unknown>[] = [];
 
 		// Restore editors
-		restorePromises.push((async () => {
+		layoutReadyPromises.push((async () => {
 			mark('code/willRestoreEditors');
 
-			// first ensure the editor part is created
-			await this.editorGroupService.whenCreated;
+			// first ensure the editor part is ready
+			await this.editorGroupService.whenReady;
 
 			// then see for editors to open as instructed
 			// it is important that we trigger this from
@@ -686,27 +700,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				openEditorsPromise = this.editorService.openEditors(editors);
 			}
 
-			// do not block the overall layout restore flow from potentially
+			// do not block the overall layout ready flow from potentially
 			// slow editors to resolve on startup
-			(async () => {
-				try {
-					// await instructed editors to open and groups having
-					// fully restored (which means visible editors have
-					// loaded)
-					await Promise.all([
-						openEditorsPromise,
-						this.editorGroupService.whenRestored
-					]);
-				} finally {
+			layoutRestoredPromises.push(
+				Promise.all([
+					openEditorsPromise,
+					this.editorGroupService.whenRestored
+				]).finally(() => {
 					// the `code/didRestoreEditors` perf mark is specifically
 					// for when visible editors have resolved, so we only mark
 					// if when editor group service has restored.
 					mark('code/didRestoreEditors');
-
-					this.restored = true;
-					this.whenRestoredResolve?.();
-				}
-			})();
+				})
+			);
 		})());
 
 		// Restore default views (only when `IDefaultLayout` is provided)
@@ -772,10 +778,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				mark('code/didOpenDefaultViews');
 			}
 		})();
-		restorePromises.push(restoreDefaultViewsPromise);
+		layoutReadyPromises.push(restoreDefaultViewsPromise);
 
 		// Restore Sidebar
-		restorePromises.push((async () => {
+		layoutReadyPromises.push((async () => {
 
 			// Restoring views could mean that sidebar already
 			// restored, as such we need to test again
@@ -795,7 +801,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		})());
 
 		// Restore Panel
-		restorePromises.push((async () => {
+		layoutReadyPromises.push((async () => {
 
 			// Restoring views could mean that panel already
 			// restored, as such we need to test again
@@ -824,8 +830,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.centerEditorLayout(true, true);
 		}
 
-		// Await restore to be done
-		await Promises.settled(restorePromises);
+		// Await for promises that we recorded to update
+		// our ready and restored states properly.
+		Promises.settled(layoutReadyPromises).finally(() => {
+			this.whenReadyResolve?.();
+
+			Promises.settled(layoutRestoredPromises).finally(() => {
+				this.restored = true;
+				this.whenRestoredResolve?.();
+			});
+		});
 	}
 
 	private updatePanelPosition() {
@@ -850,14 +864,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	registerNotifications(delegate: { onDidChangeNotificationsVisibility: Event<boolean> }): void {
 		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
-	}
-
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
-	private restored = false;
-
-	isRestored(): boolean {
-		return this.lifecycleService.phase >= LifecyclePhase.Restored && this.restored;
 	}
 
 	hasFocus(part: Parts): boolean {

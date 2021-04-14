@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorGroup, ISerializedEditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroup';
+import { EditorGroupModel, ISerializedEditorGroupModel, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputSerializer, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -23,7 +23,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-suite('Workbench editor groups', () => {
+suite('Workbench editor group model', () => {
 
 	function inst(): IInstantiationService {
 		let inst = new TestInstantiationService();
@@ -39,17 +39,17 @@ suite('Workbench editor groups', () => {
 		return inst;
 	}
 
-	function createGroup(serialized?: ISerializedEditorGroup): EditorGroup {
-		return inst().createInstance(EditorGroup, serialized);
+	function createEditorGroupModel(serialized?: ISerializedEditorGroupModel): EditorGroupModel {
+		return inst().createInstance(EditorGroupModel, serialized);
 	}
 
-	function closeAllEditors(group: EditorGroup): void {
+	function closeAllEditors(group: EditorGroupModel): void {
 		for (const editor of group.getEditors(EditorsOrder.SEQUENTIAL)) {
 			group.closeEditor(editor, false);
 		}
 	}
 
-	function closeEditors(group: EditorGroup, except: EditorInput, direction?: CloseDirection): void {
+	function closeEditors(group: EditorGroupModel, except: EditorInput, direction?: CloseDirection): void {
 		const index = group.indexOf(except);
 		if (index === -1) {
 			return; // not found
@@ -87,7 +87,7 @@ suite('Workbench editor groups', () => {
 		disposed: EditorInput[];
 	}
 
-	function groupListener(group: EditorGroup): GroupEvents {
+	function groupListener(group: EditorGroupModel): GroupEvents {
 		const groupEvents: GroupEvents = {
 			opened: [],
 			closed: [],
@@ -236,7 +236,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Clone Group', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input() as TestEditorInput;
 		const input2 = input();
@@ -276,7 +276,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('contains()', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const instantiationService = workbenchInstantiationService();
 
 		const input1 = input();
@@ -367,7 +367,7 @@ suite('Workbench editor groups', () => {
 
 	test('group serialization', function () {
 		inst().invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();
@@ -379,7 +379,7 @@ suite('Workbench editor groups', () => {
 		group.openEditor(input2, { pinned: true, active: true });
 		group.openEditor(input3, { pinned: false, active: true });
 
-		let deserialized = createGroup(group.serialize());
+		let deserialized = createEditorGroupModel(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 3);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).length, 3);
@@ -392,7 +392,7 @@ suite('Workbench editor groups', () => {
 		// Case 2: inputs cannot be serialized
 		TestEditorInputSerializer.disableSerialize = true;
 
-		deserialized = createGroup(group.serialize());
+		deserialized = createEditorGroupModel(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).length, 0);
@@ -402,7 +402,7 @@ suite('Workbench editor groups', () => {
 		TestEditorInputSerializer.disableSerialize = false;
 		TestEditorInputSerializer.disableDeserialize = true;
 
-		deserialized = createGroup(group.serialize());
+		deserialized = createEditorGroupModel(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 0);
 		assert.strictEqual(deserialized.getEditors(EditorsOrder.SEQUENTIAL).length, 0);
@@ -411,7 +411,7 @@ suite('Workbench editor groups', () => {
 
 	test('group serialization (sticky editor)', function () {
 		inst().invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();
@@ -426,7 +426,7 @@ suite('Workbench editor groups', () => {
 		group.stick(input2);
 		assert.ok(group.isSticky(input2));
 
-		let deserialized = createGroup(group.serialize());
+		let deserialized = createEditorGroupModel(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 3);
 
@@ -445,7 +445,7 @@ suite('Workbench editor groups', () => {
 		// Case 2: inputs cannot be serialized
 		TestEditorInputSerializer.disableSerialize = true;
 
-		deserialized = createGroup(group.serialize());
+		deserialized = createEditorGroupModel(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 0);
 		assert.strictEqual(deserialized.stickyCount, 0);
@@ -456,7 +456,7 @@ suite('Workbench editor groups', () => {
 		TestEditorInputSerializer.disableSerialize = false;
 		TestEditorInputSerializer.disableDeserialize = true;
 
-		deserialized = createGroup(group.serialize());
+		deserialized = createEditorGroupModel(group.serialize());
 		assert.strictEqual(group.id, deserialized.id);
 		assert.strictEqual(deserialized.count, 0);
 		assert.strictEqual(deserialized.stickyCount, 0);
@@ -465,7 +465,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('One Editor', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const events = groupListener(group);
 
 		assert.strictEqual(group.count, 0);
@@ -576,7 +576,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Pinned and Active', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const events = groupListener(group);
 
 		const input1 = input('1');
@@ -650,7 +650,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Preview editor moves to the side of the active one', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();
@@ -679,7 +679,7 @@ suite('Workbench editor groups', () => {
 		inst.stub(IConfigurationService, config);
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
-		const group: EditorGroup = inst.createInstance(EditorGroup, undefined);
+		const group: EditorGroupModel = inst.createInstance(EditorGroupModel, undefined);
 
 		const events = groupListener(group);
 
@@ -703,7 +703,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Pinned and Not Active', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();
@@ -735,7 +735,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Preview gets overwritten', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -768,7 +768,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - set active', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -803,7 +803,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - pin and unpin', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -852,7 +852,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - closing picks next from MRU list', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -911,7 +911,7 @@ suite('Workbench editor groups', () => {
 		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
 		inst.stub(IConfigurationService, config);
 
-		const group = inst.createInstance(EditorGroup, undefined);
+		const group = inst.createInstance(EditorGroupModel, undefined);
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -959,7 +959,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - move editor', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -1021,8 +1021,8 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - move editor across groups', function () {
-		const group1 = createGroup();
-		const group2 = createGroup();
+		const group1 = createEditorGroupModel();
+		const group2 = createEditorGroupModel();
 
 		const g1_input1 = input();
 		const g1_input2 = input();
@@ -1043,8 +1043,8 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - move editor across groups (input already exists in group 1)', function () {
-		const group1 = createGroup();
-		const group2 = createGroup();
+		const group1 = createEditorGroupModel();
+		const group2 = createEditorGroupModel();
 
 		const g1_input1 = input();
 		const g1_input2 = input();
@@ -1067,7 +1067,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Pinned & Non Active', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input();
 		group.openEditor(input1);
@@ -1098,7 +1098,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Close Others, Close Left, Close Right', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();
@@ -1153,7 +1153,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - real user example', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		// [] -> /index.html/
 		const indexHtml = input('index.html');
@@ -1287,7 +1287,7 @@ suite('Workbench editor groups', () => {
 
 		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		let group = createGroup();
+		let group = createEditorGroupModel();
 
 		const input1 = input();
 		group.openEditor(input1);
@@ -1298,7 +1298,7 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(group.isActive(input1), true);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroup, group.serialize());
+		group = inst.createInstance(EditorGroupModel, group.serialize());
 
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.activeEditor!.matches(input1), true);
@@ -1321,7 +1321,7 @@ suite('Workbench editor groups', () => {
 
 		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		let group1 = createGroup();
+		let group1 = createEditorGroupModel();
 
 		const g1_input1 = input();
 		const g1_input2 = input();
@@ -1331,7 +1331,7 @@ suite('Workbench editor groups', () => {
 		group1.openEditor(g1_input2, { active: true, pinned: false });
 		group1.openEditor(g1_input3, { active: false, pinned: true });
 
-		let group2 = createGroup();
+		let group2 = createEditorGroupModel();
 
 		const g2_input1 = input();
 		const g2_input2 = input();
@@ -1357,8 +1357,8 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(g2_input2), true);
 
 		// Create model again - should load from storage
-		group1 = inst.createInstance(EditorGroup, group1.serialize());
-		group2 = inst.createInstance(EditorGroup, group2.serialize());
+		group1 = inst.createInstance(EditorGroupModel, group1.serialize());
+		group2 = inst.createInstance(EditorGroupModel, group2.serialize());
 
 		assert.strictEqual(group1.count, 3);
 		assert.strictEqual(group2.count, 3);
@@ -1391,7 +1391,7 @@ suite('Workbench editor groups', () => {
 
 		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		let group = createGroup();
+		let group = createEditorGroupModel();
 
 		const serializableInput1 = input();
 		const nonSerializableInput2 = input('3', true);
@@ -1410,7 +1410,7 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(serializableInput1), true);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroup, group.serialize());
+		group = inst.createInstance(EditorGroupModel, group.serialize());
 
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(group.activeEditor!.matches(serializableInput2), true);
@@ -1435,7 +1435,7 @@ suite('Workbench editor groups', () => {
 
 		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		let group = createGroup();
+		let group = createEditorGroupModel();
 
 		const serializableInput1 = input();
 		const nonSerializableInput2 = input('3', true);
@@ -1449,7 +1449,7 @@ suite('Workbench editor groups', () => {
 		assert.strictEqual(group.stickyCount, 1);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroup, group.serialize());
+		group = inst.createInstance(EditorGroupModel, group.serialize());
 
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(group.stickyCount, 0);
@@ -1470,8 +1470,8 @@ suite('Workbench editor groups', () => {
 
 		inst.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		let group1 = createGroup();
-		let group2 = createGroup();
+		let group1 = createEditorGroupModel();
+		let group2 = createEditorGroupModel();
 
 		const serializableInput1 = input();
 		const serializableInput2 = input();
@@ -1483,8 +1483,8 @@ suite('Workbench editor groups', () => {
 		group2.openEditor(nonSerializableInput);
 
 		// Create model again - should load from storage
-		group1 = inst.createInstance(EditorGroup, group1.serialize());
-		group2 = inst.createInstance(EditorGroup, group2.serialize());
+		group1 = inst.createInstance(EditorGroupModel, group1.serialize());
+		group2 = inst.createInstance(EditorGroupModel, group2.serialize());
 
 		assert.strictEqual(group1.count, 2);
 		assert.strictEqual(group1.getEditors(EditorsOrder.SEQUENTIAL)[0].matches(serializableInput1), true);
@@ -1492,8 +1492,8 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Editor Dispose', function () {
-		const group1 = createGroup();
-		const group2 = createGroup();
+		const group1 = createEditorGroupModel();
+		const group2 = createEditorGroupModel();
 
 		const group1Listener = groupListener(group1);
 		const group2Listener = groupListener(group2);
@@ -1523,7 +1523,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Preview tab does not have a stable position (https://github.com/microsoft/vscode/issues/8245)', function () {
-		const group1 = createGroup();
+		const group1 = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();
@@ -1538,8 +1538,8 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Multiple Editors - Editor Emits Dirty and Label Changed', function () {
-		const group1 = createGroup();
-		const group2 = createGroup();
+		const group1 = createEditorGroupModel();
+		const group2 = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();
@@ -1591,7 +1591,7 @@ suite('Workbench editor groups', () => {
 	});
 
 	test('Sticky Editors', function () {
-		const group = createGroup();
+		const group = createEditorGroupModel();
 
 		const input1 = input();
 		const input2 = input();

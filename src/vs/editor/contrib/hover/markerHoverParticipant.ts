@@ -120,7 +120,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				codeLink.setAttribute('href', code.target.toString());
 
 				disposables.add(dom.addDisposableListener(codeLink, 'click', (e) => {
-					this._openerService.open(code.target);
+					this._openerService.open(code.target, { allowCommands: true });
 					e.preventDefault();
 					e.stopPropagation();
 				}));

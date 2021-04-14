@@ -916,16 +916,16 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
 			},
-			get trustState() {
+			get isTrusted() {
 				checkProposedApiEnabled(extension);
-				return extHostWorkspace.trustState;
+				return extHostWorkspace.trusted;
 			},
 			requestWorkspaceTrust: (options?: vscode.WorkspaceTrustRequestOptions) => {
 				checkProposedApiEnabled(extension);
 				return extHostWorkspace.requestWorkspaceTrust(options);
 			},
-			onDidChangeWorkspaceTrustState: (listener, thisArgs?, disposables?) => {
-				return extHostWorkspace.onDidChangeWorkspaceTrustState(listener, thisArgs, disposables);
+			onDidReceiveWorkspaceTrust: (listener, thisArgs?, disposables?) => {
+				return extHostWorkspace.onDidReceiveWorkspaceTrust(listener, thisArgs, disposables);
 			}
 		};
 
@@ -1061,10 +1061,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options);
 			},
-			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: {
-				transientOutputs: boolean;
-				transientMetadata: { [K in keyof vscode.NotebookCellMetadata]?: boolean }
-			}) => {
+			registerNotebookContentProvider: (viewType, provider, options) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options);
 			},

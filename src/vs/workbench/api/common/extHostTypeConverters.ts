@@ -1615,16 +1615,14 @@ export namespace NotebookDecorationRenderOptions {
 export namespace NotebookDocumentContentOptions {
 	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
-			transientOutputs: options ? options.transientOutputs : false,
+			transientOutputs: options?.transientOutputs ?? false,
 			transientMetadata: {
-				...(options?.transientMetadata ?? {}),
-				...{
-					executionOrder: true,
-					lastRunDuration: true,
-					runState: true,
-					runStartTime: true,
-					lastRunSuccess: true
-				}
+				...options?.transientMetadata,
+				executionOrder: true,
+				lastRunDuration: true,
+				runState: true,
+				runStartTime: true,
+				lastRunSuccess: true
 			}
 		};
 	}

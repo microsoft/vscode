@@ -16,7 +16,7 @@ import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCo
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -183,39 +183,53 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	private _updateStatusbar() {
 		this._editorDisposable.clear();
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
-
 		if (activeEditor) {
 			this._editorDisposable.add(activeEditor.onDidChangeKernel(() => {
-				if (activeEditor.multipleKernelsAvailable) {
-					this._showKernelStatus(activeEditor.activeKernel);
-				} else {
-					this._kernelInfoElement.clear();
-				}
+				this._showKernelStatus(activeEditor.activeKernel, activeEditor.availableKernelCount);
 			}));
-
 			this._editorDisposable.add(activeEditor.onDidChangeAvailableKernels(() => {
-				if (activeEditor.multipleKernelsAvailable) {
-					this._showKernelStatus(activeEditor.activeKernel);
-				} else {
-					this._kernelInfoElement.clear();
-				}
+				this._showKernelStatus(activeEditor.activeKernel, activeEditor.availableKernelCount);
 			}));
-		}
-
-		if (activeEditor && activeEditor.multipleKernelsAvailable) {
-			this._showKernelStatus(activeEditor.activeKernel);
+			this._showKernelStatus(activeEditor.activeKernel, activeEditor.availableKernelCount);
 		} else {
 			this._kernelInfoElement.clear();
 		}
 	}
 
-	private _showKernelStatus(kernel: INotebookKernel | undefined) {
-		this._kernelInfoElement.value = this._statusbarService.addEntry({
-			text: kernel ? kernel.label : 'Choose Kernel',
-			ariaLabel: kernel ? kernel.label : 'Choose Kernel',
-			tooltip: nls.localize('chooseActiveKernel', "Choose kernel for current notebook"),
-			command: 'notebook.selectKernel',
-		}, 'notebook.selectKernel', nls.localize('notebook.selectKernel', "Choose kernel for current notebook"), StatusbarAlignment.RIGHT, 100);
+	private static readonly _chooseKernelEntry: IStatusbarEntry = {
+		text: nls.localize('choose', "Choose Kernel"),
+		ariaLabel: nls.localize('choose', "Choose Kernel"),
+		tooltip: nls.localize('tooltop', "Choose kernel for current notebook"),
+		command: 'notebook.selectKernel'
+	};
+
+	private _showKernelStatus(kernel: INotebookKernel | undefined, availableKernelCount: number) {
+
+		if (availableKernelCount === 0) {
+			this._kernelInfoElement.clear();
+			return;
+		}
+
+		let entry: IStatusbarEntry;
+
+		if (kernel) {
+			entry = {
+				text: `$(notebook-kernel-select) ${kernel.label}`,
+				ariaLabel: kernel.label,
+				tooltip: kernel.description ?? kernel.detail ?? kernel.label,
+				command: availableKernelCount > 1 ? 'notebook.selectKernel' : undefined,
+			};
+		} else {
+			entry = KernelStatus._chooseKernelEntry;
+		}
+
+		this._kernelInfoElement.value = this._statusbarService.addEntry(
+			entry,
+			'notebook.selectKernel',
+			nls.localize('notebook.info', "Notebook Kernel Info"),
+			StatusbarAlignment.RIGHT,
+			100
+		);
 	}
 }
 

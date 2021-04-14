@@ -52,7 +52,7 @@
 .workspace-trust-editor .workspace-trust-header .workspace-trust-description {
 	cursor: default;
 	user-select: text;
-	max-width: 500px;
+	max-width: 600px;
 }
 
 .workspace-trust-editor .workspace-trust-section-title {
@@ -152,6 +152,10 @@
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon.codicon-workspace-untrusted-icon {
 	color: var(--workspace-trust-state-untrusted-color) !important;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
+	font-style: italic;
 }
 
 /** Buttons Container */
