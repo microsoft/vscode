@@ -1444,7 +1444,7 @@ export class SearchView extends ViewPane {
 
 			if (completed && completed.limitHit) {
 				this.searchWidget.searchInput.showMessage({
-					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."),
+					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."),
 					type: MessageType.WARNING
 				});
 			}
