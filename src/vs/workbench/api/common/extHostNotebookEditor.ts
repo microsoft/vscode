@@ -108,7 +108,7 @@ export class ExtHostNotebookEditor {
 		this._viewColumn = viewColumn;
 	}
 
-	get editor(): vscode.NotebookEditor {
+	get apiEditor(): vscode.NotebookEditor {
 		if (!this._editor) {
 			const that = this;
 			this._editor = {

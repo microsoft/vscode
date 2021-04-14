@@ -222,7 +222,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _notebookContentProviders = new Map<string, NotebookContentProviderData>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
-	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
+	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
 	private readonly _commandsConverter: CommandsConverter;
 	private readonly _onDidChangeNotebookEditorSelection = new Emitter<vscode.NotebookEditorSelectionChangeEvent>();
@@ -244,11 +244,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
 	get activeNotebookEditor(): vscode.NotebookEditor | undefined {
-		return this._activeNotebookEditor?.editor;
+		return this._activeNotebookEditor?.apiEditor;
 	}
 	private _visibleNotebookEditors: ExtHostNotebookEditor[] = [];
 	get visibleNotebookEditors(): vscode.NotebookEditor[] {
-		return this._visibleNotebookEditors.map(editor => editor.editor);
+		return this._visibleNotebookEditors.map(editor => editor.apiEditor);
 	}
 
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
@@ -437,10 +437,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.viewType, resolvedOptions);
-		const editor = editorId && this._editors.get(editorId)?.editor;
+		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
 		if (editor) {
-			return editor.editor;
+			return editor;
 		}
 
 		if (editorId) {
@@ -601,8 +601,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			this._withAdapter(event.providerHandle, event.uri, async (adapter, document) => {
 				const kernel = event.kernelFriendlyId ? adapter.getKernelByFriendlyId(URI.revive(event.uri), event.kernelFriendlyId) : undefined;
 				this._editors.forEach(editor => {
-					if (editor.editor.notebookData === document) {
-						editor.editor._acceptKernel(kernel);
+					if (editor.notebookData === document) {
+						editor._acceptKernel(kernel);
 					}
 				});
 				this._onDidChangeActiveNotebookKernel.fire({ document: document.notebookDocument, kernel });
@@ -639,42 +639,41 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		// ONE: make all state updates
 		if (data.visibleRanges) {
-			editor.editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookCellRange.to));
+			editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookCellRange.to));
 		}
 		if (data.selections) {
-			editor.editor._acceptSelections(data.selections.selections.map(typeConverters.NotebookCellRange.to));
+			editor._acceptSelections(data.selections.selections.map(typeConverters.NotebookCellRange.to));
 		}
 
 		// TWO: send all events after states have been updated
 		if (data.visibleRanges) {
 			this._onDidChangeNotebookEditorVisibleRanges.fire({
-				notebookEditor: editor.editor.editor,
-				visibleRanges: editor.editor.editor.visibleRanges
+				notebookEditor: editor.apiEditor,
+				visibleRanges: editor.apiEditor.visibleRanges
 			});
 		}
 		if (data.selections) {
 			this._onDidChangeNotebookEditorSelection.fire(Object.freeze({
-				notebookEditor: editor.editor.editor,
-				selections: editor.editor.editor.selections
+				notebookEditor: editor.apiEditor,
+				selections: editor.apiEditor.selections
 			}));
 		}
 	}
 
 	private _editorIdFromApiEditor(editor: vscode.NotebookEditor): string | undefined {
 		for (const [id, candidate] of this._editors) {
-			if (candidate.editor.editor === editor) {
+			if (candidate.apiEditor === editor) {
 				return id;
 			}
 		}
 		return undefined;
 	}
 
+	//#region --- renderer IPC ---
+
 	private readonly _rendererIpcEmitters = new Map<number, { emitter: Emitter<{ editor: vscode.NotebookEditor, message: any }> }>();
 
 	createNotebookCommunication(rendererId: string): vscode.NotebookRendererCommunication {
-		// todo@jrieken should this be created for a specific renderer?
-		// how else would this be working when sending/receiving messages
-
 
 		const that = this;
 		const handle = this._handlePool++;
@@ -725,9 +724,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		for (const handle of handles) {
-			this._rendererIpcEmitters.get(handle)?.emitter.fire({ editor: editor.editor.editor, message });
+			this._rendererIpcEmitters.get(handle)?.emitter.fire({ editor: editor.apiEditor, message });
 		}
 	}
+
+	//#endregion
 
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void {
 		for (const id in data) {
@@ -735,7 +736,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			if (!editor) {
 				throw new Error(`unknown text editor: ${id}. known editors: ${[...this._editors.keys()]} `);
 			}
-			editor.editor._acceptViewColumn(typeConverters.ViewColumn.to(data[id]));
+			editor._acceptViewColumn(typeConverters.ViewColumn.to(data[id]));
 		}
 	}
 
@@ -771,7 +772,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
 		);
 
-		this._editors.set(editorId, { editor });
+		this._editors.set(editorId, editor);
 	}
 
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void {
@@ -788,9 +789,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					this._onDidCloseNotebookDocument.fire(document.notebookDocument);
 				}
 
-				for (const e of this._editors.values()) {
-					if (e.editor.notebookData.uri.toString() === revivedUri.toString()) {
-						this._editors.delete(e.editor.id);
+				for (const editor of this._editors.values()) {
+					if (editor.notebookData.uri.toString() === revivedUri.toString()) {
+						this._editors.delete(editor.id);
 					}
 				}
 			}
@@ -866,7 +867,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			}
 		}
 
-		const removedEditors: { editor: ExtHostNotebookEditor; }[] = [];
+		const removedEditors: ExtHostNotebookEditor[] = [];
 
 		if (delta.removedEditors) {
 			for (const editorid of delta.removedEditors) {
@@ -875,7 +876,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				if (editor) {
 					this._editors.delete(editorid);
 
-					if (this._activeNotebookEditor?.id === editor.editor.id) {
+					if (this._activeNotebookEditor?.id === editor.id) {
 						this._activeNotebookEditor = undefined;
 					}
 
@@ -885,16 +886,16 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (delta.visibleEditors) {
-			this._visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)!.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
+			this._visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)!).filter(editor => !!editor) as ExtHostNotebookEditor[];
 			const visibleEditorsSet = new Set<string>();
 			this._visibleNotebookEditors.forEach(editor => visibleEditorsSet.add(editor.id));
 
-			for (const e of this._editors.values()) {
-				const newValue = visibleEditorsSet.has(e.editor.id);
-				e.editor._acceptVisibility(newValue);
+			for (const editor of this._editors.values()) {
+				const newValue = visibleEditorsSet.has(editor.id);
+				editor._acceptVisibility(newValue);
 			}
 
-			this._visibleNotebookEditors = [...this._editors.values()].map(e => e.editor).filter(e => e.visible);
+			this._visibleNotebookEditors = [...this._editors.values()].map(e => e).filter(e => e.visible);
 			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
 		}
 
@@ -902,10 +903,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			// clear active notebook as current active editor is non-notebook editor
 			this._activeNotebookEditor = undefined;
 		} else if (delta.newActiveEditor) {
-			this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
+			this._activeNotebookEditor = this._editors.get(delta.newActiveEditor);
 		}
 		if (delta.newActiveEditor !== undefined) {
-			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.editor);
+			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor?.apiEditor);
 		}
 	}
 
