@@ -1114,7 +1114,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	/**
 	 * Helper to convert options bag to real class
 	 */
-	static create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
+	static override create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const textEditorOptions = new TextEditorOptions();
 		textEditorOptions.overwrite(options);
 

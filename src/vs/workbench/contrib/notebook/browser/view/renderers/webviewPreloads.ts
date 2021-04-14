@@ -212,7 +212,7 @@ function webviewPreloads() {
 
 	function scrollWillGoToParent(event: WheelEvent) {
 		for (let node = event.target as Node | null; node; node = node.parentNode) {
-			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('output_container')) {
+			if (!(node instanceof Element) || node.id === 'container' || node.classList.contains('cell_container') || node.classList.contains('output_container')) {
 				return false;
 			}
 
@@ -598,7 +598,7 @@ function webviewPreloads() {
 						const newElement = document.createElement('div');
 
 						newElement.id = data.cellId;
-						newElement.classList.add('output_container');
+						newElement.classList.add('cell_container');
 
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
@@ -610,10 +610,17 @@ function webviewPreloads() {
 					cellOutputContainer.style.position = 'absolute';
 					cellOutputContainer.style.top = data.cellTop + 'px';
 
+					const outputContainer = document.createElement('div');
+					outputContainer.classList.add('output_container');
+					outputContainer.style.position = 'absolute';
+					outputContainer.style.overflow = 'hidden';
+					outputContainer.style.maxHeight = '0px';
+					outputContainer.style.top = `${data.outputOffset}px`;
+
 					const outputNode = document.createElement('div');
 					outputNode.classList.add('output');
 					outputNode.style.position = 'absolute';
-					outputNode.style.top = `${data.outputOffset}px`;
+					outputNode.style.top = `0px`;
 					outputNode.style.left = data.left + 'px';
 					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
 					// outputNode.style.minHeight = '32px';
@@ -626,7 +633,8 @@ function webviewPreloads() {
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
 						outputNode.innerHTML = trustedHtml as string;
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 						domEval(outputNode);
 					} else if (preloadResults.some(e => e?.state === PreloadState.Error)) {
 						outputNode.innerText = `Error loading preloads:`;
@@ -639,7 +647,8 @@ function webviewPreloads() {
 							}
 						}
 						outputNode.appendChild(errList);
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 					} else {
 						const { metadata, mimeType, value } = content;
 						onDidCreateOutput.fire([data.apiNamespace, {
@@ -663,7 +672,8 @@ function webviewPreloads() {
 								};
 							},
 						} as ICreateCellInfo]);
-						cellOutputContainer.appendChild(outputNode);
+						cellOutputContainer.appendChild(outputContainer);
+						outputContainer.appendChild(outputNode);
 					}
 
 					resizeObserver.observe(outputNode, outputId, true);
@@ -698,10 +708,10 @@ function webviewPreloads() {
 					for (const request of event.data.widgets) {
 						const widget = document.getElementById(request.outputId);
 						if (widget) {
-							widget.parentElement!.style.top = `${request.cellTop}px`;
-							widget.style.top = `${request.outputOffset}px`;
+							widget.parentElement!.parentElement!.style.top = `${request.cellTop}px`;
+							widget.parentElement!.style.top = `${request.outputOffset}px`;
 							if (request.forceDisplay) {
-								widget.parentElement!.style.visibility = 'visible';
+								widget.parentElement!.parentElement!.style.visibility = 'visible';
 							}
 						}
 					}
@@ -735,7 +745,7 @@ function webviewPreloads() {
 				break;
 			case 'hideOutput':
 				enqueueOutputAction(event.data, ({ outputId }) => {
-					const container = document.getElementById(outputId)?.parentElement;
+					const container = document.getElementById(outputId)?.parentElement?.parentElement;
 					if (container) {
 						container.style.visibility = 'hidden';
 					}
@@ -745,8 +755,8 @@ function webviewPreloads() {
 				enqueueOutputAction(event.data, ({ outputId, cellTop: top, }) => {
 					const output = document.getElementById(outputId);
 					if (output) {
-						output.parentElement!.style.visibility = 'visible';
-						output.parentElement!.style.top = top + 'px';
+						output.parentElement!.parentElement!.style.visibility = 'visible';
+						output.parentElement!.parentElement!.style.top = top + 'px';
 
 						dimensionUpdater.update(outputId, output.clientHeight, {
 							isOutput: true,
@@ -754,6 +764,16 @@ function webviewPreloads() {
 					}
 				});
 				break;
+			case 'ack-dimension':
+				{
+					const { outputId, height } = event.data;
+					const output = document.getElementById(outputId);
+					if (output) {
+						output.parentElement!.style.maxHeight = `${height}px`;
+						output.parentElement!.style.height = `${height}px`;
+					}
+					break;
+				}
 			case 'preload':
 				const resources = event.data.resources;
 				const globals = event.data.type === 'preload' ? { acquireVsCodeApi } : {};

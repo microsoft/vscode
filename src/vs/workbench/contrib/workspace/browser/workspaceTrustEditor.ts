@@ -21,7 +21,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
@@ -214,7 +214,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private getSettingsRequiringTrustedTargetCount(): number {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		return values(configurationRegistry.getConfigurationProperties()).reduce((count, property) => property.requireTrust ? count + 1 : count, 0);
+		return values(configurationRegistry.getConfigurationProperties()).reduce((count, property) => property.requireTrust && property.scope !== ConfigurationScope.APPLICATION && property.scope !== ConfigurationScope.MACHINE ? count + 1 : count, 0);
 	}
 
 	private getExtensionCountByTrustRequestType(extensions: IExtensionStatus[], trustRequestType: ExtensionWorkspaceTrustRequestType): number {

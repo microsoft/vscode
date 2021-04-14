@@ -43,7 +43,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
@@ -78,7 +78,7 @@ suite('Notebook Clipboard', () => {
 				editor.setHiddenAreas(viewModel.getHiddenRanges());
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }, 'model');
 
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 				clipboardContrib.runCutAction(accessor);
@@ -134,7 +134,7 @@ suite('Notebook Clipboard', () => {
 				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
 			],
 			async (editor, accessor) => {
-				accessor.stub(INotebookService, new class extends mock<INotebookService>() { setToCopy() { } });
+				accessor.stub(INotebookService, new class extends mock<INotebookService>() { override setToCopy() { } });
 				const clipboardContrib = new NotebookClipboardContribution(createEditorService(editor));
 
 				const viewModel = editor.viewModel;
