@@ -557,6 +557,7 @@ declare module DebugProtocol {
 
 	/** Arguments for 'restart' request. */
 	export interface RestartArguments {
+		/** The latest version of the 'launch' or 'attach' configuration. */
 		arguments?: LaunchRequestArguments | AttachRequestArguments;
 	}
 
