@@ -336,15 +336,11 @@
 	width: 100%;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) .task-description,
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) .image-description,
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) .actions,
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) button,
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) a {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task:not(.expanded) .task-description-container {
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task .task-description-container {
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-task .task-container {
 	width: 100%;
 }
 

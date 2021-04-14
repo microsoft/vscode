@@ -216,11 +216,10 @@ ExtensionsRegistry.registerExtensionPoint({
 					description: localize('walkthroughs.tasks', "Tasks to complete as part of this walkthrough."),
 					items: {
 						type: 'object',
-						required: ['id', 'title', 'description', 'button', 'media'],
+						required: ['id', 'title', 'description', 'media'],
 						defaultSnippets: [{
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
-								'button': { 'title': '$4', 'command': '$5' },
 								'doneOn': { 'command': '$5' },
 								'media': { 'path': '$6', 'altText': '$7' }
 							}
@@ -236,42 +235,10 @@ ExtensionsRegistry.registerExtensionPoint({
 							},
 							description: {
 								type: 'string',
-								description: localize('walkthroughs.tasks.description', "Description of task.")
+								description: localize('walkthroughs.tasks.description', "Description of task. Use markdown-style links fo commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms)")
 							},
 							button: {
-								description: localize('walkthroughs.tasks.button', "The task's button, which can either link to an external resource or run a command"),
-								oneOf: [
-									{
-										type: 'object',
-										required: ['title', 'command'],
-										defaultSnippets: [{ 'body': { 'title': '$1', 'command': '$2' } }],
-										properties: {
-											title: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.title', "Title of button.")
-											},
-											command: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.command', "Command to run when button is clicked.")
-											}
-										}
-									},
-									{
-										type: 'object',
-										required: ['title', 'link'],
-										defaultSnippets: [{ 'body': { 'title': '$1', 'link': '$2' } }],
-										properties: {
-											title: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.title', "Title of button.")
-											},
-											link: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.link', "Link to open when button is clicked. Opening this link will mark the task completed.")
-											}
-										}
-									}
-								]
+								deprecationMessage: localize('walkthroughs.tasks.button.deprecated', "Deprecated. Use markdown links in the description instead, i.e. [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms), "),
 							},
 							media: {
 								type: 'object',
