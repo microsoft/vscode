@@ -127,7 +127,7 @@ function throwIfTooLarge(totalBytesRead: number, options: ICreateReadStreamOptio
 	// Return early if file is too large to load and we have configured limits
 	if (options?.limits) {
 		if (typeof options.limits.memory === 'number' && totalBytesRead > options.limits.memory) {
-			throw createFileSystemProviderError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), FileSystemProviderErrorCode.FileExceedsMemoryLimit);
+			throw createFileSystemProviderError(localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow VS Code to use more memory"), FileSystemProviderErrorCode.FileExceedsMemoryLimit);
 		}
 
 		if (typeof options.limits.size === 'number' && totalBytesRead > options.limits.size) {
