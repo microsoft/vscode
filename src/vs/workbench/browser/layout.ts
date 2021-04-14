@@ -22,7 +22,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -159,7 +159,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private environmentService!: IWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
 	private configurationService!: IConfigurationService;
-	private lifecycleService!: ILifecycleService;
 	private storageService!: IStorageService;
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
@@ -246,7 +245,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Services
 		this.environmentService = accessor.get(IWorkbenchEnvironmentService);
 		this.configurationService = accessor.get(IConfigurationService);
-		this.lifecycleService = accessor.get(ILifecycleService);
 		this.hostService = accessor.get(IHostService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
@@ -657,10 +655,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	protected async restoreWorkbenchLayout(): Promise<void> {
-		const restorePromises: Promise<void>[] = [];
+
+		// distinguish long running restore operations that
+		// fully block the startup of the workbench from those
+		// that are not considered blocking
+		const blockingRestorePromises: Promise<unknown>[] = [];
+		const nonBlockingRestorePromises: Promise<unknown>[] = [];
 
 		// Restore editors
-		restorePromises.push((async () => {
+		blockingRestorePromises.push((async () => {
 			mark('code/willRestoreEditors');
 
 			// first ensure the editor part is ready
@@ -688,11 +691,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// do not block the overall layout restore flow from potentially
 			// slow editors to resolve on startup
-			(async () => {
+			nonBlockingRestorePromises.push((async () => {
 				try {
-					// await instructed editors to open and groups having
-					// fully restored (which means visible editors have
-					// loaded)
+					// await instructed editors to open (if any) and groups
+					// having fully restored (which means visible editors
+					// have loaded)
 					await Promise.all([
 						openEditorsPromise,
 						this.editorGroupService.whenRestored
@@ -702,11 +705,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					// for when visible editors have resolved, so we only mark
 					// if when editor group service has restored.
 					mark('code/didRestoreEditors');
-
-					this.restored = true;
-					this.whenRestoredResolve?.();
 				}
-			})();
+			})());
 		})());
 
 		// Restore default views (only when `IDefaultLayout` is provided)
@@ -772,10 +772,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				mark('code/didOpenDefaultViews');
 			}
 		})();
-		restorePromises.push(restoreDefaultViewsPromise);
+		blockingRestorePromises.push(restoreDefaultViewsPromise);
 
 		// Restore Sidebar
-		restorePromises.push((async () => {
+		blockingRestorePromises.push((async () => {
 
 			// Restoring views could mean that sidebar already
 			// restored, as such we need to test again
@@ -795,7 +795,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		})());
 
 		// Restore Panel
-		restorePromises.push((async () => {
+		blockingRestorePromises.push((async () => {
 
 			// Restoring views could mean that panel already
 			// restored, as such we need to test again
@@ -824,8 +824,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.centerEditorLayout(true, true);
 		}
 
-		// Await restore to be done
-		await Promises.settled(restorePromises);
+		// Await blocking restore promises here
+		await Promises.settled(blockingRestorePromises);
+
+		// Do not await non-blocking restore promises
+		// here, but update our `whenRestored` condition
+		// properly when the promises have settled
+		Promises.settled(nonBlockingRestorePromises).finally(() => {
+			this.restored = true;
+			this.whenRestoredResolve?.();
+		});
 	}
 
 	private updatePanelPosition() {
@@ -857,7 +865,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private restored = false;
 
 	isRestored(): boolean {
-		return this.lifecycleService.phase >= LifecyclePhase.Restored && this.restored;
+		return this.restored;
 	}
 
 	hasFocus(part: Parts): boolean {
