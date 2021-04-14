@@ -980,10 +980,12 @@ declare module 'vscode' {
 
 	export class NotebookCellMetadata {
 		/**
+		 * todo@API this can be renamed to `contentEditable`.
 		 * Controls whether a cell's editor is editable/readonly.
 		 */
 		readonly editable?: boolean;
 		/**
+		 * todo@API this can be removed and only kept internally? It's a UI thing and should be controlled by detecting wether there is a debugging session, or through a user setting (like line numbers)
 		 * Controls if the cell has a margin to support the breakpoint UI.
 		 * This metadata is ignored for markdown cell.
 		 */
@@ -1029,11 +1031,13 @@ declare module 'vscode' {
 	export class NotebookDocumentMetadata {
 
 		/**
+		 * todo@API. If it's called `editable` then this should also control if a cell is edtiable or not (through UI at least).
 		 * Controls if users can add or delete cells
 		 * Defaults to true
 		 */
 		readonly editable: boolean;
 		/**
+		 * todo@API maybe removed?
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
 		 * Defaults to true.
 		 */
