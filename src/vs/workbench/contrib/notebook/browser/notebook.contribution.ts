@@ -274,7 +274,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			}
 		}));
 
-		this.editorGroupService.whenCreated.then(() => this._updateContextKeys());
+		this.editorGroupService.whenReady.then(() => this._updateContextKeys());
 		this._register(this.editorService.onDidActiveEditorChange(() => this._updateContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this._updateContextKeys()));
 

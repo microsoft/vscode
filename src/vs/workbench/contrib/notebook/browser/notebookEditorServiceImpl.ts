@@ -61,7 +61,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			groupListener.set(id, listeners);
 		};
 		this._disposables.add(editorGroupService.onDidAddGroup(onNewGroup));
-		editorGroupService.whenCreated.then(() => editorGroupService.groups.forEach(onNewGroup));
+		editorGroupService.whenReady.then(() => editorGroupService.groups.forEach(onNewGroup));
 
 		// group removed -> clean up listeners, clean up widgets
 		this._disposables.add(editorGroupService.onDidRemoveGroup(group => {

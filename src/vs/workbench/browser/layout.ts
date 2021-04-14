@@ -663,8 +663,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		restorePromises.push((async () => {
 			mark('code/willRestoreEditors');
 
-			// first ensure the editor part is created
-			await this.editorGroupService.whenCreated;
+			// first ensure the editor part is ready
+			await this.editorGroupService.whenReady;
 
 			// then see for editors to open as instructed
 			// it is important that we trigger this from

@@ -206,8 +206,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return (this.gridWidget && this.gridWidget.orientation === Orientation.VERTICAL) ? GroupOrientation.VERTICAL : GroupOrientation.HORIZONTAL;
 	}
 
-	private whenCreatedResolve: (() => void) | undefined;
-	readonly whenCreated = new Promise<void>(resolve => (this.whenCreatedResolve = resolve));
+	private whenReadyResolve: (() => void) | undefined;
+	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
 
 	private whenRestoredResolve: (() => void) | undefined;
 	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
@@ -835,8 +835,8 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
 
-		// Signal created
-		this.whenCreatedResolve?.();
+		// Signal ready
+		this.whenReadyResolve?.();
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {

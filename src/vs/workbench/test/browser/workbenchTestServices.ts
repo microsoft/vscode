@@ -621,7 +621,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidChangeEditorPartOptions = Event.None;
 
 	orientation = GroupOrientation.HORIZONTAL;
-	whenCreated: Promise<void> = Promise.resolve(undefined);
+	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasRestorableState = false;
 
@@ -1439,7 +1439,7 @@ export async function createEditorPart(instantiationService: IInstantiationServi
 	part.create(document.createElement('div'));
 	part.layout(1080, 800);
 
-	await part.whenCreated;
+	await part.whenReady;
 
 	return part;
 }
