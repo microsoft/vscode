@@ -207,12 +207,12 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-action-bar {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-toolbar {
 	text-align: center;
-	padding: 4px 10px;
+	padding: 4px 7px 2px;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-action-bar {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
 	text-align: left;
 }
 

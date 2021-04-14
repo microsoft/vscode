@@ -198,7 +198,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabTreeContainer,
-			layout: width => this._tabsWidget.layout(this._height ? this._height - 22 : 0, width),
+			layout: width => this._tabsWidget.layout(this._height ? this._height - 28 : 0, width),
 			minimumSize: MIN_TABS_WIDGET_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
