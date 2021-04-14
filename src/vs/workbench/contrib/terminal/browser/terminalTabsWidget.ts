@@ -29,7 +29,7 @@ const $ = DOM.$;
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 	private _terminalService: ITerminalService;
 	constructor(
-		container: HTMLElement,
+		private readonly _container: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -42,18 +42,18 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 
-		super('TerminalTabsTree', container,
+		super('TerminalTabsTree', _container,
 			{
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[_instantiationService.createInstance(TerminalTabsRenderer, container)],
+			[_instantiationService.createInstance(TerminalTabsRenderer, _container)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				identityProvider: new TerminalTabsIdentityProvider(),
 				accessibilityProvider: new TerminalTabsAccessibilityProvider(),
-				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
+				styleController: id => new DefaultStyleController(DOM.createStyleSheet(_container), id),
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,

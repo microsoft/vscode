@@ -30,11 +30,12 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
+const $ = dom.$;
+
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
 const MIN_TABS_WIDGET_WIDTH = 46;
 const DEFAULT_TABS_WIDGET_WIDTH = 124;
-const PLUS_BUTTON_HEIGHT = 22;
 const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
 
 export class TerminalTabbedView extends Disposable {
@@ -81,11 +82,11 @@ export class TerminalTabbedView extends Disposable {
 
 		this._parentElement = parentElement;
 
-		this._tabTreeContainer = document.createElement('div');
-		this._tabTreeContainer.classList.add('tabs-container');
-		this._terminalTabTree = document.createElement('div');
-		this._terminalTabTree.classList.add('tabs-widget');
-		this._tabTreeContainer.appendChild(this._terminalTabTree);
+		this._tabTreeContainer = $('.tabs-container');
+		const tabWidgetContainer = $('.tabs-widget-container');
+		this._terminalTabTree = $('.tabs-widget');
+		tabWidgetContainer.appendChild(this._terminalTabTree);
+		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, _contextKeyService));
@@ -196,7 +197,7 @@ export class TerminalTabbedView extends Disposable {
 	private _addTabTree() {
 		this._splitView.addView({
 			element: this._tabTreeContainer,
-			layout: width => this._tabsWidget.layout(this._height ? this._height - PLUS_BUTTON_HEIGHT : 0, width),
+			layout: width => this._tabsWidget.layout(this._height || 0, width),
 			minimumSize: MIN_TABS_WIDGET_WIDTH,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,
@@ -216,7 +217,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _createButton(): void {
 		const button = dom.$(ThemeIcon.asCSSSelector(newTerminalIcon), { tabindex: 0, role: 'button', title: nls.localize('addTerminal', "Create Terminal") });
-		button.id = 'terminal-tabs-plus-button';
+		button.classList.add('plus-button');
 
 		this._register(dom.addDisposableListener(button, dom.EventType.CLICK, async e => {
 			dom.EventHelper.stop(e);
