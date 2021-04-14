@@ -38,7 +38,6 @@ interface IContributedEditorInput extends IEditorInput {
 }
 
 interface ContributionPoint {
-	scheme: string | undefined,
 	globPattern: string,
 	priority: number,
 	editorInfo: ContributedEditorInfo,
@@ -81,7 +80,6 @@ export interface IExtensionContributedEditorService {
 	 * @param createEditorInput The factory method for creating inputs
 	 */
 	registerContributionPoint(
-		scheme: string | undefined,
 		globPattern: string,
 		priority: number,
 		editorInfo: ContributedEditorInfo,
@@ -166,7 +164,6 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 	}
 
 	registerContributionPoint(
-		scheme: string | undefined,
 		globPattern: string,
 		priority: number,
 		editorInfo: ContributedEditorInfo,
@@ -174,11 +171,10 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		createEditorInput: EditorInputFactoryFunction,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable {
-		if (this._contributionPoints.get(scheme ?? globPattern) === undefined) {
-			this._contributionPoints.set(scheme ?? globPattern, []);
+		if (this._contributionPoints.get(globPattern) === undefined) {
+			this._contributionPoints.set(globPattern, []);
 		}
-		const remove = insert(this._contributionPoints.get(scheme ?? globPattern)!, {
-			scheme,
+		const remove = insert(this._contributionPoints.get(globPattern)!, {
 			globPattern,
 			priority,
 			editorInfo,

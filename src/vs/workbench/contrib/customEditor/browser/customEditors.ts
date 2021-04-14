@@ -65,7 +65,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		this._register(this._contributedEditors.onChange(() => {
 			this.updateContexts();
-			// this.registerContributionPoints();
 			this._onDidChangeEditorTypes.fire();
 		}));
 		this._register(Registry.as<IEditorAssociationsRegistry>(EditorExtensions.Associations).registerEditorTypesHandler('Custom Editor', this));
@@ -111,7 +110,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					continue;
 				}
 				this._register(this.extensionContributedEditorService.registerContributionPoint(
-					undefined,
 					globPattern.filenamePattern,
 					priorityToRank(contributedEditor.priority),
 					{

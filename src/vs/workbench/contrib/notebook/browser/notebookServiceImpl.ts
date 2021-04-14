@@ -177,7 +177,6 @@ export class NotebookProviderInfoStore extends Disposable {
 		for (const selector of notebookProviderInfo.selectors) {
 			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || (selector as glob.IRelativePattern).pattern || selector;
 			this._register(this._extensionContributedEditorService.registerContributionPoint(
-				undefined,
 				globPattern.toString(),
 				priorityToRank(notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority),
 				{
