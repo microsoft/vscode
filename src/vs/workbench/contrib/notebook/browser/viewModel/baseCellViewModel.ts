@@ -332,7 +332,6 @@ export abstract class BaseCellViewModel extends Disposable {
 			const item = this._cellStatusBarItems.get(id);
 			if (item) {
 				this._cellStatusBarItems.delete(id);
-				// item.dispose();
 			}
 		});
 
