@@ -1426,7 +1426,7 @@ export function registerTerminalActions() {
 	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
-			title: localize(configureTerminalSettingsTitle, 'Configure Terminal Settings')
+			title: configureTerminalSettingsTitle
 		},
 		group: ContextMenuTabsGroup.Configure
 	});
