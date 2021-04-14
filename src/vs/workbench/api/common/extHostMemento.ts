@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
 
 export class ExtensionMemento implements vscode.Memento {
 
@@ -20,7 +20,7 @@ export class ExtensionMemento implements vscode.Memento {
 	private readonly _storageListener: IDisposable;
 
 	private _deferredPromises: Map<string, DeferredPromise<void>> = new Map();
-	private _timeout: any;
+	private _scheduler: RunOnceScheduler | undefined;
 
 	constructor(id: string, global: boolean, storage: ExtHostStorage) {
 		this._id = id;
@@ -64,11 +64,11 @@ export class ExtensionMemento implements vscode.Memento {
 		const promise = new DeferredPromise<void>();
 		this._deferredPromises.set(key, promise);
 
-		if (this._timeout) {
-			clearTimeout(this._timeout);
+		if (this._scheduler) {
+			this._scheduler.cancel();
 		}
 
-		this._timeout = setTimeout(() => {
+		this._scheduler = new RunOnceScheduler(() => {
 			const records = this._deferredPromises;
 			this._deferredPromises = new Map();
 			(async () => {
@@ -84,6 +84,7 @@ export class ExtensionMemento implements vscode.Memento {
 				}
 			})();
 		}, 0);
+		this._scheduler.schedule();
 
 		return promise.p;
 	}
