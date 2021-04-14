@@ -313,7 +313,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					} else {
 						items.push({ type: 'separator' });
 					}
-					items.push({ type: 'separator', label: category });
 					for (let action of actionsByCategory[category]) {
 						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
 						items.push({
