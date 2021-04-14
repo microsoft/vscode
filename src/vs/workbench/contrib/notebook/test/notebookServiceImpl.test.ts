@@ -8,19 +8,20 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
+import { ExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 import { ContributedEditorPriority } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('NotebookProviderInfoStore', function () {
 
 	test('Can\'t open untitled notebooks in test #119363', function () {
 
+		const instantiationService = workbenchInstantiationService();
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
@@ -29,15 +30,9 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;
 			},
-			new class extends mock<IExtensionContributedEditorService>() {
-
-			},
-			new class extends mock<IInstantiationService>() {
-
-			},
-			new class extends mock<IConfigurationService>() {
-
-			},
+			instantiationService.createInstance(ExtensionContributedEditorService),
+			instantiationService,
+			new TestConfigurationService(),
 			new class extends mock<IAccessibilityService>() {
 
 			}
