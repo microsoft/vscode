@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import * as nls from 'vs/nls';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
@@ -25,12 +25,11 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
-import { newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Codicon } from 'vs/base/common/codicons';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 const $ = dom.$;
 
@@ -223,16 +222,12 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _createButton(): void {
-		const button = dom.$(ThemeIcon.asCSSSelector(newTerminalIcon), { tabindex: 0, role: 'button', title: nls.localize('addTerminal', "Create Terminal") });
-		button.classList.add('plus-button');
-
-		this._register(dom.addDisposableListener(button, dom.EventType.CLICK, async e => {
-			dom.EventHelper.stop(e);
-			await this._openTabsContextMenu(e);
-		}));
-
-		const actionBar = new ActionBar(this._tabTreeContainer);
-		actionBar.push(this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined), { icon: true, label: false });
+		const toolBar = new ToolBar(this._tabTreeContainer, this._contextMenuService);
+		toolBar.setActions([
+			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined),
+			// TODO: Bring back context menu: await this._openTabsContextMenu(e);
+			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: nls.localize('terminal.newWithProfile', "New Terminal With Profile"), icon: Codicon.chevronDown }, undefined, undefined)
+		]);
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
