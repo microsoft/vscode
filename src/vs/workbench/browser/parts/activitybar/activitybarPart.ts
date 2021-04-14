@@ -22,7 +22,7 @@ import { Dimension, createCSSRule, asCSSUrl, addDisposableListener, EventType } 
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, ActivityHoverAlignment } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity, ActivityHoverAlignment, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation, IViewsService, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
@@ -156,7 +156,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, {
 			icon: true,
 			orientation: ActionsOrientation.VERTICAL,
-			getActivityHoverAlignment: () => this.getActivityHoverAlignment(),
+			activityHoverOptions: this.getActivityHoverOptions(),
 			preventLoopNavigation: true,
 			openComposite: compositeId => this.viewsService.openViewContainer(compositeId, true),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
@@ -219,8 +219,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}));
 	}
 
-	private getActivityHoverAlignment(): ActivityHoverAlignment {
-		return this.layoutService.getSideBarPosition() === Position.LEFT ? ActivityHoverAlignment.RIGHT : ActivityHoverAlignment.LEFT;
+	private getActivityHoverOptions(): IActivityHoverOptions | undefined {
+		return {
+			alignment: () => this.layoutService.getSideBarPosition() === Position.LEFT ? ActivityHoverAlignment.RIGHT : ActivityHoverAlignment.LEFT,
+			delay: () => 0
+		};
 	}
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
@@ -527,11 +530,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityActionBar = this._register(new ActionBar(container, {
 			actionViewItemProvider: action => {
 				if (action.id === 'workbench.actions.manage') {
-					return this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), () => this.getActivityHoverAlignment());
+					return this.instantiationService.createInstance(GlobalActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), this.getActivityHoverOptions());
 				}
 
 				if (action.id === 'workbench.actions.accounts') {
-					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), () => this.getActivityHoverAlignment());
+					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as ActivityAction, () => this.compositeBar.getContextMenuActions(), (theme: IColorTheme) => this.getActivitybarItemColors(theme), this.getActivityHoverOptions());
 				}
 
 				throw new Error(`No view item for action '${action.id}'`);
