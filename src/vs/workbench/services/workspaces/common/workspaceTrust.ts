@@ -190,7 +190,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return true;
+			return false;
 		}
 
 		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
