@@ -54,7 +54,6 @@ import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, Gro
 import { IEditorService, IOpenEditorOverrideHandler, ISaveEditorsOptions, IRevertAllEditorsOptions, IResourceEditorInputType, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
-import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -659,7 +658,6 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
-	get group(): EditorGroup { throw new Error('not implemented'); }
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: IEditorInput;
 	previewEditor!: IEditorInput;

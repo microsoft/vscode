@@ -459,6 +459,11 @@ export interface IEditorGroup {
 	readonly count: number;
 
 	/**
+	 * Whether the group has editors or not.
+	 */
+	readonly isEmpty: boolean;
+
+	/**
 	 * The number of sticky editors in this group.
 	 */
 	readonly stickyCount: number;
