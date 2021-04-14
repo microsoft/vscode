@@ -99,11 +99,12 @@ export abstract class BaseCellViewModel extends Disposable {
 		id?: string;
 		options: model.IModelDeltaDecoration;
 	}>();
-	private _lastItemId: number = 0;
+	private _lastDecorationId: number = 0;
 
 	private _cellStatusBarItems = new Map<string, INotebookCellStatusBarItem>();
 	private _onDidChangeCellStatusBarItems = new Emitter<void>();
 	readonly onDidChangeCellStatusBarItems: Event<void> = this._onDidChangeCellStatusBarItems.event;
+	private _lastStatusBarId: number = 0;
 
 	get textModel(): model.ITextModel | undefined {
 		return this.model.textModel;
@@ -260,7 +261,7 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	addModelDecoration(decoration: model.IModelDeltaDecoration): string {
 		if (!this._textEditor) {
-			const id = ++this._lastItemId;
+			const id = ++this._lastDecorationId;
 			const decorationId = `_lazy_${this.id};${id}`;
 			this._resolvedDecorations.set(decorationId, { options: decoration });
 			return decorationId;
@@ -304,7 +305,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	private _addCellDecoration(options: INotebookCellDecorationOptions): string {
-		const id = ++this._lastItemId;
+		const id = ++this._lastDecorationId;
 		const decorationId = `_cell_${this.id};${id}`;
 		this._resolvedCellDecorations.set(decorationId, options);
 		this._cellDecorationsChanged.fire({ added: [options], removed: [] });
@@ -336,7 +337,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		const newIds = newItems.map(item => {
-			const id = ++this._lastItemId;
+			const id = ++this._lastStatusBarId;
 			const itemId = `_cell_${this.id};${id}`;
 			this._cellStatusBarItems.set(itemId, item);
 			return itemId;

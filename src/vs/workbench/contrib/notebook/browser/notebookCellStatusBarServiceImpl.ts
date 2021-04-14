@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -42,7 +43,14 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 
 	async getStatusBarItemsForCell(docUri: URI, cellIndex: number, viewType: string, token: CancellationToken): Promise<INotebookCellStatusBarItemList[]> {
 		const providers = this._providers.filter(p => notebookDocumentFilterMatch(p.selector, viewType, docUri));
-		return await Promise.all(providers.map(p => p.provideCellStatusBarItems(docUri, cellIndex, token)));
+		return await Promise.all(providers.map(p => {
+			try {
+				return p.provideCellStatusBarItems(docUri, cellIndex, token);
+			} catch (e) {
+				onUnexpectedExternalError(e);
+				return { items: [] };
+			}
+		}));
 	}
 
 	readonly _serviceBrand: undefined;

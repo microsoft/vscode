@@ -1792,8 +1792,8 @@ declare module 'vscode' {
 	export class NotebookCellStatusBarItem {
 		readonly text: string;
 		readonly alignment: NotebookCellStatusBarAlignment;
-		readonly command: string | Command | undefined;
-		readonly tooltip: string | undefined;
+		readonly command?: string | Command;
+		readonly tooltip?: string;
 		readonly priority?: number;
 		readonly accessibilityInformation?: AccessibilityInformation;
 
