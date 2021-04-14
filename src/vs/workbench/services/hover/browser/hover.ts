@@ -128,4 +128,10 @@ export interface IHoverTarget extends IDisposable {
 	 * hover using `MouseEvent.pageX`.
 	 */
 	x?: number;
+
+	/**
+	 * An optional absolute y coordinate to position the hover with, for example to position the
+	 * hover using `MouseEvent.pageY`.
+	 */
+	y?: number;
 }
