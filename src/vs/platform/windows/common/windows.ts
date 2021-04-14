@@ -232,6 +232,7 @@ export interface IWindowConfiguration {
 
 export interface IOSConfiguration {
 	readonly release: string;
+	readonly hostname: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
