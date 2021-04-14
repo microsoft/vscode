@@ -27,33 +27,29 @@ import { Codicon } from 'vs/base/common/codicons';
 const $ = DOM.$;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
-	private _terminalService: ITerminalService;
 	constructor(
-		private readonly _container: HTMLElement,
+		container: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ITerminalService terminalService: ITerminalService,
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@ICommandService _commandService: ICommandService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-
-		super('TerminalTabsTree', _container,
+		super('TerminalTabsTree', container,
 			{
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[_instantiationService.createInstance(TerminalTabsRenderer, _container)],
+			[instantiationService.createInstance(TerminalTabsRenderer, container)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				identityProvider: new TerminalTabsIdentityProvider(),
 				accessibilityProvider: new TerminalTabsAccessibilityProvider(),
-				styleController: id => new DefaultStyleController(DOM.createStyleSheet(_container), id),
+				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: undefined,
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
@@ -70,25 +66,23 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 		this.onDidChangeSelection(e => {
 			if (e.elements && e.elements[0]) {
 				if ('terminalInstances' in e.elements[0]) {
-					terminalService.setActiveTabByIndex(terminalService.terminalTabs.indexOf(e.elements[0]));
+					this._terminalService.setActiveTabByIndex(this._terminalService.terminalTabs.indexOf(e.elements[0]));
 				} else {
 					e.elements[0].focus(true);
 				}
 			}
 		});
 
-		this._terminalService = terminalService;
-
-		terminalService.onInstancesChanged(() => this._render());
-		terminalService.onInstanceTitleChanged(() => this._render());
-		terminalService.onActiveTabChanged(() => {
+		this._terminalService.onInstancesChanged(() => this._render());
+		this._terminalService.onInstanceTitleChanged(() => this._render());
+		this._terminalService.onActiveTabChanged(() => {
 			const selection = this.getSelection();
 			const selectedTab = selection[0];
-			const activeTab = terminalService.getActiveTab();
+			const activeTab = this._terminalService.getActiveTab();
 			if (!activeTab ||
 				!selectedTab ||
 				!('terminalInstances' in selectedTab) ||
-				terminalService.terminalTabs.indexOf(selectedTab) === terminalService.activeTabIndex) {
+				this._terminalService.terminalTabs.indexOf(selectedTab) === this._terminalService.activeTabIndex) {
 				return;
 			}
 			this.setFocus([activeTab]);
@@ -101,9 +95,9 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 				!('instanceId' in instance)) {
 				return;
 			}
-			const selectedTab = terminalService.getTabForInstance(instance);
+			const selectedTab = this._terminalService.getTabForInstance(instance);
 			if (!selectedTab ||
-				terminalService.terminalTabs.indexOf(selectedTab) === terminalService.activeTabIndex) {
+				this._terminalService.terminalTabs.indexOf(selectedTab) === this._terminalService.activeTabIndex) {
 				return;
 			}
 			this.setFocus([selectedTab]);
