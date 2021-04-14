@@ -893,9 +893,9 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean>
 
-	$createNotebookIPC(editorId: string, handle: number, rendererId: string): Promise<boolean>
-	$removeNotebookIpc(editorId: string, handle: number): void;
-	$postMessage(editorId: string, handle: number, forRendererId: string | undefined, message: unknown): Promise<boolean>;
+	$addRendererIpc(rendererId: string, handle: number): Promise<void>;
+	$removeRendererIpc(rendererId: string, handle: number): void;
+	$postRendererIpcMessage(rendererId: string, handle: number, editorId: string | undefined, message: unknown): Promise<boolean>;
 }
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
@@ -1954,7 +1954,7 @@ export interface ExtHostNotebookEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void;
 
-	$acceptEditorIpcMessage(handles: number[], message: unknown): void;
+	$acceptEditorIpcMessage(editorId: string, rendererId: string, handles: number[], message: unknown): void;
 }
 
 export interface ExtHostNotebookKernelsShape {

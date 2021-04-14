@@ -1437,14 +1437,6 @@ declare module 'vscode' {
 		dispose(): void;
 
 		/**
-		 * The editor this object communicates with. A single notebook
-		 * document can have multiple attached webviews and editors, when the
-		 * notebook is split for instance. The editor ID lets you differentiate
-		 * between them.
-		 */
-		readonly editor: NotebookEditor;
-
-		/**
 		 *
 		 */
 		readonly rendererId: string;
@@ -1452,7 +1444,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
-		readonly onDidReceiveMessage: Event<any>;
+		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
 		/**
 		 * Post a message to the output hosting webview.
 		 *
@@ -1460,13 +1452,23 @@ declare module 'vscode' {
 		 *
 		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
-		postMessage(message: any): Thenable<boolean>;
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
 
 		/**
 		 * Convert a uri for the local file system to one that can be used inside outputs webview.
 		 */
-		asWebviewUri(localResource: Uri): Uri;
+		asWebviewUri(localResource: Uri, editor: NotebookEditor): Uri;
 	}
+
+	export namespace notebook {
+
+		/**
+		 *
+		 * @param rendererId
+		 */
+		export function createNotebookRendererCommunication(rendererId: string): NotebookRendererCommunication;
+	}
+
 
 	export interface NotebookController {
 
@@ -1481,11 +1483,6 @@ declare module 'vscode' {
 		 * that association has been removed.
 		 */
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
-
-		// kernels can establish IPC channels to notebook editors
-		// todo@API create per editor or allow to postMessage(EDITOR, message) and onDidReceive: Event<{EDITOR, message}>
-		// todo@API have this global on vscode.notebook?
-		createNotebookRendererCommunication(editor: NotebookEditor, rendererId: string): NotebookRendererCommunication;
 
 		// UI properties (get/set)
 		label: string;

@@ -660,62 +660,72 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
-	private readonly _editorIpcObjects = new Map<number, { emitter: Emitter<any> }>();
+	private _editorIdFromApiEditor(editor: vscode.NotebookEditor): string | undefined {
+		for (const [id, candidate] of this._editors) {
+			if (candidate.editor.editor === editor) {
+				return id;
+			}
+		}
+		return undefined;
+	}
 
-	createNotebookCommunication(editor: vscode.NotebookEditor, rendererId: string): vscode.NotebookRendererCommunication {
+	private readonly _rendererIpcEmitters = new Map<number, { emitter: Emitter<{ editor: vscode.NotebookEditor, message: any }> }>();
+
+	createNotebookCommunication(rendererId: string): vscode.NotebookRendererCommunication {
 		// todo@jrieken should this be created for a specific renderer?
 		// how else would this be working when sending/receiving messages
 
-		let actualEditor: ExtHostNotebookEditor | undefined;
-		for (let candidate of this._editors.values()) {
-			if (candidate.editor.editor === editor) {
-				actualEditor = candidate.editor;
-				break;
-			}
-		}
 
-		if (!actualEditor) {
-			throw new Error(`the provided editor is NOT KNOWN`);
-		}
-
-		const editorId = actualEditor.id;
 		const that = this;
 		const handle = this._handlePool++;
 
-		const emitter = new Emitter<unknown>();
+		const emitter = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
 
-		const registration = this._notebookEditorsProxy.$createNotebookIPC(editorId, handle, rendererId);
+		const registration = this._notebookEditorsProxy.$addRendererIpc(rendererId, handle);
 
 		const result: vscode.NotebookRendererCommunication = {
-			editor,
+
 			rendererId,
 			onDidReceiveMessage: emitter.event,
 			dispose(): void {
 				emitter.dispose();
-				that._editorIpcObjects.delete(handle);
-				that._notebookEditorsProxy.$removeNotebookIpc(editorId, handle);
+				that._rendererIpcEmitters.delete(handle);
+				that._notebookEditorsProxy.$removeRendererIpc(rendererId, handle);
 			},
-			async postMessage(message: unknown) {
-				if (!that._editors.has(editorId)) {
-					return false;
+			async postMessage(message, editor) {
+				let editorId: string | undefined;
+				if (editor) {
+					editorId = that._editorIdFromApiEditor(editor);
+					if (!editorId) {
+						// wanted an editor but that wasn't found
+						return false;
+					}
 				}
-				if (!await registration) {
-					return false;
-				}
-				return that._notebookEditorsProxy.$postMessage(editorId, handle, rendererId, message);
+				await registration;
+				return that._notebookEditorsProxy.$postRendererIpcMessage(rendererId, handle, editorId, message);
 			},
-			asWebviewUri(localResource) {
+			asWebviewUri(localResource, editor) {
+				const editorId = that._editorIdFromApiEditor(editor);
+				if (!editorId) {
+					throw new Error('invalid editor');
+				}
 				return asWebviewUri(that._webviewInitData, editorId, localResource);
 			}
 		};
 
-		this._editorIpcObjects.set(handle, { emitter });
+		this._rendererIpcEmitters.set(handle, { emitter });
 		return result;
 	}
 
-	$acceptEditorIpcMessage(handles: number[], message: unknown): void {
+	$acceptEditorIpcMessage(editorId: string, rendererId: string, handles: number[], message: unknown): void {
+
+		const editor = this._editors.get(editorId);
+		if (!editor) {
+			throw new Error('sending ipc message for UNKNOWN editor');
+		}
+
 		for (const handle of handles) {
-			this._editorIpcObjects.get(handle)?.emitter.fire(message);
+			this._rendererIpcEmitters.get(handle)?.emitter.fire({ editor: editor.editor.editor, message });
 		}
 	}
 

@@ -21,8 +21,6 @@ import { equals } from 'vs/base/common/objects';
 
 class MainThreadNotebook {
 
-	readonly ipcHandles = new Map<number, string>();
-
 	constructor(
 		readonly editor: INotebookEditor,
 		readonly disposables: DisposableStore
@@ -39,6 +37,8 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	private readonly _proxy: ExtHostNotebookShape;
 	private readonly _mainThreadEditors = new Map<string, MainThreadNotebook>();
+
+	private readonly _rendererIpcHandle = new Map<string, Set<number>>();
 
 	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
 
@@ -91,14 +91,12 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			}));
 
 			editorDisposables.add(editor.onDidReceiveMessage(e => {
-				const handles: number[] = [];
-				for (let [handle, rendererId] of wrapper.ipcHandles) {
-					if (rendererId === e.forRenderer) {
-						handles.push(handle);
-					}
+				if (!e.forRenderer) {
+					return;
 				}
-				if (handles.length > 0) {
-					this._proxy.$acceptEditorIpcMessage(handles, e.message);
+				const handles = this._rendererIpcHandle.get(e.forRenderer);
+				if (handles) {
+					this._proxy.$acceptEditorIpcMessage(editor.getId(), e.forRenderer, Array.from(handles), e.message);
 				}
 			}));
 
@@ -147,28 +145,43 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	//#region --- IPC
 
-	async $createNotebookIPC(editorId: string, handle: number, rendererId: string): Promise<boolean> {
-		const wrapper = this._mainThreadEditors.get(editorId);
-		if (!wrapper) {
-			return false;
+	async $addRendererIpc(rendererId: string, handle: number): Promise<void> {
+		let set = this._rendererIpcHandle.get(rendererId);
+		if (!set) {
+			set = new Set();
+			this._rendererIpcHandle.set(rendererId, set);
 		}
-		wrapper.ipcHandles.set(handle, rendererId);
-		return true;
+		set.add(handle);
 	}
 
-	async $removeNotebookIpc(editorId: string, handle: number) {
-		const wrapper = this._mainThreadEditors.get(editorId);
-		if (wrapper) {
-			wrapper.ipcHandles.delete(handle);
+	$removeRendererIpc(rendererId: string, handle: number): void {
+		let set = this._rendererIpcHandle.get(rendererId);
+		if (set) {
+			set.delete(handle);
+			if (set.size === 0) {
+				this._rendererIpcHandle.delete(rendererId);
+			}
 		}
 	}
 
-	async $postMessage(editorId: string, handle: number, forRendererId: string | undefined, message: unknown): Promise<boolean> {
-		const wrapper = this._mainThreadEditors.get(editorId);
-		if (!wrapper || !wrapper.ipcHandles.has(handle)) {
+	async $postRendererIpcMessage(rendererId: string, handle: number, editorId: string | undefined, message: unknown): Promise<boolean> {
+		if (!this._rendererIpcHandle.get(rendererId)?.has(handle)) {
 			return false;
 		}
-		wrapper.editor.postMessage(forRendererId, message);
+
+		if (editorId) {
+			const candidate = this._mainThreadEditors.get(editorId);
+			if (candidate) {
+				candidate.editor.postMessage(rendererId, message);
+				return true;
+			} else {
+				return false;
+			}
+		}
+
+		for (const { editor } of this._mainThreadEditors.values()) {
+			editor.postMessage(rendererId, message);
+		}
 		return true;
 	}
 

@@ -48,10 +48,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: options.label,
-			supportedLanguages: isNonEmptyArray(options.supportedLanguages) ? options.supportedLanguages : ['plaintext'],
-			supportsInterrupt: Boolean(options.interruptHandler),
-			hasExecutionOrder: options.hasExecutionOrder,
+			supportedLanguages: [],
 		};
+
+		// todo@jrieken the selector needs to be massaged
 		this._proxy.$addKernel(handle, data);
 
 		// update: all setters write directly into the dto object
@@ -70,7 +70,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			});
 		};
 
-		return {
+		const result: vscode.NotebookController = {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
 			onDidChangeNotebookAssociation: emitter.event,
@@ -120,12 +120,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				//todo@jrieken
 				return that._extHostNotebook.createNotebookCellExecution(cell.document.uri, cell.index, data.id)!;
 			},
-			createNotebookRendererCommunication(editor, rendererId) {
-				if (isDisposed) {
-					throw new Error('object disposed');
-				}
-				return that._extHostNotebook.createNotebookCommunication(editor, rendererId);
-			},
 			dispose: () => {
 				if (!isDisposed) {
 					isDisposed = true;
@@ -136,6 +130,12 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				}
 			}
 		};
+
+		result.supportedLanguages = options.supportedLanguages ?? [];
+		result.interruptHandler = options.interruptHandler;
+		result.hasExecutionOrder = options.hasExecutionOrder ?? false;
+
+		return result;
 	}
 
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {
