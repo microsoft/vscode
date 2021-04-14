@@ -11,7 +11,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 export interface ITerminalDecorationData {
 	tooltip: string,
 	statusIcon: string,
-	color?: string
+	color: string
 }
 
 export class TerminalDecorationsProvider {
@@ -22,14 +22,14 @@ export class TerminalDecorationsProvider {
 		if (instance.statusList.primary && instance.statusList.primary.icon) {
 			return {
 				tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id),
-				statusIcon: `$(${instance.statusList.primary.icon.id})`,
+				statusIcon: `${instance.statusList.primary.icon.id}`,
 				color: this.getColorForSeverity(instance.statusList.primary.severity),
 			};
 		}
 		return undefined;
 	}
 
-	getColorForSeverity(severity: Severity): string | undefined {
+	getColorForSeverity(severity: Severity): string {
 		switch (severity) {
 			case Severity.Error:
 				return 'red';
@@ -38,7 +38,7 @@ export class TerminalDecorationsProvider {
 			case Severity.Info:
 				return 'green';
 			default:
-				return undefined;
+				return '';
 		}
 	}
 

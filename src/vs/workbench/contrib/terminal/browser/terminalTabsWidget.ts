@@ -188,28 +188,30 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			label = `${prefix}$(${instance.icon.id}) ${instance.title}`;
 		}
 
-		instance.statusList.onDidChangePrimaryStatus(e => {
-			const decorations = this.getDecorations(instance);
-			if (!decorations) {
-				return;
-			} else {
-				if (decorations.color) {
-					label.fontcolor(decorations.color);
-				}
-				if (decorations.statusIcon) {
-					template.label.setLabel(`${prefix}$(${instance.icon.id}) ${instance.title} ${decorations.statusIcon}`, undefined, {
-						title: {
-							markdown: new MarkdownString(title),
-							markdownNotSupportedFallback: undefined
-						}
-					});
-				}
-			}
-		});
 		template.label.setLabel(label, undefined, {
 			title: {
 				markdown: new MarkdownString(title),
 				markdownNotSupportedFallback: undefined
+			}
+		});
+
+		instance.statusList.onDidChangePrimaryStatus(e => {
+			const decorations = this.getDecorations(instance);
+			if (!decorations) {
+				template.label.setLabel(`${prefix}$(${instance.icon.id}) ${instance.title}`, undefined, {
+					title: {
+						markdown: new MarkdownString(title),
+						markdownNotSupportedFallback: undefined
+					}
+				});
+			} else {
+				template.label.setLabel(`${prefix}$(${instance.icon.id}) ${instance.title} $(${decorations.statusIcon})`, undefined, {
+					title: {
+						markdown: new MarkdownString(`${title} • ${decorations.tooltip}`),
+						markdownNotSupportedFallback: undefined
+					},
+					extraClasses: [decorations.color]
+				});
 			}
 		});
 	}

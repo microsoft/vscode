@@ -203,6 +203,18 @@
 	flex-direction: column;
 }
 
+.tabs-widget-container .yellow {
+	color: yellow;
+}
+
+.tabs-widget-container .green {
+	color: green;
+}
+
+.tabs-widget-container .red {
+	color: red;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget-container {
 	overflow: hidden;
 }
