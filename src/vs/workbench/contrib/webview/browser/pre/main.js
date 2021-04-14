@@ -251,14 +251,6 @@ export async function createWebviewManager(host) {
 		themeName: undefined,
 	};
 
-	try {
-		await workerReady;
-	} catch (e) {
-		console.error(`Webview fatal error: ${e}`);
-		host.postMessage('fatal-error', { message: e + '' });
-		return;
-	}
-
 	host.onMessage('did-load-resource', (_event, data) => {
 		navigator.serviceWorker.ready.then(registration => {
 			registration.active.postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
@@ -564,7 +556,15 @@ export async function createWebviewManager(host) {
 		let updateId = 0;
 		host.onMessage('content', async (_event, data) => {
 			const currentUpdateId = ++updateId;
-			await workerReady;
+
+			try {
+				await workerReady;
+			} catch (e) {
+				console.error(`Webview fatal error: ${e}`);
+				host.postMessage('fatal-error', { message: e + '' });
+				return;
+			}
+
 			if (currentUpdateId !== updateId) {
 				return;
 			}
