@@ -475,7 +475,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
-		this._xterm.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning }, 3000));
+		this._xterm.onBell(() => this.statusList.add({ id: TerminalStatus.Bell, severity: Severity.Warning, icon: Codicon.bell }, 3000));
 		this._xterm.onLineFeed(() => this._onLineFeed());
 		this._xterm.onKey(e => this._onKey(e.key, e.domEvent));
 		this._xterm.onSelectionChange(async () => this._onSelectionChange());
@@ -1021,7 +1021,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onPtyDisconnect(() => {
 			this._safeSetOption('disableStdin', true);
-			this.statusList.add({ id: TerminalStatus.Disconnected, severity: Severity.Error });
+			this.statusList.add({ id: TerminalStatus.Disconnected, severity: Severity.Error, icon: Codicon.debugDisconnect });
 			this._onTitleChanged.fire(this);
 		});
 		this._processManager.onPtyReconnect(() => {
@@ -1645,7 +1645,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// (Re-)create the widget
-		this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Error });
+		this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Error, icon: Codicon.warning });
 		this._environmentInfo?.disposable.dispose();
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);
