@@ -23,12 +23,15 @@ import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryAc
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
+import { ITerminalDecorationData, TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 
 const $ = DOM.$;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
+
 	constructor(
 		container: HTMLElement,
+		decorationsProvider: TerminalDecorationsProvider,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -36,14 +39,14 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITabTreeNode>  {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super('TerminalTabsTree', container,
 			{
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container)],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, decorationsProvider)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -147,6 +150,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 
 	constructor(
 		private readonly _container: HTMLElement,
+		private readonly _decorationsProvider: TerminalDecorationsProvider,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -225,6 +229,10 @@ class TerminalTabsRenderer implements ITreeRenderer<ITabTreeNode, never, ITermin
 			this.fillActionBar(template);
 		}
 		return this.setLabel(item, template, label);
+	}
+
+	getDecorations(instance: ITerminalInstance): ITerminalDecorationData | undefined {
+		return this._decorationsProvider.provideDecorations(instance);
 	}
 
 	setLabel(node: ITabTreeNode, template: ITerminalTabEntryTemplate, label: string): void {
