@@ -26,7 +26,7 @@ import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRegistry, updateNotebookKernelProvideAssociationSchema } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, DisplayOrderKey, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, DisplayOrderKey, INotebookKernel, INotebookKernelProvider, INotebookMarkdownRendererInfo, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, notebookDocumentFilterMatch, NotebookEditorPriority, NotebookRendererMatch, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -36,6 +36,7 @@ import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/ext
 import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEditorAssociationsRegistry } from 'vs/workbench/browser/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { Lazy } from 'vs/base/common/lazy';
 
 export class NotebookKernelProviderInfoStore {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
@@ -206,13 +207,19 @@ export class NotebookProviderInfoStore extends Disposable {
 
 export class NotebookOutputRendererInfoStore {
 	private readonly contributedRenderers = new Map<string, NotebookOutputRendererInfo>();
+	private readonly preferredMimetypeMemento: Memento;
+	private readonly preferredMimetype = new Lazy(() => this.preferredMimetypeMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER));
+
+	constructor(@IStorageService storageService: IStorageService) {
+		this.preferredMimetypeMemento = new Memento('workbench.editor.notebook.preferredRenderer', storageService);
+	}
 
 	clear() {
 		this.contributedRenderers.clear();
 	}
 
-	get(viewType: string): NotebookOutputRendererInfo | undefined {
-		return this.contributedRenderers.get(viewType);
+	get(rendererId: string): NotebookOutputRendererInfo | undefined {
+		return this.contributedRenderers.get(rendererId);
 	}
 
 	add(info: NotebookOutputRendererInfo): void {
@@ -222,9 +229,26 @@ export class NotebookOutputRendererInfoStore {
 		this.contributedRenderers.set(info.id, info);
 	}
 
-	getContributedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
-		return Array.from(this.contributedRenderers.values()).filter(customEditor =>
-			customEditor.matches(mimeType));
+	/** Update and remember the preferred renderer for the given mimetype in this workspace */
+	setPreferred(mimeType: string, rendererId: string) {
+		this.preferredMimetype.getValue()[mimeType] = rendererId;
+		this.preferredMimetypeMemento.saveMemento();
+	}
+
+	getContributedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): NotebookOutputRendererInfo[] {
+		const preferred = this.preferredMimetype.getValue()[mimeType];
+		const possible = Array.from(this.contributedRenderers.values())
+			.map(renderer => ({
+				renderer,
+				score: kernelProvides === undefined
+					? renderer.matchesWithoutKernel(mimeType)
+					: renderer.matches(mimeType, kernelProvides),
+			}))
+			.sort((a, b) => a.score - b.score)
+			.filter(r => r.score !== NotebookRendererMatch.Never)
+			.map(r => r.renderer);
+
+		return preferred ? possible.sort((a, b) => (a.id === preferred ? -1 : 0) + (b.id === preferred ? 1 : 0)) : possible;
 	}
 }
 
@@ -251,7 +275,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
 	private readonly _notebookProviderInfoStore: NotebookProviderInfoStore;
-	private readonly _notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
+	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
 	private readonly _markdownRenderersInfos = new Set<INotebookMarkdownRendererInfo>();
 	private readonly _notebookKernelProviderInfoStore: NotebookKernelProviderInfoStore = new NotebookKernelProviderInfoStore();
 	private readonly _models = new ResourceMap<ModelData>();
@@ -313,6 +337,8 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 						entrypoint: notebookContribution.entrypoint,
 						displayName: notebookContribution.displayName,
 						mimeTypes: notebookContribution.mimeTypes || [],
+						dependencies: notebookContribution.dependencies,
+						optionalDependencies: notebookContribution.optionalDependencies,
 					}));
 				}
 			}
@@ -525,8 +551,12 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return kernelProviders;
 	}
 
-	getRendererInfo(id: string): INotebookRendererInfo | undefined {
-		return this._notebookRenderersInfoStore.get(id);
+	getRendererInfo(rendererId: string): INotebookRendererInfo | undefined {
+		return this._notebookRenderersInfoStore.get(rendererId);
+	}
+
+	updateMimePreferredRenderer(mimeType: string, rendererId: string): void {
+		this._notebookRenderersInfoStore.setPreferred(mimeType, rendererId);
 	}
 
 	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[] {
@@ -566,7 +596,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		}
 	}
 
-	getMimeTypeInfo(textModel: NotebookTextModel, output: IOutputDto): readonly IOrderedMimeType[] {
+	getMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[] {
 
 		const mimeTypeSet = new Set<string>();
 		let mimeTypes: string[] = [];
@@ -582,7 +612,7 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		const orderMimeTypes: IOrderedMimeType[] = [];
 
 		sorted.forEach(mimeType => {
-			const handlers = this._findBestMatchedRenderer(mimeType);
+			const handlers = this._findBestMatchedRenderer(mimeType, kernelProvides);
 
 			if (handlers.length) {
 				const handler = handlers[0];
@@ -628,8 +658,8 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		return orderMimeTypes;
 	}
 
-	private _findBestMatchedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
-		return this._notebookRenderersInfoStore.getContributedRenderer(mimeType);
+	private _findBestMatchedRenderer(mimeType: string, kernelProvides: readonly string[] | undefined): readonly NotebookOutputRendererInfo[] {
+		return this._notebookRenderersInfoStore.getContributedRenderer(mimeType, kernelProvides);
 	}
 
 	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[] {
@@ -642,10 +672,6 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined {
 		return this._notebookProviderInfoStore.get(viewType);
-	}
-
-	getContributedNotebookOutputRenderers(viewType: string): NotebookOutputRendererInfo | undefined {
-		return this._notebookRenderersInfoStore.get(viewType);
 	}
 
 	getNotebookProviderResourceRoots(): URI[] {

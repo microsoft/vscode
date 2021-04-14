@@ -6,7 +6,7 @@
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { runWhenIdle } from 'vs/base/common/async';
+import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
 import { getZoomLevel, isFirefox, isSafari, isChrome, getPixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -131,7 +131,7 @@ export class Workbench extends Layout {
 			// Services
 			const instantiationService = this.initServices(this.serviceCollection);
 
-			instantiationService.invokeFunction(async accessor => {
+			instantiationService.invokeFunction(accessor => {
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
@@ -160,11 +160,7 @@ export class Workbench extends Layout {
 				this.layout();
 
 				// Restore
-				try {
-					await this.restoreWorkbench(accessor.get(ILogService), lifecycleService);
-				} catch (error) {
-					onUnexpectedError(error);
-				}
+				this.restore(lifecycleService);
 			});
 
 			return instantiationService;
@@ -403,35 +399,47 @@ export class Workbench extends Layout {
 		});
 	}
 
-	private async restoreWorkbench(
-		logService: ILogService,
-		lifecycleService: ILifecycleService
-	): Promise<void> {
+	private restore(lifecycleService: ILifecycleService): void {
 
-		// Emit a warning after 10s if restore does not complete
-		const restoreTimeoutHandle = setTimeout(() => logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.'), 10000);
-
+		// Ask each part to restore
 		try {
-			await super.restoreWorkbenchLayout();
-
-			clearTimeout(restoreTimeoutHandle);
+			this.restoreParts();
 		} catch (error) {
 			onUnexpectedError(error);
-		} finally {
-
-			// Set lifecycle phase to `Restored`
-			lifecycleService.phase = LifecyclePhase.Restored;
-
-			// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
-			setTimeout(() => {
-				this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
-			}, 2500);
-
-			// Perf: signal workbench started
-			mark('code/didStartWorkbench');
-
-			// Perf reporting (devtools)
-			performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
 		}
+
+		// Transition into restored phase after layout has restored
+		// but do not wait indefinitly on this to account for slow
+		// editors restoring. Since the workbench is fully functional
+		// even when the visible editors have not resolved, we still
+		// want contributions on the `Restored` phase to work before
+		// slow editors have resolved. But we also do not want fast
+		// editors to resolve slow when too many contributions get
+		// instantiated, so we find a middle ground solution via
+		// `Promise.race`
+		this.whenReady.finally(() =>
+			Promise.race([
+				this.whenRestored,
+				timeout(2000)
+			]).finally(() => {
+
+				// Set lifecycle phase to `Restored`
+				lifecycleService.phase = LifecyclePhase.Restored;
+
+				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
+				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
+					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+				}, 2500));
+				eventuallyPhaseScheduler.schedule();
+
+				// Update perf marks only when the layout is fully
+				// restored. We want the time it takes to restore
+				// editors to be included in these numbers
+				this.whenRestored.finally(() => {
+					mark('code/didStartWorkbench');
+					performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
+				});
+			})
+		);
 	}
 }

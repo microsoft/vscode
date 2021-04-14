@@ -44,6 +44,7 @@ export interface IPtyHostAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
+	icon: string | undefined;
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
@@ -251,7 +252,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; };
+	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -405,7 +406,11 @@ export const enum FlowControlConstants {
 
 export interface IProcessDataEvent {
 	data: string;
-	sync: boolean;
+	trackCommit: boolean;
+	/**
+	 * When trackCommit is set, this will be set to a promise that resolves when the data is parsed.
+	 */
+	writePromise?: Promise<void>;
 }
 
 export interface ITerminalDimensions {

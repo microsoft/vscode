@@ -53,12 +53,12 @@ import { revive } from 'vs/base/common/marshalling';
 import { NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter, IOutputDto, TransientOptions, IImmediateCellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
-import { DebugConfigurationProviderTriggerKind, TestResultState, WorkspaceTrustState } from 'vs/workbench/api/common/extHostTypes';
+import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff, ISerializedTestResults, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { WorkspaceTrustRequestOptions, WorkspaceTrustStateChangeEvent } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError } from 'vs/platform/terminal/common/terminal';
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -861,7 +861,7 @@ export interface INotebookDocumentShowOptions {
 	position?: EditorGroupColumn;
 	preserveFocus?: boolean;
 	pinned?: boolean;
-	selection?: ICellRange;
+	selections?: ICellRange[];
 }
 
 export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarEntry>;
@@ -911,7 +911,7 @@ export interface INotebookKernelDto2 {
 	supportedLanguages: string[];
 	supportsInterrupt?: boolean;
 	hasExecutionOrder?: boolean;
-	preloads?: UriComponents[];
+	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
@@ -951,7 +951,7 @@ export interface MainThreadWorkspaceShape extends IDisposable {
 	$saveAll(includeUntitled?: boolean): Promise<boolean>;
 	$updateWorkspaceFolders(extensionName: string, index: number, deleteCount: number, workspaceFoldersToAdd: { uri: UriComponents, name?: string; }[]): Promise<void>;
 	$resolveProxy(url: string): Promise<string | undefined>;
-	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<WorkspaceTrustState | undefined>;
+	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean>;
 }
 
 export interface IFileChangeDto {
@@ -1230,10 +1230,10 @@ export interface ExtHostTreeViewsShape {
 }
 
 export interface ExtHostWorkspaceShape {
-	$initializeWorkspace(workspace: IWorkspaceData | null, trustState: WorkspaceTrustState): void;
+	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
-	$onDidChangeWorkspaceTrustState(state: WorkspaceTrustStateChangeEvent): void;
+	$onDidReceiveWorkspaceTrust(): void;
 }
 
 export interface ExtHostFileSystemInfoShape {
@@ -1910,7 +1910,7 @@ export interface INotebookKernelInfoDto2 {
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
-	preloads?: UriComponents[];
+	preloads?: { uri: UriComponents; provides: string[] }[];
 	supportedLanguages?: string[]
 	implementsInterrupt?: boolean;
 }
@@ -1952,7 +1952,7 @@ export interface ExtHostNotebookEditorsShape {
 }
 
 export interface ExtHostNotebookKernelsShape {
-	$acceptSelection(handle: number, value: boolean): void;
+	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
 	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
 	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
 }

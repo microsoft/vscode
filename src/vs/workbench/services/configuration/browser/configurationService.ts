@@ -32,7 +32,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { delta, distinct } from 'vs/base/common/arrays';
 import { forEach, IStringDictionary } from 'vs/base/common/collections';
 
@@ -79,7 +79,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private readonly _onDidChangeUntrustedSettings = this._register(new Emitter<UntrustedSettings>());
 	public readonly onDidChangeUntrustdSettings = this._onDidChangeUntrustedSettings.event;
 
-	private workspaceTrustState: WorkspaceTrustState = WorkspaceTrustState.Trusted;
+	private isWorkspaceTrusted: boolean = true;
 	private _unTrustedSettings: UntrustedSettings = {};
 	get unTrustedSettings() { return this._unTrustedSettings; }
 
@@ -402,16 +402,16 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		mark('code/didInitWorkspaceService');
 	}
 
-	updateWorkspaceTrustState(workspaceTrustState: WorkspaceTrustState): void {
-		if (this.workspaceTrustState !== workspaceTrustState) {
-			this.workspaceTrustState = workspaceTrustState;
+	updateWorkspaceTrust(trusted: boolean): void {
+		if (this.isWorkspaceTrusted !== trusted) {
+			this.isWorkspaceTrusted = trusted;
 			const data = this._configuration.toData();
 			const folderConfigurationModels: (ConfigurationModel | undefined)[] = [];
 			for (const folder of this.workspace.folders) {
 				const folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 				let configurationModel: ConfigurationModel | undefined;
 				if (folderConfiguration) {
-					configurationModel = folderConfiguration.updateWorkspaceTrustState(this.workspaceTrustState);
+					configurationModel = folderConfiguration.updateWorkspaceTrust(this.isWorkspaceTrusted);
 					this._configuration.updateFolderConfiguration(folder.uri, configurationModel);
 				}
 				folderConfigurationModels.push(configurationModel);
@@ -421,7 +421,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					this._configuration.updateWorkspaceConfiguration(folderConfigurationModels[0]);
 				}
 			} else {
-				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.updateWorkspaceTrustState(this.workspaceTrustState));
+				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.updateWorkspaceTrust(this.isWorkspaceTrusted));
 			}
 			const keys = this.updateUntrustedSettings();
 			if (keys.length) {
@@ -454,7 +454,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private async createMultiFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<Workspace> {
-		await this.workspaceConfiguration.initialize({ id: workspaceIdentifier.id, configPath: workspaceIdentifier.configPath }, this.workspaceTrustState);
+		await this.workspaceConfiguration.initialize({ id: workspaceIdentifier.id, configPath: workspaceIdentifier.configPath }, this.isWorkspaceTrusted);
 		const workspaceConfigPath = workspaceIdentifier.configPath;
 		const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath, this.uriIdentityService.extUri);
 		const workspaceId = workspaceIdentifier.id;
@@ -755,13 +755,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private checkFoldersTrustState(changes: IWorkspaceFoldersChangeEvent, action: () => void): void {
-		// Workspace is untrusted
-		if (this.workspaceTrustState !== WorkspaceTrustState.Trusted) {
-			action();
-			return;
-		}
-
-		// Workspace is trusted
 		this._onWillChangeWorkspaceFolders.fire({
 			updateWorkspaceTrustState(updateWorkspaceTrustStatePromise) {
 				updateWorkspaceTrustStatePromise.then(() => {
@@ -812,7 +805,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return Promise.all([...folders.map(folder => {
 			let folderConfiguration = this.cachedFolderConfigs.get(folder.uri);
 			if (!folderConfiguration) {
-				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.workspaceTrustState, this.fileService, this.uriIdentityService, this.logService, this.configurationCache);
+				folderConfiguration = new FolderConfiguration(folder, FOLDER_CONFIG_FOLDER_NAME, this.getWorkbenchState(), this.isWorkspaceTrusted, this.fileService, this.uriIdentityService, this.logService, this.configurationCache);
 				this._register(folderConfiguration.onDidChange(() => this.onWorkspaceFolderConfigurationChanged(folder)));
 				this.cachedFolderConfigs.set(folder.uri, this._register(folderConfiguration));
 			}
@@ -969,8 +962,8 @@ class ConfigurationWorkspaceTrustContribution extends Disposable implements IWor
 		@IConfigurationService configurationService: WorkspaceService
 	) {
 		super();
-		configurationService.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState());
-		this._register(workspaceTrustManagementService.onDidChangeTrustState(e => configurationService.updateWorkspaceTrustState(workspaceTrustManagementService.getWorkspaceTrustState())));
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(e => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
 	}
 }
 
@@ -985,7 +978,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 		this._register(configurationRegistry.onDidUpdateConfiguration(e => this.registerConfigurationSchemas()));
 		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
-		this._register(workspaceTrustManagementService.onDidChangeTrustState(e => this.registerConfigurationSchemas()));
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => this.registerConfigurationSchemas()));
 	}
 
 	private registerConfigurationSchemas(): void {
@@ -1080,7 +1073,7 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 	}
 
 	private checkAndFilterPropertiesRequiringTrust(properties: IStringDictionary<IConfigurationPropertySchema>): IStringDictionary<IConfigurationPropertySchema> {
-		if (this.workspaceTrustManagementService.getWorkspaceTrustState() === WorkspaceTrustState.Trusted) {
+		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			return properties;
 		}
 

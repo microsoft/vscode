@@ -170,6 +170,8 @@ export interface ITerminalService {
 	 */
 	getAvailableProfiles(): ITerminalProfile[];
 
+	getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
 

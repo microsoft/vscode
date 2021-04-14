@@ -28,8 +28,6 @@ declare class ResizeObserver {
 
 declare const __outputNodePadding__: number;
 declare const __outputNodeLeftPadding__: number;
-declare const __previewNodePadding__: number;
-declare const __leftMargin__: number;
 
 type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
 
@@ -184,7 +182,7 @@ function webviewPreloads() {
 						if (observedElementInfo.output) {
 							let height = 0;
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${observedElementInfo.output ? __outputNodeLeftPadding__ : __leftMargin__}px`;
+								entry.target.style.padding = `${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodePadding__}px ${__outputNodeLeftPadding__}px`;
 								height = entry.contentRect.height + __outputNodePadding__ * 2;
 							} else {
 								entry.target.style.padding = `0px`;
@@ -193,8 +191,7 @@ function webviewPreloads() {
 								isOutput: true
 							});
 						} else {
-							// entry.contentRect does not include padding
-							dimensionUpdater.update(observedElementInfo.id, entry.contentRect.height + __previewNodePadding__ * 2, {
+							dimensionUpdater.update(observedElementInfo.id, entry.target.clientHeight, {
 								isOutput: false
 							});
 						}
@@ -988,12 +985,8 @@ function webviewPreloads() {
 export function preloadsScriptStr(values: {
 	outputNodePadding: number;
 	outputNodeLeftPadding: number;
-	previewNodePadding: number;
-	leftMargin: number;
 }) {
 	return `(${webviewPreloads})()`
 		.replace(/__outputNodePadding__/g, `${values.outputNodePadding}`)
-		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`)
-		.replace(/__previewNodePadding__/g, `${values.previewNodePadding}`)
-		.replace(/__leftMargin__/g, `${values.leftMargin}`);
+		.replace(/__outputNodeLeftPadding__/g, `${values.outputNodeLeftPadding}`);
 }

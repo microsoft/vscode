@@ -371,7 +371,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderMessage(notification: INotificationViewItem): boolean {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
-			callback: link => this.openerService.open(URI.parse(link)),
+			callback: link => this.openerService.open(URI.parse(link), { allowCommands: true }),
 			toDispose: this.inputDisposables
 		}));
 

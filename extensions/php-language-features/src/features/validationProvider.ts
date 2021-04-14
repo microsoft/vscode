@@ -5,11 +5,10 @@
 
 import * as cp from 'child_process';
 import { StringDecoder } from 'string_decoder';
-
+import * as which from 'which';
+import * as path from 'path';
 import * as vscode from 'vscode';
-
 import { ThrottledDelayer } from './utils/async';
-
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
@@ -83,6 +82,14 @@ namespace RunTrigger {
 			return RunTrigger.onSave;
 		}
 	};
+}
+
+async function getPhpPath(): Promise<string | undefined> {
+	try {
+		return await which('php');
+	} catch (e) {
+		return undefined;
+	}
 }
 
 export default class PHPValidationProvider {
@@ -230,8 +237,22 @@ export default class PHPValidationProvider {
 	}
 
 	private doValidate(textDocument: vscode.TextDocument): Promise<void> {
-		return new Promise<void>((resolve) => {
-			let executable = this.executable || 'php';
+		return new Promise<void>(async (resolve) => {
+			if (this.executable && !path.isAbsolute(this.executable)) {
+				this.showErrorMessage(localize('phpExecutableNotAbsolute', 'Cannot validate since the setting \'php.validate.executablePath\' must be an absolute path.'));
+				this.pauseValidation = true;
+				resolve();
+				return;
+			}
+
+			const executable = this.executable || await getPhpPath();
+			if (!executable) {
+				this.showErrorMessage(localize('noPhp', 'Cannot validate since a PHP installation could not be found. Use the setting \'php.validate.executablePath\' to configure the PHP executable.'));
+				this.pauseValidation = true;
+				resolve();
+				return;
+			}
+
 			let decoder = new LineDecoder();
 			let diagnostics: vscode.Diagnostic[] = [];
 			let processLine = (line: string) => {
@@ -306,6 +327,10 @@ export default class PHPValidationProvider {
 			return;
 		}
 
+		return this.showErrorMessage(message);
+	}
+
+	private async showErrorMessage(message: string): Promise<void> {
 		const openSettings = localize('goToSetting', 'Open Settings');
 		if (await vscode.window.showInformationMessage(message, openSettings) === openSettings) {
 			vscode.commands.executeCommand('workbench.action.openSettings', Setting.ExecutablePath);

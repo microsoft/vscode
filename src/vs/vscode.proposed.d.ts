@@ -953,24 +953,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region allow title property to QuickPickOptions/InputBoxOptions: https://github.com/microsoft/vscode/issues/77423
-
-	interface QuickPickOptions {
-		/**
-		 * An optional string that represents the tile of the quick pick.
-		 */
-		title?: string;
-	}
-
-	interface InputBoxOptions {
-		/**
-		 * An optional string that represents the tile of the input box.
-		 */
-		title?: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/106744, Notebooks (misc)
 
 	export enum NotebookCellKind {
@@ -1058,13 +1040,13 @@ declare module 'vscode' {
 		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
 		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
 		 */
-		transientOutputs: boolean;
+		transientOutputs?: boolean;
 
 		/**
 		 * Controls if a meetadata property change will trigger notebook document content change and if it will be used in the diff editor
 		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		 */
-		transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
+		transientMetadata?: { [K in keyof NotebookCellMetadata]?: boolean };
 	}
 
 	export interface NotebookDocument {
@@ -1166,13 +1148,6 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 
 		/**
-		 * @deprecated
-		 */
-		// todo@API should not be undefined, rather a default
-		readonly selection?: NotebookCell;
-
-		/**
-		 * todo@API should replace selection
 		 * The selections on this notebook editor.
 		 *
 		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
@@ -1306,7 +1281,7 @@ declare module 'vscode' {
 		viewColumn?: ViewColumn;
 		preserveFocus?: boolean;
 		preview?: boolean;
-		selection?: NotebookCellRange;
+		selections?: NotebookCellRange[];
 	}
 
 	export namespace notebook {
@@ -1430,8 +1405,7 @@ declare module 'vscode' {
 
 	export namespace notebook {
 
-		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
-		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
+		// todo@API remove output when notebook marks that as transient, same for metadata
 		export function registerNotebookSerializer(notebookType: string, provider: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 	}
 
@@ -1455,19 +1429,15 @@ declare module 'vscode' {
 		// select notebook of a type and/or by file-pattern
 		readonly selector: NotebookSelector;
 
-		// selection is tricky/bogous because a kernel can be selected for
-		// different notebook documents. A handler-approach might be the better
-		// fit here, e.g:
-		// selectionHandler?: (notebook: NotebookDocument, selected: boolean) => void;
-
-		// // is this kernel selected
-		// readonly selected: boolean;
-		// // fired when kernel is selected/unselected
-		// readonly onDidChangeSelection: Event<boolean>;
+		/**
+		 * A kernel can apply to one or many notebook documents but a notebook has only one active
+		 * kernel. This event fires whenever a notebook has been associated to a kernel or when
+		 * that association has been removed.
+		 */
+		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
 		// kernels can establish IPC channels to (visible) notebook editors
 		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
-
 
 		// UI properties (get/set)
 		label: string;
@@ -1503,7 +1473,7 @@ declare module 'vscode' {
 		label: string;
 		description?: string;
 		selector: NotebookSelector;
-		supportedLanguages: string[];
+		supportedLanguages?: string[];
 		hasExecutionOrder?: boolean;
 		executeHandler: (executions: NotebookCellExecutionTask[]) => void;
 		interruptHandler?: (notebook: NotebookDocument) => void
@@ -1557,10 +1527,13 @@ declare module 'vscode' {
 		 */
 		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext, token: CancellationToken): NotebookData | Thenable<NotebookData>;
 
+		// todo@API use NotebookData instead
 		saveNotebook(document: NotebookDocument, token: CancellationToken): Thenable<void>;
 
+		// todo@API use NotebookData instead
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, token: CancellationToken): Thenable<void>;
 
+		// todo@API use NotebookData instead
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
@@ -1586,6 +1559,11 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookKernel
 
+	export interface NotebookKernelPreload {
+		provides?: string | string[];
+		uri: Uri;
+	}
+
 	export interface NotebookKernel {
 
 		// todo@API make this mandatory?
@@ -1596,8 +1574,8 @@ declare module 'vscode' {
 		detail?: string;
 		isPreferred?: boolean;
 
-		// todo@API is this maybe an output property?
-		preloads?: Uri[];
+		// todo@API do we need an preload change event?
+		preloads?: NotebookKernelPreload[];
 
 		/**
 		 * languages supported by kernel
@@ -2850,66 +2828,34 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/120173
-
-	export enum WorkspaceTrustState {
-		/**
-		 * The workspace is untrusted, and it will have limited functionality.
-		 */
-		Untrusted = 0,
-
-		/**
-		 * The workspace is trusted, and all functionality will be available.
-		 */
-		Trusted = 1,
-
-		/**
-		 * The initial state of the workspace.
-		 *
-		 * If trust will be required, users will be prompted to make a choice.
-		 */
-		Unspecified = 2
-	}
-
-	/**
-	 * The event data that is fired when the trust state of the workspace changes.
-	 * When trust is revoked, the workspace will be reloaded. Therefore, extensions are
-	 * not expected to handle transitions out of a trusted state.
-	 */
-	export interface WorkspaceTrustStateChangeEvent {
-		/**
-		 * New trust state of the workspace
-		 */
-		readonly newTrustState: WorkspaceTrustState;
-	}
-
 	/**
 	 * The object describing the properties of the workspace trust request
 	 */
 	export interface WorkspaceTrustRequestOptions {
 		/**
 		 * When true, a modal dialog will be used to request workspace trust.
-		 * When false, a badge will be displayed on the Setting activity bar item
+		 * When false, a badge will be displayed on the settings gear activity bar item.
 		 */
 		readonly modal: boolean;
 	}
 
 	export namespace workspace {
 		/**
-		 * The trust state of the current workspace
+		 * When true, the user has explicitly trusted the contents of the workspace.
 		 */
-		export const trustState: WorkspaceTrustState;
+		export const isTrusted: boolean;
 
 		/**
 		 * Prompt the user to chose whether to trust the current workspace
 		 * @param options Optional object describing the properties of the
-		 * workspace trust request
+		 * workspace trust request. Defaults to { modal: false }
 		 */
-		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<WorkspaceTrustState | undefined>;
+		export function requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Thenable<boolean>;
 
 		/**
-		 * Event that fires when the trust state of the current workspace changes
+		 * Event that fires when the current workspace has been trusted.
 		 */
-		export const onDidChangeWorkspaceTrustState: Event<WorkspaceTrustStateChangeEvent>;
+		export const onDidReceiveWorkspaceTrust: Event<void>;
 	}
 
 	//#endregion

@@ -9,7 +9,7 @@ import { IInstantiationService, optional } from 'vs/platform/instantiation/commo
 import { EditorOptions, IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, Dimension, reset } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
@@ -38,9 +38,13 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Emitter, Event } from 'vs/base/common/event';
+import { LinkedText } from 'vs/base/common/linkedText';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
+import { Link } from 'vs/platform/opener/browser/link';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -67,6 +71,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private dispatchListeners: DisposableStore = new DisposableStore();
 	private taskDisposables: DisposableStore = new DisposableStore();
+	private detailsPageDisposables: DisposableStore = new DisposableStore();
 
 	private gettingStartedCategories: IGettingStartedCategoryWithProgress[];
 	private currentCategory: IGettingStartedCategoryWithProgress | undefined;
@@ -105,6 +110,7 @@ export class GettingStartedPage extends EditorPane {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService private storageService: IStorageService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IQuickInputService private quickInputService: IQuickInputService,
@@ -264,30 +270,6 @@ export class GettingStartedPage extends EditorPane {
 								this.toggleTaskCompletion(argument);
 								break;
 							}
-							case 'runTaskAction': {
-								if (!this.currentCategory || this.currentCategory.content.type !== 'items') {
-									throw Error('cannot run task action for category of non items type' + this.currentCategory?.id);
-								}
-								const taskToRun = assertIsDefined(this.currentCategory?.content.items.find(task => task.id === argument));
-								const command = taskToRun.button.command;
-								if (command) {
-									if (taskToRun.button.command && taskToRun.button.sideBySide) {
-										if (this.groupsService.count === 1) {
-											await this.commandService.executeCommand('workbench.action.editorLayoutTwoColumns');
-										}
-										await this.commandService.executeCommand('workbench.action.focusNextGroup');
-										await this.commandService.executeCommand(command);
-									} else {
-										await this.commandService.executeCommand(command);
-									}
-								} else if (taskToRun.button.link) {
-									this.openerService.open(taskToRun.button.link);
-									this.gettingStartedService.progressByEvent('linkOpened:' + taskToRun.button.link);
-								} else {
-									throw Error('Task ' + JSON.stringify(taskToRun) + ' does not have an associated action');
-								}
-								break;
-							}
 							default: {
 								console.error('Dispatch to', command, argument, 'not defined');
 								break;
@@ -367,12 +349,6 @@ export class GettingStartedPage extends EditorPane {
 			mediaElement.setAttribute('alt', taskToExpand.media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path);
 			this.taskDisposables.add(addDisposableListener(mediaElement, 'load', () => mediaElement.width = mediaElement.naturalWidth * 2 / 3));
-			if (taskToExpand.button.link) {
-				this.taskDisposables.add(addDisposableListener(mediaElement, 'click', () => taskElement.querySelector('button')?.click()));
-				mediaElement.classList.add('clickable');
-			} else {
-				mediaElement.classList.remove('clickable');
-			}
 			this.taskDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, taskToExpand.media.path)));
 			taskElement.classList.add('expanded');
 			taskElement.setAttribute('aria-expanded', 'true');
@@ -723,13 +699,83 @@ export class GettingStartedPage extends EditorPane {
 	private buildCategorySlide(categoryID: string, selectedItem?: string) {
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
+		this.detailsPageDisposables.clear();
+
+		const renderMarkdownDescription = (text: LinkedText[]): HTMLElement => {
+			const container = $('.task-description-container');
+			for (const linkedText of text) {
+				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+					const node = linkedText.nodes[0];
+					const buttonContainer = append(container, $('.button-container'));
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
+
+					const isCommand = node.href.startsWith('command:');
+					const toSide = node.href.startsWith('command:toSide:');
+					const command = node.href.replace(/command:(toSide:)?/, 'command:');
+
+					button.label = node.label;
+					button.onDidClick(async e => {
+						e.stopPropagation();
+						e.preventDefault();
+
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runTaskAction', argument: node.href });
+
+						const fullSize = this.groupsService.contentDimension;
+
+						if (toSide && fullSize.width > 700) {
+							if (this.groupsService.count === 1) {
+								this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.LEFT, { activate: true });
+
+								let gettingStartedSize: number;
+								if (fullSize.width > 1600) {
+									gettingStartedSize = 800;
+								} else if (fullSize.width > 800) {
+									gettingStartedSize = 400;
+								} else {
+									gettingStartedSize = 350;
+								}
+
+								const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
+								this.groupsService.setSize(assertIsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+							}
+
+							const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
+							if (nonGettingStartedGroup) {
+								this.groupsService.activateGroup(nonGettingStartedGroup);
+							}
+						}
+						this.openerService.open(command, { allowCommands: true });
+
+					}, null, this.detailsPageDisposables);
+
+					if (isCommand) {
+						const keybindingLabel = this.getKeybindingLabel(command);
+						if (keybindingLabel) {
+							container.appendChild($('span.shortcut-message', {}, 'Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
+						}
+					}
+
+					this.detailsPageDisposables.add(button);
+					this.detailsPageDisposables.add(attachButtonStyler(button, this.themeService));
+				} else {
+					const p = append(container, $('p'));
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.instantiationService.createInstance(Link, node);
+
+							append(p, link.el);
+							this.detailsPageDisposables.add(link);
+							this.detailsPageDisposables.add(attachLinkStyler(link, this.themeService));
+						}
+					}
+				}
+			}
+			return container;
+		};
+
 		const category = this.gettingStartedCategories.find(category => category.id === categoryID);
-		let foundNext = false;
-		const nextCategory = this.gettingStartedCategories.find(category => {
-			if (foundNext && category.content.type === 'items') { return true; }
-			if (category.id === categoryID) { foundNext = true; }
-			return false;
-		});
 
 		if (!category) { throw Error('could not find category with ID ' + categoryID); }
 		if (category.content.type !== 'items') { throw Error('category with ID ' + categoryID + ' is not of items type'); }
@@ -750,30 +796,11 @@ export class GettingStartedPage extends EditorPane {
 						'x-dispatch': 'toggleTaskCompletion:' + task.id,
 					});
 
-				const taskActions = $('.actions', {},
-					$('button.emphasis.getting-started-task-action',
-						{ 'x-dispatch': 'runTaskAction:' + task.id },
-						task.button.title),
-					...(
-						arr[i + 1]
-							? [$('button.task-next.button-link', { 'x-dispatch': 'selectTask:' + arr[i + 1].id }, localize('next', "Next")),]
-							: nextCategory
-								? [$('button.task-next.button-link', { 'x-dispatch': 'selectCategory:' + nextCategory.id }, localize('nextPage', "Next Page")),]
-								: []
-					));
-
-
-				const taskDescription = $('.task-description-container', {},
+				const taskDescription = $('.task-container', {},
 					$('h3.task-title', {}, task.title),
-					$('.task-description.description', {}, task.description),
+					renderMarkdownDescription(task.description),
 					$('.image-description', { 'aria-label': localize('imageShowing', "Image showing {0}", task.media.altText) }),
-					taskActions,
 				);
-
-				const keybindingLabel = (task.button.command && this.getKeybindingLabel(task.button.command));
-				if (keybindingLabel) {
-					taskDescription.appendChild($('span.shortcut-message', {}, 'Tip: Use keyboard shortcut ', $('span.keybinding', {}, keybindingLabel)));
-				}
 
 				return $('button.getting-started-task',
 					{
