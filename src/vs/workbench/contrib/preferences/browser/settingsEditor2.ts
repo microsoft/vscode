@@ -25,7 +25,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -41,7 +41,7 @@ import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/co
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveConfiguredUntrustedSettings, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
@@ -53,6 +53,7 @@ import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/p
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -164,7 +165,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -996,6 +997,17 @@ export class SettingsEditor2 extends EditorPane {
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
 		resolvedSettingsRoot.children!.push(resolveExtensionsSettings(dividedGroups.extension || []));
+
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
+			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.configurationService);
+			if (configuredUntrustedWorkspaceSettings.length) {
+				resolvedSettingsRoot.children!.unshift({
+					id: 'workspaceTrust',
+					label: localize('settings require trust', "Workspace Trust"),
+					settings: configuredUntrustedWorkspaceSettings
+				});
+			}
+		}
 
 		if (this.searchResultModel) {
 			this.searchResultModel.updateChildren();

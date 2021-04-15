@@ -38,11 +38,11 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -58,6 +58,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILogService } from 'vs/platform/log/common/log';
 import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 
 const $ = DOM.$;
 
@@ -278,6 +281,11 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 		tree: _resolveSettingsTree(tocData, allSettings, logService),
 		leftoverSettings: allSettings
 	};
+}
+
+export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
+	const allSettings = getFlatSettings(groups);
+	return [...allSettings].filter(setting => setting.requireTrust && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
 export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
@@ -1528,22 +1536,25 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 
 		const manageWorkspaceTrustLabel = localize('manageWorkspaceTrust', "Manage Workspace Trust");
 		const trustLabelElement = $('.setting-item-trust-description');
-		DOM.append(trustLabelElement, $('span.codicon.codicon-workspace-untrusted'));
+		const untrustedWorkspaceIcon = DOM.append(trustLabelElement, $('span.codicon.codicon-workspace-untrusted'));
+		template.toDispose.add(attachStylerCallback(this._themeService, { untrustedForegroundColor }, colors => {
+			untrustedWorkspaceIcon.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
+		}));
 		const element = DOM.append(trustLabelElement, $('span'));
 		element.textContent = localize('trustLabel', "This setting can be applied only in the trusted workspace.");
 		const linkElement: HTMLAnchorElement = DOM.append(trustLabelElement, $('a'));
 		linkElement.textContent = manageWorkspaceTrustLabel;
 		linkElement.setAttribute('tabindex', '0');
 		linkElement.href = '#';
-		DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, () => {
+		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.CLICK, () => {
 			this._commandService.executeCommand('workbench.trust.manage');
-		});
-		DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+		}));
+		template.toDispose.add(DOM.addStandardDisposableListener(linkElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
 				this._commandService.executeCommand('workbench.trust.manage');
 				e.stopPropagation();
 			}
-		});
+		}));
 
 		template.containerElement.insertBefore(trustLabelElement, template.descriptionElement);
 
@@ -1950,6 +1961,9 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
 				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
+
+				const disabledfgColor = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.7));
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description { color: ${disabledfgColor}; }`);
 
 				// Hack for subpixel antialiasing
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,

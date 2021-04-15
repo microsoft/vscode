@@ -1094,7 +1094,7 @@ export class ChangeModeAction extends Action {
 
 		// All languages are valid picks
 		const languages = this.modeService.getRegisteredLanguageNames();
-		const picks: QuickPickInput[] = languages.sort().map((lang, index) => {
+		const picks: QuickPickInput[] = languages.sort().map(lang => {
 			const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
 			const extensions = this.modeService.getExtensions(lang).join(' ');
 			let description: string;

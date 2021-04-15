@@ -49,14 +49,6 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	setWorkspaceTrust(trusted: boolean): void {
 		throw new Error('Method not implemented.');
 	}
-
-	isWorkspaceTrustEnabled(): boolean {
-		return true;
-	}
-
-	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
-		return Promise.resolve(true);
-	}
 }
 
 export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {
