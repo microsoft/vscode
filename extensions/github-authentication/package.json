@@ -20,6 +20,7 @@
   "activationEvents": [
     "onAuthenticationRequest:github"
   ],
+  "workspaceTrust": { "request": "never" },
   "contributes": {
     "commands": [
       {

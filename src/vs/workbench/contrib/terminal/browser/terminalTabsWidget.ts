@@ -75,6 +75,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				this.setSelection([e]);
+				this.reveal(e);
 			}
 		});
 		this.onDidOpen(async e => {
