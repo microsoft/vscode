@@ -793,7 +793,7 @@ export interface INotebookKernelProvider {
 export interface INotebookCellStatusBarItemProvider {
 	selector: INotebookDocumentFilter;
 	onDidChangeStatusBarItems?: Event<void>;
-	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
 export class CellSequence implements ISequence {
