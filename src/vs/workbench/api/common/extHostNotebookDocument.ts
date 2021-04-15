@@ -153,10 +153,9 @@ export class ExtHostNotebookDocument {
 	get notebookDocument(): vscode.NotebookDocument {
 		if (!this._notebook) {
 			const that = this;
-			this._notebook = Object.freeze({
+			this._notebook = {
 				get uri() { return that.uri; },
 				get version() { return that._versionId; },
-				get fileName() { return that.uri.fsPath; },
 				get viewType() { return that._viewType; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
@@ -174,7 +173,7 @@ export class ExtHostNotebookDocument {
 				save() {
 					return that._save();
 				}
-			});
+			};
 		}
 		return this._notebook;
 	}
