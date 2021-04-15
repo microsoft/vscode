@@ -91,6 +91,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.description = value;
 				_update();
 			},
+			get isPreferred() {
+				return data.isPreferred ?? false;
+			},
+			set isPreferred(value) {
+				data.isPreferred = value;
+				_update();
+			},
 			get supportedLanguages() {
 				return data.supportedLanguages;
 			},

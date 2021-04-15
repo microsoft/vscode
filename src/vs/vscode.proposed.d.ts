@@ -1480,8 +1480,10 @@ declare module 'vscode' {
 
 		// UI properties (get/set)
 		label: string;
-		supportedLanguages: string[];
 		description?: string;
+		isPreferred?: boolean;
+
+		supportedLanguages: string[];
 		hasExecutionOrder?: boolean;
 		preloads?: NotebookKernelPreload[];
 
