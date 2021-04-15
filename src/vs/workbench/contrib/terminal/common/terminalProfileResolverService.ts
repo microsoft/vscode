@@ -39,13 +39,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return (await this.getDefaultProfile(options)).args || [];
 	}
 
-	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		return this._resolveProfile(this._getUnresolvedDefaultProfile(options), options);
+	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
+		return this._resolveProfile(await this._getUnresolvedDefaultProfile(options), options);
 	}
 
-	private _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile {
-		// TODO: Resolve variables
-
+	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		// If automation shell is allowed, prefer that
 		if (options.allowAutomationShell) {
 			const automationShellProfile = this._getAutomationShellProfile(options);
@@ -69,7 +67,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._getSyntheticDefaultProfile(options);
 	}
 
-	private _getSyntheticDefaultProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile {
+	private async _getSyntheticDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		let executable: string;
 		let args: string | string[] | undefined;
 		const shellSetting = this._configurationService.getValue(`terminal.integrated.shell.${this._getPlatformKey(options.platform)}`);
@@ -80,7 +78,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 				args = shellArgsSetting || [];
 			}
 		} else {
-			executable = this._getDefaultSystemShell(options.platform);
+			executable = await this._context.getDefaultSystemShell(options.platform);
 		}
 
 		return {
@@ -101,22 +99,14 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		};
 	}
 
-	private _getDefaultSystemShell(platform: Platform): string {
-		// TODO: How to implement? Needs node access?
-		// TODO: Cache after first
-		return 'NYI';
-	}
-
 	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		if (options.platform === Platform.Windows) {
-			// TODO: Use shell environment service instead of process.env
-			// const env = await this._shellEnvironmentService.getShellEnv();
-
 			// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 			// safe to assume that this was used by accident as Sysnative does not
 			// exist and will break the terminal in non-WoW64 environments.
-			const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-			const windir = process.env.windir;
+			const env = await this._context.getShellEnvironment();
+			const isWoW64 = !!env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+			const windir = env.windir;
 			if (!isWoW64 && windir) {
 				const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
 				if (profile.path && profile.path.toLowerCase().indexOf(sysnativePath) === 0) {
