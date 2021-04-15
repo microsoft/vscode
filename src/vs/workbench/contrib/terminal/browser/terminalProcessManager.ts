@@ -318,9 +318,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
 		// Fire reconnect if needed to ensure the terminal is usable again
-		this._onPtyReconnect.fire();
 		if (this.isDisconnected) {
 			this.isDisconnected = false;
+			this._onPtyReconnect.fire();
 		}
 
 		// Clear data written flag to re-enable seamless relaunch if this relaunch was manually
