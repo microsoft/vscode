@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, platform } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
@@ -13,6 +13,7 @@ import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto, IProcessDetails, IGetTerminalLayoutInfoArgs, IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
+import { getSystemShell } from 'vs/base/node/shell';
 
 type WorkspaceId = string;
 
@@ -141,6 +142,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async input(id: number, data: string): Promise<void> {
 		return this._throwIfNoPty(id).input(data);
 	}
+	async processBinary(id: number, data: string): Promise<void> {
+		return this._throwIfNoPty(id).writeBinary(data);
+	}
 	async resize(id: number, cols: number, rows: number): Promise<void> {
 		return this._throwIfNoPty(id).resize(cols, rows);
 	}
@@ -160,8 +164,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).orphanQuestionReply();
 	}
 
-	async processBinary(id: number, data: string): Promise<void> {
-		return this._throwIfNoPty(id).writeBinary(data);
+	async getDefaultSystemShell(): Promise<string> {
+		return getSystemShell(platform, process.env);
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

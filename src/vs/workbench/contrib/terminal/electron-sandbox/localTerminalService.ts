@@ -126,6 +126,10 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 		this._localPtyService.reduceConnectionGraceTime();
 	}
 
+	public async getDefaultSystemShell(): Promise<string> {
+		return this._localPtyService.getDefaultSystemShell();
+	}
+
 	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
 		const args: ISetTerminalLayoutInfoArgs = {
 			workspaceId: this._getWorkspaceId(),

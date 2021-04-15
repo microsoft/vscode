@@ -190,6 +190,10 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		});
 	}
 
+	public async getDefaultSystemShell(): Promise<string> {
+		return this._remoteTerminalChannel?.getDefaultSystemShell() || '';
+	}
+
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
 		if (!this._remoteTerminalChannel) {
 			throw new Error(`Cannot call setActiveInstanceId when there is no remote`);

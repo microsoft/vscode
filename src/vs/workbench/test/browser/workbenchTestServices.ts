@@ -1532,7 +1532,6 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 }
 
 export class TestLocalTerminalService implements ILocalTerminalService {
-
 	declare readonly _serviceBrand: undefined;
 
 	onPtyHostExit = Event.None;
@@ -1545,6 +1544,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	}
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
+	getDefaultSystemShell(): Promise<string> { throw new Error('Method not implemented.'); }
 	async setTerminalLayoutInfo(argsOrLayout?: ISetTerminalLayoutInfoArgs | ITerminalsLayoutInfoById) { throw new Error('Method not implemented.'); }
 	async getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined> { throw new Error('Method not implemented.'); }
 	async reduceConnectionGraceTime(): Promise<void> { throw new Error('Method not implemented.'); }

@@ -269,7 +269,11 @@ export class RemoteTerminalChannelClient {
 		return this._channel.call('$orphanQuestionReply', [id]);
 	}
 	public sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
-		return this._channel.call<void>('$sendCommandResult', [reqId, isError, payload]);
+		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
+	}
+
+	public getDefaultSystemShell(): Promise<string> {
+		return this._channel.call('$getDefaultSystemShell');
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
