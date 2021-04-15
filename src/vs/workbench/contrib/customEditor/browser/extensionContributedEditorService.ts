@@ -68,7 +68,6 @@ type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, editorI
 
 export interface IExtensionContributedEditorService {
 	readonly _serviceBrand: undefined;
-	contributedEditorOverride(handler: IExtensionContributedEditorHandler): IDisposable;
 	getAssociationsForResource(resource: URI): EditorAssociations;
 	/**
 	 * Registers a specific editor contribution.
@@ -103,7 +102,6 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 	private _contributionPoints: Map<string | glob.IRelativePattern, ContributionPoints> = new Map<string | glob.IRelativePattern, ContributionPoints>();
 	private readonly _editorChoiceStorageID = 'extensionContributedEditorService.editorChoice';
 
-	private readonly extensionContributedEditors: IExtensionContributedEditorHandler[] = [];
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -180,11 +178,6 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			createEditorInput,
 			createDiffEditorInput
 		});
-		return toDisposable(() => remove());
-	}
-
-	contributedEditorOverride(handler: IExtensionContributedEditorHandler): IDisposable {
-		const remove = insert(this.extensionContributedEditors, handler);
 		return toDisposable(() => remove());
 	}
 
