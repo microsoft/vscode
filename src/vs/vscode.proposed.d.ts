@@ -978,12 +978,6 @@ declare module 'vscode' {
 		readonly custom?: Record<string, any>;
 
 		/**
-		 * todo@API duplicates status bar API
-		 * @deprecated
-		 */
-		readonly statusMessage?: string;
-
-		/**
 		 * Additional attributes of a cell metadata.
 		 */
 		readonly [key: string]: any;

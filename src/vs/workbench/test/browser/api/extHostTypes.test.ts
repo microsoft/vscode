@@ -684,7 +684,7 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(obj.inputCollapsed, true);
 		assert.strictEqual(obj.custom, undefined);
 
-		assert.strictEqual(newObj.inputCollapsed, true);
+		assert.strictEqual(newObj.inputCollapsed, false);
 		assert.strictEqual(newObj.custom, undefined);
 	});
 
