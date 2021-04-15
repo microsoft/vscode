@@ -123,7 +123,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $registerTestProvider(id: string) {
+	public $registerTestController(id: string) {
 		const disposable = this.testService.registerTestController(id, {
 			runTests: (req, token) => this.proxy.$runTestsForProvider(req, token),
 			lookupTest: test => this.proxy.$lookupTest(test),
@@ -136,7 +136,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	public $unregisterTestProvider(id: string) {
+	public $unregisterTestController(id: string) {
 		this.testProviderRegistrations.get(id)?.dispose();
 		this.testProviderRegistrations.delete(id);
 	}

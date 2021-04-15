@@ -4,27 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { TestItem, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestItemImpl, TestItemStatus, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
-export class StubTestItem extends TestItem {
-	parent: StubTestItem | undefined;
+export const stubTest = (label: string, idPrefix = 'id-', children: TestItemImpl[] = []): TestItemImpl => {
+	const item = new TestItemImpl(idPrefix + label, label, URI.file('/'), undefined);
+	if (children.length) {
+		item.status = TestItemStatus.Pending;
+		item.resolveHandler = () => {
+			for (const child of children) {
+				item.addChild(child);
+			}
 
-	constructor(id: string, label: string, private readonly pendingChildren: StubTestItem[]) {
-		super(id, label, URI.file('/'), pendingChildren.length > 0);
+			item.status = TestItemStatus.Resolved;
+		};
 	}
 
-	public override discoverChildren(progress: IProgress<{ busy: boolean }>) {
-		for (const child of this.pendingChildren) {
-			this.children.add(child);
-		}
-
-		progress.report({ busy: false });
-	}
-}
-
-export const stubTest = (label: string, idPrefix = 'id-', children: StubTestItem[] = []): StubTestItem => {
-	return new StubTestItem(idPrefix + label, label, children);
+	return item;
 };
 
 export const testStubs = {

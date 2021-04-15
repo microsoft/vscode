@@ -75,7 +75,6 @@ export interface ITestItem {
 	description: string | undefined;
 	runnable: boolean;
 	debuggable: boolean;
-	expandable: boolean;
 }
 
 export const enum TestItemExpandState {

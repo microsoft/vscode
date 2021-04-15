@@ -1649,9 +1649,9 @@ export namespace TestMessage {
 }
 
 export namespace TestItem {
-	export type Raw = vscode.TestItem;
+	export type Raw<T = unknown> = vscode.TestItem<T>;
 
-	export function from(item: vscode.TestItem): ITestItem {
+	export function from(item: vscode.TestItem<unknown>): ITestItem {
 		return {
 			extId: item.id,
 			label: item.label,
@@ -1660,7 +1660,6 @@ export namespace TestItem {
 			debuggable: item.debuggable ?? false,
 			description: item.description,
 			runnable: item.runnable ?? true,
-			expandable: item.expandable,
 		};
 	}
 
@@ -1673,25 +1672,27 @@ export namespace TestItem {
 			debuggable: false,
 			description: item.description,
 			runnable: true,
-			expandable: true,
 		};
 	}
 
-	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
+	export function toPlain(item: ITestItem): Omit<vscode.TestItem<never>, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
 			id: item.extId,
 			label: item.label,
 			uri: URI.revive(item.uri),
 			range: Range.to(item.range),
-			expandable: item.expandable,
+			addChild: () => undefined,
+			dispose: () => undefined,
+			status: types.TestItemStatus.Pending,
+			data: undefined as never,
 			debuggable: item.debuggable,
 			description: item.description,
 			runnable: item.runnable,
 		};
 	}
 
-	export function to(item: ITestItem): types.TestItem {
-		const testItem = new types.TestItem(item.extId, item.label, URI.revive(item.uri), item.expandable);
+	export function to(item: ITestItem): types.TestItemImpl {
+		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined);
 		testItem.range = Range.to(item.range);
 		testItem.debuggable = item.debuggable;
 		testItem.description = item.description;
