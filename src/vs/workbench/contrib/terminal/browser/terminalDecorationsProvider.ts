@@ -37,7 +37,6 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 			return;
 		}
 		if (instance.statusList.primary && instance.statusList.primary.icon) {
-			console.log('status changed', instance.statusList.primary.id);
 			return {
 				color: this.getColorForSeverity(instance.statusList.primary.severity),
 				letter: this.getStatusIcon(instance.statusList.primary.icon),
