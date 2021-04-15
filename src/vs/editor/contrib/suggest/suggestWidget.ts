@@ -490,8 +490,10 @@ export class SuggestWidget implements IDisposable {
 		this._ctxSuggestWidgetVisible.set(true);
 
 		this._showTimeout.cancelAndSet(() => {
-			this.element.domNode.classList.add('visible');
-			this._onDidShow.fire(this);
+			if (this._state !== State.Hidden) {
+				this.element.domNode.classList.add('visible');
+				this._onDidShow.fire(this);
+			}
 		}, 100);
 	}
 
