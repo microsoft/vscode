@@ -80,7 +80,7 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
-	resolve(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
+	resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;

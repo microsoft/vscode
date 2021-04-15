@@ -30,7 +30,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	) {
 	}
 
-	async resolve(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
+	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
 		// Resolve the shell and shell args
 		let resolvedProfile: ITerminalProfile;
 		if (shellLaunchConfig.executable) {

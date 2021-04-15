@@ -6,7 +6,7 @@
 import * as platform from 'vs/base/common/platform';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { env as processEnv } from 'vs/base/common/process';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -127,6 +127,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IPathService private readonly _pathService: IPathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService,
 	) {
 		super();
@@ -368,26 +369,13 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		userHome: string | undefined,
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalChildProcess> {
+		await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+			platform: platform.platform,
+			allowAutomationShell: false
+		});
+
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		if (!shellLaunchConfig.executable) {
-			const defaultConfig = await this._terminalInstanceService.getDefaultShellAndArgs(false);
-			shellLaunchConfig.executable = defaultConfig.shell;
-			shellLaunchConfig.args = defaultConfig.args;
-		} else {
-			shellLaunchConfig.executable = await this._configurationResolverService.resolveAsync(lastActiveWorkspace, shellLaunchConfig.executable);
-			if (shellLaunchConfig.args) {
-				if (Array.isArray(shellLaunchConfig.args)) {
-					const resolvedArgs: string[] = [];
-					for (const arg of shellLaunchConfig.args) {
-						resolvedArgs.push(await this._configurationResolverService.resolveAsync(lastActiveWorkspace, arg));
-					}
-					shellLaunchConfig.args = resolvedArgs;
-				} else {
-					shellLaunchConfig.args = await this._configurationResolverService.resolveAsync(lastActiveWorkspace, shellLaunchConfig.args);
-				}
-			}
-		}
 
 		const initialCwd = terminalEnvironment.getCwd(
 			shellLaunchConfig,
