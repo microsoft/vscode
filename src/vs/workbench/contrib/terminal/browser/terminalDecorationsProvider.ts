@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
+import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
+import { Event } from 'vs/base/common/event';
+import { Codicon } from 'vs/base/common/codicons';
+import { listErrorForeground, listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
 
 export interface ITerminalDecorationData {
 	tooltip: string,
@@ -14,16 +18,26 @@ export interface ITerminalDecorationData {
 	color: string
 }
 
-export class TerminalDecorationsProvider {
+export class TerminalDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Terminal");
-	private readonly toDispose = new DisposableStore();
+	readonly onDidChange: Event<readonly URI[]>;
 
-	provideDecorations(instance: ITerminalInstance): ITerminalDecorationData | undefined {
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		this.onDidChange = Event.None;
+	}
+
+	provideDecorations(resource: URI): IDecorationData | undefined {
+		const instance = this._terminalService.getInstanceFromId(parseInt(resource.toString()));
+		if (!instance) {
+			return;
+		}
 		if (instance.statusList.primary && instance.statusList.primary.icon) {
 			return {
-				tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id),
-				statusIcon: `${instance.statusList.primary.icon.id}`,
 				color: this.getColorForSeverity(instance.statusList.primary.severity),
+				letter: this.getStatusIcon(instance.statusList.primary.icon),
+				tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id)
 			};
 		}
 		return undefined;
@@ -32,17 +46,26 @@ export class TerminalDecorationsProvider {
 	getColorForSeverity(severity: Severity): string {
 		switch (severity) {
 			case Severity.Error:
-				return 'red';
+				return listErrorForeground;
 			case Severity.Warning:
-				return 'yellow';
-			case Severity.Info:
-				return 'green';
+				return listInvalidItemForeground;
 			default:
 				return '';
 		}
 	}
 
+	getStatusIcon(icon: Codicon): string {
+		switch (icon) {
+			case Codicon.warning:
+				return '\ea6c';
+			case Codicon.bell:
+				return '\eaa2';
+			default:
+				return '\ea85';
+		}
+	}
+
 	dispose(): void {
-		this.toDispose.dispose();
+		this.dispose();
 	}
 }

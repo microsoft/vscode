@@ -15,23 +15,27 @@ import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/termin
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ITerminalDecorationData, TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
+import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
+import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
+import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { URI } from 'vs/base/common/uri';
 
 const $ = DOM.$;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
+	private _decorationsProvider: TerminalDecorationsProvider | undefined;
+
 	constructor(
 		container: HTMLElement,
-		decorationsProvider: TerminalDecorationsProvider,
+		resourceLabels: ResourceLabels,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -40,13 +44,14 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IDecorationsService _decorationsService: IDecorationsService
 	) {
 		super('TerminalTabsTree', container,
 			{
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, decorationsProvider)],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, resourceLabels)],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -89,6 +94,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				await instance.focusWhenReady();
 			}
 		});
+		if (!this._decorationsProvider) {
+			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
+			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
+		}
 	}
 
 	private _render(): void {
@@ -107,7 +116,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _decorationsProvider: TerminalDecorationsProvider,
+		private readonly _labels: ResourceLabels,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -120,7 +129,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 		const element = DOM.append(container, $('.terminal-tabs-entry'));
 
-		const label = new IconLabel(element, {
+		const label = this._labels.create(element, {
 			supportHighlights: true,
 			supportDescriptionHighlights: true,
 			supportIcons: true,
@@ -129,6 +138,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 				showHover: e => this._hoverService.showHover(e)
 			}
 		});
+
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
 		const actionBar = new ActionBar(actionsContainer, {
@@ -145,11 +155,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		return this._container ? this._container.clientWidth < 124 : false;
 	}
 
-	getDecorations(instance: ITerminalInstance): ITerminalDecorationData | undefined {
-		return this._decorationsProvider.provideDecorations(instance);
-	}
 
 	renderElement(node: ITreeNode<ITerminalInstance>, index: number, template: ITerminalTabEntryTemplate): void {
+
 		let instance = node.element;
 
 		const tab = this._terminalService.getTabForInstance(instance);
@@ -194,26 +202,52 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 				markdownNotSupportedFallback: undefined
 			}
 		});
+		const labelProps: IResourceLabelProps = { name: label };
+		const options: IResourceLabelOptions = {};
+		template.label.setResource(labelProps, options);
 
 		instance.statusList.onDidChangePrimaryStatus(e => {
-			const decorations = this.getDecorations(instance);
-			if (!decorations) {
-				template.label.setLabel(`${prefix}$(${instance.icon.id}) ${instance.title}`, undefined, {
-					title: {
-						markdown: new MarkdownString(title),
-						markdownNotSupportedFallback: undefined
-					}
-				});
-			} else {
-				template.label.setLabel(`${prefix}$(${instance.icon.id}) ${instance.title} $(${decorations.statusIcon})`, undefined, {
-					title: {
-						markdown: new MarkdownString(`${title} • ${decorations.tooltip}`),
-						markdownNotSupportedFallback: undefined
-					},
-					extraClasses: [decorations.color]
-				});
+			const hasText = !this.shouldHideText();
+			template.element.classList.toggle('has-text', hasText);
+
+			let prefix: string = '';
+			if (tab.terminalInstances.length > 1) {
+				const terminalIndex = tab?.terminalInstances.indexOf(instance);
+				if (terminalIndex === 0) {
+					prefix = `┌ `;
+				} else if (terminalIndex === tab!.terminalInstances.length - 1) {
+					prefix = `└ `;
+				} else {
+					prefix = `├ `;
+				}
 			}
+
+			let title = instance.title;
+			const statuses = instance.statusList.statuses;
+			if (statuses.length) {
+				title += `\n\n---\n\nStatuses:`;
+				title += statuses.map(e => `\n- ${e.id}`);
+			}
+			let label: string;
+			if (!hasText) {
+				template.actionBar.clear();
+				label = `${prefix}$(${instance.icon.id})`;
+			} else {
+				this.fillActionBar(instance, template);
+				label = `${prefix}$(${instance.icon.id}) ${instance.title}`;
+			}
+
+			template.label.setLabel(label, undefined, {
+				title: {
+					markdown: new MarkdownString(title),
+					markdownNotSupportedFallback: undefined
+				}
+			});
+			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: instance.instanceId.toString(), path: instance.instanceId.toString() }), name: label };
+			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
+			template.label.setResource(labelProps, options);
 		});
+
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
@@ -233,6 +267,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 
 interface ITerminalTabEntryTemplate {
 	element: HTMLElement;
-	label: IconLabel;
+	label: IResourceLabel;
 	actionBar: ActionBar;
 }
