@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -11,14 +11,14 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import * as path from 'vs/base/common/path';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export interface IShellLaunchConfigResolverService {
+export interface ITerminalProfileResolverService {
 	/**
 	 * Resolves a shell launch config
 	 */
 	resolve(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): void;
 	// getDefaultProfile(): ITerminalProfile | undefined;
-	getDefaultShell(options: IShellLaunchConfigResolveOptions): string;
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): string | string[];
+	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
+	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 }
 
 export interface IShellLaunchConfigResolveOptions {
@@ -26,11 +26,17 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell: boolean;
 }
 
-export abstract class BaseShellLaunchConfigResolverService implements IShellLaunchConfigResolverService {
+export interface IProfileContextProvider {
+	getAvailableProfiles: () => ITerminalProfile[];
+	getDefaultSystemShell: (platform: Platform) => Promise<string>;
+	getShellEnvironment: () => Promise<IProcessEnvironment>;
+}
+
+export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
 	constructor(
+		private readonly _profileContext: IProfileContextProvider,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _configurationResolverService: IConfigurationResolverService,
-		private readonly _getAvailableProfiles: () => ITerminalProfile[],
 		private readonly _logService: ILogService
 	) {
 	}
@@ -38,15 +44,15 @@ export abstract class BaseShellLaunchConfigResolverService implements IShellLaun
 	resolve(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): void {
 	}
 
-	getDefaultShell(options: IShellLaunchConfigResolveOptions): string {
-		return this._getResolvedDefaultProfile(options).path;
+	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
+		return (await this._getResolvedDefaultProfile(options)).path;
 	}
 
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): string | string[] {
-		return this._getResolvedDefaultProfile(options).args || [];
+	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> {
+		return (await this._getResolvedDefaultProfile(options)).args || [];
 	}
 
-	private _getResolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile {
+	private _getResolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		return this._resolveProfile(this._getUnresolvedDefaultProfile(options), options);
 	}
 
@@ -64,7 +70,7 @@ export abstract class BaseShellLaunchConfigResolverService implements IShellLaun
 		// Return the real default profile if it exists and is valid
 		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getPlatformKey(options.platform)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			const profiles = this._getAvailableProfiles();
+			const profiles = this._profileContext.getAvailableProfiles();
 			const defaultProfile = profiles.find(e => e.profileName === defaultProfileName);
 			if (defaultProfile) {
 				return defaultProfile;
@@ -114,7 +120,7 @@ export abstract class BaseShellLaunchConfigResolverService implements IShellLaun
 		return 'NYI';
 	}
 
-	private _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): ITerminalProfile {
+	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		if (options.platform === Platform.Windows) {
 			// TODO: Use shell environment service instead of process.env
 			// const env = await this._shellEnvironmentService.getShellEnv();
@@ -138,15 +144,16 @@ export abstract class BaseShellLaunchConfigResolverService implements IShellLaun
 		}
 
 		// Resolve path variables
-		profile.path = this._resolveVariables(profile.path);
+		const env = await this._profileContext.getShellEnvironment();
+		profile.path = this._resolveVariables(profile.path, env);
 
 		// Resolve args variables
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
-				profile.args = this._resolveVariables(profile.args);
+				profile.args = this._resolveVariables(profile.args, env);
 			} else {
 				for (let i = 0; i < profile.args.length; i++) {
-					profile.args[i] = this._resolveVariables(profile.args[i]);
+					profile.args[i] = this._resolveVariables(profile.args[i], env);
 				}
 			}
 		}
@@ -154,11 +161,9 @@ export abstract class BaseShellLaunchConfigResolverService implements IShellLaun
 		return profile;
 	}
 
-	private _resolveVariables(value: string) {
+	private _resolveVariables(value: string, env: IProcessEnvironment) {
 		try {
-			// TODO: Move off deprecated API
-			// TODO: Specify workspace folder
-			value = this._configurationResolverService.resolve(undefined, value);
+			value = this._configurationResolverService.resolveWithEnvironment(env, undefined, value);
 		} catch (e) {
 			this._logService.error(`Could not resolve shell`, e);
 		}
