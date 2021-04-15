@@ -743,8 +743,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const changes = this.compareFolders(this.workspace.folders, workspaceFolders);
 		if (changes.added.length || changes.removed.length || changes.changed.length) {
 			this.workspace.folders = workspaceFolders;
+			const change = await this.onFoldersChanged();
+
 			this.checkFoldersTrustState(changes, async () => {
-				const change = await this.onFoldersChanged();
 				this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
 				this._onDidChangeWorkspaceFolders.fire(changes);
 			});
@@ -755,14 +756,16 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	private checkFoldersTrustState(changes: IWorkspaceFoldersChangeEvent, action: () => void): void {
+		const joiners: Promise<void>[] = [];
+
 		this._onWillChangeWorkspaceFolders.fire({
 			join(updateWorkspaceTrustStatePromise) {
-				updateWorkspaceTrustStatePromise.then(() => {
-					action();
-				});
+				joiners.push(updateWorkspaceTrustStatePromise);
 			},
 			changes
 		});
+
+		Promises.settled(joiners).finally(() => action());
 	}
 
 	private async onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder): Promise<void> {
