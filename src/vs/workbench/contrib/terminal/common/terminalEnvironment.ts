@@ -11,7 +11,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
-import { IConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.

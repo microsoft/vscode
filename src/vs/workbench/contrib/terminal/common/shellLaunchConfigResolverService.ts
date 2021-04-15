@@ -1,11 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Platform } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as path from 'vs/base/common/path';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IShellLaunchConfigResolverService {
@@ -25,11 +28,10 @@ export interface IShellLaunchConfigResolveOptions {
 
 export abstract class BaseShellLaunchConfigResolverService implements IShellLaunchConfigResolverService {
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IShellEnvironmentService private readonly _shellEnvironmentService: IShellEnvironmentService,
-		@ILogService private readonly _logService: ILogService
+		private readonly _configurationService: IConfigurationService,
+		private readonly _configurationResolverService: IConfigurationResolverService,
+		private readonly _getAvailableProfiles: () => ITerminalProfile[],
+		private readonly _logService: ILogService
 	) {
 	}
 
@@ -62,7 +64,7 @@ export abstract class BaseShellLaunchConfigResolverService implements IShellLaun
 		// Return the real default profile if it exists and is valid
 		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getPlatformKey(options.platform)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			const profiles = this._terminalService.getAvailableProfiles();
+			const profiles = this._getAvailableProfiles();
 			const defaultProfile = profiles.find(e => e.profileName === defaultProfileName);
 			if (defaultProfile) {
 				return defaultProfile;
