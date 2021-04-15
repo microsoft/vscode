@@ -13,7 +13,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
 import { EditorOptions, IEditorInput, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
