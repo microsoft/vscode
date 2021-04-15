@@ -1208,13 +1208,11 @@ declare module 'vscode' {
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
-		// todo@API should they all be readonly?
 		kind: NotebookCellKind;
 		// todo@API better names: value? text?
 		source: string;
 		// todo@API how does language and MD relate?
 		language: string;
-		// todo@API ReadonlyArray?
 		outputs?: NotebookCellOutput[];
 		metadata?: NotebookCellMetadata;
 		latestExecutionSummary?: NotebookCellExecutionSummary;
@@ -1222,7 +1220,6 @@ declare module 'vscode' {
 	}
 
 	export class NotebookData {
-		// todo@API should they all be readonly?
 		cells: NotebookCellData[];
 		metadata: NotebookDocumentMetadata;
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
