@@ -215,12 +215,7 @@ export class Workbench extends Layout {
 		return instantiationService;
 	}
 
-	private registerListeners(
-		lifecycleService: ILifecycleService,
-		storageService: IStorageService,
-		configurationService: IConfigurationService,
-		hostService: IHostService
-	): void {
+	private registerListeners(lifecycleService: ILifecycleService, storageService: IStorageService, configurationService: IConfigurationService, hostService: IHostService): void {
 
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(() => this.setFontAliasing(configurationService)));
@@ -249,7 +244,11 @@ export class Workbench extends Layout {
 		// the chance of loosing any state.
 		// The window loosing focus is a good indication that the user has stopped working
 		// in that window so we pick that at a time to collect state.
-		this._register(hostService.onDidChangeFocus(focus => { if (!focus) { storageService.flush(); } }));
+		this._register(hostService.onDidChangeFocus(focus => {
+			if (!focus) {
+				storageService.flush();
+			}
+		}));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
@@ -360,7 +359,7 @@ export class Workbench extends Layout {
 	}
 
 	private createPart(id: string, role: string, classes: string[]): HTMLElement {
-		const part = document.createElement(role === 'status' ? 'footer' : 'div'); // Use footer element for status bar #98376
+		const part = document.createElement(role === 'status' ? 'footer' /* Use footer element for status bar #98376 */ : 'div');
 		part.classList.add('part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
@@ -435,10 +434,17 @@ export class Workbench extends Layout {
 				// Update perf marks only when the layout is fully
 				// restored. We want the time it takes to restore
 				// editors to be included in these numbers
-				this.whenRestored.finally(() => {
+
+				function markDidStartWorkbench() {
 					mark('code/didStartWorkbench');
 					performance.measure('perf: workbench create & restore', 'code/didLoadWorkbenchMain', 'code/didStartWorkbench');
-				});
+				}
+
+				if (this.isRestored()) {
+					markDidStartWorkbench();
+				} else {
+					this.whenRestored.finally(() => markDidStartWorkbench());
+				}
 			})
 		);
 	}
