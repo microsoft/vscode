@@ -24,7 +24,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath, dirname, basename } from 'vs/base/common/resources';
-import { isLinux } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -456,7 +456,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	teardown(() => disposables.clear());
 
-	test('initialize a folder workspace from an empty workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with no configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -481,7 +481,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	});
 
-	test('initialize a folder workspace from an empty workspace with configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from an empty workspace with configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -508,7 +508,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	});
 
-	test('initialize a multi root workspace from an empty workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with no configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -531,7 +531,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	});
 
-	test('initialize a multi root workspace from an empty workspace with configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a multi root workspace from an empty workspace with configuration changes', async () => {
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
 
@@ -557,7 +557,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	});
 
-	test('initialize a folder workspace from a folder workspace with no configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from a folder workspace with no configuration changes', async () => {
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "initialization.testSetting1": "userValue" }'));
@@ -579,7 +579,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	});
 
-	test('initialize a folder workspace from a folder workspace with configuration changes', async () => {
+	(isMacintosh ? test.skip : test)('initialize a folder workspace from a folder workspace with configuration changes', async () => {
 
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		const target = sinon.spy();
@@ -601,7 +601,7 @@ suite('WorkspaceService - Initialization', () => {
 
 	});
 
-	test('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', async () => {
+	(isMacintosh ? test.skip : test)('initialize a multi folder workspace from a folder workspacce triggers change events in the right order', async () => {
 		await testObject.initialize(convertToWorkspacePayload(joinPath(ROOT, 'a')));
 		const target = sinon.spy();
 		testObject.onDidChangeWorkbenchState(target);
