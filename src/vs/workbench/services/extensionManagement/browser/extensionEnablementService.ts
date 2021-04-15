@@ -67,7 +67,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
 
 		// Trusted extensions notification
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 				this._getExtensionsByWorkspaceTrustRequirement().then(extensions => {
 					if (extensions.length) {
