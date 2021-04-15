@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { distinct, firstOrDefault, insert } from 'vs/base/common/arrays';
+import { distinct, firstOrDefault, flatten, insert } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { posix } from 'vs/base/common/path';
 import { basename, isEqual } from 'vs/base/common/resources';
@@ -100,8 +100,10 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
 				const currentEditor = group && firstOrDefault(this.editorService.findEditors(resource, group));
+				// If untitled, we want all contribution points
+				const contributionPoints = resource.scheme === Schemas.untitled ? distinct(flatten(Array.from(this._contributionPoints.values())), (contrib) => contrib.editorInfo.id) : this.findMatchingContributions(resource);
 				// Get the matching contribtuions and call resolve whether they're active for the picker
-				return this.findMatchingContributions(resource).map(contribPoint => {
+				return contributionPoints.map(contribPoint => {
 					return {
 						id: contribPoint.editorInfo.id,
 						active: currentEditor ? contribPoint.editorInfo.active(currentEditor) : false,
@@ -195,10 +197,13 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 	}
 
 	private getContributionPoint(resource: URI, override: string | undefined) {
-		let contributionPoints = this.findMatchingContributions(resource);
 		if (override) {
+			// Specific overried passed in doesn't have to match the reosurce, it can be anything
+			const contributionPoints = flatten(Array.from(this._contributionPoints.values()));
 			return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === override);
 		}
+
+		let contributionPoints = this.findMatchingContributions(resource);
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want built-in+ if no user defined setting is found. Else we will fall back to the text editor
