@@ -17,6 +17,17 @@
 
 	// noVNC, VNC, debug ports
 	"forwardPorts": [6080, 5901, 9222],
+	"portsAttributes": {
+		"6080": {
+			"label": "noVNC"
+		},
+		"5901": {
+			"label": "VNC"
+		},
+		"9222": {
+			"label": "ports"
+		}
+	},
 
 	"extensions": [
 		"dbaeumer.vscode-eslint",
