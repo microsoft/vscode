@@ -19,11 +19,13 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/objects';
 
-class MainThreadEditor {
+class MainThreadNotebook {
+
 	constructor(
 		readonly editor: INotebookEditor,
 		readonly disposables: DisposableStore
 	) { }
+
 	dispose() {
 		this.disposables.dispose();
 	}
@@ -34,7 +36,9 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _proxy: ExtHostNotebookShape;
-	private readonly _mainThreadEditors = new Map<string, MainThreadEditor>();
+	private readonly _mainThreadEditors = new Map<string, MainThreadNotebook>();
+
+	private readonly _rendererIpcHandle = new Map<string, Set<number>>();
 
 	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
 
@@ -86,7 +90,18 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 				});
 			}));
 
-			this._mainThreadEditors.set(editor.getId(), new MainThreadEditor(editor, editorDisposables));
+			editorDisposables.add(editor.onDidReceiveMessage(e => {
+				if (!e.forRenderer) {
+					return;
+				}
+				const handles = this._rendererIpcHandle.get(e.forRenderer);
+				if (handles) {
+					this._proxy.$acceptEditorIpcMessage(editor.getId(), e.forRenderer, Array.from(handles), e.message);
+				}
+			}));
+
+			const wrapper = new MainThreadNotebook(editor, editorDisposables);
+			this._mainThreadEditors.set(editor.getId(), wrapper);
 		}
 	}
 
@@ -127,6 +142,50 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		//todo@jrieken use proper selection logic!
 		return editor.textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
+
+	//#region --- IPC
+
+	async $addRendererIpc(rendererId: string, handle: number): Promise<void> {
+		let set = this._rendererIpcHandle.get(rendererId);
+		if (!set) {
+			set = new Set();
+			this._rendererIpcHandle.set(rendererId, set);
+		}
+		set.add(handle);
+	}
+
+	$removeRendererIpc(rendererId: string, handle: number): void {
+		let set = this._rendererIpcHandle.get(rendererId);
+		if (set) {
+			set.delete(handle);
+			if (set.size === 0) {
+				this._rendererIpcHandle.delete(rendererId);
+			}
+		}
+	}
+
+	async $postRendererIpcMessage(rendererId: string, handle: number, editorId: string | undefined, message: unknown): Promise<boolean> {
+		if (!this._rendererIpcHandle.get(rendererId)?.has(handle)) {
+			return false;
+		}
+
+		if (editorId) {
+			const candidate = this._mainThreadEditors.get(editorId);
+			if (candidate) {
+				candidate.editor.postMessage(rendererId, message);
+				return true;
+			} else {
+				return false;
+			}
+		}
+
+		for (const { editor } of this._mainThreadEditors.values()) {
+			editor.postMessage(rendererId, message);
+		}
+		return true;
+	}
+
+	//#endregion
 
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions = new NotebookEditorOptions({

@@ -241,7 +241,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 		}
 	}
 
-	abstract runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
+	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
 const executeCellCondition = ContextKeyExpr.or(
@@ -1318,6 +1318,7 @@ registerAction2(class extends NotebookCellAction {
 					...context.cell.metadata,
 					runState: NotebookCellExecutionState.Idle,
 					runStartTime: undefined,
+					runStartTimeAdjustment: undefined,
 					lastRunDuration: undefined,
 					statusMessage: undefined,
 					executionOrder: undefined
@@ -1531,6 +1532,7 @@ registerAction2(class extends NotebookAction {
 						...cell.metadata,
 						runState: NotebookCellExecutionState.Idle,
 						runStartTime: undefined,
+						runStartTimeAdjustment: undefined,
 						lastRunDuration: undefined,
 						statusMessage: undefined,
 						executionOrder: undefined

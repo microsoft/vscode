@@ -16,7 +16,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ActivityAction, ActivityActionViewItem, ActivityHoverAlignment, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityAction, ActivityActionViewItem, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -112,7 +112,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		action: ActivityAction,
 		private contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		getHoverAlignment: () => ActivityHoverAlignment,
+		hoverOptions: IActivityHoverOptions | undefined,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService protected readonly menuService: IMenuService,
@@ -121,7 +121,7 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(action, { draggable: false, colors, icon: true, hasPopup: true, getHoverAlignment }, themeService, hoverService);
+		super(action, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -193,7 +193,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		getHoverAlignment: () => ActivityHoverAlignment,
+		activityHoverOptions: IActivityHoverOptions | undefined,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -205,7 +205,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
-		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, getHoverAlignment, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 
 	protected async override resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
@@ -302,7 +302,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		getHoverAlignment: () => ActivityHoverAlignment,
+		activityHoverOptions: IActivityHoverOptions | undefined,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
@@ -311,7 +311,7 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, getHoverAlignment, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
 	}
 }
 

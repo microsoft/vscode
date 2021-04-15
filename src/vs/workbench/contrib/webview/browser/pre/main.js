@@ -324,8 +324,8 @@ export async function createWebviewManager(host) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
-				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
-					let scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
+				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
+					const scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}

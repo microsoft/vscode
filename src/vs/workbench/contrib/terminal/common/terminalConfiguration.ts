@@ -255,7 +255,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.showTabs': {
 			description: localize('terminal.integrated.showTabs', 'Controls whether or not the terminal tabs widget is shown'),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 		'terminal.integrated.tabsLocation': {
 			'type': 'string',

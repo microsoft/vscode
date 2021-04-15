@@ -184,7 +184,7 @@ export class SettingsEditorOptions extends EditorOptions implements ISettingsEdi
 	};
 	focusSearch?: boolean;
 
-	static create(options: ISettingsEditorOptions): SettingsEditorOptions {
+	static override create(options: ISettingsEditorOptions): SettingsEditorOptions {
 		const newOptions = new SettingsEditorOptions();
 		options = {
 			...<IEditorOptions>{

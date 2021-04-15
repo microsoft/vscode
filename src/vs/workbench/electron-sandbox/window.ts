@@ -467,7 +467,7 @@ export class NativeWindow extends Disposable {
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
 
 		// Integrity warning
-		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
+		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {

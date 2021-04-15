@@ -16,8 +16,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 
@@ -166,20 +164,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.welcomePage.hiddenCategories': {
-				'scope': ConfigurationScope.APPLICATION,
-				'type': 'array',
-				'items': { type: 'string' },
-				'default': [],
-				'description': localize('welcomePage.hiddenCategories', "Hide categories of the welcome page's getting started section that are not relevant to you.")
-			},
-		}
-	});
-
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
@@ -235,7 +219,7 @@ ExtensionsRegistry.registerExtensionPoint({
 							},
 							description: {
 								type: 'string',
-								description: localize('walkthroughs.tasks.description', "Description of task. Use markdown-style links fo commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms)")
+								description: localize('walkthroughs.tasks.description', "Description of task. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms). Links on their own line will be rendered as buttons.")
 							},
 							button: {
 								deprecationMessage: localize('walkthroughs.tasks.button.deprecated', "Deprecated. Use markdown links in the description instead, i.e. [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms), "),

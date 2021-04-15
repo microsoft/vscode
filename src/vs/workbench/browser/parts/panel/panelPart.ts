@@ -148,7 +148,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
-			getActivityHoverAlignment: () => ActivityHoverAlignment.BELOW,
+			activityHoverOptions: {
+				alignment: () => ActivityHoverAlignment.BELOW,
+				delay: () => 0
+			},
 			openComposite: compositeId => this.openPanel(compositeId, true).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,

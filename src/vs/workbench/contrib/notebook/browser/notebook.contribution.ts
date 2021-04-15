@@ -29,9 +29,7 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IN_NOTEBOOK_TEXT_DIFF_EDITOR, NOTEBOOK_DIFF_EDITOR_ID, NOTEBOOK_EDITOR_ID, NOTEBOOK_EDITOR_OPEN } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
@@ -45,7 +43,6 @@ import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/brows
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -59,6 +56,8 @@ import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
+import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/cellStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
@@ -203,42 +202,16 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
-	private _notebookEditorIsOpen: IContextKey<boolean>;
-	private _notebookDiffEditorIsOpen: IContextKey<boolean>;
-
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService,
-		@INotebookService private readonly notebookService: INotebookService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super();
-
-		this._notebookEditorIsOpen = NOTEBOOK_EDITOR_OPEN.bindTo(this.contextKeyService);
-		this._notebookDiffEditorIsOpen = IN_NOTEBOOK_TEXT_DIFF_EDITOR.bindTo(this.contextKeyService);
 
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
 				return getCellUndoRedoComparisonKey(uri);
 			}
 		}));
-
-		this.editorGroupService.whenRestored.then(() => this._updateContextKeys());
-		this._register(this.editorService.onDidActiveEditorChange(() => this._updateContextKeys()));
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this._updateContextKeys()));
-
-		this._register(this.editorGroupService.onDidAddGroup(() => this._updateContextKeys()));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this._updateContextKeys()));
-	}
-
-	private _updateContextKeys() {
-		this._notebookEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID);
-		this._notebookDiffEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_DIFF_EDITOR_ID);
-	}
-
-	getContributedEditors(resource: URI) {
-		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 }
 

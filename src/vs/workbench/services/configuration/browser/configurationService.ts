@@ -10,7 +10,7 @@ import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier, runWhenIdle, Promises } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -63,6 +63,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
+
+	protected readonly _onWillChangeWorkspaceFolders: Emitter<IWorkspaceFoldersWillChangeEvent> = this._register(new Emitter<IWorkspaceFoldersWillChangeEvent>());
+	public readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent> = this._onWillChangeWorkspaceFolders.event;
 
 	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
@@ -510,9 +513,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			const folderChanges = this.compareFolders(previousFolders, this.workspace.folders);
 			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
-				this._onDidChangeWorkspaceFolders.fire(folderChanges);
+				this.checkFoldersTrustState(folderChanges, () => {
+					this._onDidChangeWorkspaceFolders.fire(folderChanges);
+				});
 			}
-
 		}
 
 		if (!this.localUserConfiguration.hasTasksLoaded) {
@@ -740,12 +744,28 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (changes.added.length || changes.removed.length || changes.changed.length) {
 			this.workspace.folders = workspaceFolders;
 			const change = await this.onFoldersChanged();
-			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
-			this._onDidChangeWorkspaceFolders.fire(changes);
+
+			this.checkFoldersTrustState(changes, async () => {
+				this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
+				this._onDidChangeWorkspaceFolders.fire(changes);
+			});
 		} else {
 			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
 		}
 		this.updateUntrustedSettings();
+	}
+
+	private checkFoldersTrustState(changes: IWorkspaceFoldersChangeEvent, action: () => void): void {
+		const joiners: Promise<void>[] = [];
+
+		this._onWillChangeWorkspaceFolders.fire({
+			join(updateWorkspaceTrustStatePromise) {
+				joiners.push(updateWorkspaceTrustStatePromise);
+			},
+			changes
+		});
+
+		Promises.settled(joiners).finally(() => action());
 	}
 
 	private async onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder): Promise<void> {

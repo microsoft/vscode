@@ -23,6 +23,10 @@ export const WorkspaceTrustContext = {
 	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false)
 };
 
+export function isWorkspaceTrustEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
+}
+
 export class WorkspaceTrustStorageService extends Disposable implements IWorkspaceTrustStorageService {
 	_serviceBrand: undefined;
 
@@ -185,7 +189,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private calculateWorkspaceTrust(): boolean {
-		if (!this.isWorkspaceTrustEnabled()) {
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return true;
 		}
 
@@ -206,10 +210,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	setWorkspaceTrust(trusted: boolean): void {
 		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
 		this.workspaceTrustStorageService.setFoldersTrust(folderURIs, trusted);
-	}
-
-	isWorkspaceTrustEnabled(): boolean {
-		return this.configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
 	}
 }
 
@@ -301,7 +301,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._onDidCompleteWorkspaceTrustRequest.fire(trusted);
 	}
 
-	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<boolean> {
+	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: false }): Promise<boolean> {
 		// Trusted workspace
 		if (this.trusted) {
 			return this.trusted;

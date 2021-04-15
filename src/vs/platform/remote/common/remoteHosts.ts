@@ -30,16 +30,11 @@ function isVirtualResource(resource: URI) {
 	return resource.scheme !== Schemas.file && resource.scheme !== Schemas.vscodeRemote;
 }
 
-export function getVirtualWorkspaceLocation(workspace: IWorkspace): URI | undefined {
-	const configFile = workspace.configuration;
-	if (configFile && isVirtualResource(configFile)) {
-		return configFile;
-	}
+export function getVirtualWorkspaceLocation(workspace: IWorkspace): { scheme: string, authority: string } | undefined {
 	if (workspace.folders.length) {
-		const firstFolder = workspace.folders[0].uri;
-		if (isVirtualResource(firstFolder)) {
-			return firstFolder;
-		}
+		return workspace.folders.every(f => isVirtualResource(f.uri)) ? workspace.folders[0].uri : undefined;
+	} else if (workspace.configuration && isVirtualResource(workspace.configuration)) {
+		return workspace.configuration;
 	}
 	return undefined;
 }

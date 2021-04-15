@@ -720,7 +720,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.state.views.defaults?.length) {
 				mark('code/willOpenDefaultViews');
 
-				let locationsRestored: { id: string; order: number; }[] = [];
+				const locationsRestored: { id: string; order: number; }[] = [];
 
 				const tryOpenView = (view: { id: string; order: number; }): boolean => {
 					const location = this.viewDescriptorService.getViewLocationById(view.id);

@@ -27,6 +27,9 @@
     "onOpenExternalUri:http",
     "onOpenExternalUri:https"
   ],
+  "workspaceTrust": {
+    "request": "never"
+  },
   "contributes": {
     "commands": [
       {
