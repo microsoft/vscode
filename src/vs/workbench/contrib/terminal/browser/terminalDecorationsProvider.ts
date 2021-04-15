@@ -39,7 +39,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 		if (instance.statusList.primary && instance.statusList.primary.icon) {
 			return {
 				color: this.getColorForSeverity(instance.statusList.primary.severity),
-				letter: this.getStatusIcon(instance.statusList.primary.icon),
+				letter: this.getStatusIcon(instance.statusList.primary.icon, instance.statusList.statuses.length),
 				tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id)
 			};
 		}
@@ -57,17 +57,23 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 		}
 	}
 
-	getStatusIcon(icon: Codicon): string {
+	getStatusIcon(icon: Codicon, statusCount: number): string {
+		let statusIcon;
 		switch (icon) {
 			case Codicon.warning:
-				return '⚠';
+				statusIcon = '⚠';
+				break;
 			case Codicon.bell:
-				return '🔔';
+				statusIcon = 'B';
+				break;
 			case Codicon.debugDisconnect:
-				return '🔌';
+				statusIcon = 'D';
+				break;
 			default:
-				return '';
+				statusIcon = '';
+				break;
 		}
+		return statusCount > 1 ? `${statusCount}, ${statusIcon}` : statusIcon;
 	}
 
 	dispose(): void {

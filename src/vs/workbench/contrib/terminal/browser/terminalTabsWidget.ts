@@ -98,6 +98,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
+		this._terminalService.onInstancePrimaryStatusChanged(() => this._render());
 	}
 
 	private _render(): void {
@@ -208,52 +209,6 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
 			template.label.setResource(labelProps, options);
 		}
-
-		instance.statusList.onDidChangePrimaryStatus(e => {
-			const hasText = !this.shouldHideText();
-			template.element.classList.toggle('has-text', hasText);
-
-			let prefix: string = '';
-			if (tab.terminalInstances.length > 1) {
-				const terminalIndex = tab?.terminalInstances.indexOf(instance);
-				if (terminalIndex === 0) {
-					prefix = `┌ `;
-				} else if (terminalIndex === tab!.terminalInstances.length - 1) {
-					prefix = `└ `;
-				} else {
-					prefix = `├ `;
-				}
-			}
-
-			let title = instance.title;
-			const statuses = instance.statusList.statuses;
-			if (statuses.length) {
-				title += `\n\n---\n\nStatuses:`;
-				title += statuses.map(e => `\n- ${e.id}`);
-			}
-			let label: string;
-			if (!hasText) {
-				template.actionBar.clear();
-				label = `${prefix}$(${instance.icon.id})`;
-			} else {
-				this.fillActionBar(instance, template);
-				label = `${prefix}$(${instance.icon.id}) ${instance.title}`;
-			}
-
-			template.label.setLabel(label, undefined, {
-				title: {
-					markdown: new MarkdownString(title),
-					markdownNotSupportedFallback: undefined
-				}
-			});
-			if (!e) {
-				return;
-			}
-			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: instance.instanceId.toString(), path: instance.instanceId.toString() }), name: label };
-			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
-			template.label.setResource(labelProps, options);
-		});
-
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
