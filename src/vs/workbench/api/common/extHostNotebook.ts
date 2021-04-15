@@ -69,7 +69,6 @@ class ExtHostWebviewCommWrapper extends Disposable {
 		};
 	}
 
-
 	private _asWebviewUri(localResource: vscode.Uri): vscode.Uri {
 		return asWebviewUri(this._webviewInitData, this._editorId, localResource);
 	}
@@ -299,6 +298,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				return arg;
 			}
 		});
+	}
+
+	getEditorById(editorId: string): ExtHostNotebookEditor | undefined {
+		return this._editors.get(editorId);
+	}
+
+	getIdByEditor(editor: vscode.NotebookEditor): string | undefined {
+		for (const [id, candidate] of this._editors) {
+			if (candidate.apiEditor === editor) {
+				return id;
+			}
+		}
+		return undefined;
 	}
 
 	get notebookDocuments() {
@@ -719,76 +731,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			}));
 		}
 	}
-
-	private _editorIdFromApiEditor(editor: vscode.NotebookEditor): string | undefined {
-		for (const [id, candidate] of this._editors) {
-			if (candidate.apiEditor === editor) {
-				return id;
-			}
-		}
-		return undefined;
-	}
-
-	//#region --- renderer IPC ---
-
-	private readonly _rendererIpcEmitters = new Map<number, { emitter: Emitter<{ editor: vscode.NotebookEditor, message: any }> }>();
-
-	createNotebookCommunication(rendererId: string): vscode.NotebookRendererCommunication {
-
-		const that = this;
-		const handle = this._handlePool++;
-
-		const emitter = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
-
-		const registration = this._notebookEditorsProxy.$addRendererIpc(rendererId, handle);
-
-		const result: vscode.NotebookRendererCommunication = {
-
-			rendererId,
-			onDidReceiveMessage: emitter.event,
-			dispose(): void {
-				emitter.dispose();
-				that._rendererIpcEmitters.delete(handle);
-				that._notebookEditorsProxy.$removeRendererIpc(rendererId, handle);
-			},
-			async postMessage(message, editor) {
-				let editorId: string | undefined;
-				if (editor) {
-					editorId = that._editorIdFromApiEditor(editor);
-					if (!editorId) {
-						// wanted an editor but that wasn't found
-						return false;
-					}
-				}
-				await registration;
-				return that._notebookEditorsProxy.$postRendererIpcMessage(rendererId, handle, editorId, message);
-			},
-			asWebviewUri(localResource, editor) {
-				const editorId = that._editorIdFromApiEditor(editor);
-				if (!editorId) {
-					throw new Error('invalid editor');
-				}
-				return asWebviewUri(that._webviewInitData, editorId, localResource);
-			}
-		};
-
-		this._rendererIpcEmitters.set(handle, { emitter });
-		return result;
-	}
-
-	$acceptEditorIpcMessage(editorId: string, rendererId: string, handles: number[], message: unknown): void {
-
-		const editor = this._editors.get(editorId);
-		if (!editor) {
-			throw new Error('sending ipc message for UNKNOWN editor');
-		}
-
-		for (const handle of handles) {
-			this._rendererIpcEmitters.get(handle)?.emitter.fire({ editor: editor.apiEditor, message });
-		}
-	}
-
-	//#endregion
 
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void {
 		for (const id in data) {

@@ -13,19 +13,28 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 
 type ExecuteHandler = (cells: vscode.NotebookCell[], controller: vscode.NotebookController) => void;
 type InterruptHandler = (notebook: vscode.NotebookDocument) => void;
+
+interface IKernelData {
+	controller: vscode.NotebookController;
+	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
+	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any }>;
+}
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 
-	private readonly _kernelData = new Map<number, { controller: vscode.NotebookController, onDidChangeSelection: Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }> }>();
+	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
 
 	constructor(
 		mainContext: IMainContext,
+		private readonly _initData: IExtHostInitDataService,
 		private readonly _extHostNotebook: ExtHostNotebookController
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
@@ -39,7 +48,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
-		const emitter = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }>();
+		const onDidChangeSelection = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }>();
+		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
 
 		const data: INotebookKernelDto2 = {
 			id: options.id,
@@ -76,7 +86,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const controller: vscode.NotebookController = {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
-			onDidChangeNotebookAssociation: emitter.event,
+			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
 				return data.label;
 			},
@@ -142,13 +152,22 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					isDisposed = true;
 					this._kernelData.delete(handle);
 					commandDisposables.dispose();
-					emitter.dispose();
+					onDidChangeSelection.dispose();
+					onDidReceiveMessage.dispose();
 					this._proxy.$removeKernel(handle);
 				}
+			},
+			// --- ipc
+			onDidReceiveMessage: onDidReceiveMessage.event,
+			postMessage(message, editor) {
+				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
+			},
+			asWebviewUri(uri: URI, editor) {
+				return asWebviewUri(that._initData.environment, that._extHostNotebook.getIdByEditor(editor)!, uri);
 			}
 		};
 
-		this._kernelData.set(handle, { controller, onDidChangeSelection: emitter });
+		this._kernelData.set(handle, { controller, onDidChangeSelection, onDidReceiveMessage });
 
 		controller.supportedLanguages = options.supportedLanguages ?? [];
 		controller.interruptHandler = options.interruptHandler;
@@ -204,5 +223,20 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj.controller.interruptHandler) {
 			obj.controller.interruptHandler(document.notebookDocument);
 		}
+	}
+
+	$acceptRendererMessage(handle: number, editorId: string, message: any): void {
+		const obj = this._kernelData.get(handle);
+		if (!obj) {
+			// extension can dispose kernels in the meantime
+			return;
+		}
+
+		const editor = this._extHostNotebook.getEditorById(editorId);
+		if (!editor) {
+			throw new Error(`send message for UNKNOWN editor: ${editorId}`);
+		}
+
+		obj.onDidReceiveMessage.fire(Object.freeze({ editor: editor.apiEditor, message }));
 	}
 }

@@ -1423,47 +1423,6 @@ declare module 'vscode' {
 
 	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
-	export interface NotebookRendererCommunication {
-
-		/**
-		 *
-		 */
-		dispose(): void;
-
-		/**
-		 *
-		 */
-		readonly rendererId: string;
-
-		/**
-		 * Fired when the output hosting webview posts a message.
-		 */
-		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
-		/**
-		 * Post a message to the output hosting webview.
-		 *
-		 * Messages are only delivered if the editor is live.
-		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
-		 */
-		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
-
-		/**
-		 * Convert a uri for the local file system to one that can be used inside outputs webview.
-		 */
-		asWebviewUri(localResource: Uri, editor: NotebookEditor): Uri;
-	}
-
-	export namespace notebook {
-
-		/**
-		 *
-		 * @param rendererId
-		 */
-		export function createNotebookRendererCommunication(rendererId: string): NotebookRendererCommunication;
-	}
-
-
 	export interface NotebookController {
 
 		readonly id: string;
@@ -1508,6 +1467,11 @@ declare module 'vscode' {
 		 * @returns A notebook cell execution.
 		 */
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
+
+		// ipc
+		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+		asWebviewUri(localResource: Uri, editor: NotebookEditor): Uri;
 	}
 
 	export interface NotebookControllerOptions {
