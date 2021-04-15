@@ -5,17 +5,13 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import * as glob from 'vs/base/common/glob';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { posix } from 'vs/base/common/path';
-import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as nls from 'vs/nls';
 import { IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
-import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
+import { ContributedEditorPriority, globMatchesResource, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export const ICustomEditorService = createDecorator<ICustomEditorService>('customEditorService');
 
@@ -94,11 +90,6 @@ export interface CustomEditorDescriptor {
 
 export class CustomEditorInfo implements CustomEditorDescriptor {
 
-	private static readonly excludedSchemes = new Set([
-		Schemas.extension,
-		Schemas.webviewPanel,
-	]);
-
 	public readonly id: string;
 	public readonly displayName: string;
 	public readonly providerDisplayName: string;
@@ -114,22 +105,7 @@ export class CustomEditorInfo implements CustomEditorDescriptor {
 	}
 
 	matches(resource: URI): boolean {
-		return this.selector.some(selector => CustomEditorInfo.selectorMatches(selector, resource));
-	}
-
-	static selectorMatches(selector: CustomEditorSelector, resource: URI): boolean {
-		if (CustomEditorInfo.excludedSchemes.has(resource.scheme)) {
-			return false;
-		}
-
-		if (selector.filenamePattern) {
-			const matchOnPath = selector.filenamePattern.indexOf(posix.sep) >= 0;
-			const target = matchOnPath ? resource.path : basename(resource);
-			if (glob.match(selector.filenamePattern.toLowerCase(), target.toLowerCase())) {
-				return true;
-			}
-		}
-		return false;
+		return this.selector.some(selector => selector.filenamePattern && globMatchesResource(selector.filenamePattern, resource));
 	}
 }
 

@@ -38,11 +38,11 @@ import { Extensions as EditorExtensions, IEditorTypesHandler, IEditorType, IEdit
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { Lazy } from 'vs/base/common/lazy';
-import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
-import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 
 export class NotebookKernelProviderInfoStore {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
@@ -91,7 +91,7 @@ export class NotebookProviderInfoStore extends Disposable {
 	constructor(
 		storageService: IStorageService,
 		extensionService: IExtensionService,
-		private readonly _extensionContributedEditorService: IExtensionContributedEditorService,
+		private readonly _editorOverrideService: IEditorOverrideService,
 		private readonly _instantiationService: IInstantiationService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _accessibilityService: IAccessibilityService,
@@ -177,7 +177,7 @@ export class NotebookProviderInfoStore extends Disposable {
 	private registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): void {
 		for (const selector of notebookProviderInfo.selectors) {
 			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
-			this._register(this._extensionContributedEditorService.registerContributionPoint(
+			this._register(this._editorOverrideService.registerContributionPoint(
 				globPattern,
 				priorityToRank(notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority),
 				{
@@ -356,13 +356,13 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionContributedEditorService private readonly _extensionContributedEditorService: IExtensionContributedEditorService,
+		@IEditorOverrideService private readonly _editorOverrideService: IEditorOverrideService,
 	) {
 		super();
 
 		this._notebookProviderInfoStore = new NotebookProviderInfoStore(
 			this._storageService,
-			this._extensionService, this._extensionContributedEditorService,
+			this._extensionService, this._editorOverrideService,
 			this._instantiationService, this._configurationService,
 			this._accessibilityService
 		);

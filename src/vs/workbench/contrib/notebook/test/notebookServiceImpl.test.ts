@@ -10,10 +10,10 @@ import { mock } from 'vs/base/test/common/mock';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
-import { ContributedEditorPriority } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
@@ -30,7 +30,7 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;
 			},
-			instantiationService.createInstance(ExtensionContributedEditorService),
+			instantiationService.createInstance(EditorOverrideService),
 			instantiationService,
 			new TestConfigurationService(),
 			new class extends mock<IAccessibilityService>() {

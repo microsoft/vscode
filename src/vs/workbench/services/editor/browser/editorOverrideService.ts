@@ -6,8 +6,7 @@
 import * as glob from 'vs/base/common/glob';
 import { distinct, firstOrDefault, flatten, insert } from 'vs/base/common/arrays';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { posix } from 'vs/base/common/path';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -15,12 +14,11 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
 import { EditorOptions, IEditorInput, IEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
-import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { ContributedEditorPriority, globMatchesResource, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
@@ -55,7 +53,7 @@ type EditorInputFactoryFunction = (resource: URI, editorID: string, options: IEd
 
 type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, editorID: string, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
-export interface IExtensionContributedEditorService {
+export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;
 	getAssociationsForResource(resource: URI): EditorAssociations;
 	/**
@@ -75,17 +73,7 @@ export interface IExtensionContributedEditorService {
 	): IDisposable;
 }
 
-export interface IExtensionContributedEditorHandler {
-	/**
-	 * Given a list of associations for a given resource, returns whihc overrides that contribution point can handle
-	 * @param resource The URI of the current resource you want the overrides of
-	 * @param currentEditor The current editor
-	 */
-	getEditorOverrides?(resource: URI, currentEditor: IEditorInput | undefined): IOpenEditorOverrideEntry[];
-	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
-}
-
-export class ExtensionContributedEditorService extends Disposable implements IExtensionContributedEditorService {
+export class EditorOverrideService extends Disposable implements IEditorOverrideService {
 	readonly _serviceBrand: undefined;
 
 	private _contributionPoints: Map<string | glob.IRelativePattern, ContributionPoints> = new Map<string | glob.IRelativePattern, ContributionPoints>();
@@ -176,7 +164,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 
 	getAssociationsForResource(resource: URI): EditorAssociations {
 		const rawAssociations = this.configurationService.getValue<EditorAssociations>(editorsAssociationsSettingId) || [];
-		return rawAssociations.filter(association => CustomEditorInfo.selectorMatches(association, resource));
+		return rawAssociations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
 	}
 
 	private findMatchingContributions(resource: URI): ContributionPoint[] {
@@ -185,9 +173,7 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 		for (const key of this._contributionPoints.keys()) {
 			const contributionPoints = this._contributionPoints.get(key)!;
 			for (const contributionPoint of contributionPoints) {
-				const matchOnPath = typeof contributionPoint.globPattern === 'string' && contributionPoint?.globPattern.indexOf(posix.sep) >= 0;
-				const target = matchOnPath ? resource.path : basename(resource);
-				if (glob.match(contributionPoint.globPattern, target)) {
+				if (globMatchesResource(key, resource)) {
 					contributions.push(contributionPoint);
 				}
 			}
@@ -320,5 +306,5 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 	}
 }
 
-export const IExtensionContributedEditorService = createDecorator<IExtensionContributedEditorService>('extensionContributedEditorService');
-registerSingleton(IExtensionContributedEditorService, ExtensionContributedEditorService);
+export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
+registerSingleton(IEditorOverrideService, EditorOverrideService);
