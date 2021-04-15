@@ -265,10 +265,8 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 					existing.dispose();
 				}
 			}
-			return;
-		} else {
-			return group.openEditor(input, options);
 		}
+		return group.openEditor(input, options);
 	}
 
 	private closeExistingEditorsForResource(
