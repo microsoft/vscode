@@ -572,7 +572,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const data = await serializer.dataToNotebook(bytes.buffer);
+		const data = await serializer.deserializeNotebook(bytes.buffer);
 		return {
 			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
@@ -584,7 +584,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const bytes = await serializer.notebookToData({
+		const bytes = await serializer.serializeNotebook({
 			metadata: typeConverters.NotebookDocumentMetadata.to(data.metadata),
 			cells: data.cells.map(typeConverters.NotebookCellData.to)
 		});

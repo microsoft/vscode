@@ -1404,8 +1404,8 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookSerializer
 
 	export interface NotebookSerializer {
-		dataToNotebook(data: Uint8Array): NotebookData | Thenable<NotebookData>;
-		notebookToData(data: NotebookData): Uint8Array | Thenable<Uint8Array>;
+		deserializeNotebook(data: Uint8Array): NotebookData | Thenable<NotebookData>;
+		serializeNotebook(data: NotebookData): Uint8Array | Thenable<Uint8Array>;
 	}
 
 	export namespace notebook {
