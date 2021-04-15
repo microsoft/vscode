@@ -51,6 +51,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IDialogService private readonly dialogService: IDialogService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -139,6 +141,32 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			if (trusted) {
 				this.toggleRequestBadge(false);
 			}
+		}));
+
+		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
+			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+
+			return e.join(new Promise(async resolve => {
+				// Workspace is trusted and there are added/changed folders
+				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
+					const addedFoldersTrustStateInfo = e.changes.added.map(folder => this.workspaceTrustStorageService.getFolderTrustStateInfo(folder.uri));
+					if (!addedFoldersTrustStateInfo.map(i => i.trusted).every(trusted => trusted)) {
+						const result = await this.dialogService.confirm({
+							message: localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
+							detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?"),
+							primaryButton: localize('yes', 'Yes'),
+							secondaryButton: localize('no', 'No')
+						});
+
+						// Mark added/changed folders as trusted
+						this.workspaceTrustStorageService.setFoldersTrust(addedFoldersTrustStateInfo.map(i => i.uri), result.confirmed);
+
+						resolve();
+					}
+				}
+
+				resolve();
+			}));
 		}));
 
 		// Don't auto-show the UX editor if the request is 5 seconds after startup

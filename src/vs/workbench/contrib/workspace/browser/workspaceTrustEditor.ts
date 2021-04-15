@@ -120,6 +120,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private registerListeners(): void {
+		this._register(this.workspaceTrustStorageService.onDidStorageChange(() => this.render()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
 		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
