@@ -100,13 +100,11 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 	readonly _serviceBrand: undefined;
 
 	private _contributionPoints: Map<string | glob.IRelativePattern, ContributionPoints> = new Map<string | glob.IRelativePattern, ContributionPoints>();
-	private readonly _editorChoiceStorageID = 'extensionContributedEditorService.editorChoice';
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -327,16 +325,6 @@ export class ExtensionContributedEditorService extends Disposable implements IEx
 			}
 		}
 		return out;
-	}
-
-	// @ts-ignore
-	private storeUserChoice(override: string) {
-		const currentChoices: ExtensionContributedEditorChoiceEntry[] = JSON.parse(this.storageService.get(this._editorChoiceStorageID, StorageScope.GLOBAL, '[]'));
-		const currentChoice = currentChoices.find(entry => entry.editorID === override);
-		if (!currentChoice) {
-			currentChoices.push({ editorID: override, choice: ExtensionContributedEditorChoice.OPTIONAL });
-			this.storageService.store(this._editorChoiceStorageID, JSON.stringify(currentChoices), StorageScope.GLOBAL, StorageTarget.USER);
-		}
 	}
 }
 
