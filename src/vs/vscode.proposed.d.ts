@@ -1492,7 +1492,7 @@ declare module 'vscode' {
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
 		 * Run Selection etc.
 		 */
-		readonly executeHandler: (executions: NotebookCellExecutionTask[]) => void;
+		readonly executeHandler: (cells: NotebookCell[], controller: NotebookController) => void;
 
 		// optional kernel interrupt command
 		interruptHandler?: (notebook: NotebookDocument) => void
@@ -1518,7 +1518,7 @@ declare module 'vscode' {
 		selector: NotebookSelector;
 		supportedLanguages?: string[];
 		hasExecutionOrder?: boolean;
-		executeHandler: (executions: NotebookCellExecutionTask[]) => void;
+		executeHandler: (cells: NotebookCell[], controller: NotebookController) => void;
 		interruptHandler?: (notebook: NotebookDocument) => void
 	}
 

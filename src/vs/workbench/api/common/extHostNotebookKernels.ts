@@ -14,14 +14,14 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon'
 import { NotebookCellRange } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 
-type ExecuteHandler = (executions: vscode.NotebookCellExecutionTask[]) => void;
+type ExecuteHandler = (cells: vscode.NotebookCell[], controller: vscode.NotebookController) => void;
 type InterruptHandler = (notebook: vscode.NotebookDocument) => void;
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private readonly _proxy: MainThreadNotebookKernelsShape;
 
-	private readonly _kernelData = new Map<number, { id: string, executeHandler: ExecuteHandler, interruptHandler?: InterruptHandler, onDidChangeSelection: Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }> }>();
+	private readonly _kernelData = new Map<number, { controller: vscode.NotebookController, onDidChangeSelection: Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }> }>();
 	private _handlePool: number = 0;
 
 	constructor(
@@ -40,7 +40,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const commandDisposables = new DisposableStore();
 
 		const emitter = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }>();
-		this._kernelData.set(handle, { id: options.id, executeHandler: options.executeHandler, onDidChangeSelection: emitter });
 
 		const data: INotebookKernelDto2 = {
 			id: options.id,
@@ -50,6 +49,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			label: options.label,
 			supportedLanguages: [],
 		};
+
+		//
+		let _executeHandler: ExecuteHandler = options.executeHandler;
+		let _interruptHandler: InterruptHandler | undefined = options.interruptHandler;
 
 		// todo@jrieken the selector needs to be massaged
 		this._proxy.$addKernel(handle, data);
@@ -70,7 +73,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			});
 		};
 
-		const result: vscode.NotebookController = {
+		const controller: vscode.NotebookController = {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
 			onDidChangeNotebookAssociation: emitter.event,
@@ -103,13 +106,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get executeHandler() {
-				return that._kernelData.get(handle)!.executeHandler;
+				return _executeHandler;
 			},
 			get interruptHandler() {
-				return that._kernelData.get(handle)!.interruptHandler;
+				return _interruptHandler;
 			},
 			set interruptHandler(value) {
-				that._kernelData.get(handle)!.interruptHandler = value;
+				_interruptHandler = value;
 				data.supportsInterrupt = Boolean(value);
 				_update();
 			},
@@ -118,7 +121,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					throw new Error('object disposed');
 				}
 				//todo@jrieken
-				return that._extHostNotebook.createNotebookCellExecution(cell.document.uri, cell.index, data.id)!;
+				return that._extHostNotebook.createNotebookCellExecution(cell.notebook.uri, cell.index, data.id)!;
 			},
 			dispose: () => {
 				if (!isDisposed) {
@@ -131,11 +134,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			}
 		};
 
-		result.supportedLanguages = options.supportedLanguages ?? [];
-		result.interruptHandler = options.interruptHandler;
-		result.hasExecutionOrder = options.hasExecutionOrder ?? false;
+		this._kernelData.set(handle, { controller, onDidChangeSelection: emitter });
 
-		return result;
+		controller.supportedLanguages = options.supportedLanguages ?? [];
+		controller.interruptHandler = options.interruptHandler;
+		controller.hasExecutionOrder = options.hasExecutionOrder ?? false;
+
+		return controller;
 	}
 
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {
@@ -159,22 +164,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			throw new Error('MISSING notebook');
 		}
 
-		const execs: vscode.NotebookCellExecutionTask[] = [];
+		const cells: vscode.NotebookCell[] = [];
 		for (let range of ranges) {
-			const cells = document.notebookDocument.getCells(NotebookCellRange.to(range));
-			for (let cell of cells) {
-				const exec = this._extHostNotebook.createNotebookCellExecution(document.uri, cell.index, obj.id);
-				if (exec) {
-					execs.push(exec);
-				} else {
-					// todo@jrieken there should always be an exec-object
-					console.warn('could NOT create notebook cell execution task for: ' + cell.document.uri);
-				}
-			}
+			cells.push(...document.notebookDocument.getCells(NotebookCellRange.to(range)));
 		}
 
 		try {
-			obj.executeHandler(execs);
+			obj.controller.executeHandler(cells, obj.controller);
 		} catch (err) {
 			//
 			console.error(err);
@@ -191,8 +187,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (!document) {
 			throw new Error('MISSING notebook');
 		}
-		if (obj.interruptHandler) {
-			obj.interruptHandler(document.notebookDocument);
+		if (obj.controller.interruptHandler) {
+			obj.controller.interruptHandler(document.notebookDocument);
 		}
 	}
 }
