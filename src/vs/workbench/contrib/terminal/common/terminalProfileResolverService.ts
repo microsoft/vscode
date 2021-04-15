@@ -19,6 +19,8 @@ export interface IProfileContextProvider {
 	getLastActiveWorkspace: () => IWorkspaceFolder | undefined;
 }
 
+const generatedProfileName = 'Generated';
+
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
 	constructor(
 		private readonly _context: IProfileContextProvider,
@@ -28,7 +30,22 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	) {
 	}
 
-	resolve(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): void {
+	async resolve(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
+		// Resolve the shell and shell args
+		let resolvedProfile: ITerminalProfile;
+		if (shellLaunchConfig.executable) {
+			resolvedProfile = await this._resolveProfile({
+				path: shellLaunchConfig.executable,
+				args: shellLaunchConfig.args,
+				profileName: generatedProfileName
+			}, options);
+		} else {
+			resolvedProfile = await this.getDefaultProfile(options);
+		}
+		shellLaunchConfig.executable = resolvedProfile.path;
+		shellLaunchConfig.args = resolvedProfile.args;
+
+		// TODO: Also resolve environment
 	}
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
@@ -82,7 +99,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		return {
-			profileName: 'Default Profile',
+			profileName: generatedProfileName,
 			path: executable,
 			args
 		};
@@ -95,7 +112,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		return {
 			path: automationShell,
-			profileName: 'Automation Shell'
+			profileName: generatedProfileName
 		};
 	}
 
