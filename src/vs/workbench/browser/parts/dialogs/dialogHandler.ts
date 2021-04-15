@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput, IDialogHandler, ICustomDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogOptions, IConfirmation, IConfirmationResult, DialogType, IShowResult, IInputResult, ICheckbox, IInput, IDialogHandler } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -67,7 +67,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> {
 		this.logService.trace('DialogService#show', message);
 
-		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox, undefined, typeof options?.custom === 'object' ? options.custom : undefined);
+		const result = await this.doShow(this.getDialogType(severity), message, buttons, options?.detail, options?.cancelId, options?.checkbox);
 
 		return {
 			choice: result.button,
@@ -75,7 +75,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 		};
 	}
 
-	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
+	private async doShow(type: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending' | undefined, message: string, buttons: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInput[]): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 		const dialog = new Dialog(
 			this.layoutService.container,
@@ -93,8 +93,6 @@ export class BrowserDialogHandler implements IDialogHandler {
 						}
 					}
 				},
-				bodyRenderer: customOptions?.renderDelegate,
-				icon: customOptions?.icon,
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
 				inputs

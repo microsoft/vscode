@@ -5,7 +5,7 @@
 
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { $, hide, show, EventHelper, clearNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -26,10 +26,6 @@ export interface IDialogInputOptions {
 	readonly value?: string;
 }
 
-export interface IDialogBodyRenderer extends IDisposable {
-	readonly render: (parent: HTMLElement) => void;
-}
-
 export interface IDialogOptions {
 	readonly cancelId?: number;
 	readonly detail?: string;
@@ -38,8 +34,6 @@ export interface IDialogOptions {
 	readonly type?: 'none' | 'info' | 'error' | 'question' | 'warning' | 'pending';
 	readonly inputs?: IDialogInputOptions[];
 	readonly keyEventProcessor?: (event: StandardKeyboardEvent) => void;
-	readonly bodyRenderer?: IDialogBodyRenderer;
-	readonly icon?: Codicon;
 }
 
 export interface IDialogResult {
@@ -103,24 +97,14 @@ export class Dialog extends Disposable {
 		this.iconElement = messageRowElement.appendChild($('.dialog-icon'));
 		const messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
-		if (this.options.detail || this.options.bodyRenderer) {
+		if (this.options.detail) {
 			const messageElement = messageContainer.appendChild($('.dialog-message'));
 			const messageTextElement = messageElement.appendChild($('.dialog-message-text'));
 			messageTextElement.innerText = this.message;
 		}
 
 		this.messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
-		if (this.options.detail || !this.options.bodyRenderer) {
-			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
-		} else {
-			this.messageDetailElement.style.display = 'none';
-		}
-
-		if (this.options.bodyRenderer) {
-			const customBody = messageContainer.appendChild($('.dialog-message-body'));
-			this.options.bodyRenderer.render(customBody);
-			this._register(this.options.bodyRenderer);
-		}
+		this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 
 		if (this.options.inputs) {
 			this.inputs = this.options.inputs.map(input => {
@@ -329,26 +313,22 @@ export class Dialog extends Disposable {
 
 			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray, spinModifierClassName);
 
-			if (this.options.icon) {
-				this.iconElement.classList.add(...this.options.icon.classNamesArray);
-			} else {
-				switch (this.options.type) {
-					case 'error':
-						this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
-						break;
-					case 'warning':
-						this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
-						break;
-					case 'pending':
-						this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
-						break;
-					case 'none':
-					case 'info':
-					case 'question':
-					default:
-						this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
-						break;
-				}
+			switch (this.options.type) {
+				case 'error':
+					this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
+					break;
+				case 'warning':
+					this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
+					break;
+				case 'pending':
+					this.iconElement.classList.add(...Codicon.loading.classNamesArray, spinModifierClassName);
+					break;
+				case 'none':
+				case 'info':
+				case 'question':
+				default:
+					this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
+					break;
 			}
 
 			const actionBar = this._register(new ActionBar(this.toolbarContainer, {}));
