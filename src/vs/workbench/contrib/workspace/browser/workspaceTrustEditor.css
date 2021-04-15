@@ -237,3 +237,23 @@
 	margin-left: 4px;
 	min-width: 20%;
 }
+
+.workspace-trust-intro-dialog {
+	min-width: min(50vw, 500px);
+	padding-right: 24px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row p {
+	display: flex;
+	align-items: center;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.badge-row img {
+	max-height: 40px;
+	padding-right: 10px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.status-bar img {
+	max-height: 32px;
+	padding-right: 10px;
+}
