@@ -1055,10 +1055,6 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly version: number;
 
-		/** @deprecated Use `uri` instead */
-		// todo@API don't have this...
-		readonly fileName: string;
-
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
 
