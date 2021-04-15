@@ -199,7 +199,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const cells: vscode.NotebookCell[] = [];
 		for (let range of ranges) {
-			cells.push(...document.notebookDocument.getCells(extHostTypeConverters.NotebookCellRange.to(range)));
+			cells.push(...document.notebookDocument.getCells(extHostTypeConverters.NotebookRange.to(range)));
 		}
 
 		try {

@@ -172,7 +172,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 			return;
 		}
 
-		const extCellRange = cellRange.map(c => typeConverters.NotebookCellRange.to(c));
+		const extCellRange = cellRange.map(c => typeConverters.NotebookRange.to(c));
 		return kernel.executeCellsRequest(document.notebookDocument, extCellRange);
 	}
 
@@ -468,7 +468,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			resolvedOptions = {
 				position: typeConverters.ViewColumn.from(options.viewColumn),
 				preserveFocus: options.preserveFocus,
-				selections: options.selections && options.selections.map(typeConverters.NotebookCellRange.from),
+				selections: options.selections && options.selections.map(typeConverters.NotebookRange.from),
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined
 			};
 		} else {
@@ -711,10 +711,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		// ONE: make all state updates
 		if (data.visibleRanges) {
-			editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookCellRange.to));
+			editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookRange.to));
 		}
 		if (data.selections) {
-			editor._acceptSelections(data.selections.selections.map(typeConverters.NotebookCellRange.to));
+			editor._acceptSelections(data.selections.selections.map(typeConverters.NotebookRange.to));
 		}
 
 		// TWO: send all events after states have been updated
@@ -769,8 +769,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			editorId,
 			this._notebookEditorsProxy,
 			document,
-			data.visibleRanges.map(typeConverters.NotebookCellRange.to),
-			data.selections.map(typeConverters.NotebookCellRange.to),
+			data.visibleRanges.map(typeConverters.NotebookRange.to),
+			data.selections.map(typeConverters.NotebookRange.to),
 			typeof data.viewColumn === 'number' ? typeConverters.ViewColumn.to(data.viewColumn) : undefined
 		);
 

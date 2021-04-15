@@ -1405,14 +1405,14 @@ export namespace LanguageSelector {
 	}
 }
 
-export namespace NotebookCellRange {
+export namespace NotebookRange {
 
-	export function from(range: vscode.NotebookCellRange): notebooks.ICellRange {
+	export function from(range: vscode.NotebookRange): notebooks.ICellRange {
 		return { start: range.start, end: range.end };
 	}
 
-	export function to(range: notebooks.ICellRange): types.NotebookCellRange {
-		return new types.NotebookCellRange(range.start, range.end);
+	export function to(range: notebooks.ICellRange): types.NotebookRange {
+		return new types.NotebookRange(range.start, range.end);
 	}
 }
 

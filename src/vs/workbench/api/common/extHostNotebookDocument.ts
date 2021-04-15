@@ -227,7 +227,7 @@ export class ExtHostNotebookDocument {
 		}
 	}
 
-	private _validateRange(range: vscode.NotebookCellRange): vscode.NotebookCellRange {
+	private _validateRange(range: vscode.NotebookRange): vscode.NotebookRange {
 		if (range.start < 0) {
 			range = range.with({ start: 0 });
 		}
@@ -237,7 +237,7 @@ export class ExtHostNotebookDocument {
 		return range;
 	}
 
-	private _getCells(range: vscode.NotebookCellRange): ExtHostCell[] {
+	private _getCells(range: vscode.NotebookRange): ExtHostCell[] {
 		range = this._validateRange(range);
 		const result: ExtHostCell[] = [];
 		for (let i = range.start; i < range.end; i++) {

@@ -1079,7 +1079,7 @@ declare module 'vscode' {
 		 * @param range A notebook range.
 		 * @returns The cells contained by the range or all cells.
 		 */
-		getCells(range?: NotebookCellRange): NotebookCell[];
+		getCells(range?: NotebookRange): NotebookCell[];
 
 		/**
 		 * Save the document. The saving will be handled by the corresponding content provider
@@ -1091,9 +1091,7 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 	}
 
-	// todo@API RENAME to NotebookRange
-	// todo@API maybe have a NotebookCellPosition sibling
-	export class NotebookCellRange {
+	export class NotebookRange {
 		readonly start: number;
 		/**
 		 * exclusive
@@ -1104,7 +1102,7 @@ declare module 'vscode' {
 
 		constructor(start: number, end: number);
 
-		with(change: { start?: number, end?: number }): NotebookCellRange;
+		with(change: { start?: number, end?: number }): NotebookRange;
 	}
 
 	export enum NotebookEditorRevealType {
@@ -1140,14 +1138,14 @@ declare module 'vscode' {
 		 *
 		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
 		 */
-		readonly selections: NotebookCellRange[];
+		readonly selections: NotebookRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).
 		 */
-		readonly visibleRanges: NotebookCellRange[];
+		readonly visibleRanges: NotebookRange[];
 
-		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
+		revealRange(range: NotebookRange, revealType?: NotebookEditorRevealType): void;
 
 		/**
 		 * The column in which this editor shows.
@@ -1194,12 +1192,12 @@ declare module 'vscode' {
 
 	export interface NotebookEditorSelectionChangeEvent {
 		readonly notebookEditor: NotebookEditor;
-		readonly selections: ReadonlyArray<NotebookCellRange>
+		readonly selections: ReadonlyArray<NotebookRange>
 	}
 
 	export interface NotebookEditorVisibleRangesChangeEvent {
 		readonly notebookEditor: NotebookEditor;
-		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
+		readonly visibleRanges: ReadonlyArray<NotebookRange>;
 	}
 
 	export interface NotebookCellExecutionStateChangeEvent {
@@ -1272,7 +1270,7 @@ declare module 'vscode' {
 		viewColumn?: ViewColumn;
 		preserveFocus?: boolean;
 		preview?: boolean;
-		selections?: NotebookCellRange[];
+		selections?: NotebookRange[];
 	}
 
 	export namespace notebook {
@@ -1595,7 +1593,7 @@ declare module 'vscode' {
 		 * createNotebookCellExecutionTask has not been called by the time the promise returned by this method is
 		 * resolved, the cell will be put back into the Idle state.
 		 */
-		executeCellsRequest(document: NotebookDocument, ranges: NotebookCellRange[]): Thenable<void>;
+		executeCellsRequest(document: NotebookDocument, ranges: NotebookRange[]): Thenable<void>;
 	}
 
 	export interface NotebookCellExecuteStartContext {
@@ -1701,7 +1699,7 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditorDecorationType
 
 	export interface NotebookEditor {
-		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookCellRange): void;
+		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookRange): void;
 	}
 
 	export interface NotebookDecorationRenderOptions {

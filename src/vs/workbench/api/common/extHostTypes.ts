@@ -2895,7 +2895,7 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
-export class NotebookCellRange {
+export class NotebookRange {
 
 	private _start: number;
 	private _end: number;
@@ -2923,7 +2923,7 @@ export class NotebookCellRange {
 		this._end = end;
 	}
 
-	with(change: { start?: number, end?: number }): NotebookCellRange {
+	with(change: { start?: number, end?: number }): NotebookRange {
 		let start = this._start;
 		let end = this._end;
 
@@ -2936,7 +2936,7 @@ export class NotebookCellRange {
 		if (start === this._start && end === this._end) {
 			return this;
 		}
-		return new NotebookCellRange(start, end);
+		return new NotebookRange(start, end);
 	}
 }
 
