@@ -271,6 +271,9 @@ export function createVariableResolver(lastActiveWorkspace: IWorkspaceFolder | u
 	return (str) => configurationResolverService.resolve(lastActiveWorkspace, str);
 }
 
+/**
+ * @deprecated Use ITerminalProfileResolverService
+ */
 export function getDefaultShell(
 	fetchSetting: (key: TerminalShellSetting) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,
@@ -318,6 +321,9 @@ export function getDefaultShell(
 	return executable;
 }
 
+/**
+ * @deprecated Use ITerminalProfileResolverService
+ */
 export function getDefaultShellArgs(
 	fetchSetting: (key: TerminalShellSetting | TerminalShellArgsSetting) => { userValue?: string | string[], value?: string | string[], defaultValue?: string | string[] },
 	isWorkspaceShellAllowed: boolean,

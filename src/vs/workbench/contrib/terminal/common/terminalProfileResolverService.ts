@@ -33,6 +33,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
+		// TODO: Consider workspace trust
+
 		// Resolve the shell and shell args
 		let resolvedProfile: ITerminalProfile;
 		if (shellLaunchConfig.executable) {
@@ -60,6 +62,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		return this._resolveProfile(await this._getUnresolvedDefaultProfile(options), options);
+	}
+
+	getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._context.getShellEnvironment();
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
