@@ -59,7 +59,7 @@ const kernel1 = new class implements vscode.NotebookKernel {
 	readonly isPreferred = true;
 	readonly supportedLanguages = ['typescript', 'javascript'];
 
-	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 		if (ranges.length > 1 || ranges[0].start + 1 < ranges[0].end) {
 			// Keeping same behavior... if the full notebook is executed, just execute the first cell
 			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, 0, 'mainKernel');
@@ -110,7 +110,7 @@ const kernel2 = new class implements vscode.NotebookKernel {
 	readonly isPreferred = false;
 	readonly supportedLanguages = ['typescript', 'javascript'];
 
-	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 		if (ranges.length > 1 || ranges[0].start + 1 < ranges[0].end) {
 			// Keeping same behavior... if the full notebook is executed, just execute the first cell
 			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, 0, 'secondaryKernel');
@@ -833,7 +833,7 @@ suite('Notebook API tests', function () {
 			readonly isPreferred = false;
 			readonly supportedLanguages = ['typescript', 'javascript'];
 
-			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 				const idx = ranges[0].start;
 
 				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'cancelableKernel');
@@ -882,7 +882,7 @@ suite('Notebook API tests', function () {
 
 			private _task: vscode.NotebookCellExecutionTask | undefined;
 
-			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 				const idx = ranges[0].start;
 
 				this._task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'interruptableKernel');
@@ -1327,7 +1327,7 @@ suite('Notebook API tests', function () {
 			readonly isPreferred = false;
 			readonly supportedLanguages = ['typescript', 'javascript'];
 
-			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) {
 				const idx = ranges[0].start;
 
 				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, this.id);
@@ -1394,7 +1394,7 @@ suite('Notebook API tests', function () {
 			readonly isPreferred = false;
 			readonly supportedLanguages = ['typescript', 'javascript'];
 
-			async executeCellsRequest(document: vscode.NotebookDocument, _ranges: vscode.NotebookCellRange[]) {
+			async executeCellsRequest(document: vscode.NotebookDocument, _ranges: vscode.NotebookRange[]) {
 				try {
 					vscode.notebook.createNotebookCellExecutionTask(document.uri, 1000, this.id);
 					missedError = 'Expected to throw for invalid index';

@@ -62,7 +62,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		id: 'notebookSmokeTest',
 		label: 'notebookSmokeTest',
 		isPreferred: true,
-		executeCellsRequest: async (document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]) => {
+		executeCellsRequest: async (document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]) => {
 			const idx = ranges[0].start;
 			const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, idx, 'notebookSmokeTest');
 			if (!task) {
