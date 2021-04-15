@@ -567,19 +567,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	async $dataToNotebook(handle: number, bytes: VSBuffer): Promise<NotebookDataDto> {
+	async $dataToNotebook(handle: number, bytes: VSBuffer, token: CancellationToken): Promise<NotebookDataDto> {
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const data = await serializer.deserializeNotebook(bytes.buffer);
+		const data = await serializer.deserializeNotebook(bytes.buffer, token);
 		return {
 			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
 		};
 	}
 
-	async $notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer> {
+	async $notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer> {
 		const serializer = this._notebookSerializer.get(handle);
 		if (!serializer) {
 			throw new Error('NO serializer found');
@@ -587,7 +587,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const bytes = await serializer.serializeNotebook({
 			metadata: typeConverters.NotebookDocumentMetadata.to(data.metadata),
 			cells: data.cells.map(typeConverters.NotebookCellData.to)
-		});
+		}, token);
 		return VSBuffer.wrap(bytes);
 	}
 

@@ -1942,8 +1942,8 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
 
-	$dataToNotebook(handle: number, data: VSBuffer): Promise<NotebookDataDto>;
-	$notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer>;
+	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<NotebookDataDto>;
+	$notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer>;
 }
 
 export interface ExtHostNotebookDocumentsAndEditorsShape {
