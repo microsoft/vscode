@@ -11,7 +11,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookCellRange } from 'vs/workbench/api/common/extHostTypeConverters';
+import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 type ExecuteHandler = (cells: vscode.NotebookCell[], controller: vscode.NotebookController) => void;
@@ -105,6 +105,13 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.hasExecutionOrder = value;
 				_update();
 			},
+			get preloads() {
+				return data.preloads && data.preloads.map(extHostTypeConverters.NotebookKernelPreload.to);
+			},
+			set preloads(value) {
+				data.preloads = value && value.map(extHostTypeConverters.NotebookKernelPreload.from);
+				_update();
+			},
 			get executeHandler() {
 				return _executeHandler;
 			},
@@ -118,7 +125,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			createNotebookCellExecutionTask(cell) {
 				if (isDisposed) {
-					throw new Error('object disposed');
+					throw new Error('notebook controller is DISPOSED');
 				}
 				//todo@jrieken
 				return that._extHostNotebook.createNotebookCellExecution(cell.notebook.uri, cell.index, data.id)!;
@@ -166,7 +173,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const cells: vscode.NotebookCell[] = [];
 		for (let range of ranges) {
-			cells.push(...document.notebookDocument.getCells(NotebookCellRange.to(range)));
+			cells.push(...document.notebookDocument.getCells(extHostTypeConverters.NotebookCellRange.to(range)));
 		}
 
 		try {

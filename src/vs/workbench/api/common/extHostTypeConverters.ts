@@ -1646,6 +1646,23 @@ export namespace NotebookDocumentContentOptions {
 	}
 }
 
+export namespace NotebookKernelPreload {
+	export function from(preload: vscode.NotebookKernelPreload): { uri: UriComponents; provides: string[] } {
+		return {
+			uri: preload.uri,
+			provides: typeof preload.provides === 'string'
+				? [preload.provides]
+				: preload.provides ?? []
+		};
+	}
+	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookKernelPreload {
+		return {
+			uri: URI.revive(preload.uri),
+			provides: preload.provides
+		};
+	}
+}
+
 export namespace TestMessage {
 	export function from(message: vscode.TestMessage): ITestMessage {
 		return {

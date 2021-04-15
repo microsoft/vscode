@@ -1480,9 +1480,10 @@ declare module 'vscode' {
 
 		// UI properties (get/set)
 		label: string;
-		description: string;
 		supportedLanguages: string[];
-		hasExecutionOrder: boolean;
+		description?: string;
+		hasExecutionOrder?: boolean;
+		preloads?: NotebookKernelPreload[];
 
 		/**
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
