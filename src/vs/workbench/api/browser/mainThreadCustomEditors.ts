@@ -37,7 +37,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -295,6 +295,22 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
+
+	// TODO@mjbvz consider to enable a `typeId` that is specific for custom
+	// editors. Using a distinct `typeId` allows the working copy to have
+	// any resource (including file based resources) even if other working
+	// copies exist with the same resource.
+	//
+	// If you enable `typeId`, the value should match with the `viewType`
+	// so that we can open the working copy properly in case needed via
+	// our editor service `override` logic.
+	//
+	// IMPORTANT: changing the `typeId` has an impact on backups for this
+	// working copy. Any value that is not the empty string will be used
+	// as seed to the backup. Only change the `typeId` if you have implemented
+	// a fallback solution to resolve any existing backups that do not have
+	// this seed.
+	readonly typeId = NO_TYPE_ID;
 
 	public static async create(
 		instantiationService: IInstantiationService,

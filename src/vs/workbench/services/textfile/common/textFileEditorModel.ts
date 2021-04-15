@@ -19,7 +19,7 @@ import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
-import { IWorkingCopyService, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -65,6 +65,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
 	//#endregion
+
+	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
 
 	readonly capabilities = WorkingCopyCapabilities.None;
 

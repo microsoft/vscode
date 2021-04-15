@@ -105,7 +105,7 @@ export abstract class BackupTracker extends Disposable {
 		// Clear any running backup operation
 		this.cancelBackup(workingCopy);
 
-		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString());
+		this.logService.trace(`[backup tracker] scheduling backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
 		// Schedule new backup
 		const cts = new CancellationTokenSource();
@@ -116,7 +116,7 @@ export abstract class BackupTracker extends Disposable {
 
 			// Backup if dirty
 			if (workingCopy.isDirty()) {
-				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString());
+				this.logService.trace(`[backup tracker] creating backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
 				try {
 					const backup = await workingCopy.backup(cts.token);
@@ -125,7 +125,7 @@ export abstract class BackupTracker extends Disposable {
 					}
 
 					if (workingCopy.isDirty()) {
-						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString());
+						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
 						await this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
 					}
@@ -145,7 +145,7 @@ export abstract class BackupTracker extends Disposable {
 
 		// Keep in map for disposal as needed
 		this.pendingBackups.set(workingCopy, toDisposable(() => {
-			this.logService.trace(`[backup tracker] clearing pending backup`, workingCopy.resource.toString());
+			this.logService.trace(`[backup tracker] clearing pending backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
 			cts.dispose(true);
 			clearTimeout(handle);
@@ -166,7 +166,7 @@ export abstract class BackupTracker extends Disposable {
 	}
 
 	private discardBackup(workingCopy: IWorkingCopy): void {
-		this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString());
+		this.logService.trace(`[backup tracker] discarding backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
 		// Clear any running backup operation
 		this.cancelBackup(workingCopy);

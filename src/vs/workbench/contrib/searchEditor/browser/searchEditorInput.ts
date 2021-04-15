@@ -26,7 +26,7 @@ import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEdito
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {
@@ -111,6 +111,21 @@ export class SearchEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
+			// TODO@JacksonKearl consider to enable a `typeId` that is specific for custom
+			// editors. Using a distinct `typeId` allows the working copy to have
+			// any resource (including file based resources) even if other working
+			// copies exist with the same resource.
+			//
+			// If you enable `typeId`, the value should match with the `viewType`
+			// so that we can open the working copy properly in case needed via
+			// our editor service `override` logic.
+			//
+			// IMPORTANT: changing the `typeId` has an impact on backups for this
+			// working copy. Any value that is not the empty string will be used
+			// as seed to the backup. Only change the `typeId` if you have implemented
+			// a fallback solution to resolve any existing backups that do not have
+			// this seed.
+			readonly typeId = NO_TYPE_ID;
 			readonly resource = input.modelUri;
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;

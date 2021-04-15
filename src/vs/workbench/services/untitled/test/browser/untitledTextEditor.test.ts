@@ -149,10 +149,10 @@ suite('Untitled text editors', () => {
 		const model = await input.resolve();
 		model.textEditorModel?.setValue('foo bar');
 		assert.ok(model.isDirty());
-		assert.ok(workingCopyService.isDirty(model.resource));
+		assert.ok(workingCopyService.isDirty(model.resource, model.typeId));
 		model.textEditorModel?.setValue('');
 		assert.ok(!model.isDirty());
-		assert.ok(!workingCopyService.isDirty(model.resource));
+		assert.ok(!workingCopyService.isDirty(model.resource, model.typeId));
 		input.dispose();
 		model.dispose();
 	});

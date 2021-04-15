@@ -47,23 +47,39 @@ export interface IWorkingCopyBackup<MetaType = object> {
 }
 
 /**
+ * @deprecated it is important to provide a type identifier
+ * for working copies to enable all capabilities.
+ */
+export const NO_TYPE_ID = '';
+
+/**
  * A working copy is an abstract concept to unify handling of
  * data that can be worked on (e.g. edited) in an editor.
  *
  * Every working copy has in common that it is identified by
- * a resource `URI` and only one working copy can be registered
- * with the same `URI`.
+ * a resource `URI` and a `typeId`. There can only be one
+ * working copy registered with the same `URI` and `typeId`.
  *
  * A working copy resource may be the backing store of the data
- * (e.g. a file on disk), but that is not a requirement. The
- * `URI` is mainly used to uniquely identify a working copy among
- * others.
+ * (e.g. a file on disk), but that is not a requirement. If
+ * your working copy is file based, consider to use the
+ * `IFileWorkingCopy` instead that simplifies a lot of things
+ * when working with file based working copies.
  */
 export interface IWorkingCopy {
 
 	/**
-	 * The unique resource of the working copy. There can only be one
-	 * working copy in the system with the same URI.
+	 * The type identifier of the working copy for grouping
+	 * working copies of the same domain together.
+	 *
+	 * There can only be one working copy for a given resource
+	 * and type identifier.
+	 */
+	readonly typeId: string;
+
+	/**
+	 * The resource of the working copy must be unique for
+	 * working copies of the same `typeId`.
 	 */
 	readonly resource: URI;
 
@@ -162,7 +178,15 @@ export interface IWorkingCopyService {
 
 	readonly hasDirty: boolean;
 
-	isDirty(resource: URI): boolean;
+	/**
+	 * Figure out if working copies with the given
+	 * resource are dirty or not.
+	 *
+	 * @param resource the URI of the working copy
+	 * @param typeId optional type identifier to only
+	 * consider working copies of that type.
+	 */
+	isDirty(resource: URI, typeId?: string): boolean;
 
 	//#endregion
 
@@ -210,20 +234,26 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	get workingCopies(): IWorkingCopy[] { return Array.from(this._workingCopies.values()); }
 	private _workingCopies = new Set<IWorkingCopy>();
 
-	private readonly mapResourceToWorkingCopy = new ResourceMap<IWorkingCopy>();
+	private readonly mapResourceToWorkingCopies = new ResourceMap<Map<string, IWorkingCopy>>();
 
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
-		if (this.mapResourceToWorkingCopy.has(workingCopy.resource)) {
-			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString(true)}.`);
+		let workingCopiesForResource = this.mapResourceToWorkingCopies.get(workingCopy.resource);
+		if (workingCopiesForResource?.has(workingCopy.typeId)) {
+			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString(true)} and type ${workingCopy.typeId}.`);
 		}
 
-		const disposables = new DisposableStore();
-
-		// Registry
+		// Registry (all)
 		this._workingCopies.add(workingCopy);
-		this.mapResourceToWorkingCopy.set(workingCopy.resource, workingCopy);
+
+		// Registry (type based)
+		if (!workingCopiesForResource) {
+			workingCopiesForResource = new Map();
+			this.mapResourceToWorkingCopies.set(workingCopy.resource, workingCopiesForResource);
+		}
+		workingCopiesForResource.set(workingCopy.typeId, workingCopy);
 
 		// Wire in Events
+		const disposables = new DisposableStore();
 		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
 		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
 
@@ -244,9 +274,14 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	private unregisterWorkingCopy(workingCopy: IWorkingCopy): void {
 
-		// Remove from registry
+		// Registry (all)
 		this._workingCopies.delete(workingCopy);
-		this.mapResourceToWorkingCopy.delete(workingCopy.resource);
+
+		// Registry (type based)
+		const workingCopiesForResource = this.mapResourceToWorkingCopies.get(workingCopy.resource);
+		if (workingCopiesForResource?.delete(workingCopy.typeId) && workingCopiesForResource.size === 0) {
+			this.mapResourceToWorkingCopies.delete(workingCopy.resource);
+		}
 
 		// If copy is dirty, ensure to fire an event to signal the dirty change
 		// (a disposed working copy cannot account for being dirty in our model)
@@ -286,10 +321,23 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		return this.workingCopies.filter(workingCopy => workingCopy.isDirty());
 	}
 
-	isDirty(resource: URI): boolean {
-		const workingCopy = this.mapResourceToWorkingCopy.get(resource);
-		if (workingCopy) {
-			return workingCopy.isDirty();
+	isDirty(resource: URI, typeId?: string): boolean {
+		const workingCopies = this.mapResourceToWorkingCopies.get(resource);
+		if (workingCopies) {
+
+			// For a specific type
+			if (typeof typeId === 'string') {
+				return workingCopies.get(typeId)?.isDirty() ?? false;
+			}
+
+			// Across all working copies
+			else {
+				for (const [, workingCopy] of workingCopies) {
+					if (workingCopy.isDirty()) {
+						return true;
+					}
+				}
+			}
 		}
 
 		return false;

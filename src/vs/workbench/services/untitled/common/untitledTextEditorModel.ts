@@ -14,7 +14,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
@@ -73,6 +73,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
+	//#region Events
+
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
@@ -87,6 +89,10 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
+
+	//#endregion
+
+	readonly typeId = NO_TYPE_ID; // IMPORTANT: never change this to not break existing assumptions (e.g. backups)
 
 	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
@@ -237,6 +243,9 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return false;
 	}
 
+
+	//#region Dirty
+
 	isDirty(): boolean {
 		return this.dirty;
 	}
@@ -249,6 +258,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		this.dirty = dirty;
 		this._onDidChangeDirty.fire();
 	}
+
+	//#endregion
+
+
+	//#region Save / Revert / Backup
 
 	async save(options?: ISaveOptions): Promise<boolean> {
 		const target = await this.textFileService.save(this.resource, options);
@@ -271,6 +285,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
+
+	//#endregion
+
+
+	//#region Resolve
 
 	async override resolve(): Promise<void> {
 
@@ -383,4 +402,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this._onDidChangeName.fire();
 		}
 	}
+
+	//#endregion
 }

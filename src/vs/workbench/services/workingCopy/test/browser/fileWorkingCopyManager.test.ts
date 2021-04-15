@@ -27,7 +27,7 @@ suite('FileWorkingCopyManager', () => {
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const factory = new TestFileWorkingCopyModelFactory();
-		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>(factory, accessor.fileService, accessor.lifecycleService, accessor.labelService, instantiationService, accessor.logService, accessor.fileDialogService, accessor.workingCopyFileService, accessor.uriIdentityService);
+		manager = new FileWorkingCopyManager<TestFileWorkingCopyModel>('testWorkingCopyType', factory, accessor.fileService, accessor.lifecycleService, accessor.labelService, instantiationService, accessor.logService, accessor.fileDialogService, accessor.workingCopyFileService, accessor.uriIdentityService);
 	});
 
 	teardown(() => {
@@ -49,6 +49,7 @@ suite('FileWorkingCopyManager', () => {
 		const workingCopy1 = await resolvePromise;
 		assert.ok(workingCopy1);
 		assert.ok(workingCopy1.model);
+		assert.strictEqual(workingCopy1.typeId, 'testWorkingCopyType');
 		assert.strictEqual(manager.get(resource), workingCopy1);
 
 		const workingCopy2 = await manager.resolve(resource);
@@ -111,7 +112,7 @@ suite('FileWorkingCopyManager', () => {
 		workingCopy.dispose();
 	});
 
-	test('multiple resolves execute in sequence', async () => {
+	test('multiple resolves execute in sequence (same resources)', async () => {
 		const resource = URI.file('/test.html');
 
 		const firstPromise = manager.resolve(resource);
@@ -126,6 +127,27 @@ suite('FileWorkingCopyManager', () => {
 		assert.strictEqual(workingCopy.isDirty(), true);
 
 		workingCopy.dispose();
+	});
+
+	test('multiple resolves execute in parallel (different resources)', async () => {
+		const resource1 = URI.file('/test1.html');
+		const resource2 = URI.file('/test2.html');
+		const resource3 = URI.file('/test3.html');
+
+		const firstPromise = manager.resolve(resource1);
+		const secondPromise = manager.resolve(resource2);
+		const thirdPromise = manager.resolve(resource3);
+
+		const [workingCopy1, workingCopy2, workingCopy3] = await Promise.all([firstPromise, secondPromise, thirdPromise]);
+
+		assert.strictEqual(manager.workingCopies.length, 3);
+		assert.strictEqual(workingCopy1.resource.toString(), resource1.toString());
+		assert.strictEqual(workingCopy2.resource.toString(), resource2.toString());
+		assert.strictEqual(workingCopy3.resource.toString(), resource3.toString());
+
+		workingCopy1.dispose();
+		workingCopy2.dispose();
+		workingCopy3.dispose();
 	});
 
 	test('removed from cache when working copy or model gets disposed', async () => {

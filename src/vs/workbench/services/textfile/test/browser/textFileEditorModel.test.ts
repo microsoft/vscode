@@ -99,7 +99,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.hasState(TextFileEditorModelState.DIRTY));
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 		let workingCopyEvent = false;
 		accessor.workingCopyService.onDidChangeDirty(e => {
@@ -119,7 +119,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(workingCopyEvent);
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), false);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
 
 		savedEvent = false;
 
@@ -174,7 +174,7 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 		} finally {
 			accessor.fileService.writeShouldThrowError = undefined;
 		}
@@ -210,7 +210,7 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 			model.dispose();
 		} finally {
@@ -240,7 +240,7 @@ suite('Files - TextFileEditorModel', () => {
 			assert.ok(saveErrorEvent);
 
 			assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+			assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 			model.dispose();
 		} finally {
@@ -370,7 +370,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 		await model.revert();
 		assert.strictEqual(model.isDirty(), false);
@@ -379,7 +379,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.ok(workingCopyEvent);
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), false);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
 
 		model.dispose();
 	});
@@ -403,7 +403,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 
 		await model.revert({ soft: true });
 		assert.strictEqual(model.isDirty(), false);
@@ -412,7 +412,7 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.ok(workingCopyEvent);
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), false);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), false);
 
 		model.dispose();
 	});
@@ -437,7 +437,7 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(model.isDirty());
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 1);
-		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource), true);
+		assert.strictEqual(accessor.workingCopyService.isDirty(model.resource, model.typeId), true);
 	});
 
 	test('Update Dirty', async function () {

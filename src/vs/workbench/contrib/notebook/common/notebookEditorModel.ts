@@ -10,7 +10,7 @@ import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorMode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
@@ -69,6 +69,21 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		const that = this;
 		this._workingCopyResource = URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() });
 		const workingCopyAdapter = new class implements IWorkingCopy {
+			// TODO@jrieken TODO@rebornix consider to enable a `typeId` that is
+			// specific for custom editors. Using a distinct `typeId` allows the
+			// working copy to have any resource (including file based resources)
+			// even if other working copies exist with the same resource.
+			//
+			// If you enable `typeId`, the value should match with the `viewType`
+			// so that we can open the working copy properly in case needed via
+			// our editor service `override` logic.
+			//
+			// IMPORTANT: changing the `typeId` has an impact on backups for this
+			// working copy. Any value that is not the empty string will be used
+			// as seed to the backup. Only change the `typeId` if you have implemented
+			// a fallback solution to resolve any existing backups that do not have
+			// this seed.
+			readonly typeId = NO_TYPE_ID;
 			readonly resource = that._workingCopyResource;
 			get name() { return that._name; }
 			readonly capabilities = that._isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;

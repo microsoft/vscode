@@ -142,7 +142,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	private dirty = false;
 
-	constructor(public readonly resource: URI, isDirty = false) {
+	constructor(public readonly resource: URI, isDirty = false, public readonly typeId = 'testWorkingCopyType') {
 		super();
 
 		this.dirty = isDirty;

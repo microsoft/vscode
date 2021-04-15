@@ -88,7 +88,7 @@ suite('FileWorkingCopy', function () {
 	let workingCopy: FileWorkingCopy<TestFileWorkingCopyModel>;
 
 	function createWorkingCopy() {
-		return new FileWorkingCopy<TestFileWorkingCopyModel>(resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.backupFileService, accessor.workingCopyService);
+		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.backupFileService, accessor.workingCopyService);
 	}
 
 	setup(() => {
