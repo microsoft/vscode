@@ -1608,10 +1608,11 @@ class SCMInputWidget extends Disposable {
 		}
 
 		this.validation = validation;
-		if (options?.focus) {
-			this.inputEditor.focus();
-		}
 		this.renderValidation();
+
+		if (options?.focus && !this.hasFocus()) {
+			this.focus();
+		}
 
 		if (validation && options?.timeout) {
 			this._validationTimer = setTimeout(() => this.setValidation(undefined), SCMInputWidget.ValidationTimeouts[validation.type]);
