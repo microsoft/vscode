@@ -211,6 +211,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private whenRestoredResolve: (() => void) | undefined;
 	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private restored = false;
+
+	isRestored(): boolean {
+		return this.restored;
+	}
 
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
@@ -840,6 +845,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
+			this.restored = true;
 			this.whenRestoredResolve?.();
 		});
 

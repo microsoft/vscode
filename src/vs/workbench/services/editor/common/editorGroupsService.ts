@@ -217,6 +217,11 @@ export interface IEditorGroupsService {
 	readonly whenRestored: Promise<void>;
 
 	/**
+	 * Will return `true` as soon as `whenRestored` is resolved.
+	 */
+	isRestored(): boolean;
+
+	/**
 	 * Find out if the editor group service has UI state to restore
 	 * from a previous session.
 	 */

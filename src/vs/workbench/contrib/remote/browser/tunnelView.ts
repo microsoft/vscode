@@ -420,17 +420,24 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		const context: [string, any][] =
 			[
 				['view', TUNNEL_VIEW_ID],
-				['tunnelType', element.tunnel.tunnelType],
-				['tunnelCloseable', element.tunnel.closeable]
+				[TunnelTypeContextKey.key, element.tunnel.tunnelType],
+				[TunnelCloseableContextKey.key, element.tunnel.closeable],
+				[TunnelPrivacyContextKey.key, element.tunnel.privacy]
 			];
 		const contextKeyService = this.contextKeyService.createOverlay(context);
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		if (element.menuId) {
 			const menu = disposableStore.add(this.menuService.createMenu(element.menuId, contextKeyService));
-			const actions: IAction[] = [];
+			let actions: IAction[] = [];
 			disposableStore.add(createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions));
 			if (actions) {
+				let labelActions = actions.filter(action => action.id.toLowerCase().indexOf('label') >= 0);
+				if (labelActions.length > 1) {
+					labelActions.sort((a, b) => a.label.length - b.label.length);
+					labelActions.pop();
+					actions = actions.filter(action => labelActions.indexOf(action) < 0);
+				}
 				templateData.actionBar.push(actions, { icon: true, label: false });
 				if (this._actionRunner) {
 					templateData.actionBar.actionRunner = this._actionRunner;
@@ -956,6 +963,7 @@ export class TunnelPanelDescriptor implements IViewDescriptor {
 namespace LabelTunnelAction {
 	export const ID = 'remote.tunnel.label';
 	export const LABEL = nls.localize('remote.tunnel.label', "Set Port Label");
+	export const COMMAND_ID_KEYWORD = 'label';
 
 	export function handler(): ICommandHandler {
 		return async (accessor, arg): Promise<{ port: number, label: string } | undefined> => {
@@ -1430,6 +1438,16 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 }));
 // The group 0_manage is used by extensions, so try not to change it
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
+	group: '0_manage',
+	order: 1,
+	command: {
+		id: LabelTunnelAction.ID,
+		title: LabelTunnelAction.LABEL,
+		icon: labelPortIcon
+	},
+	when: TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)
+}));
+MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '2_localaddress',
 	order: 0,
 	command: {
@@ -1485,6 +1503,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 
 
 MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
+	group: '0_manage',
 	order: 0,
 	command: {
 		id: ForwardPortAction.INLINE_ID,
@@ -1494,7 +1513,8 @@ MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Candidate)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
-	order: 1,
+	group: '0_manage',
+	order: 4,
 	command: {
 		id: LabelTunnelAction.ID,
 		title: LabelTunnelAction.LABEL,
@@ -1503,7 +1523,8 @@ MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
 	when: TunnelTypeContextKey.isEqualTo(TunnelType.Forwarded)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelPortInline, ({
-	order: 2,
+	group: '0_manage',
+	order: 5,
 	command: {
 		id: ClosePortAction.INLINE_ID,
 		title: ClosePortAction.LABEL,

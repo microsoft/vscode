@@ -557,6 +557,8 @@ declare module DebugProtocol {
 
 	/** Arguments for 'restart' request. */
 	export interface RestartArguments {
+		/** The latest version of the 'launch' or 'attach' configuration. */
+		arguments?: LaunchRequestArguments | AttachRequestArguments;
 	}
 
 	/** Response to 'restart' request. This is just an acknowledgement, so no body field is required. */
@@ -735,8 +737,8 @@ declare module DebugProtocol {
 	*/
 	export interface SetExceptionBreakpointsResponse extends Response {
 		body?: {
-			/** Information about the breakpoints.
-				The breakpoints returned are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' array in the arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
+			/** Information about the exception breakpoints or filters.
+				The breakpoints returned are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays in the arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
 			*/
 			breakpoints?: Breakpoint[];
 		};

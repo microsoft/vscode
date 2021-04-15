@@ -5,13 +5,11 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { dirname, resolve } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService as IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -168,7 +166,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	constructor(
 		@IConfigurationService readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService
 	) {
@@ -178,8 +175,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrust()));
 		this._register(this.workspaceTrustStorageService.onDidStorageChange(() => this.currentTrustState = this.calculateWorkspaceTrust()));
-
-		this.logInitialWorkspaceTrustInfo();
 	}
 
 	private set currentTrustState(trusted: boolean) {
@@ -187,71 +182,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._isWorkspaceTrusted = trusted;
 
 		this._onDidChangeTrust.fire(trusted);
-	}
-
-	private logInitialWorkspaceTrustInfo(): void {
-		if (!this.isWorkspaceTrustEnabled()) {
-			return;
-		}
-
-		type WorkspaceTrustInfoEventClassification = {
-			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			untrustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		};
-
-		type WorkspaceTrustInfoEvent = {
-			trustedFoldersCount: number,
-			untrustedFoldersCount: number
-		};
-
-		const trustStateInfo = this.workspaceTrustStorageService.getTrustStateInfo();
-		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
-			trustedFoldersCount: trustStateInfo.uriTrustInfo.filter(item => item.trusted).length,
-			untrustedFoldersCount: trustStateInfo.uriTrustInfo.filter(item => !item.trusted).length
-		});
-	}
-
-	private logWorkspaceTrustFolderInfo(): void {
-		if (!this.isWorkspaceTrustEnabled()) {
-			return;
-		}
-
-		type WorkspaceTrustFolderInfoEventClassification = {
-			trustedFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			workspaceFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			delta: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-		};
-
-		type WorkspaceTrustFolderInfoEvent = {
-			trustedFolderDepth: number,
-			workspaceFolderDepth: number,
-			delta: number
-		};
-
-		const getDepth = (folder: string): number => {
-			let resolvedPath = resolve(folder);
-
-			let depth = 0;
-			while (dirname(resolvedPath) !== resolvedPath && depth < 100) {
-				resolvedPath = dirname(resolvedPath);
-				depth++;
-			}
-
-			return depth;
-		};
-
-		for (const folder of this.workspaceService.getWorkspace().folders) {
-			const { trusted, uri } = this.workspaceTrustStorageService.getFolderTrustStateInfo(folder.uri);
-			if (!trusted) {
-				continue;
-			}
-
-			const workspaceFolderDepth = getDepth(folder.uri.fsPath);
-			const trustedFolderDepth = getDepth(uri.fsPath);
-			const delta = workspaceFolderDepth - trustedFolderDepth;
-
-			this.telemetryService.publicLog2<WorkspaceTrustFolderInfoEvent, WorkspaceTrustFolderInfoEventClassification>('workspaceFolderDepthBelowTrustedFolder', { workspaceFolderDepth, trustedFolderDepth, delta });
-		}
 	}
 
 	private calculateWorkspaceTrust(): boolean {
@@ -265,8 +195,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
 		const trusted = this.workspaceTrustStorageService.getFoldersTrust(folderURIs);
-
-		this.logWorkspaceTrustFolderInfo();
 
 		return trusted;
 	}
@@ -373,7 +301,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._onDidCompleteWorkspaceTrustRequest.fire(trusted);
 	}
 
-	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<boolean> {
+	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: false }): Promise<boolean> {
 		// Trusted workspace
 		if (this.trusted) {
 			return this.trusted;

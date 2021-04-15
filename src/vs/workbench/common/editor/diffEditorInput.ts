@@ -21,7 +21,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	static readonly ID = 'workbench.editors.diffEditorInput';
+	static override readonly ID = 'workbench.editors.diffEditorInput';
 
 	override get typeId(): string {
 		return DiffEditorInput.ID;

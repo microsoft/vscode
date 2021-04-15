@@ -58,9 +58,10 @@ flakySuite('BackupTracker (native)', function () {
 			@ILogService logService: ILogService,
 			@IEditorService editorService: IEditorService,
 			@IEnvironmentService environmentService: IEnvironmentService,
-			@IProgressService progressService: IProgressService
+			@IProgressService progressService: IProgressService,
+			@IEditorGroupsService editorGroupService: IEditorGroupsService
 		) {
-			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService, progressService);
+			super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService, progressService, editorGroupService);
 		}
 
 		protected override getBackupScheduleDelay(): number {

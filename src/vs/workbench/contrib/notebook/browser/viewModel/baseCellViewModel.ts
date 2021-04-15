@@ -494,7 +494,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		};
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 
 		if (this._textModelRef) {
