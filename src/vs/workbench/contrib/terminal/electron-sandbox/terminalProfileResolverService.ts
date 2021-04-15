@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getSystemShell } from 'vs/base/node/shell';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
@@ -22,12 +22,14 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@ILogService logService: ILogService,
 		@IShellEnvironmentService shellEnvironmentService: IShellEnvironmentService,
 		@ITerminalService terminalService: ITerminalService,
+		@ILocalTerminalService localTerminalService: ILocalTerminalService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
 		super(
 			{
 				// TODO: Get remote or local system shell?
-				getDefaultSystemShell: async (platform) => getSystemShell(platform, await shellEnvironmentService.getShellEnv()),
+				// TODO: Fill in platform
+				getDefaultSystemShell: async (platform) => localTerminalService.getDefaultSystemShell(),
 				getShellEnvironment: () => shellEnvironmentService.getShellEnv()
 			},
 			configurationService,
