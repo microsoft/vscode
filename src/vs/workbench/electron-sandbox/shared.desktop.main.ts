@@ -45,6 +45,8 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
+import { WorkspaceTrustManagementService, WorkspaceTrustStorageService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -231,7 +233,7 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
-		const services = await Promise.all([
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
@@ -260,6 +262,13 @@ export abstract class SharedDesktopMain extends Disposable {
 			})
 		]);
 
+		// Workspace Trust Service
+		// TODO @lszomoru: Following two services shall be merged into single service
+		const workspaceTrustStorageService = new WorkspaceTrustStorageService(storageService, uriIdentityService);
+		serviceCollection.set(IWorkspaceTrustStorageService, workspaceTrustStorageService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, configurationService, workspaceTrustStorageService);
+		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+		configurationService.initializeWorkspaceTrust(workspaceTrustManagementService);
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -274,7 +283,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService: services[1] };
+		return { serviceCollection, logService, storageService };
 	}
 
 	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {

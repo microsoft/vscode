@@ -338,6 +338,4 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	}
 }
 
-registerSingleton(IWorkspaceTrustManagementService, WorkspaceTrustManagementService);
 registerSingleton(IWorkspaceTrustRequestService, WorkspaceTrustRequestService);
-registerSingleton(IWorkspaceTrustStorageService, WorkspaceTrustStorageService);
