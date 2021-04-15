@@ -301,7 +301,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._onDidCompleteWorkspaceTrustRequest.fire(trusted);
 	}
 
-	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: true }): Promise<boolean> {
+	async requestWorkspaceTrust(options: WorkspaceTrustRequestOptions = { modal: false }): Promise<boolean> {
 		// Trusted workspace
 		if (this.trusted) {
 			return this.trusted;

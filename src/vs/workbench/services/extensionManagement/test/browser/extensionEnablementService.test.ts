@@ -59,7 +59,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IWorkspaceContextService),
 			instantiationService.get(IWorkbenchEnvironmentService) || instantiationService.stub(IWorkbenchEnvironmentService, { configuration: Object.create(null) } as IWorkbenchEnvironmentService),
 			extensionManagementService,
-			new class extends mock<IExtensionWorkspaceTrustRequestService>() { getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType { return 'never'; } },
+			new class extends mock<IExtensionWorkspaceTrustRequestService>() { override getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType { return 'never'; } },
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
 			productService,

@@ -193,6 +193,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				if (!executable) {
 					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 				}
+				// Set the executable explicitly here so that node-pty doesn't need to search the
+				// $PATH too.
+				slc.executable = executable;
 			}
 		}
 		return undefined;

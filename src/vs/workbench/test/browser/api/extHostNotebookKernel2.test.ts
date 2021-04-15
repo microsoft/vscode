@@ -25,16 +25,16 @@ suite('NotebookKernel', function () {
 
 		rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
-			$registerCommand() { }
+			override $registerCommand() { }
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebookKernels, new class extends mock<MainThreadNotebookKernelsShape>() {
-			$addKernel(handle: number, data: INotebookKernelDto2): void {
+			override $addKernel(handle: number, data: INotebookKernelDto2): void {
 				kernelData.set(handle, data);
 			}
-			$removeKernel(handle: number) {
+			override $removeKernel(handle: number) {
 				kernelData.delete(handle);
 			}
-			$updateKernel(handle: number, data: Partial<INotebookKernelDto2>) {
+			override $updateKernel(handle: number, data: Partial<INotebookKernelDto2>) {
 				assert.strictEqual(kernelData.has(handle), true);
 				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
 			}

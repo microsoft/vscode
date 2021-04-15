@@ -90,6 +90,7 @@ export interface NotebookCellMetadata {
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
+	runStartTimeAdjustment?: number;
 	lastRunDuration?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
@@ -793,6 +794,12 @@ export interface INotebookKernelProvider {
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernel[]>;
 }
 
+export interface INotebookCellStatusBarItemProvider {
+	selector: INotebookDocumentFilter;
+	onDidChangeStatusBarItems?: Event<void>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList>;
+}
+
 export class CellSequence implements ISequence {
 
 	constructor(readonly textModel: NotebookTextModel) {
@@ -813,16 +820,20 @@ export interface INotebookDiffResult {
 	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
 
-export interface INotebookCellStatusBarEntry {
-	readonly cellResource: URI;
+export interface INotebookCellStatusBarItem {
 	readonly alignment: CellStatusbarAlignment;
 	readonly priority?: number;
 	readonly text: string;
-	readonly tooltip: string | undefined;
-	readonly command: string | Command | undefined;
+	readonly tooltip?: string;
+	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
-	readonly visible: boolean;
 	readonly opacity?: string;
+	readonly onlyShowWhenActive?: boolean;
+}
+
+export interface INotebookCellStatusBarItemList {
+	items: INotebookCellStatusBarItem[];
+	dispose?(): void;
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';
@@ -832,8 +843,8 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 
 export const enum CellStatusbarAlignment {
-	LEFT,
-	RIGHT
+	Left = 1,
+	Right = 2
 }
 
 export interface INotebookDecorationRenderOptions {

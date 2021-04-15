@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/c0cba7d337a1c2a4815b31fb7fe785e6d52a53fc",
+	"version": "https://github.com/microsoft/TypeScript-TmLanguage/commit/634a12f4fa2b2843c83353c0a395852c3a0c04c4",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -3371,7 +3371,7 @@
 					"name": "keyword.operator.expression.typeof.js"
 				}
 			},
-			"end": "(?=[,);}\\]=>:&|{]|$|;|^\\s*$|(?:^\\s*(?:abstract|async|class|const|declare|enum|export|function|import|interface|let|module|namespace|return|type|var)\\b))",
+			"end": "(?=[,);}\\]=>:&|{\\?]|$|;|^\\s*$|(?:^\\s*(?:abstract|async|class|const|declare|enum|export|function|import|interface|let|module|namespace|return|type|var)\\b))",
 			"patterns": [
 				{
 					"include": "#expression"

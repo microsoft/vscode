@@ -31,7 +31,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createKernel(extension: IExtensionDescription, options: vscode.NotebookKernelOptions): vscode.NotebookKernel2 {
+	createKernel(extension: IExtensionDescription, options: vscode.NotebookKernelOptions): vscode.NotebookController {
 
 		const handle = this._handlePool++;
 		const that = this;
@@ -48,10 +48,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: options.label,
-			supportedLanguages: isNonEmptyArray(options.supportedLanguages) ? options.supportedLanguages : ['plaintext'],
-			supportsInterrupt: Boolean(options.interruptHandler),
-			hasExecutionOrder: options.hasExecutionOrder,
+			supportedLanguages: [],
 		};
+
+		// todo@jrieken the selector needs to be massaged
 		this._proxy.$addKernel(handle, data);
 
 		// update: all setters write directly into the dto object
@@ -70,7 +70,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			});
 		};
 
-		return {
+		const result: vscode.NotebookController = {
 			get id() { return data.id; },
 			get selector() { return data.selector; },
 			onDidChangeNotebookAssociation: emitter.event,
@@ -114,17 +114,28 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			createNotebookCellExecutionTask(cell) {
+				if (isDisposed) {
+					throw new Error('object disposed');
+				}
 				//todo@jrieken
 				return that._extHostNotebook.createNotebookCellExecution(cell.document.uri, cell.index, data.id)!;
 			},
 			dispose: () => {
-				isDisposed = true;
-				this._kernelData.delete(handle);
-				commandDisposables.dispose();
-				emitter.dispose();
-				this._proxy.$removeKernel(handle);
+				if (!isDisposed) {
+					isDisposed = true;
+					this._kernelData.delete(handle);
+					commandDisposables.dispose();
+					emitter.dispose();
+					this._proxy.$removeKernel(handle);
+				}
 			}
 		};
+
+		result.supportedLanguages = options.supportedLanguages ?? [];
+		result.interruptHandler = options.interruptHandler;
+		result.hasExecutionOrder = options.hasExecutionOrder ?? false;
+
+		return result;
 	}
 
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void {

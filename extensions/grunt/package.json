@@ -67,7 +67,8 @@
             "type": "string",
             "description": "%grunt.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
   },

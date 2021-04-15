@@ -63,7 +63,8 @@
             "type": "string",
             "description": "%gulp.taskDefinition.file.description%"
           }
-        }
+        },
+        "when": "shellExecutionSupported"
       }
     ]
   },

@@ -499,6 +499,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
+	whenReady: Promise<void> = Promise.resolve(undefined);
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }
@@ -630,6 +631,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	get activeGroup(): IEditorGroup { return this.groups[0]; }
 	get count(): number { return this.groups.length; }
 
+	isRestored(): boolean { return true; }
 	getGroups(_order?: GroupsOrder): ReadonlyArray<IEditorGroup> { return this.groups; }
 	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
 	getLabel(_identifier: number): string { return 'Group 1'; }

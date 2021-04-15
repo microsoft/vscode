@@ -83,7 +83,7 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 	constructor(
-		readonly _action: MenuItemAction,
+		_action: MenuItemAction,
 		keybindingService: IKeybindingService,
 		notificationService: INotificationService,
 	) {

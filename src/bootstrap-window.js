@@ -40,7 +40,7 @@
 	 */
 	async function load(modulePaths, resultCallback, options) {
 
-		// Error handler
+		// Error handler (TODO@sandbox non-sandboxed only)
 		safeProcess.on('uncaughtException', function (/** @type {string | Error} */ error) {
 			onUnexpectedError(error, enableDeveloperKeybindings);
 		});

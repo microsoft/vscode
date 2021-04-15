@@ -962,10 +962,12 @@ declare module 'vscode' {
 
 	export class NotebookCellMetadata {
 		/**
+		 * todo@API this can be renamed to `contentEditable`.
 		 * Controls whether a cell's editor is editable/readonly.
 		 */
 		readonly editable?: boolean;
 		/**
+		 * todo@API this can be removed and only kept internally? It's a UI thing and should be controlled by detecting wether there is a debugging session, or through a user setting (like line numbers)
 		 * Controls if the cell has a margin to support the breakpoint UI.
 		 * This metadata is ignored for markdown cell.
 		 */
@@ -1011,11 +1013,13 @@ declare module 'vscode' {
 	export class NotebookDocumentMetadata {
 
 		/**
+		 * todo@API. If it's called `editable` then this should also control if a cell is edtiable or not (through UI at least).
 		 * Controls if users can add or delete cells
 		 * Defaults to true
 		 */
 		readonly editable: boolean;
 		/**
+		 * todo@API maybe removed?
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
 		 * Defaults to true.
 		 */
@@ -1222,11 +1226,13 @@ declare module 'vscode' {
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
+		// todo@API should they all be readonly?
 		kind: NotebookCellKind;
 		// todo@API better names: value? text?
 		source: string;
 		// todo@API how does language and MD relate?
 		language: string;
+		// todo@API ReadonlyArray?
 		outputs?: NotebookCellOutput[];
 		metadata?: NotebookCellMetadata;
 		latestExecutionSummary?: NotebookCellExecutionSummary;
@@ -1234,6 +1240,7 @@ declare module 'vscode' {
 	}
 
 	export class NotebookData {
+		// todo@API should they all be readonly?
 		cells: NotebookCellData[];
 		metadata: NotebookDocumentMetadata;
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
@@ -1422,7 +1429,48 @@ declare module 'vscode' {
 
 	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
-	export interface NotebookKernel2 {
+	export interface NotebookRendererCommunication {
+
+		/**
+		 *
+		 */
+		dispose(): void;
+
+		/**
+		 *
+		 */
+		readonly rendererId: string;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serializable object.
+		 */
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri, editor: NotebookEditor): Uri;
+	}
+
+	export namespace notebook {
+
+		/**
+		 *
+		 * @param rendererId
+		 */
+		export function createNotebookRendererCommunication(rendererId: string): NotebookRendererCommunication;
+	}
+
+
+	export interface NotebookController {
 
 		readonly id: string;
 
@@ -1435,9 +1483,6 @@ declare module 'vscode' {
 		 * that association has been removed.
 		 */
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
-
-		// kernels can establish IPC channels to (visible) notebook editors
-		// createNotebookCommunication(editor: vscode.NotebookEditor): vscode.NotebookCommunication;
 
 		// UI properties (get/set)
 		label: string;
@@ -1480,7 +1525,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		export function createNotebookKernel(options: NotebookKernelOptions): NotebookKernel2;
+		export function createNotebookController(options: NotebookKernelOptions): NotebookController;
 	}
 
 	//#endregion
@@ -1744,32 +1789,24 @@ declare module 'vscode' {
 		Right = 2
 	}
 
-	export interface NotebookCellStatusBarItem {
-		readonly cell: NotebookCell;
+	export class NotebookCellStatusBarItem {
+		readonly text: string;
 		readonly alignment: NotebookCellStatusBarAlignment;
+		readonly command?: string | Command;
+		readonly tooltip?: string;
 		readonly priority?: number;
-		text: string;
-		tooltip: string | undefined;
-		command: string | Command | undefined;
-		accessibilityInformation?: AccessibilityInformation;
-		show(): void;
-		hide(): void;
-		dispose(): void;
+		readonly accessibilityInformation?: AccessibilityInformation;
+
+		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
+	}
+
+	interface NotebookCellStatusBarItemProvider {
+		onDidChangeCellStatusBarItems?: Event<void>;
+		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
 	export namespace notebook {
-		/**
-		 * Creates a notebook cell status bar [item](#NotebookCellStatusBarItem).
-		 * It will be disposed automatically when the notebook document is closed or the cell is deleted.
-		 *
-		 * @param cell The cell on which this item should be shown.
-		 * @param alignment The alignment of the item.
-		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
-		 * @return A new status bar item.
-		 */
-		// @roblourens
-		// todo@API this should be a provider, https://github.com/microsoft/vscode/issues/105809
-		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
+		export function registerNotebookCellStatusBarItemProvider(selector: NotebookDocumentFilter, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
 	//#endregion

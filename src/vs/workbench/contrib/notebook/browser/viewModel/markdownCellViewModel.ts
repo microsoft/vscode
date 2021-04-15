@@ -95,8 +95,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	constructor(
-		readonly viewType: string,
-		readonly model: NotebookCellTextModel,
+		viewType: string,
+		model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly eventDispatcher: NotebookEventDispatcher,
@@ -170,7 +170,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._onDidChangeLayout.fire(state);
 	}
 
-	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
+	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
 		// we might already warmup the viewport so the cell has a total height computed
 		if (totalHeight !== undefined && this._layoutInfo.totalHeight === 0) {

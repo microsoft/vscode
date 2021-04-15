@@ -29,6 +29,13 @@
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
+  "workspaceTrust": {
+    "request": "onDemand",
+    "description": "%workspaceTrust%",
+    "requiredForConfigurations": [
+      "markdown.styles"
+    ]
+  },
   "contributes": {
     "notebookMarkdownRenderer": [
       {

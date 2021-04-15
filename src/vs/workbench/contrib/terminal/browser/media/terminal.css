@@ -197,34 +197,35 @@
 	padding: 0 22px 0 6px;
 }
 
-#terminal-tabs-plus-button {
-	min-height: 10;
-	flex-grow: 0;
-	text-align: center;
-	z-index: 10;
-}
-
-#terminal-tabs-plus-button.align-left {
-	padding-left: 10px;
-	text-align: left;
-	z-index: 10;
-}
-
 .monaco-workbench .pane-body.integrated-terminal .tabs-container {
+	max-height: 100%;
 	display: flex;
 	flex-direction: column;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget-container {
+	overflow: hidden;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-toolbar {
+	text-align: center;
+	padding: 4px 7px 2px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
+	text-align: left;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry {
 	text-align: center;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .tabs-widget .terminal-tabs-entry.has-text {
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-widget .terminal-tabs-entry {
 	padding-left: 10px;
 	text-align: left;
 }
 
-.monaco-workbench .pane-body.integrated-terminal  .tabs-widget .codicon {
+.monaco-workbench .pane-body.integrated-terminal .tabs-widget .codicon {
 	vertical-align: text-bottom;
 }
 

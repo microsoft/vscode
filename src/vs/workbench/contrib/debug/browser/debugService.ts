@@ -48,6 +48,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -93,7 +94,8 @@ export class DebugService implements IDebugService {
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		this.toDispose = [];
 
@@ -273,7 +275,15 @@ export class DebugService implements IDebugService {
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
 	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
+		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			modal: true,
+			message,
 
+		});
+		if (!trust) {
+			return false;
+		}
 		this.startInitializingState();
 		try {
 			// make sure to save all files and that the configuration is up to date
