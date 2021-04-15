@@ -20,12 +20,9 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { ACTIVE_GROUP, IEditorService, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { Promises } from 'vs/base/common/async';
-import { IWorkingCopyService, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 // Editor State Context Keys
 export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor is dirty"));
@@ -1600,27 +1597,6 @@ export const enum EditorsOrder {
 	SEQUENTIAL
 }
 
-export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
-	let ariaLabel = input.getAriaLabel();
-	if (group && !group.isPinned(input)) {
-		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
-	}
-
-	if (group?.isSticky(index ?? input)) {
-		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
-	}
-
-	// Apply group information to help identify in
-	// which group we are (only if more than one group
-	// is actually opened)
-	if (group && groupCount > 1) {
-		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
-	}
-
-	return ariaLabel;
-}
-
-
 //#region Editor Group Column
 
 /**
@@ -1655,87 +1631,6 @@ export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService
 	group = group ?? editorGroupService.activeGroup;
 
 	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
-}
-
-//#endregion
-
-
-//#region Text Editor Close Tracker
-
-export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[]): Promise<void> {
-	const editorService = accessor.get(IEditorService);
-	const uriIdentityService = accessor.get(IUriIdentityService);
-	const workingCopyService = accessor.get(IWorkingCopyService);
-
-	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(Extensions.EditorInputFactories).getFileEditorInputFactory();
-
-	let remainingResources = [...resources];
-
-	return new Promise(resolve => {
-
-		// Observe any editor closing from this moment on
-		const listener = editorService.onDidCloseEditor(async event => {
-			let primaryResource: URI | undefined = undefined;
-			let secondaryResource: URI | undefined = undefined;
-
-			// Resolve the resources from the editor that closed
-			// but only consider file editor inputs, given we
-			// are only tracking text editors.
-			if (event.editor instanceof SideBySideEditorInput) {
-				if (fileEditorInputFactory.isFileEditorInput(event.editor.primary)) {
-					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor.primary);
-				}
-
-				if (fileEditorInputFactory.isFileEditorInput(event.editor.secondary)) {
-					secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor.secondary);
-				}
-			} else {
-				if (fileEditorInputFactory.isFileEditorInput(event.editor)) {
-					primaryResource = EditorResourceAccessor.getOriginalUri(event.editor);
-				}
-			}
-
-			// Remove from resources to wait for being closed based on the
-			// resources from editors that got closed
-			remainingResources = remainingResources.filter(resource => {
-				if (uriIdentityService.extUri.isEqual(resource, primaryResource) || uriIdentityService.extUri.isEqual(resource, secondaryResource)) {
-					return false; // remove - the closing editor matches this resource
-				}
-
-				return true; // keep - not yet closed
-			});
-
-			// All resources to wait for being closed are closed
-			if (remainingResources.length === 0) {
-
-				// If auto save is configured with the default delay (1s) it is possible
-				// to close the editor while the save still continues in the background. As such
-				// we have to also check if the editors to track for are dirty and if so wait
-				// for them to get saved.
-				const dirtyResources = resources.filter(resource => workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */));
-				if (dirtyResources.length > 0) {
-					await Promises.settled(dirtyResources.map(async resource => await new Promise<void>(resolve => {
-						if (!workingCopyService.isDirty(resource, NO_TYPE_ID /* only check on text file working copies */)) {
-							return resolve(); // return early if resource is not dirty
-						}
-
-						// Otherwise resolve promise when resource is saved
-						const listener = workingCopyService.onDidChangeDirty(workingCopy => {
-							if (!workingCopy.isDirty() && uriIdentityService.extUri.isEqual(resource, workingCopy.resource)) {
-								listener.dispose();
-
-								return resolve();
-							}
-						});
-					})));
-				}
-
-				listener.dispose();
-
-				return resolve();
-			}
-		});
-	});
 }
 
 //#endregion
