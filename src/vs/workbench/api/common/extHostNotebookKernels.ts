@@ -31,7 +31,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createKernel(extension: IExtensionDescription, options: vscode.NotebookKernelOptions): vscode.NotebookController {
+	createKernel(extension: IExtensionDescription, options: vscode.NotebookControllerOptions): vscode.NotebookController {
 
 		const handle = this._handlePool++;
 		const that = this;

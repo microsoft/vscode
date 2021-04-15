@@ -1511,7 +1511,7 @@ declare module 'vscode' {
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 	}
 
-	export interface NotebookKernelOptions {
+	export interface NotebookControllerOptions {
 		id: string;
 		label: string;
 		description?: string;
@@ -1523,7 +1523,7 @@ declare module 'vscode' {
 	}
 
 	export namespace notebook {
-		export function createNotebookController(options: NotebookKernelOptions): NotebookController;
+		export function createNotebookController(options: NotebookControllerOptions): NotebookController;
 	}
 
 	//#endregion
