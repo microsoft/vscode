@@ -180,17 +180,20 @@ export interface IOpenDialogOptions {
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
-export interface IDialogDelegate extends IDisposable {
+export interface ICustomDialogDelegate extends IDisposable {
 	render: (messageElement: HTMLElement) => void;
-	customIcon?: Codicon;
+}
+
+export interface ICustomDialogOptions {
+	renderDelegate?: ICustomDialogDelegate;
+	icon?: Codicon;
 }
 
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
 	checkbox?: ICheckbox;
-	useCustom?: boolean;
-	customDelegate?: IDialogDelegate;
+	custom?: boolean | ICustomDialogOptions;
 }
 
 export interface IInput {

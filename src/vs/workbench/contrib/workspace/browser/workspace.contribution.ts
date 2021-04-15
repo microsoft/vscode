@@ -133,10 +133,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 							localize('close', "Close")
 						],
 						{
-							customDelegate: {
-								customIcon: Codicon.shield,
-								render: renderBody,
-								dispose: () => { },
+							custom: {
+								icon: Codicon.shield,
+								renderDelegate: {
+									render: renderBody,
+									dispose: () => { },
+								}
 							},
 							cancelId: 1, // Close
 							checkbox: {
@@ -192,7 +194,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					{
 						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
 						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Using an untrusted workspace may compromise your device or personal information.", message),
-						useCustom: true
+						custom: true
 					}
 				);
 
