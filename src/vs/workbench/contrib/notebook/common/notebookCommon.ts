@@ -86,7 +86,6 @@ export interface NotebookCellMetadata {
 	editable?: boolean;
 	breakpointMargin?: boolean;
 	executionOrder?: number;
-	statusMessage?: string;
 	lastRunSuccess?: boolean;
 	runState?: NotebookCellExecutionState;
 	runStartTime?: number;

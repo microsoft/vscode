@@ -832,7 +832,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel.notebookDocument.metadata);
 		this.updateExecutionOrder(metadata, templateData);
-		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
 		templateData.cellRunState.renderState(element.metadata?.runState, () => {
 			if (!this.notebookEditor.viewModel) {

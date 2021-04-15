@@ -509,14 +509,6 @@ abstract class AbstractElementRenderer extends Disposable {
 							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
 						}
 						break;
-					case 'statusMessage':
-						// string
-						if (typeof newMetadataObj[key] === 'string') {
-							result[key] = newMetadataObj[key];
-						} else {
-							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
-						}
-						break;
 					default:
 						result[key] = newMetadataObj[key];
 						break;

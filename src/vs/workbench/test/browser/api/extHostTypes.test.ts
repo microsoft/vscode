@@ -670,13 +670,13 @@ suite('ExtHostTypes', function () {
 	test('NotebookCellMetadata - with', function () {
 		const obj = new types.NotebookCellMetadata(true, true);
 
-		const newObj = obj.with({ statusMessage: 'hello' });
+		const newObj = obj.with({ inputCollapsed: false });
 		assert.ok(obj !== newObj);
-		assert.strictEqual(obj.statusMessage, undefined);
+		assert.strictEqual(obj.inputCollapsed, undefined);
 		assert.strictEqual(obj.editable, true);
 		assert.strictEqual(obj.custom, undefined);
 
-		assert.strictEqual(newObj.statusMessage, 'hello');
+		assert.strictEqual(newObj.inputCollapsed, false);
 		assert.strictEqual(newObj.editable, true);
 		assert.strictEqual(newObj.custom, undefined);
 

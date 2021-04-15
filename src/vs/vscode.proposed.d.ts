@@ -985,9 +985,6 @@ declare module 'vscode' {
 		 */
 		readonly custom?: Record<string, any>;
 
-		// todo@API duplicates status bar API
-		readonly statusMessage?: string;
-
 		constructor(editable?: boolean, breakpointMargin?: boolean, statusMessage?: string, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
 		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, statusMessage?: string | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;

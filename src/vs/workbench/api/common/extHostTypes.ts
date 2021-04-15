@@ -2945,7 +2945,6 @@ export class NotebookCellMetadata {
 	constructor(
 		readonly editable?: boolean,
 		readonly breakpointMargin?: boolean,
-		readonly statusMessage?: string,
 		readonly inputCollapsed?: boolean,
 		readonly outputCollapsed?: boolean,
 		readonly custom?: Record<string, any>,
@@ -2954,13 +2953,12 @@ export class NotebookCellMetadata {
 	with(change: {
 		editable?: boolean | null,
 		breakpointMargin?: boolean | null,
-		statusMessage?: string | null,
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
 		custom?: Record<string, any> | null,
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, statusMessage, inputCollapsed, outputCollapsed, custom } = change;
+		let { editable, breakpointMargin, inputCollapsed, outputCollapsed, custom } = change;
 
 		if (editable === undefined) {
 			editable = this.editable;
@@ -2971,11 +2969,6 @@ export class NotebookCellMetadata {
 			breakpointMargin = this.breakpointMargin;
 		} else if (breakpointMargin === null) {
 			breakpointMargin = undefined;
-		}
-		if (statusMessage === undefined) {
-			statusMessage = this.statusMessage;
-		} else if (statusMessage === null) {
-			statusMessage = undefined;
 		}
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
@@ -2995,7 +2988,6 @@ export class NotebookCellMetadata {
 
 		if (editable === this.editable &&
 			breakpointMargin === this.breakpointMargin &&
-			statusMessage === this.statusMessage &&
 			inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
 			custom === this.custom
@@ -3006,7 +2998,6 @@ export class NotebookCellMetadata {
 		return new NotebookCellMetadata(
 			editable,
 			breakpointMargin,
-			statusMessage,
 			inputCollapsed,
 			outputCollapsed,
 			custom,

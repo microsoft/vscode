@@ -1320,7 +1320,6 @@ registerAction2(class extends NotebookCellAction {
 					runStartTime: undefined,
 					runStartTimeAdjustment: undefined,
 					runEndTime: undefined,
-					statusMessage: undefined,
 					executionOrder: undefined
 				}
 			}], true, undefined, () => undefined, undefined);
@@ -1533,8 +1532,7 @@ registerAction2(class extends NotebookAction {
 						runState: NotebookCellExecutionState.Idle,
 						runStartTime: undefined,
 						runStartTimeAdjustment: undefined,
-						lastRunDuration: undefined,
-						statusMessage: undefined,
+						runEndTime: undefined,
 						executionOrder: undefined
 					}
 				};
