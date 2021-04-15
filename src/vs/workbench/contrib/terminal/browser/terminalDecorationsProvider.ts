@@ -57,11 +57,11 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 	getStatusIcon(icon: Codicon): string {
 		switch (icon) {
 			case Codicon.warning:
-				return '\ea6c';
+				return '⚠';
 			case Codicon.bell:
-				return '\eaa2';
+				return '🔔';
 			default:
-				return '\ea85';
+				return '';
 		}
 	}
 
