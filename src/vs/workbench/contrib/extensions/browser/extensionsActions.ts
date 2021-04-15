@@ -59,8 +59,8 @@ import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isWeb } from 'vs/base/common/platform';
+import { isWorkspaceTrustEnabled } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2093,8 +2093,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2162,7 +2161,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-		if (this.workspaceTrustManagementService.isWorkspaceTrustEnabled() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+		if (isWorkspaceTrustEnabled(this.configurationService) && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
 			this.tooltip = localize('extension disabled because of trust requirement', "This extension has been disabled because the current workspace is not trusted");
 			return;

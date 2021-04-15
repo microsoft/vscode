@@ -27,7 +27,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_EXTENSION_REQUEST } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isWorkspaceTrustEnabled, WorkspaceTrustContext, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_EXTENSION_REQUEST } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -36,6 +36,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isWeb } from 'vs/base/common/platform';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
 
@@ -88,7 +89,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				// Buttons
 				const buttons = requestOptions.buttons ?? [
-					{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
+					{ label: localize('grantWorkspaceTrustButton', "Trust Workspace & Continue"), type: 'ContinueWithTrust' },
 					{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
 				];
 				// Add Cancel button if not provided
@@ -103,7 +104,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					buttons.map(b => b.label),
 					{
 						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
-						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information.", message),
+						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Using an untrusted workspace may compromise your device or personal information.", message),
+						useCustom: true
 					}
 				);
 
@@ -156,6 +158,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 	private contextKeys = new Set([this.pendingRequestContextKey]);
 
 	constructor(
+		@IConfigurationService configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -164,7 +167,7 @@ class WorkspaceTrustStatusbarItem extends Disposable implements IWorkbenchContri
 
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
-		if (this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+		if (isWorkspaceTrustEnabled(configurationService)) {
 			const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
 			this.statusBarEntryAccessor.value = this.statusbarService.addEntry(entry, WorkspaceTrustStatusbarItem.ID, localize('status.WorkspaceTrust', "Workspace Trust"), StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
 			this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.updateStatusbarEntry(trusted)));
@@ -335,6 +338,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
  */
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -351,7 +355,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
-		if (!this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return;
 		}
 
@@ -373,7 +377,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private logWorkspaceTrustChangeEvent(isTrusted: boolean): void {
-		if (!this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return;
 		}
 
@@ -433,7 +437,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private async logWorkspaceTrustRequest(options: WorkspaceTrustRequestOptions): Promise<void> {
-		if (!this.workspaceTrustManagementService.isWorkspaceTrustEnabled()) {
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return;
 		}
 
