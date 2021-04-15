@@ -2142,10 +2142,9 @@ declare module 'vscode' {
 		export function registerTestController<T>(testController: TestController<T>): Disposable;
 
 		/**
-		 * Runs tests. The "run" contains the list of tests to run as well as a
-		 * method that can be used to update their state. At the point in time
-		 * that "run" is called, all tests given in the run have their state
-		 * automatically set to {@link TestRunState.Queued}.
+		 * Requests that tests be run by their controller.
+		 * @param run Run options to use
+		 * @param token Cancellation token for the test run
 		 */
 		export function runTests<T>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
 
@@ -2344,11 +2343,9 @@ declare module 'vscode' {
 		readonly name?: string;
 
 		/**
-		 * Updates the state of the test in the run. By default, all tests involved
-		 * in the run will have a "queued" state until they are updated by this method.
-		 *
-		 * Calling with method with nodes outside the {@link TestRunRequest.tests}
-		 * or in the {@link TestRunRequest.exclude} array will no-op.
+		 * Updates the state of the test in the run. Calling with method with nodes
+		 * outside the {@link TestRunRequest.tests} or in the
+		 * {@link TestRunRequest.exclude} array will no-op.
 		 *
 		 * @param test The test to update
 		 * @param state The state to assign to the test
@@ -2688,6 +2685,19 @@ declare module 'vscode' {
 		readonly range?: Range;
 
 		/**
+		 * State of the test in each task. In the common case, a test will only
+		 * be executed in a single task and the length of this array will be 1.
+		 */
+		readonly taskStates: ReadonlyArray<TestSnapshoptTaskState>;
+
+		/**
+		 * Optional list of nested tests for this item.
+		 */
+		readonly children: Readonly<TestResultSnapshot>[];
+	}
+
+	export interface TestSnapshoptTaskState {
+		/**
 		 * Current result of the test.
 		 */
 		readonly state: TestResultState;
@@ -2703,11 +2713,6 @@ declare module 'vscode' {
 		 * failure information if the test fails.
 		 */
 		readonly messages: ReadonlyArray<TestMessage>;
-
-		/**
-		 * Optional list of nested tests for this item.
-		 */
-		readonly children: Readonly<TestResultSnapshot>[];
 	}
 
 	//#endregion

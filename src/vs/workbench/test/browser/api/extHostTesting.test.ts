@@ -75,19 +75,19 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('root')) } }
+					{ src: { tree: 0, controller: 'pid' }, parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('root')) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-root', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('a')) } }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('a')) } }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('aa')) }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('aa')) }
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('ab')) }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-a', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('ab')) }
 				],
 				[
 					TestDiffOpType.Update,
@@ -95,7 +95,7 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, provider: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
 				],
 				[
 					TestDiffOpType.Update,
@@ -149,7 +149,7 @@ suite('ExtHost Testing', () => {
 
 			assert.deepStrictEqual(single.collectDiff(), [
 				[TestDiffOpType.Add, {
-					src: { tree: 0, provider: 'pid' },
+					src: { tree: 0, controller: 'pid' },
 					parent: 'id-a',
 					expand: TestItemExpandState.NotExpandable,
 					item: convert.TestItem.from(child),

@@ -28,7 +28,7 @@ import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebo
 import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { ISerializedTestResults, ITestItem, ITestMessage, SerializedTestResultItem, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
@@ -1702,52 +1702,13 @@ export namespace TestItem {
 }
 
 export namespace TestResults {
-	export function from(id: string, results: vscode.TestRunResult): ISerializedTestResults {
-		const serialized: ISerializedTestResults = {
-			completedAt: results.completedAt,
-			id,
-			output: results.output,
-			items: [],
-		};
-
-		const queue: [parent: SerializedTestResultItem | null, children: Iterable<vscode.TestResultSnapshot>][] = [
-			[null, results.results],
-		];
-
-		while (queue.length) {
-			const [parent, children] = queue.pop()!;
-			for (const item of children) {
-				const serializedItem: SerializedTestResultItem = {
-					children: item.children?.map(c => c.id) ?? [],
-					computedState: item.state,
-					item: TestItem.fromResultSnapshot(item),
-					state: {
-						state: item.state,
-						duration: item.duration,
-						messages: item.messages.map(TestMessage.from),
-					},
-					retired: undefined,
-					expand: TestItemExpandState.Expanded,
-					parent: parent?.item.extId ?? null,
-					src: { provider: '', tree: -1 },
-					direct: !parent,
-				};
-
-				serialized.items.push(serializedItem);
-				if (item.children) {
-					queue.push([serializedItem, item.children]);
-				}
-			}
-		}
-
-		return serialized;
-	}
-
 	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => ({
 		...TestItem.toPlain(item.item),
-		state: item.state.state,
-		duration: item.state.duration,
-		messages: item.state.messages.map(TestMessage.to),
+		taskStates: item.tasks.map(t => ({
+			state: t.state,
+			duration: t.duration,
+			messages: t.messages.map(TestMessage.to),
+		})),
 		children: item.children
 			.map(c => byInternalId.get(c))
 			.filter(isDefined)

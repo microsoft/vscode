@@ -211,8 +211,8 @@ export class SingleUseTestCollection implements IDisposable {
 	/**
 	 * Adds a new root node to the collection.
 	 */
-	public addRoot(item: TestItemRaw, providerId: string) {
-		this.addItem(item, providerId, null);
+	public addRoot(item: TestItemRaw, controllerId: string) {
+		this.addItem(item, controllerId, null);
 	}
 
 	/**
@@ -313,7 +313,7 @@ export class SingleUseTestCollection implements IDisposable {
 				break;
 
 			case ExtHostTestItemEventType.NewChild:
-				this.addItem(evt[1], internal.src.provider, internal);
+				this.addItem(evt[1], internal.src.controller, internal);
 				break;
 
 			case ExtHostTestItemEventType.SetProp:
@@ -335,7 +335,7 @@ export class SingleUseTestCollection implements IDisposable {
 		}
 	}
 
-	private addItem(actual: TestItemRaw, providerId: string, parent: OwnedCollectionTestItem | null) {
+	private addItem(actual: TestItemRaw, controllerId: string, parent: OwnedCollectionTestItem | null) {
 		if (!(actual instanceof TestItemImpl)) {
 			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
 		}
@@ -351,7 +351,7 @@ export class SingleUseTestCollection implements IDisposable {
 		const parentId = parent ? parent.item.extId : null;
 		const expand = actual.resolveHandler ? TestItemExpandState.Expandable : TestItemExpandState.NotExpandable;
 		const pExpandLvls = parent?.expandLevels;
-		const src = { provider: providerId, tree: this.testIdToInternal.object.id };
+		const src = { controller: controllerId, tree: this.testIdToInternal.object.id };
 		const internal: OwnedCollectionTestItem = {
 			actual,
 			parent: parentId,
@@ -366,6 +366,7 @@ export class SingleUseTestCollection implements IDisposable {
 		this.pushDiff([TestDiffOpType.Add, { parent: parentId, src, expand, item: internal.item }]);
 
 		const api = getPrivateApiFor(actual);
+		api.parent = parent?.actual;
 		api.bus.event(this.onTestItemEvent.bind(this, internal));
 
 		// important that this comes after binding the event bus otherwise we
@@ -374,7 +375,7 @@ export class SingleUseTestCollection implements IDisposable {
 
 		// Discover any existing children that might have already been added
 		for (const child of api.children.values()) {
-			this.addItem(child, providerId, internal);
+			this.addItem(child, controllerId, internal);
 		}
 	}
 

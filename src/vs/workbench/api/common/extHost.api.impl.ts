@@ -337,7 +337,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const test: typeof vscode.test = {
 			registerTestController(provider) {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.registerTestController(provider);
+				return extHostTesting.registerTestController(extension.identifier.value, provider);
 			},
 			createDocumentTestObserver(document) {
 				checkProposedApiEnabled(extension);
@@ -354,9 +354,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createTestItem<T>(options: vscode.TestItemOptions, data?: T) {
 				return new extHostTypes.TestItemImpl(options.id, options.label, options.uri, data);
 			},
-			createTestRunTask() {
+			createTestRunTask(request, name, persist) {
 				checkProposedApiEnabled(extension);
-				throw new Error('todo');
+				return extHostTesting.createTestRunTask(extension.identifier.value, request, name, persist);
 			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension);

@@ -3248,6 +3248,7 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem<never>>(
 	api: IExtHostTestItemApi,
 	key: K,
 	defaultValue: vscode.TestItem<never>[K],
+	equals: (a: vscode.TestItem<never>[K], b: vscode.TestItem<never>[K]) => boolean
 ) => {
 	let value = defaultValue;
 	return {
@@ -3257,7 +3258,7 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem<never>>(
 			return value;
 		},
 		set(newValue: vscode.TestItem<never>[K]) {
-			if (newValue !== value) {
+			if (!equals(value, newValue)) {
 				value = newValue;
 				api.bus.fire([ExtHostTestItemEventType.SetProp, key, newValue]);
 			}
@@ -3265,6 +3266,12 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem<never>>(
 	};
 };
 
+const strictEqualComparator = <T>(a: T, b: T) => a === b;
+const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefined) => {
+	if (a === b) { return true; }
+	if (!a || !b) { return false; }
+	return a.isEqual(b);
+};
 
 export class TestItemImpl implements vscode.TestItem<unknown> {
 	public readonly id!: string;
@@ -3305,11 +3312,11 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 				enumerable: true,
 				writable: false,
 			},
-			range: testItemPropAccessor(api, 'range', undefined),
-			description: testItemPropAccessor(api, 'description', undefined),
-			runnable: testItemPropAccessor(api, 'runnable', true),
-			debuggable: testItemPropAccessor(api, 'debuggable', true),
-			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved),
+			range: testItemPropAccessor(api, 'range', undefined, rangeComparator),
+			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
+			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
+			debuggable: testItemPropAccessor(api, 'debuggable', true, strictEqualComparator),
+			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
 		});
 	}
 
