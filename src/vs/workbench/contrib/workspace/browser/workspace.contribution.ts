@@ -88,7 +88,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				// Buttons
 				const buttons = requestOptions.buttons ?? [
-					{ label: localize('grantWorkspaceTrustButton', "Continue"), type: 'ContinueWithTrust' },
+					{ label: localize('grantWorkspaceTrustButton', "Trust Workspace & Continue"), type: 'ContinueWithTrust' },
 					{ label: localize('manageWorkspaceTrustButton', "Learn More"), type: 'Manage' }
 				];
 				// Add Cancel button if not provided
@@ -103,7 +103,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					buttons.map(b => b.label),
 					{
 						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
-						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Otherwise, features will be enabled that may compromise your device or personal information.", message),
+						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Using an untrusted workspace may compromise your device or personal information.", message),
+						useCustom: true
 					}
 				);
 
