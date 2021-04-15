@@ -202,9 +202,12 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 				markdownNotSupportedFallback: undefined
 			}
 		});
-		const labelProps: IResourceLabelProps = { name: label };
-		const options: IResourceLabelOptions = {};
-		template.label.setResource(labelProps, options);
+
+		if (instance.statusList.statuses.length) {
+			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: instance.instanceId.toString(), path: instance.instanceId.toString() }), name: label };
+			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
+			template.label.setResource(labelProps, options);
+		}
 
 		instance.statusList.onDidChangePrimaryStatus(e => {
 			const hasText = !this.shouldHideText();
@@ -243,6 +246,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 					markdownNotSupportedFallback: undefined
 				}
 			});
+			if (!e) {
+				return;
+			}
 			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: instance.instanceId.toString(), path: instance.instanceId.toString() }), name: label };
 			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
 			template.label.setResource(labelProps, options);

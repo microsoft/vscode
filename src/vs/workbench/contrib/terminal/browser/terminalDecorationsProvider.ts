@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground, listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
 
@@ -20,12 +20,15 @@ export interface ITerminalDecorationData {
 
 export class TerminalDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Terminal");
-	readonly onDidChange: Event<readonly URI[]>;
+	private readonly _onDidChange = new Emitter<URI[]>();
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
-		this.onDidChange = Event.None;
+	}
+
+	get onDidChange(): Event<URI[]> {
+		return this._onDidChange.event;
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
@@ -60,6 +63,8 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 				return '⚠';
 			case Codicon.bell:
 				return '🔔';
+			case Codicon.debugDisconnect:
+				return '🔌';
 			default:
 				return '';
 		}
