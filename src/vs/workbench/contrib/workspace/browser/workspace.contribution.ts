@@ -111,7 +111,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						addExplainer(FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/trusted-badge.png', require).toString(true), 56, localize('workspaceTrustBadgeDescription', "When features are disabled in an untrusted workspace, you will see this shield icon in the Activity Bar."));
 						addExplainer(FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/untrusted-status.png', require).toString(true), 20, localize('workspaceTrustUntrustedDescription', "When the workspace is untrusted, you will see this status bar entry. It is hidden when the workspace is trusted."));
 
-						const linkedText = parseLinkedText(localize('seeTheDocs', "Select \"Manage\" below to learn more or [see our docs for additional information](https://aka.ms/vscode-workspace-trust)."));
+						const linkedText = parseLinkedText(localize('seeTheDocs', "Manage your Workspace Trust configuration now to learn more or [see our docs for additional information](https://aka.ms/vscode-workspace-trust)."));
 						const p = parent.appendChild($('p'));
 						for (const node of linkedText.nodes) {
 							if (typeof node === 'string') {
