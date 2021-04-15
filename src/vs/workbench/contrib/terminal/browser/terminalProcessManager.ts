@@ -457,10 +457,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public setDimensions(cols: number, rows: number, sync: false): Promise<void>;
 	public setDimensions(cols: number, rows: number, sync: true): void;
 	public setDimensions(cols: number, rows: number, sync?: boolean): Promise<void> | void {
-		if (!this._process) {
-			return;
-		}
-
 		if (sync) {
 			this._resize(cols, rows);
 			return;
@@ -470,6 +466,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private _resize(cols: number, rows: number) {
+		if (!this._process) {
+			return;
+		}
 		// The child process could already be terminated
 		try {
 			this._process!.resize(cols, rows);
