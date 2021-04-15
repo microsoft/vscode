@@ -962,12 +962,12 @@ declare module 'vscode' {
 
 	export class NotebookCellMetadata {
 		/**
-		 * Whether a code cell's outputs are collapsed
+		 * Whether a code cell's editor is collapsed
 		 */
 		readonly inputCollapsed?: boolean;
 
 		/**
-		 * Whether a code cell's editor is collapsed
+		 * Whether a code cell's outputs are collapsed
 		 */
 		readonly outputCollapsed?: boolean;
 
