@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -16,23 +15,43 @@ import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, INotebook
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { CHANGE_CELL_LANGUAGE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CHANGE_CELL_LANGUAGE, EXECUTE_CELL_COMMAND_ID, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProvider {
 	readonly selector: INotebookDocumentFilter = {
 		filenamePattern: '**/*'
 	};
 
-	constructor(@INotebookService private readonly _notebookService: INotebookService) { }
+	constructor(
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) { }
 
-	async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList> {
+	async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined> {
 		const doc = this._notebookService.getNotebookTextModel(uri);
 		const cell = doc?.cells[index];
-		if (typeof cell?.metadata.runState !== 'undefined' || typeof cell?.metadata.lastRunSuccess !== 'undefined') {
-			return { items: [] };
+		if (!cell || typeof cell.metadata.runState !== 'undefined' || typeof cell.metadata.lastRunSuccess !== 'undefined') {
+			return;
 		}
 
-		const text = isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run';
+		let text: string;
+		if (cell.cellKind === CellKind.Code) {
+			const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID)?.getLabel();
+			if (!keybinding) {
+				return;
+			}
+
+			text = localize('notebook.cell.status.codeExecuteTip', "Press {0} to execute cell", keybinding);
+		} else {
+			const keybinding = this._keybindingService.lookupKeybinding(QUIT_EDIT_CELL_COMMAND_ID)?.getLabel();
+			if (!keybinding) {
+				return;
+			}
+
+			text = localize('notebook.cell.status.markdownExecuteTip', "Press {0} to stop editing", keybinding);
+		}
+
 		const item = <INotebookCellStatusBarItem>{
 			text,
 			tooltip: text,
