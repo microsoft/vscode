@@ -208,8 +208,12 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-toolbar {
-	text-align: center;
+	padding: 4px 0 2px;
+	margin: auto;
+}
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
 	padding: 4px 7px 2px;
+	margin: 0;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text > .monaco-toolbar {
