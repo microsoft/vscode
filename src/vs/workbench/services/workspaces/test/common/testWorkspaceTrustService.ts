@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, WorkspaceTrustChangeEvent, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageService {
 	_serviceBrand: undefined;
@@ -40,14 +40,24 @@ export class TestWorkspaceTrustStorageService implements IWorkspaceTrustStorageS
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
 
-	onDidChangeTrust: WorkspaceTrustChangeEvent = Event.None;
+	private _onDidChangeTrust = new Emitter<boolean>();
+	onDidChangeTrust = this._onDidChangeTrust.event;
+
+	private trusted: boolean;
+
+	constructor(trusted: boolean = true) {
+		this.trusted = trusted;
+	}
 
 	isWorkpaceTrusted(): boolean {
-		return true;
+		return this.trusted;
 	}
 
 	setWorkspaceTrust(trusted: boolean): void {
-		throw new Error('Method not implemented.');
+		if (this.trusted !== trusted) {
+			this.trusted = trusted;
+			this._onDidChangeTrust.fire(this.trusted);
+		}
 	}
 }
 

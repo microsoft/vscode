@@ -45,6 +45,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteAgentServiceImpl';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { hash } from 'vs/base/common/hash';
+import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 function convertToWorkspacePayload(folder: URI): ISingleFolderWorkspaceIdentifier {
 	return {
@@ -1123,14 +1124,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is read from workspace when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+		testObject.initializeWorkspaceTrust(new TestWorkspaceTrustManagementService());
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.strictEqual(testObject.unTrustedSettings.all, undefined);
+		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
@@ -1138,16 +1139,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is not read from workspace when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+		const testWorkspaceTrustManagementService = new TestWorkspaceTrustManagementService();
+		testObject.initializeWorkspaceTrust(testWorkspaceTrustManagementService);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		testObject.updateWorkspaceTrust(false);
+		testWorkspaceTrustManagementService.setWorkspaceTrust(false);
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.all, ['configurationService.folder.untrustedSetting']);
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.folder.untrustedSetting'));
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.folder.untrustedSetting']);
@@ -1156,29 +1158,31 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('change event is triggered when workspace is changed to untrusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+		const testWorkspaceTrustManagementService = new TestWorkspaceTrustManagementService();
+		testObject.initializeWorkspaceTrust(testWorkspaceTrustManagementService);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrust(false);
+		testWorkspaceTrustManagementService.setWorkspaceTrust(false);
 
 		const event = await promise;
-		assert.deepStrictEqual(event.affectedKeys, ['configurationService.folder.untrustedSetting']);
+		assert.ok(event.affectedKeys.includes('configurationService.folder.untrustedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.untrustedSetting'));
 	});
 
 	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+		const testWorkspaceTrustManagementService = new TestWorkspaceTrustManagementService(false);
+		testObject.initializeWorkspaceTrust(testWorkspaceTrustManagementService);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'userValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.all, ['configurationService.folder.untrustedSetting']);
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.folder.untrustedSetting'));
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.folder.untrustedSetting']);
@@ -1187,16 +1191,17 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('untrusted setting is read when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+		const testWorkspaceTrustManagementService = new TestWorkspaceTrustManagementService(false);
+		testObject.initializeWorkspaceTrust(testWorkspaceTrustManagementService);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
-		testObject.updateWorkspaceTrust(true);
+		testWorkspaceTrustManagementService.setWorkspaceTrust(true);
 
 		assert.strictEqual(testObject.getValue('configurationService.folder.untrustedSetting', { resource: workspaceService.getWorkspace().folders[0].uri }), 'workspaceValue');
-		assert.strictEqual(testObject.unTrustedSettings.all, undefined);
+		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
@@ -1204,23 +1209,25 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('change event is triggered when workspace is changed to trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+		const testWorkspaceTrustManagementService = new TestWorkspaceTrustManagementService(false);
+		testObject.initializeWorkspaceTrust(testWorkspaceTrustManagementService);
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
 
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
-		testObject.updateWorkspaceTrust(true);
+		testWorkspaceTrustManagementService.setWorkspaceTrust(true);
 
 		const event = await promise;
-		assert.deepStrictEqual(event.affectedKeys, ['configurationService.folder.untrustedSetting']);
+		assert.ok(event.affectedKeys.includes('configurationService.folder.untrustedSetting'));
 		assert.ok(event.affectsConfiguration('configurationService.folder.untrustedSetting'));
 	});
 
 	test('adding an untrusted setting triggers change event', async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "userValue" }'));
-		testObject.updateWorkspaceTrust(false);
+		const testWorkspaceTrustManagementService = new TestWorkspaceTrustManagementService(false);
+		testObject.initializeWorkspaceTrust(testWorkspaceTrustManagementService);
 
 		const promise = Event.toPromise(testObject.onDidChangeUntrustdSettings);
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.untrustedSetting": "workspaceValue" }'));
@@ -1842,7 +1849,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('untrusted setting is read from workspace folders when workspace is trusted', async () => {
-		testObject.updateWorkspaceTrust(true);
+		testObject.initializeWorkspaceTrust(new TestWorkspaceTrustManagementService());
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);
@@ -1851,7 +1858,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'workspaceValue');
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'workspaceFolder2Value');
-		assert.strictEqual(testObject.unTrustedSettings.all, undefined);
+		assert.deepStrictEqual(testObject.unTrustedSettings.default, []);
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.workspace, undefined);
@@ -1859,7 +1866,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 	});
 
 	test('untrusted setting is not read from workspace when workspace is not trusted', async () => {
-		testObject.updateWorkspaceTrust(false);
+		testObject.initializeWorkspaceTrust(new TestWorkspaceTrustManagementService(false));
 
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString('{ "configurationService.workspace.testUntrustedSetting1": "userValue", "configurationService.workspace.testUntrustedSetting2": "userValue" }'));
 		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'configurationService.workspace.testUntrustedSetting1': 'workspaceValue' } }], true);
@@ -1868,7 +1875,8 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting1', { resource: testObject.getWorkspace().folders[0].uri }), 'userValue');
 		assert.strictEqual(testObject.getValue('configurationService.workspace.testUntrustedSetting2', { resource: testObject.getWorkspace().folders[1].uri }), 'userValue');
-		assert.deepStrictEqual(testObject.unTrustedSettings.all, ['configurationService.workspace.testUntrustedSetting1', 'configurationService.workspace.testUntrustedSetting2']);
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.workspace.testUntrustedSetting1'));
+		assert.ok(testObject.unTrustedSettings.default.includes('configurationService.workspace.testUntrustedSetting2'));
 		assert.strictEqual(testObject.unTrustedSettings.userLocal, undefined);
 		assert.strictEqual(testObject.unTrustedSettings.userRemote, undefined);
 		assert.deepStrictEqual(testObject.unTrustedSettings.workspace, ['configurationService.workspace.testUntrustedSetting1']);
