@@ -11,6 +11,7 @@ import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 suite('NotebookKernel', function () {
 
@@ -42,6 +43,7 @@ suite('NotebookKernel', function () {
 
 		extHostNotebookKernels = new ExtHostNotebookKernels(
 			rpcProtocol,
+			new class extends mock<IExtHostInitDataService>() { },
 			new class extends mock<ExtHostNotebookController>() { }
 		);
 	});

@@ -15,6 +15,7 @@
   "activationEvents": [
     "onAuthenticationRequest:microsoft"
   ],
+  "workspaceTrust": { "request": "never" },
   "extensionKind": [
     "ui",
     "workspace",

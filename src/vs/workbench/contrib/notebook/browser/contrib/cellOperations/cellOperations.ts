@@ -74,7 +74,7 @@ export async function moveCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
-	if (!viewModel.metadata.editable) {
+	if (viewModel.options.isReadOnly) {
 		return;
 	}
 
@@ -194,7 +194,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 		return;
 	}
 
-	if (!viewModel.metadata.editable) {
+	if (viewModel.options.isReadOnly) {
 		return;
 	}
 
@@ -298,7 +298,7 @@ registerAction2(class extends NotebookCellAction {
 });
 
 export async function joinNotebookCells(viewModel: NotebookViewModel, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[] } | null> {
-	if (!viewModel || !viewModel.metadata.editable) {
+	if (!viewModel || viewModel.options.isReadOnly) {
 		return null;
 	}
 

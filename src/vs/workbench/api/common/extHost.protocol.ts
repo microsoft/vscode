@@ -899,10 +899,6 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean>
-
-	$addRendererIpc(rendererId: string, handle: number): Promise<void>;
-	$removeRendererIpc(rendererId: string, handle: number): void;
-	$postRendererIpcMessage(rendererId: string, handle: number, editorId: string | undefined, message: unknown): Promise<boolean>;
 }
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
@@ -926,6 +922,7 @@ export interface INotebookKernelDto2 {
 }
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
+	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
 	$addKernel(handle: number, data: INotebookKernelDto2): void;
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
 	$removeKernel(handle: number): void;
@@ -1942,8 +1939,8 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
 
-	$dataToNotebook(handle: number, data: VSBuffer): Promise<NotebookDataDto>;
-	$notebookToData(handle: number, data: NotebookDataDto): Promise<VSBuffer>;
+	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<NotebookDataDto>;
+	$notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer>;
 }
 
 export interface ExtHostNotebookDocumentsAndEditorsShape {
@@ -1962,14 +1959,13 @@ export type INotebookEditorViewColumnInfo = Record<string, number>;
 export interface ExtHostNotebookEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void;
-
-	$acceptEditorIpcMessage(editorId: string, rendererId: string, handles: number[], message: unknown): void;
 }
 
 export interface ExtHostNotebookKernelsShape {
 	$acceptSelection(handle: number, uri: UriComponents, value: boolean): void;
 	$executeCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
 	$cancelCells(handle: number, uri: UriComponents, ranges: ICellRange[]): void;
+	$acceptRendererMessage(handle: number, editorId: string, message: any): void;
 }
 
 export interface ExtHostStorageShape {

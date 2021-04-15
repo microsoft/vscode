@@ -929,8 +929,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async setOptions(options: NotebookEditorOptions | undefined) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		if (options?.isReadOnly !== undefined) {
+			this.viewModel.updateOptions({ isReadOnly: options.isReadOnly });
+		}
+
 		// reveal cell if editor options tell to do so
-		if (options?.cellOptions && this.viewModel) {
+		if (options?.cellOptions) {
 			const cellOptions = options.cellOptions;
 			const cell = this.viewModel.viewCells.find(cell => cell.uri.toString() === cellOptions.resource.toString());
 			if (cell) {
@@ -961,7 +969,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// select cells if options tell to do so
 		// todo@rebornix https://github.com/microsoft/vscode/issues/118108 support selections not just focus
 		// todo@rebornix support multipe selections
-		if (options?.cellSelections && this.viewModel) {
+		if (options?.cellSelections) {
 			const focusCellIndex = options.cellSelections[0].start;
 			const focusedCell = this.viewModel.cellAt(focusCellIndex);
 			if (focusedCell) {
@@ -973,6 +981,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.revealInCenterIfOutsideViewport(focusedCell);
 			}
 		}
+
+		this._updateForOptions();
 	}
 
 	private _detachModel() {
@@ -1011,15 +1021,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webview?.updateKernelPreloads([extensionLocation], kernel.preloadUris);
 	}
 
-	private _updateForMetadata(): void {
-		if (!this.viewModel) {
+	private _updateForOptions(): void {
+		if (!this.hasModel()) {
 			return;
 		}
 
-		const notebookMetadata = this.viewModel.metadata;
-		this._editorEditable.set(!!notebookMetadata?.editable);
-		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
-		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
+		this._editorEditable.set(!this.viewModel.options.isReadOnly);
+		this._overflowContainer.classList.toggle('notebook-editor-editable', !this.viewModel.options.isReadOnly);
+		this.getDomNode().classList.toggle('notebook-editor-editable', !this.viewModel.options.isReadOnly);
 	}
 
 	private async _resolveWebview(): Promise<BackLayerWebView<ICommonCellInfo> | null> {
@@ -1098,11 +1107,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._eventDispatcher, this.getLayoutInfo());
 		this._eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
-		this._updateForMetadata();
-		this._localStore.add(this._eventDispatcher.onDidChangeMetadata(() => {
-			this._updateForMetadata();
-		}));
-
+		this._updateForOptions();
 		// restore view states, including contributions
 
 		{
@@ -1798,7 +1803,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1847,7 +1852,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1861,7 +1866,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return false;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return false;
 		}
 
@@ -1879,7 +1884,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1897,7 +1902,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
@@ -1915,7 +1920,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!this.viewModel.metadata.editable) {
+		if (this.viewModel.options.isReadOnly) {
 			return null;
 		}
 
