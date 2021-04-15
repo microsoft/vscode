@@ -27,7 +27,7 @@ export function renderText(text: string, options: FormattedTextRenderOptions = {
 
 export function renderFormattedText(formattedText: string, options: FormattedTextRenderOptions = {}): HTMLElement {
 	const element = createElement(options);
-	_renderFormattedText(element, parseFormattedText(formattedText, options.renderPreformattedSegements), options.actionHandler, options.renderPreformattedSegements);
+	_renderFormattedText(element, parseFormattedText(formattedText, !!options.renderPreformattedSegements), options.actionHandler, options.renderPreformattedSegements);
 	return element;
 }
 
@@ -124,7 +124,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 	}
 }
 
-function parseFormattedText(content: string, parsePreformattedSegments: boolean = false): IFormatParseTree {
+function parseFormattedText(content: string, parsePreformattedSegments: boolean): IFormatParseTree {
 
 	const root: IFormatParseTree = {
 		type: FormatType.Root,
