@@ -1419,7 +1419,7 @@ export namespace NotebookCellRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.inputCollapsed, data.outputCollapsed).with({ custom: data.custom });
 	}
 }
 
@@ -1430,7 +1430,7 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.custom, data.trusted);
+		return new types.NotebookDocumentMetadata(data.trusted, data.custom);
 	}
 }
 

@@ -2941,19 +2941,30 @@ export class NotebookCellRange {
 }
 
 export class NotebookCellMetadata {
-	constructor(
-		readonly inputCollapsed?: boolean,
-		readonly outputCollapsed?: boolean,
-		readonly custom?: Record<string, any>
-	) { }
+	readonly inputCollapsed?: boolean;
+	readonly outputCollapsed?: boolean;
+	readonly custom?: Record<string, any>;
+	readonly [key: string]: any;
+
+	constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
+	constructor(data: Record<string, any>);
+	constructor(inputCollapsedOrData: (boolean | undefined) | Record<string, any>, outputCollapsed?: boolean) {
+		if (typeof inputCollapsedOrData === 'object') {
+			Object.assign(this, inputCollapsedOrData);
+		} else {
+			this.inputCollapsed = inputCollapsedOrData;
+			this.outputCollapsed = outputCollapsed;
+		}
+	}
 
 	with(change: {
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
 		custom?: Record<string, any> | null,
+		[key: string]: any
 	}): NotebookCellMetadata {
 
-		let { inputCollapsed, outputCollapsed, custom } = change;
+		let { inputCollapsed, outputCollapsed, custom, ...remaining } = change;
 
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
@@ -2973,32 +2984,48 @@ export class NotebookCellMetadata {
 
 		if (inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
-			custom === this.custom
+			custom === this.custom &&
+			Object.keys(remaining).length === 0
 		) {
 			return this;
 		}
 
 		return new NotebookCellMetadata(
-			inputCollapsed,
-			outputCollapsed,
-			custom,
+			{
+				inputCollapsed,
+				outputCollapsed,
+				custom,
+				...remaining
+			}
 		);
 	}
 }
 
 export class NotebookDocumentMetadata {
+	readonly trusted: boolean;
+	readonly custom: { [key: string]: any; };
+	readonly [key: string]: any;
 
-	constructor(
-		readonly custom: { [key: string]: any; } = {},
-		readonly trusted: boolean = true,
-	) { }
+	constructor(trusted?: boolean, custom?: { [key: string]: any; });
+	constructor(data: Record<string, any>);
+	constructor(trustedOrData: boolean | Record<string, any> = true, custom: { [key: string]: any; } = {}) {
+		if (typeof trustedOrData === 'object') {
+			Object.assign(this, trustedOrData);
+			this.trusted = trustedOrData.trusted ?? true;
+			this.custom = trustedOrData.custom ?? {};
+		} else {
+			this.trusted = trustedOrData;
+			this.custom = custom;
+		}
+	}
 
 	with(change: {
-		custom?: { [key: string]: any; } | null,
 		trusted?: boolean | null,
+		custom?: { [key: string]: any; } | null,
+		[key: string]: any
 	}): NotebookDocumentMetadata {
 
-		let { custom, trusted } = change;
+		let { custom, trusted, ...remaining } = change;
 
 		if (custom === undefined) {
 			custom = this.custom;
@@ -3012,15 +3039,18 @@ export class NotebookDocumentMetadata {
 		}
 
 		if (custom === this.custom &&
-			trusted === this.trusted
+			trusted === this.trusted &&
+			Object.keys(remaining).length === 0
 		) {
 			return this;
 		}
 
-
 		return new NotebookDocumentMetadata(
-			custom,
-			trusted
+			{
+				trusted,
+				custom,
+				...remaining
+			}
 		);
 	}
 }
