@@ -1439,9 +1439,9 @@ registerAction2(ExpandAllRepositoriesAction);
 
 class SCMInputWidget extends Disposable {
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
-		[InputValidationType.Information]: 15000,
-		[InputValidationType.Warning]: 18000,
-		[InputValidationType.Error]: 20000
+		[InputValidationType.Information]: 5000,
+		[InputValidationType.Warning]: 8000,
+		[InputValidationType.Error]: 10000
 	};
 
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
