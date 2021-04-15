@@ -45,6 +45,7 @@ import { LinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -761,7 +762,7 @@ export class GettingStartedPage extends EditorPane {
 					const p = append(container, $('p'));
 					for (const node of linkedText.nodes) {
 						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
+							append(p, renderFormattedText(node, { inline: true, renderCodeSegements: true }));
 						} else {
 							const link = this.instantiationService.createInstance(Link, node);
 
