@@ -10,14 +10,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { BaseTerminalProfileResolverService, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminalProfileResolverService';
+import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminalProfileResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
-export class ElectronTerminalProfileResolverService
-	extends BaseTerminalProfileResolverService
-	implements ITerminalProfileResolverService {
+export class ElectronTerminalProfileResolverService extends BaseTerminalProfileResolverService {
 
 	constructor(
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,

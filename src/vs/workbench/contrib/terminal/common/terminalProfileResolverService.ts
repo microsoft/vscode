@@ -6,26 +6,11 @@
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as path from 'vs/base/common/path';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
-export interface ITerminalProfileResolverService {
-	/**
-	 * Resolves a shell launch config
-	 */
-	resolve(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): void;
-	// getDefaultProfile(): ITerminalProfile | undefined;
-	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
-	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
-}
-
-export interface IShellLaunchConfigResolveOptions {
-	platform: Platform;
-	allowAutomationShell: boolean;
-}
 
 export interface IProfileContextProvider {
 	getAvailableProfiles: () => ITerminalProfile[];
@@ -47,14 +32,14 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
-		return (await this._getResolvedDefaultProfile(options)).path;
+		return (await this.getDefaultProfile(options)).path;
 	}
 
 	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> {
-		return (await this._getResolvedDefaultProfile(options)).args || [];
+		return (await this.getDefaultProfile(options)).args || [];
 	}
 
-	private _getResolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
+	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		return this._resolveProfile(this._getUnresolvedDefaultProfile(options), options);
 	}
 
