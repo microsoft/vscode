@@ -17,7 +17,5 @@ export class CollapseAllAction<TInput, T, TFilterData = void> extends Action {
 		this.viewer.collapseAll();
 		this.viewer.setSelection([]);
 		this.viewer.setFocus([]);
-		this.viewer.domFocus();
-		this.viewer.focusFirst();
 	}
 }
