@@ -247,8 +247,20 @@ export const terminalConfiguration: IConfigurationNode = {
 				]
 			}
 		},
+		'terminal.integrated.defaultProfile.linux': {
+			description: localize('terminal.integrated.defaultProfile.linux', 'The default profile used on Linux. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			type: ['string', 'null'],
+			default: null,
+			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+		},
 		'terminal.integrated.defaultProfile.osx': {
 			description: localize('terminal.integrated.defaultProfile.osx', 'The default profile used on macOS. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
+			type: ['string', 'null'],
+			default: null,
+			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
+		},
+		'terminal.integrated.defaultProfile.windows': {
+			description: localize('terminal.integrated.defaultProfile.windows', 'The default profile used on Windows. When set to a valid profile name, this will override the values of `terminal.integrated.shell.osx` and `terminal.integrated.shellArgs.osx`.'),
 			type: ['string', 'null'],
 			default: null,
 			scope: ConfigurationScope.APPLICATION // Disallow setting the default in workspace settings
