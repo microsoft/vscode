@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -419,6 +419,40 @@ export interface ITextFileResolveOptions {
 	 * Context why the model is being resolved.
 	 */
 	reason?: TextFileResolveReason;
+}
+
+export const enum EncodingMode {
+
+	/**
+	 * Instructs the encoding support to encode the object with the provided encoding
+	 */
+	Encode,
+
+	/**
+	 * Instructs the encoding support to decode the object with the provided encoding
+	 */
+	Decode
+}
+
+export interface IEncodingSupport {
+
+	/**
+	 * Gets the encoding of the object if known.
+	 */
+	getEncoding(): string | undefined;
+
+	/**
+	 * Sets the encoding for the object for saving.
+	 */
+	setEncoding(encoding: string, mode: EncodingMode): void;
+}
+
+export interface IModeSupport {
+
+	/**
+	 * Sets the language mode of the object.
+	 */
+	setMode(mode: string): void;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {

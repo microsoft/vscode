@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
+import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';

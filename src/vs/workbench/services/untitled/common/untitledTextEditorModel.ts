@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEncodingSupport, ISaveOptions, IModeSupport } from 'vs/workbench/common/editor';
+import { ISaveOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -15,7 +15,7 @@ import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
