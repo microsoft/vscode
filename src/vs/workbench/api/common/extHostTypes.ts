@@ -2895,7 +2895,7 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
-export class NotebookCellRange {
+export class NotebookRange {
 
 	private _start: number;
 	private _end: number;
@@ -2923,7 +2923,7 @@ export class NotebookCellRange {
 		this._end = end;
 	}
 
-	with(change: { start?: number, end?: number }): NotebookCellRange {
+	with(change: { start?: number, end?: number }): NotebookRange {
 		let start = this._start;
 		let end = this._end;
 
@@ -2936,47 +2936,36 @@ export class NotebookCellRange {
 		if (start === this._start && end === this._end) {
 			return this;
 		}
-		return new NotebookCellRange(start, end);
+		return new NotebookRange(start, end);
 	}
 }
 
 export class NotebookCellMetadata {
+	readonly inputCollapsed?: boolean;
+	readonly outputCollapsed?: boolean;
+	readonly custom?: Record<string, any>;
+	readonly [key: string]: any;
 
-	constructor(
-		readonly editable?: boolean,
-		readonly breakpointMargin?: boolean,
-		readonly statusMessage?: string,
-		readonly inputCollapsed?: boolean,
-		readonly outputCollapsed?: boolean,
-		readonly custom?: Record<string, any>,
-	) { }
+	constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
+	constructor(data: Record<string, any>);
+	constructor(inputCollapsedOrData: (boolean | undefined) | Record<string, any>, outputCollapsed?: boolean) {
+		if (typeof inputCollapsedOrData === 'object') {
+			Object.assign(this, inputCollapsedOrData);
+		} else {
+			this.inputCollapsed = inputCollapsedOrData;
+			this.outputCollapsed = outputCollapsed;
+		}
+	}
 
 	with(change: {
-		editable?: boolean | null,
-		breakpointMargin?: boolean | null,
-		statusMessage?: string | null,
 		inputCollapsed?: boolean | null,
 		outputCollapsed?: boolean | null,
 		custom?: Record<string, any> | null,
+		[key: string]: any
 	}): NotebookCellMetadata {
 
-		let { editable, breakpointMargin, statusMessage, inputCollapsed, outputCollapsed, custom } = change;
+		let { inputCollapsed, outputCollapsed, custom, ...remaining } = change;
 
-		if (editable === undefined) {
-			editable = this.editable;
-		} else if (editable === null) {
-			editable = undefined;
-		}
-		if (breakpointMargin === undefined) {
-			breakpointMargin = this.breakpointMargin;
-		} else if (breakpointMargin === null) {
-			breakpointMargin = undefined;
-		}
-		if (statusMessage === undefined) {
-			statusMessage = this.statusMessage;
-		} else if (statusMessage === null) {
-			statusMessage = undefined;
-		}
 		if (inputCollapsed === undefined) {
 			inputCollapsed = this.inputCollapsed;
 		} else if (inputCollapsed === null) {
@@ -2993,55 +2982,51 @@ export class NotebookCellMetadata {
 			custom = undefined;
 		}
 
-		if (editable === this.editable &&
-			breakpointMargin === this.breakpointMargin &&
-			statusMessage === this.statusMessage &&
-			inputCollapsed === this.inputCollapsed &&
+		if (inputCollapsed === this.inputCollapsed &&
 			outputCollapsed === this.outputCollapsed &&
-			custom === this.custom
+			custom === this.custom &&
+			Object.keys(remaining).length === 0
 		) {
 			return this;
 		}
 
 		return new NotebookCellMetadata(
-			editable,
-			breakpointMargin,
-			statusMessage,
-			inputCollapsed,
-			outputCollapsed,
-			custom,
+			{
+				inputCollapsed,
+				outputCollapsed,
+				custom,
+				...remaining
+			}
 		);
 	}
 }
 
 export class NotebookDocumentMetadata {
+	readonly trusted: boolean;
+	readonly custom: { [key: string]: any; };
+	readonly [key: string]: any;
 
-	constructor(
-		readonly editable: boolean = true,
-		readonly cellEditable: boolean = true,
-		readonly custom: { [key: string]: any; } = {},
-		readonly trusted: boolean = true,
-	) { }
+	constructor(trusted?: boolean, custom?: { [key: string]: any; });
+	constructor(data: Record<string, any>);
+	constructor(trustedOrData: boolean | Record<string, any> = true, custom: { [key: string]: any; } = {}) {
+		if (typeof trustedOrData === 'object') {
+			Object.assign(this, trustedOrData);
+			this.trusted = trustedOrData.trusted ?? true;
+			this.custom = trustedOrData.custom ?? {};
+		} else {
+			this.trusted = trustedOrData;
+			this.custom = custom;
+		}
+	}
 
 	with(change: {
-		editable?: boolean | null,
-		cellEditable?: boolean | null,
-		custom?: { [key: string]: any; } | null,
 		trusted?: boolean | null,
+		custom?: { [key: string]: any; } | null,
+		[key: string]: any
 	}): NotebookDocumentMetadata {
 
-		let { editable, cellEditable, custom, trusted } = change;
+		let { custom, trusted, ...remaining } = change;
 
-		if (editable === undefined) {
-			editable = this.editable;
-		} else if (editable === null) {
-			editable = undefined;
-		}
-		if (cellEditable === undefined) {
-			cellEditable = this.cellEditable;
-		} else if (cellEditable === null) {
-			cellEditable = undefined;
-		}
 		if (custom === undefined) {
 			custom = this.custom;
 		} else if (custom === null) {
@@ -3053,20 +3038,19 @@ export class NotebookDocumentMetadata {
 			trusted = undefined;
 		}
 
-		if (editable === this.editable &&
-			cellEditable === this.cellEditable &&
-			custom === this.custom &&
-			trusted === this.trusted
+		if (custom === this.custom &&
+			trusted === this.trusted &&
+			Object.keys(remaining).length === 0
 		) {
 			return this;
 		}
 
-
 		return new NotebookDocumentMetadata(
-			editable,
-			cellEditable,
-			custom,
-			trusted
+			{
+				trusted,
+				custom,
+				...remaining
+			}
 		);
 	}
 }

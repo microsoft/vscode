@@ -348,38 +348,6 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 					type: 'string',
 					description: 'The language for the cell'
 				},
-				['editable']: {
-					type: 'boolean',
-					description: `Controls whether a cell's editor is editable/readonly`
-				},
-				['breakpointMargin']: {
-					type: 'boolean',
-					description: 'Controls if the cell has a margin to support the breakpoint UI'
-				},
-				['hasExecutionOrder']: {
-					type: 'boolean',
-					description: 'Whether the execution order indicator will be displayed'
-				},
-				['executionOrder']: {
-					type: 'number',
-					description: 'The order in which this cell was executed'
-				},
-				['statusMessage']: {
-					type: 'string',
-					description: `A status message to be shown in the cell's status bar`
-				},
-				['runState']: {
-					type: 'integer',
-					description: `The cell's current run state`
-				},
-				['runStartTime']: {
-					type: 'number',
-					description: 'If the cell is running, the time at which the cell started running'
-				},
-				['lastRunDuration']: {
-					type: 'number',
-					description: `The total duration of the cell's last run`
-				},
 				['inputCollapsed']: {
 					type: 'boolean',
 					description: `Whether a code cell's editor is collapsed`

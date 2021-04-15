@@ -60,11 +60,13 @@ export interface INotebookKernelService {
 	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
 
 	registerKernel(kernel: INotebookKernel2): IDisposable;
-	getKernels(notebook: INotebookTextModel): INotebookKernel2[];
+	getMatchingKernels(notebook: INotebookTextModel): INotebookKernel2[];
 
 	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
 	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel2 | undefined): void;
+
+	getBoundKernel(notebook: INotebookTextModel): INotebookKernel2 | undefined
 }

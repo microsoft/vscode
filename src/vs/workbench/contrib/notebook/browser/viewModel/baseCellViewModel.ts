@@ -482,9 +482,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
-		const editable = this.metadata?.editable ??
-			documentMetadata.cellEditable;
-
+		const editable = this.metadata?.editable ?? true;
 
 		return {
 			...(this.metadata || {}),

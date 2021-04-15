@@ -80,7 +80,7 @@ export function runPasteCells(editor: INotebookEditor, activeCell: ICellViewMode
 }): boolean {
 	const viewModel = editor.viewModel;
 
-	if (!viewModel || !viewModel.metadata.editable) {
+	if (!viewModel || viewModel.options.isReadOnly) {
 		return false;
 	}
 
@@ -176,7 +176,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 export function runCutCells(accessor: ServicesAccessor, editor: INotebookEditor, targetCell: ICellViewModel | undefined): boolean {
 	const viewModel = editor.viewModel;
 
-	if (!viewModel || !viewModel.metadata.editable) {
+	if (!viewModel || viewModel.options.isReadOnly) {
 		return false;
 	}
 
@@ -425,7 +425,7 @@ registerAction2(class extends NotebookAction {
 
 		const viewModel = context.notebookEditor.viewModel;
 
-		if (!viewModel || !viewModel.metadata.editable) {
+		if (!viewModel || viewModel.options.isReadOnly) {
 			return;
 		}
 
@@ -457,7 +457,7 @@ registerAction2(class extends NotebookCellAction {
 
 		const viewModel = context.notebookEditor.viewModel;
 
-		if (!viewModel || !viewModel.metadata.editable) {
+		if (!viewModel || viewModel.options.isReadOnly) {
 			return;
 		}
 

@@ -135,11 +135,16 @@ function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOpt
 
 let MODEL_ID = 0;
 
+export interface NotebookViewModelOptions {
+	isReadOnly: boolean;
+}
 
 export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
-	private _viewCells: CellViewModel[] = [];
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
+	private _options: NotebookViewModelOptions;
+	get options(): NotebookViewModelOptions { return this._options; }
+	private _viewCells: CellViewModel[] = [];
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
@@ -238,8 +243,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
-
-
+		this._options = { isReadOnly: false };
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -356,6 +360,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
 		});
+	}
+
+	updateOptions(newOptions: Partial<NotebookViewModelOptions>) {
+		this._options = { ...this._options, ...newOptions };
 	}
 
 	getFocus() {
@@ -906,7 +914,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	async splitNotebookCell(index: number): Promise<CellViewModel[] | null> {
 		const cell = this.viewCells[index] as CellViewModel;
 
-		if (!this.metadata.editable) {
+		if (this._options.isReadOnly) {
 			return null;
 		}
 
@@ -1122,8 +1130,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async undo() {
-		if (!this.metadata.editable) {
-			return;
+		if (this._options.isReadOnly) {
+			return null;
 		}
 
 		const editStack = this._undoService.getElements(this.uri);
@@ -1142,8 +1150,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	async redo() {
-		if (!this.metadata.editable) {
-			return;
+		if (this._options.isReadOnly) {
+			return null;
 		}
 
 		const editStack = this._undoService.getElements(this.uri);

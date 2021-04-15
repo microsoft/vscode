@@ -707,7 +707,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
-	if (!notebookEditor.viewModel.metadata.editable) {
+	if (notebookEditor.viewModel.options.isReadOnly) {
 		return null;
 	}
 
@@ -1072,7 +1072,7 @@ registerAction2(class extends NotebookCellAction {
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace
 					},
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, ContextKeyExpr.not(InputFocusedContextKey)),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				icon: icons.deleteCellIcon
@@ -1081,7 +1081,7 @@ registerAction2(class extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const viewModel = context.notebookEditor.viewModel;
-		if (!viewModel || !viewModel.metadata.editable) {
+		if (!viewModel || viewModel.options.isReadOnly) {
 			return;
 		}
 
@@ -1319,8 +1319,7 @@ registerAction2(class extends NotebookCellAction {
 					runState: NotebookCellExecutionState.Idle,
 					runStartTime: undefined,
 					runStartTimeAdjustment: undefined,
-					lastRunDuration: undefined,
-					statusMessage: undefined,
+					runEndTime: undefined,
 					executionOrder: undefined
 				}
 			}], true, undefined, () => undefined, undefined);
@@ -1533,8 +1532,7 @@ registerAction2(class extends NotebookAction {
 						runState: NotebookCellExecutionState.Idle,
 						runStartTime: undefined,
 						runStartTimeAdjustment: undefined,
-						lastRunDuration: undefined,
-						statusMessage: undefined,
+						runEndTime: undefined,
 						executionOrder: undefined
 					}
 				};
