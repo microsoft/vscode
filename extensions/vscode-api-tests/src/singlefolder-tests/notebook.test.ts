@@ -218,7 +218,7 @@ suite('Notebook API tests', function () {
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [],
 							metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } }),
-							latestExecutionSummary: { duration: 25 }
+							latestExecutionSummary: { startTime: 10, endTime: 20 }
 						},
 						{
 							source: 'test2',
@@ -1379,7 +1379,8 @@ suite('Notebook API tests', function () {
 		const cell = editor.document.cellAt(0);
 
 		assert.strictEqual(cell.latestExecutionSummary?.success, undefined);
-		assert.strictEqual(cell.latestExecutionSummary?.duration, 25);
+		assert.strictEqual(cell.latestExecutionSummary?.startTime, 10);
+		assert.strictEqual(cell.latestExecutionSummary?.endTime, 20);
 
 		await saveAllFilesAndCloseAll(undefined);
 	});

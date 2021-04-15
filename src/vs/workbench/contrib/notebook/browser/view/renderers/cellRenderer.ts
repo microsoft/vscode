@@ -848,7 +848,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			} else {
 				templateData.timer.clear();
 			}
-		} else if (metadata.runState === NotebookCellExecutionState.Idle && metadata.runStartTime && metadata.runEndTime) {
+		} else if (metadata.runState !== NotebookCellExecutionState.Pending && metadata.runStartTime && metadata.runEndTime) {
 			templateData.timer.show(metadata.runEndTime - metadata.runStartTime);
 		} else {
 			templateData.timer.clear();

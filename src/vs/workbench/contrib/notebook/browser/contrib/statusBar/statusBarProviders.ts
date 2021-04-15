@@ -28,7 +28,7 @@ class CellStatusBarPlaceholderProvider implements INotebookCellStatusBarItemProv
 	async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList> {
 		const doc = this._notebookService.getNotebookTextModel(uri);
 		const cell = doc?.cells[index];
-		if (typeof cell?.metadata.runState !== 'undefined') {
+		if (typeof cell?.metadata.runState !== 'undefined' || typeof cell?.metadata.lastRunSuccess !== 'undefined') {
 			return { items: [] };
 		}
 

@@ -1447,6 +1447,7 @@ export namespace NotebookCellPreviousExecutionResult {
 	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
 		return {
 			lastRunSuccess: data.success,
+			runStartTime: data.startTime,
 			runEndTime: data.endTime,
 			executionOrder: data.executionOrder
 		};
