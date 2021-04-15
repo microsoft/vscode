@@ -10,6 +10,7 @@ import { ITerminalProfile } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as path from 'vs/base/common/path';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface ITerminalProfileResolverService {
 	/**
@@ -30,11 +31,12 @@ export interface IProfileContextProvider {
 	getAvailableProfiles: () => ITerminalProfile[];
 	getDefaultSystemShell: (platform: Platform) => Promise<string>;
 	getShellEnvironment: () => Promise<IProcessEnvironment>;
+	getLastActiveWorkspace: () => IWorkspaceFolder | undefined;
 }
 
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
 	constructor(
-		private readonly _profileContext: IProfileContextProvider,
+		private readonly _context: IProfileContextProvider,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _configurationResolverService: IConfigurationResolverService,
 		private readonly _logService: ILogService
@@ -70,7 +72,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// Return the real default profile if it exists and is valid
 		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getPlatformKey(options.platform)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			const profiles = this._profileContext.getAvailableProfiles();
+			const profiles = this._context.getAvailableProfiles();
 			const defaultProfile = profiles.find(e => e.profileName === defaultProfileName);
 			if (defaultProfile) {
 				return defaultProfile;
@@ -144,16 +146,17 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Resolve path variables
-		const env = await this._profileContext.getShellEnvironment();
-		profile.path = this._resolveVariables(profile.path, env);
+		const env = await this._context.getShellEnvironment();
+		const lastActiveWorkspace = this._context.getLastActiveWorkspace();
+		profile.path = this._resolveVariables(profile.path, env, lastActiveWorkspace);
 
 		// Resolve args variables
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
-				profile.args = this._resolveVariables(profile.args, env);
+				profile.args = this._resolveVariables(profile.args, env, lastActiveWorkspace);
 			} else {
 				for (let i = 0; i < profile.args.length; i++) {
-					profile.args[i] = this._resolveVariables(profile.args[i], env);
+					profile.args[i] = this._resolveVariables(profile.args[i], env, lastActiveWorkspace);
 				}
 			}
 		}
@@ -161,9 +164,9 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return profile;
 	}
 
-	private _resolveVariables(value: string, env: IProcessEnvironment) {
+	private _resolveVariables(value: string, env: IProcessEnvironment, lastActiveWorkspace: IWorkspaceFolder | undefined) {
 		try {
-			value = this._configurationResolverService.resolveWithEnvironment(env, undefined, value);
+			value = this._configurationResolverService.resolveWithEnvironment(env, lastActiveWorkspace, value);
 		} catch (e) {
 			this._logService.error(`Could not resolve shell`, e);
 		}
