@@ -26,6 +26,7 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 	) {
 		super(
 			{
+				// TODO: Get remote or local system shell?
 				getDefaultSystemShell: async (platform) => getSystemShell(platform, await shellEnvironmentService.getShellEnv()),
 				getShellEnvironment: () => shellEnvironmentService.getShellEnv()
 			},

@@ -16,6 +16,7 @@ import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (platform: Platform) => Promise<string>;
@@ -112,10 +113,13 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			executable = await this._context.getDefaultSystemShell(options.platform);
 		}
 
+		const icon = this._guessProfileIcon(executable);
+
 		return {
 			profileName: generatedProfileName,
 			path: executable,
-			args
+			args,
+			icon
 		};
 	}
 
@@ -186,6 +190,21 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			case Platform.Mac: return 'osx';
 			case Platform.Windows: return 'windows';
 			default: return '';
+		}
+	}
+
+	private _guessProfileIcon(shell: string): string | undefined {
+		const file = path.parse(shell).name;
+		switch (file) {
+			case 'pwsh':
+			case 'powershell':
+				return Codicon.terminalPowershell.id;
+			case 'tmux':
+				return Codicon.terminalTmux.id;
+			case 'cmd':
+				return Codicon.terminalCmd.id;
+			default:
+				return undefined;
 		}
 	}
 
