@@ -22,6 +22,8 @@ export interface IProfileContextProvider {
 const generatedProfileName = 'Generated';
 
 export abstract class BaseTerminalProfileResolverService implements ITerminalProfileResolverService {
+	declare _serviceBrand: undefined;
+
 	constructor(
 		private readonly _context: IProfileContextProvider,
 		private readonly _configurationService: IConfigurationService,
