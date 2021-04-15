@@ -988,15 +988,16 @@ declare module 'vscode' {
 		// todo@API duplicates status bar API
 		readonly statusMessage?: string;
 
-		constructor(editable?: boolean, breakpointMargin?: boolean, statusMessage?: string, lastRunDuration?: number, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
+		constructor(editable?: boolean, breakpointMargin?: boolean, statusMessage?: string, inputCollapsed?: boolean, outputCollapsed?: boolean, custom?: Record<string, any>)
 
-		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, statusMessage?: string | null, lastRunDuration?: number | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
+		with(change: { editable?: boolean | null, breakpointMargin?: boolean | null, statusMessage?: string | null, inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, custom?: Record<string, any> | null, }): NotebookCellMetadata;
 	}
 
 	export interface NotebookCellExecutionSummary {
 		executionOrder?: number;
 		success?: boolean;
-		duration?: number;
+		startTime?: number;
+		endTime?: number;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
@@ -1648,7 +1649,6 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCellExecuteStartContext {
-		// TODO@roblou are we concerned about clock issues with this absolute time?
 		/**
 		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
 		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
@@ -1664,9 +1664,9 @@ declare module 'vscode' {
 		success?: boolean;
 
 		/**
-		 * The total execution time in milliseconds.
+		 * The time that execution finished, in milliseconds in the Unix epoch.
 		 */
-		duration?: number;
+		endTime?: number;
 	}
 
 	/**

@@ -1027,7 +1027,6 @@ class NotebookCellExecutionTask extends Disposable {
 		this._executionOrder = _cell.internalMetadata.executionOrder;
 		this.mixinMetadata({
 			runState: extHostTypes.NotebookCellExecutionState.Pending,
-			lastRunDuration: null,
 			executionOrder: null
 		});
 	}
@@ -1105,7 +1104,7 @@ class NotebookCellExecutionTask extends Disposable {
 				that.mixinMetadata({
 					runState: extHostTypes.NotebookCellExecutionState.Idle,
 					lastRunSuccess: result?.success ?? null,
-					lastRunDuration: result?.duration ?? null,
+					runEndTime: result?.endTime ?? null,
 				});
 			},
 

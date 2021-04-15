@@ -1437,7 +1437,8 @@ export namespace NotebookDocumentMetadata {
 export namespace NotebookCellPreviousExecutionResult {
 	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
 		return {
-			duration: data.lastRunDuration,
+			startTime: data.runStartTime,
+			endTime: data.runEndTime,
 			executionOrder: data.executionOrder,
 			success: data.lastRunSuccess
 		};
@@ -1446,7 +1447,7 @@ export namespace NotebookCellPreviousExecutionResult {
 	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
 		return {
 			lastRunSuccess: data.success,
-			lastRunDuration: data.duration,
+			runEndTime: data.endTime,
 			executionOrder: data.executionOrder
 		};
 	}
@@ -1634,10 +1635,10 @@ export namespace NotebookDocumentContentOptions {
 			transientMetadata: {
 				...options?.transientMetadata,
 				executionOrder: true,
-				lastRunDuration: true,
 				runState: true,
 				runStartTime: true,
 				runStartTimeAdjustment: true,
+				runEndTime: true,
 				lastRunSuccess: true
 			}
 		};

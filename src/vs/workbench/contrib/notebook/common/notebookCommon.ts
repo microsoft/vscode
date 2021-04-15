@@ -91,7 +91,7 @@ export interface NotebookCellMetadata {
 	runState?: NotebookCellExecutionState;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
-	lastRunDuration?: number;
+	runEndTime?: number;
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
 	custom?: { [key: string]: unknown };

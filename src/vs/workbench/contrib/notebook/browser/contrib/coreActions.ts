@@ -1319,7 +1319,7 @@ registerAction2(class extends NotebookCellAction {
 					runState: NotebookCellExecutionState.Idle,
 					runStartTime: undefined,
 					runStartTimeAdjustment: undefined,
-					lastRunDuration: undefined,
+					runEndTime: undefined,
 					statusMessage: undefined,
 					executionOrder: undefined
 				}

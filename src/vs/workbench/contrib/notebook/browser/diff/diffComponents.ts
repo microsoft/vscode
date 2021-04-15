@@ -494,7 +494,6 @@ abstract class AbstractElementRenderer extends Disposable {
 						break;
 
 					case 'executionOrder':
-					case 'lastRunDuration':
 						// number
 						if (typeof newMetadataObj[key] === 'number') {
 							result[key] = newMetadataObj[key];
