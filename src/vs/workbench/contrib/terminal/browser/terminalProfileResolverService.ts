@@ -242,8 +242,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 	) {
 		super(
 			{
-				// TODO: How to get the system shell?
-				getDefaultSystemShell: async () => remoteTerminalService.getDefaultSystemShell(),
+				getDefaultSystemShell: async platform => remoteTerminalService.getDefaultSystemShell(platform),
 				// TODO: Get the actual shell environment from the server
 				getShellEnvironment: async () => env
 			},

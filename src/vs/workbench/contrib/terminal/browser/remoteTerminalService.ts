@@ -6,6 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
+import { Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -190,8 +191,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		});
 	}
 
-	public async getDefaultSystemShell(): Promise<string> {
-		return this._remoteTerminalChannel?.getDefaultSystemShell() || '';
+	public async getDefaultSystemShell(platformOverride?: Platform): Promise<string> {
+		return this._remoteTerminalChannel?.getDefaultSystemShell(platformOverride) || '';
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {

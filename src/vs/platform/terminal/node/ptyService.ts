@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment, platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
 import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
@@ -164,8 +164,8 @@ export class PtyService extends Disposable implements IPtyService {
 		return this._throwIfNoPty(id).orphanQuestionReply();
 	}
 
-	async getDefaultSystemShell(): Promise<string> {
-		return getSystemShell(platform, process.env);
+	async getDefaultSystemShell(platformOverride: Platform = platform): Promise<string> {
+		return getSystemShell(platformOverride, process.env);
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {

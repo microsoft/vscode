@@ -9,7 +9,7 @@ import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Emitter } from 'vs/base/common/event';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
@@ -192,8 +192,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 		return this._proxy.orphanQuestionReply(id);
 	}
 
-	getDefaultSystemShell(): Promise<string> {
-		return this._proxy.getDefaultSystemShell();
+	getDefaultSystemShell(platformOverride?: Platform): Promise<string> {
+		return this._proxy.getDefaultSystemShell(platformOverride);
 	}
 
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
