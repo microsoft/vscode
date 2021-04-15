@@ -55,7 +55,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		shellLaunchConfig.executable = resolvedProfile.path;
 		shellLaunchConfig.args = resolvedProfile.args;
-
+		shellLaunchConfig.icon = shellLaunchConfig.icon || resolvedProfile.icon;
 		// TODO: Also resolve environment
 	}
 
@@ -94,12 +94,12 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			}
 		}
 
-		// If there is no real default profile, create a synthetic default profile based on the
-		// shell and shellArgs settings in addition to the current environment.
-		return this._getSyntheticDefaultProfile(options);
+		// If there is no real default profile, create a fallback default profile based on the shell
+		// and shellArgs settings in addition to the current environment.
+		return this._getFallbackDefaultProfile(options);
 	}
 
-	private async _getSyntheticDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
+	private async _getFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		let executable: string;
 		let args: string | string[] | undefined;
 		const shellSetting = this._configurationService.getValue(`terminal.integrated.shell.${this._getPlatformKey(options.platform)}`);
