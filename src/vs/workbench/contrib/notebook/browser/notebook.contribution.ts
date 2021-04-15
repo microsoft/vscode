@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
@@ -72,7 +71,6 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { IExtensionContributedEditorService } from 'vs/workbench/contrib/customEditor/browser/extensionContributedEditorService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -213,7 +211,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IExtensionContributedEditorService private readonly extensionContributedEditorService: IExtensionContributedEditorService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super();
@@ -238,13 +235,6 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private _updateContextKeys() {
 		this._notebookEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID);
 		this._notebookDiffEditorIsOpen.set(this.editorService.activeEditorPane?.getId() === NOTEBOOK_DIFF_EDITOR_ID);
-	}
-
-	getUserAssociatedNotebookEditors(resource: URI) {
-		const associationsForResource = this.extensionContributedEditorService.getAssociationsForResource(resource);
-
-		return coalesce(associationsForResource
-			.map(association => this.notebookService.getContributedNotebookProvider(association.viewType)));
 	}
 
 	getContributedEditors(resource: URI) {

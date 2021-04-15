@@ -22,16 +22,6 @@ import { Schemas } from 'vs/base/common/network';
 import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/contrib/customEditor/common/extensionContributedEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
-enum ExtensionContributedEditorChoice {
-	DEFAULT = 1,
-	OPTIONAL = 2,
-}
-
-type ExtensionContributedEditorChoiceEntry = {
-	editorID: string;
-	choice: ExtensionContributedEditorChoice;
-};
-
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
 }
