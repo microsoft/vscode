@@ -21,7 +21,7 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, NOTEBOOK_EDITOR_CURSOR_BEGIN_END, cellRangesToIndexes, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange, cellRangesToIndexes, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ISplice } from 'vs/base/common/sequence';
@@ -123,9 +123,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
-		const notebookEditorCursorAtBeginEndContext = NOTEBOOK_EDITOR_CURSOR_BEGIN_END.bindTo(contextKeyService);
-		notebookEditorCursorAtBeginEndContext.set(false);
-
 		let cursorSelectionListener: IDisposable | null = null;
 		let textEditorAttachListener: IDisposable | null = null;
 
@@ -143,12 +140,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				default:
 					notebookEditorCursorAtBoundaryContext.set('none');
 					break;
-			}
-
-			if (element.cursorAtBeginEnd()) {
-				notebookEditorCursorAtBeginEndContext.set(true);
-			} else {
-				notebookEditorCursorAtBeginEndContext.set(false);
 			}
 
 			return;

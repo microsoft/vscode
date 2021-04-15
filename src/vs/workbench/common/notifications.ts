@@ -684,7 +684,11 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			return false;
 		}
 
-		if (this._source !== other.source) {
+		if (typeof this._source === 'object') {
+			if (this._source.label !== other.source || this._source.id !== other.sourceId) {
+				return false;
+			}
+		} else if (this._source !== other.source) {
 			return false;
 		}
 

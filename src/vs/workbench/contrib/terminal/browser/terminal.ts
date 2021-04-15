@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { IAvailableProfilesRequest, ICommandTracker, IDefaultShellAndArgsRequest, INavigationMode, IRemoteTerminalAttachTarget, ITerminalProfile, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalNativeWindowsDelegate, ITerminalProcessExtHostProxy, LinuxDistro, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
@@ -170,6 +171,8 @@ export interface ITerminalService {
 	 */
 	getAvailableProfiles(): ITerminalProfile[];
 
+	getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined;
+
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
 
@@ -253,6 +256,8 @@ export interface ITerminalInstance {
 	readonly maxCols: number;
 	readonly maxRows: number;
 	readonly icon: Codicon;
+
+	readonly statusList: ITerminalStatusList;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -561,4 +566,9 @@ export interface ITerminalInstance {
 	 * @throws when called before xterm.js is ready.
 	 */
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
+
+	/**
+	 * Triggers a quick pick to rename this terminal.
+	 */
+	rename(): Promise<void>;
 }

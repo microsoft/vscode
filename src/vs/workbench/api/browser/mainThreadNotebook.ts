@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { flatten } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
@@ -13,9 +14,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ICellRange, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookDataDto, TransientMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange, INotebookCellStatusBarItemProvider, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, INotebookKernel, NotebookDataDto, TransientMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -26,7 +27,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
 	private readonly _notebookSerializer = new Map<number, IDisposable>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
-	private readonly _cellStatusBarEntries = new Map<number, IDisposable>();
+	private readonly _notebookCellStatusBarRegistrations = new Map<number, IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -53,7 +54,6 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 			item.provider.dispose();
 		}
 		dispose(this._notebookSerializer.values());
-		dispose(this._cellStatusBarEntries.values());
 	}
 
 
@@ -164,14 +164,16 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 						friendlyId: dto.friendlyId,
 						label: dto.label,
 						extension: dto.extension,
-						extensionLocation: URI.revive(dto.extensionLocation),
+						localResourceRoot: URI.revive(dto.extensionLocation),
 						providerHandle: dto.providerHandle,
 						description: dto.description,
 						detail: dto.detail,
 						isPreferred: dto.isPreferred,
-						preloads: dto.preloads?.map(u => URI.revive(u)),
+						preloadProvides: flatten(dto.preloads?.map(p => p.provides) ?? []),
+						preloadUris: dto.preloads?.map(u => URI.revive(u.uri)) ?? [],
 						supportedLanguages: dto.supportedLanguages,
 						implementsInterrupt: dto.implementsInterrupt,
+						implementsExecutionOrder: true, // todo@jrieken this is temporary and for the OLD API only
 						resolve: (uri: URI, editorId: string, token: CancellationToken): Promise<void> => {
 							this._logService.debug('MainthreadNotebooks.resolveNotebookKernel', uri.path, dto.friendlyId);
 							return this._proxy.$resolveNotebookKernel(handle, editorId, uri, dto.friendlyId, token);
@@ -191,6 +193,54 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		});
 		this._notebookKernelProviders.set(handle, { extension, emitter, provider });
 		return;
+	}
+
+	$emitCellStatusBarEvent(eventHandle: number): void {
+		const emitter = this._notebookCellStatusBarRegistrations.get(eventHandle);
+		if (emitter instanceof Emitter) {
+			emitter.fire(undefined);
+		}
+	}
+
+	async $registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, documentFilter: INotebookDocumentFilter): Promise<void> {
+		const that = this;
+		const provider: INotebookCellStatusBarItemProvider = {
+			async provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken) {
+				const result = await that._proxy.$provideNotebookCellStatusBarItems(handle, uri, index, token);
+				return {
+					items: result?.items ?? [],
+					dispose() {
+						if (result) {
+							that._proxy.$releaseNotebookCellStatusBarItems(result.cacheId);
+						}
+					}
+				};
+			},
+			selector: documentFilter
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._notebookCellStatusBarRegistrations.set(eventHandle, emitter);
+			provider.onDidChangeStatusBarItems = emitter.event;
+		}
+
+		const disposable = this._cellStatusBarService.registerCellStatusBarItemProvider(provider);
+		this._notebookCellStatusBarRegistrations.set(handle, disposable);
+	}
+
+	async $unregisterNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined): Promise<void> {
+		const unregisterThing = (handle: number) => {
+			const entry = this._notebookCellStatusBarRegistrations.get(handle);
+			if (entry) {
+				this._notebookCellStatusBarRegistrations.get(handle)?.dispose();
+				this._notebookCellStatusBarRegistrations.delete(handle);
+			}
+		};
+		unregisterThing(handle);
+		if (typeof eventHandle === 'number') {
+			unregisterThing(eventHandle);
+		}
 	}
 
 	async $unregisterNotebookKernelProvider(handle: number): Promise<void> {
@@ -216,21 +266,5 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		}
 		editor.postMessage(forRendererId, value);
 		return true;
-	}
-
-	async $setStatusBarEntry(id: number, rawStatusBarEntry: INotebookCellStatusBarEntryDto): Promise<void> {
-		const statusBarEntry = {
-			...rawStatusBarEntry,
-			...{ cellResource: URI.revive(rawStatusBarEntry.cellResource) }
-		};
-
-		const existingEntry = this._cellStatusBarEntries.get(id);
-		if (existingEntry) {
-			existingEntry.dispose();
-		}
-
-		if (statusBarEntry.visible) {
-			this._cellStatusBarEntries.set(id, this._cellStatusBarService.addEntry(statusBarEntry));
-		}
 	}
 }

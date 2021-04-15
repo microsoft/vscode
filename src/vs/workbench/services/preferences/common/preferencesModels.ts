@@ -643,6 +643,7 @@ export class DefaultSettings extends Disposable {
 					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
+					requireTrust: prop.requireTrust,
 					extensionInfo: extensionInfo,
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,

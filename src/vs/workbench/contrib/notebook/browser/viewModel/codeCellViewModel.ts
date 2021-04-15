@@ -22,6 +22,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	readonly cellKind = CellKind.Code;
 	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
+	private readonly _onDidRemoveOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
 	private _outputCollection: number[] = [];
 
 	private _outputsTop: PrefixSumComputer | null = null;
@@ -87,8 +89,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	constructor(
-		readonly viewType: string,
-		readonly model: NotebookCellTextModel,
+		viewType: string,
+		model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -99,13 +101,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
 		this._register(this.model.onDidChangeOutputs((splices) => {
+			const removedOutputs: ICellOutputViewModel[] = [];
 			splices.reverse().forEach(splice => {
 				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
-				this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(this, output, this._notebookService)));
+				removedOutputs.push(...this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(this, output, this._notebookService))));
 			});
 
 			this._outputsTop = null;
 			this._onDidChangeOutputs.fire(splices);
+			this._onDidRemoveOutputs.fire(removedOutputs);
+			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
@@ -212,7 +217,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._onDidChangeLayout.fire(state);
 	}
 
-	restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
+	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
 		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CodeCellLayoutState.Measured) {
 			this._layoutInfo = {
@@ -356,9 +361,5 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			cell: this,
 			matches
 		};
-	}
-
-	dispose() {
-		super.dispose();
 	}
 }

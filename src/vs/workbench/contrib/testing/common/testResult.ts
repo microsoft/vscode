@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { Range } from 'vs/editor/common/core/range';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
@@ -47,6 +48,11 @@ export interface ITestResult {
 	getStateById(testExtId: string): TestResultItem | undefined;
 
 	/**
+	 * Loads the output of the result as a stream.
+	 */
+	getOutput(): Promise<VSBufferReadableStream>;
+
+	/**
 	 * Serializes the test result. Used to save and restore results
 	 * in the workspace.
 	 */
@@ -77,6 +83,88 @@ export const sumCounts = (counts: Iterable<TestStateCount>) => {
 
 	return total;
 };
+
+/**
+ * Deals with output of a {@link LiveTestResult}. By default we pass-through
+ * data into the underlying write stream, but if a client requests to read it
+ * we splice in the written data and then continue streaming incoming data.
+ */
+export class LiveOutputController {
+	/** Set on close() to a promise that is resolved once closing is complete */
+	private closed?: Promise<void>;
+	/** Data written so far. This is available until the file closes. */
+	private previouslyWritten: VSBuffer[] | undefined = [];
+
+	private readonly dataEmitter = new Emitter<VSBuffer>();
+	private readonly endEmitter = new Emitter<void>();
+
+	constructor(
+		private readonly writer: Lazy<[VSBufferWriteableStream, Promise<void>]>,
+		private readonly reader: () => Promise<VSBufferReadableStream>,
+	) { }
+
+	/**
+	 * Appends data to the output.
+	 */
+	public append(data: VSBuffer): Promise<void> | void {
+		if (this.closed) {
+			return this.closed;
+		}
+
+		this.previouslyWritten?.push(data);
+		this.dataEmitter.fire(data);
+
+		return this.writer.getValue()[0].write(data);
+	}
+
+	/**
+	 * Reads the value of the stream.
+	 */
+	public read() {
+		if (!this.previouslyWritten) {
+			return this.reader();
+		}
+
+		const stream = newWriteableBufferStream();
+		for (const chunk of this.previouslyWritten) {
+			stream.write(chunk);
+		}
+
+		const disposable = new DisposableStore();
+		disposable.add(this.dataEmitter.event(d => stream.write(d)));
+		disposable.add(this.endEmitter.event(() => stream.end()));
+		stream.on('end', () => disposable.dispose());
+
+		return Promise.resolve(stream);
+	}
+
+	/**
+	 * Closes the output, signalling no more writes will be made.
+	 * @returns a promise that resolves when the output is written
+	 */
+	public close(): Promise<void> {
+		if (this.closed) {
+			return this.closed;
+		}
+
+		if (!this.writer.hasValue()) {
+			this.closed = Promise.resolve();
+		} else {
+			const [stream, ended] = this.writer.getValue();
+			stream.end();
+			this.closed = ended;
+		}
+
+		this.endEmitter.fire();
+		this.closed.then(() => {
+			this.previouslyWritten = undefined;
+			this.dataEmitter.dispose();
+			this.endEmitter.dispose();
+		});
+
+		return this.closed;
+	}
+}
 
 
 const itemToNode = (
@@ -172,7 +260,9 @@ export class LiveTestResult implements ITestResult {
 	 * of collections.
 	 */
 	public static from(
+		resultId: string,
 		collections: ReadonlyArray<IMainThreadTestCollection>,
+		output: LiveOutputController,
 		req: RunTestsRequest,
 	) {
 		const testByExtId = new Map<string, TestResultItem>();
@@ -189,7 +279,7 @@ export class LiveTestResult implements ITestResult {
 			}
 		}
 
-		return new LiveTestResult(collections, testByExtId, excludeSet, !!req.isAutoRun);
+		return new LiveTestResult(resultId, collections, testByExtId, excludeSet, output, !!req.isAutoRun);
 	}
 
 	private readonly completeEmitter = new Emitter<void>();
@@ -198,11 +288,6 @@ export class LiveTestResult implements ITestResult {
 
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
-
-	/**
-	 * Unique ID for referring to this set of test results.
-	 */
-	public readonly id = generateUuid();
 
 	/**
 	 * @inheritdoc
@@ -255,9 +340,11 @@ export class LiveTestResult implements ITestResult {
 	};
 
 	constructor(
+		public readonly id: string,
 		private readonly collections: ReadonlyArray<IMainThreadTestCollection>,
 		private readonly testById: Map<string, TestResultItem>,
 		private readonly excluded: ReadonlySet<string>,
+		public readonly output: LiveOutputController,
 		public readonly isAutoRun: boolean,
 	) {
 		this.counts[TestResultState.Unset] = testById.size;
@@ -313,6 +400,13 @@ export class LiveTestResult implements ITestResult {
 			reason: TestResultItemChangeReason.OwnStateChange,
 			previous: entry.state.state,
 		});
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public getOutput() {
+		return this.output.read();
 	}
 
 	private fireUpdateAndRefresh(entry: TestResultItem, newState: TestResultState) {
@@ -445,7 +539,11 @@ export class HydratedTestResult implements ITestResult {
 
 	private readonly testById = new Map<string, TestResultItem>();
 
-	constructor(private readonly serialized: ISerializedTestResults, private readonly persist = true) {
+	constructor(
+		private readonly serialized: ISerializedTestResults,
+		private readonly outputLoader: () => Promise<VSBufferReadableStream>,
+		private readonly persist = true,
+	) {
 		this.id = serialized.id;
 		this.completedAt = serialized.completedAt;
 
@@ -470,6 +568,13 @@ export class HydratedTestResult implements ITestResult {
 	 */
 	public getStateById(extTestId: string) {
 		return this.testById.get(extTestId);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public getOutput() {
+		return this.outputLoader();
 	}
 
 	/**

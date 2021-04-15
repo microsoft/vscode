@@ -141,8 +141,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		if (!this._contributedEditors.get(viewType)) {
 			// Prompt the user
-			const input = this.editorService.createEditorInput({ resource });
-			return this.editorService.openEditor(input, { override: EditorOverride.PICK });
+			return this.editorService.openEditor({ resource, options: { override: EditorOverride.PICK } });
 		}
 
 		const capabilities = this.getCustomEditorCapabilities(viewType) || {};

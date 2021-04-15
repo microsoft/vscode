@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { EditorModel, IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CellEditType, ICellEditOperation, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -239,10 +239,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		} else {
 			// UPDATE exitsing notebook with data that we have just fetched
 			this._logService.debug('[notebook editor model] loading onto EXISTING notebook', this.resource.toString());
-			this.notebook.metadata = data.data.metadata;
-			this.notebook.transientOptions = data.transientOptions;
-			const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this.notebook.cells.length, cells: data.data.cells }];
-			this.notebook.applyEdits(edits, true, undefined, () => undefined, undefined);
+			this.notebook.reset(data.data.cells, data.data.metadata, data.transientOptions);
 		}
 
 		if (backupId) {
@@ -532,17 +529,13 @@ export class NotebookFileWorkingCopyModel implements IFileWorkingCopyModel {
 		if (token.isCancellationRequested) {
 			throw canceled();
 		}
-
-		this._notebookModel.metadata = data.metadata;
-		this._notebookModel.transientOptions = this._notebookSerializer.options;
-		const edits: ICellEditOperation[] = [{ editType: CellEditType.Replace, index: 0, count: this._notebookModel.cells.length, cells: data.cells }];
-		this._notebookModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
+		this._notebookModel.reset(data.cells, data.metadata, this._notebookSerializer.options);
 	}
 
 	get versionId() { return this._notebookModel.alternativeVersionId; }
 
 	pushStackElement(): void {
-		this._notebookModel.pushStackElement(nls.localize('save', 'Save Notebook'), undefined, undefined);
+		this._notebookModel.pushStackElement('save', undefined, undefined);
 	}
 }
 

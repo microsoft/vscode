@@ -22,9 +22,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ActivityHoverAlignment, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper } from 'vs/base/browser/dom';
@@ -148,6 +148,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
+			activityHoverOptions: {
+				alignment: () => ActivityHoverAlignment.BELOW,
+				delay: () => 0
+			},
 			openComposite: compositeId => this.openPanel(compositeId, true).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
@@ -850,6 +854,15 @@ registerThemingParticipant((theme, collector) => {
 				outline: none;
 			}
 			`);
+	}
+
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover {
+				background-color: ${toolbarHoverBackgroundColor} !important;
+			}
+		`);
 	}
 
 	// Styling with Outline color (e.g. high contrast theme)

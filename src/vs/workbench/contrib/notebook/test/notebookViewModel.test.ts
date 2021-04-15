@@ -155,67 +155,56 @@ suite('NotebookViewModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
 
-				const defaults = { hasExecutionOrder: true };
+
 
 				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(1)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(2)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(3)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(4)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, cellEditable: true, trusted: true };
 
 				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(1)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(2)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(3)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
 				assert.deepStrictEqual(viewModel.cellAt(4)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, cellHasExecutionOrder: true, trusted: true };
+				viewModel.notebookDocument.metadata = { editable: true, cellEditable: false, trusted: true };
 
 				assert.deepStrictEqual(viewModel.cellAt(0)?.getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,
-					...defaults
 				});
 			}
 		);
@@ -467,6 +456,37 @@ suite('NotebookViewModel API', () => {
 				// no one should use an invalid range but `getCells` should be able to handle that.
 				assert.deepStrictEqual(viewModel.getCells({ start: -1, end: 1 }).map(cell => cell.getText()), ['# header a']);
 				assert.deepStrictEqual(viewModel.getCells({ start: 3, end: 0 }).map(cell => cell.getText()), ['# header a', 'var b = 1;', '# header b']);
+			}
+		);
+	});
+
+	test('split cell', async function () {
+		await withTestNotebook(
+			[
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor) => {
+				const viewModel = editor.viewModel;
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }]), [
+					'var',
+					' b = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 4 }, { lineNumber: 1, column: 6 }]), [
+					'var',
+					' b',
+					' = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 1 }]), [
+					'',
+					'var b = 1;'
+				]);
+
+				assert.deepStrictEqual(viewModel.computeCellLinesContents(viewModel.cellAt(0)!, [{ lineNumber: 1, column: 11 }]), [
+					'var b = 1;',
+					'',
+				]);
 			}
 		);
 	});

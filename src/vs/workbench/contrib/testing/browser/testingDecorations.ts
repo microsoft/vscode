@@ -44,6 +44,8 @@ function isInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICode
 	return false;
 }
 
+const FONT_FAMILY_VAR = `--testMessageDecorationFontFamily`;
+
 export class TestingDecorations extends Disposable implements IEditorContribution {
 	private collection = this._register(new MutableDisposable<IReference<IMainThreadTestCollection>>());
 	private currentUri?: URI;
@@ -99,6 +101,16 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				this.setDecorations(this.currentUri);
 			}
 		}));
+
+		const updateFontFamilyVar = () => {
+			this.editor.getContainerDomNode().style.setProperty(FONT_FAMILY_VAR, editor.getOption(EditorOption.fontFamily));
+		};
+		this._register(this.editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.fontFamily)) {
+				updateFontFamilyVar();
+			}
+		}));
+		updateFontFamilyVar();
 
 		this._register(this.results.onTestChanged(({ item: result }) => {
 			if (this.currentUri && result.item.uri.toString() === this.currentUri.toString()) {
@@ -380,7 +392,7 @@ class TestMessageDecoration implements ITestDecoration {
 				contentText: message.toString(),
 				color: `${colorTheme.getColor(testMessageSeverityColors[severity].decorationForeground)}`,
 				fontSize: `${editor.getOption(EditorOption.fontSize)}px`,
-				fontFamily: editor.getOption(EditorOption.fontFamily),
+				fontFamily: `var(${FONT_FAMILY_VAR})`,
 				padding: `0px 12px 0px 24px`,
 			},
 		}, undefined, editor);

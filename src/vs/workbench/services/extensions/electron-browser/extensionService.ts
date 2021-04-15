@@ -40,6 +40,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -257,7 +259,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				},
 				{
 					label: nls.localize('restart', "Restart Extension Host"),
-					run: () => this.startExtensionHost()
+					run: () => this.startExtensionHosts()
 				}]
 			);
 
@@ -384,6 +386,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				await this._startLocalExtensionHost(localExtensions);
 				return;
 			}
+
+			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
 		}
 
 		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv, remoteExtensions);
@@ -439,7 +443,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	public _onExtensionHostExit(code: number): void {
 		// Dispose everything associated with the extension host
-		this._stopExtensionHosts();
+		this.stopExtensionHosts();
 
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code

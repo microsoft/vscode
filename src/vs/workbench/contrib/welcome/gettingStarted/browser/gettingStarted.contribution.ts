@@ -16,8 +16,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 
@@ -166,20 +164,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.welcomePage.hiddenCategories': {
-				'scope': ConfigurationScope.APPLICATION,
-				'type': 'array',
-				'items': { type: 'string' },
-				'default': [],
-				'description': localize('welcomePage.hiddenCategories', "Hide categories of the welcome page's getting started section that are not relevant to you.")
-			},
-		}
-	});
-
 ExtensionsRegistry.registerExtensionPoint({
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
@@ -216,11 +200,10 @@ ExtensionsRegistry.registerExtensionPoint({
 					description: localize('walkthroughs.tasks', "Tasks to complete as part of this walkthrough."),
 					items: {
 						type: 'object',
-						required: ['id', 'title', 'description', 'button', 'media'],
+						required: ['id', 'title', 'description', 'media'],
 						defaultSnippets: [{
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
-								'button': { 'title': '$4', 'command': '$5' },
 								'doneOn': { 'command': '$5' },
 								'media': { 'path': '$6', 'altText': '$7' }
 							}
@@ -236,42 +219,10 @@ ExtensionsRegistry.registerExtensionPoint({
 							},
 							description: {
 								type: 'string',
-								description: localize('walkthroughs.tasks.description', "Description of task.")
+								description: localize('walkthroughs.tasks.description', "Description of task. Supports ``preformatted``, __italic__, and **bold** text. Use markdown-style links for commands or external links: [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms). Links on their own line will be rendered as buttons.")
 							},
 							button: {
-								description: localize('walkthroughs.tasks.button', "The task's button, which can either link to an external resource or run a command"),
-								oneOf: [
-									{
-										type: 'object',
-										required: ['title', 'command'],
-										defaultSnippets: [{ 'body': { 'title': '$1', 'command': '$2' } }],
-										properties: {
-											title: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.title', "Title of button.")
-											},
-											command: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.command', "Command to run when button is clicked.")
-											}
-										}
-									},
-									{
-										type: 'object',
-										required: ['title', 'link'],
-										defaultSnippets: [{ 'body': { 'title': '$1', 'link': '$2' } }],
-										properties: {
-											title: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.title', "Title of button.")
-											},
-											link: {
-												type: 'string',
-												description: localize('walkthroughs.tasks.button.link', "Link to open when button is clicked. Opening this link will mark the task completed.")
-											}
-										}
-									}
-								]
+								deprecationMessage: localize('walkthroughs.tasks.button.deprecated', "Deprecated. Use markdown links in the description instead, i.e. [Title](command:myext.command), [Title](command:toSide:myext.command), or [Title](https://aka.ms), "),
 							},
 							media: {
 								type: 'object',

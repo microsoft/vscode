@@ -21,7 +21,11 @@ import { withNullAsUndefined } from 'vs/base/common/types';
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	static readonly ID = 'workbench.editors.diffEditorInput';
+	static override readonly ID = 'workbench.editors.diffEditorInput';
+
+	override get typeId(): string {
+		return DiffEditorInput.ID;
+	}
 
 	private cachedModel: DiffEditorModel | undefined = undefined;
 
@@ -35,10 +39,6 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(name, description, originalInput, modifiedInput);
-	}
-
-	override getTypeId(): string {
-		return DiffEditorInput.ID;
 	}
 
 	override getName(): string {

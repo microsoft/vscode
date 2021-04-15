@@ -43,6 +43,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	set metadata(newMetadata: NotebookCellMetadata) {
 		const runStateChanged = this._metadata.runState !== newMetadata.runState;
+		newMetadata = {
+			...newMetadata,
+			...{ runStartTimeAdjustment: computeRunStartTimeAdjustment(this._metadata, newMetadata) }
+		};
 		this._metadata = newMetadata;
 		this._hash = null;
 		this._onDidChangeMetadata.fire({ runStateChanged });
@@ -190,14 +194,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		const editable = this.metadata?.editable ??
 			documentMetadata.cellEditable;
 
-		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
-			documentMetadata.cellHasExecutionOrder;
-
 		return {
 			...(this.metadata || {}),
 			...{
 				editable,
-				hasExecutionOrder
 			}
 		};
 	}
@@ -216,7 +216,6 @@ export function cloneMetadata(cell: NotebookCellTextModel) {
 	return {
 		editable: cell.metadata?.editable,
 		breakpointMargin: cell.metadata?.breakpointMargin,
-		hasExecutionOrder: cell.metadata?.hasExecutionOrder,
 		inputCollapsed: cell.metadata?.inputCollapsed,
 		outputCollapsed: cell.metadata?.outputCollapsed,
 		custom: cell.metadata?.custom
@@ -234,4 +233,13 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 		})),
 		metadata: cloneMetadata(cell)
 	};
+}
+
+function computeRunStartTimeAdjustment(oldMetadata: NotebookCellMetadata, newMetadata: NotebookCellMetadata): number | undefined {
+	if (oldMetadata.runStartTime !== newMetadata.runStartTime && typeof newMetadata.runStartTime === 'number') {
+		const offset = Date.now() - newMetadata.runStartTime;
+		return offset < 0 ? Math.abs(offset) : 0;
+	} else {
+		return newMetadata.runStartTimeAdjustment;
+	}
 }

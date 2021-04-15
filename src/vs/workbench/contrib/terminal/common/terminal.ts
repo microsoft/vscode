@@ -198,6 +198,7 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
+	icon: string | undefined;
 }
 
 /**

@@ -26,7 +26,11 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 
 export class LogViewerInput extends ResourceEditorInput {
 
-	static readonly ID = 'workbench.editorinputs.output';
+	static override readonly ID = 'workbench.editorinputs.output';
+
+	override get typeId(): string {
+		return LogViewerInput.ID;
+	}
 
 	constructor(
 		outputChannelDescriptor: IFileOutputChannelDescriptor,
@@ -51,10 +55,6 @@ export class LogViewerInput extends ResourceEditorInput {
 			labelService,
 			filesConfigurationService
 		);
-	}
-
-	override getTypeId(): string {
-		return LogViewerInput.ID;
 	}
 }
 

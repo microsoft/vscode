@@ -555,6 +555,7 @@ class CompletionAcceptedCommand implements Command {
 			/* __GDPR__
 				"completions.accept" : {
 					"isPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"isImportStatementCompletion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -562,6 +563,8 @@ class CompletionAcceptedCommand implements Command {
 			*/
 			this.telemetryReporter.logTelemetry('completions.accept', {
 				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
+				// @ts-expect-error until 4.3 protocol update
+				isImportStatementCompletion: item.tsEntry.isImportStatementCompletion ? 'true' : undefined,
 			});
 		}
 	}
@@ -779,6 +782,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		};
 
 		let includesPackageJsonImport = false;
+		let includesImportStatementCompletion = false;
 		const items: MyCompletionItem[] = [];
 		for (const entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
@@ -789,11 +793,13 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 					arguments: [item]
 				};
 				items.push(item);
-				includesPackageJsonImport = !!entry.isPackageJsonImport;
+				includesPackageJsonImport = includesPackageJsonImport || !!entry.isPackageJsonImport;
+				// @ts-expect-error until 4.3 protocol update
+				includesImportStatementCompletion = includesImportStatementCompletion || !!entry.isImportStatementCompletion;
 			}
 		}
 		if (duration !== undefined) {
-			this.logCompletionsTelemetry(duration, response, includesPackageJsonImport);
+			this.logCompletionsTelemetry(duration, response, includesPackageJsonImport, includesImportStatementCompletion);
 		}
 		return new vscode.CompletionList(items, isIncomplete);
 	}
@@ -801,7 +807,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	private logCompletionsTelemetry(
 		duration: number,
 		response: ServerResponse.Response<Proto.CompletionInfoResponse> | undefined,
-		includesPackageJsonImport?: boolean
+		includesPackageJsonImport?: boolean,
+		includesImportStatementCompletion?: boolean,
 	) {
 		/* __GDPR__
 			"completions.execute" : {
@@ -811,6 +818,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"includesPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"includesImportStatementCompletion" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]
@@ -823,6 +831,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
 			createAutoImportProviderProgramDurationMs: response?.type === 'response' ? response.performanceData?.createAutoImportProviderProgramDurationMs : undefined,
 			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
+			includesImportStatementCompletion: includesImportStatementCompletion ? 'true' : undefined,
 		});
 	}
 

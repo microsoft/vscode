@@ -32,6 +32,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { escape } from 'vs/base/common/strings';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { isString } from 'vs/base/common/types';
+import { IKeybindingLabelStyles } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -57,6 +58,7 @@ export interface IQuickInputStyles {
 	countBadge: ICountBadgetyles;
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
+	keybindingLabel: IKeybindingLabelStyles;
 	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
 }
 
@@ -1733,6 +1735,34 @@ export class QuickInputController extends Disposable {
 			if (this.styles.list.pickerGroupForeground) {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
+
+			if (
+				this.styles.keybindingLabel.keybindingLabelBackground ||
+				this.styles.keybindingLabel.keybindingLabelBorder ||
+				this.styles.keybindingLabel.keybindingLabelBottomBorder ||
+				this.styles.keybindingLabel.keybindingLabelShadow ||
+				this.styles.keybindingLabel.keybindingLabelForeground
+			) {
+				content.push('.quick-input-list .monaco-keybinding > .monaco-keybinding-key {');
+				if (this.styles.keybindingLabel.keybindingLabelBackground) {
+					content.push(`background-color: ${this.styles.keybindingLabel.keybindingLabelBackground};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelBorder) {
+					// Order matters here. `border-color` must come before `border-bottom-color`.
+					content.push(`border-color: ${this.styles.keybindingLabel.keybindingLabelBorder};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelBottomBorder) {
+					content.push(`border-bottom-color: ${this.styles.keybindingLabel.keybindingLabelBottomBorder};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelShadow) {
+					content.push(`box-shadow: inset 0 -1px 0 ${this.styles.keybindingLabel.keybindingLabelShadow};`);
+				}
+				if (this.styles.keybindingLabel.keybindingLabelForeground) {
+					content.push(`color: ${this.styles.keybindingLabel.keybindingLabelForeground};`);
+				}
+				content.push('}');
+			}
+
 			const newStyles = content.join('\n');
 			if (newStyles !== this.ui.styleSheet.textContent) {
 				this.ui.styleSheet.textContent = newStyles;

@@ -51,7 +51,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		});
 	}
 
-	public static typeId = 'workbench.editors.webviewEditor';
+	public static override readonly typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
 	private _defaultDirtyState: boolean | undefined;
@@ -85,11 +85,11 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		this._untitledDocumentData = options.untitledDocumentData;
 	}
 
-	public override getTypeId(): string {
+	public override get typeId(): string {
 		return CustomEditorInput.typeId;
 	}
 
-	public override supportsSplitEditor() {
+	public override canSplit() {
 		return !!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument;
 	}
 

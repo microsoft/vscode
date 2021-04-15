@@ -117,9 +117,6 @@ export interface IWalkthroughTask {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string;
-	readonly button:
-	| { title: string, link: string, command?: never }
-	| { title: string, command: string, link?: never },
 	readonly media: { path: string, altText: string },
 	readonly doneOn?: { command: string };
 	readonly when?: string;
@@ -159,7 +156,7 @@ export interface IExtensionContributions {
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
-export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart' | 'onDemand', description: string };
+export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string, requiredForConfigurations?: string[] };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -305,18 +302,6 @@ export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 
 export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
-}
-
-export function getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType {
-	if (manifest.workspaceTrust?.request !== undefined) {
-		return manifest.workspaceTrust.request;
-	}
-
-	if (!manifest.main) {
-		return 'never';
-	}
-
-	return 'onStart';
 }
 
 export interface IScannedExtension {

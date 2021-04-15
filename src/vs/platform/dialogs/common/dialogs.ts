@@ -100,6 +100,7 @@ export interface IPickAndOpenOptions {
 	defaultUri?: URI;
 	telemetryExtraData?: ITelemetryData;
 	availableFileSystems?: string[];
+	remoteAuthority?: string | null;
 }
 
 export interface ISaveDialogOptions {

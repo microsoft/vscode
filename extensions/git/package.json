@@ -1686,17 +1686,8 @@
           "default": true
         },
         "git.autofetch": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "string",
-              "enum": [
-                "all"
-              ]
-            }
-          ],
+          "type": ["boolean", "string"],
+          "enum": [true, false, "all"],
           "scope": "resource",
           "description": "%config.autofetch%",
           "default": false,

@@ -14,7 +14,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { AbstractIncrementalTestCollection, getTestSubscriptionKey, IncrementalTestCollectionItem, InternalTestItem, RunTestsRequest, TestDiffOpType, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -48,7 +48,7 @@ export class TestService extends Disposable implements ITestService {
 	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
 	private readonly rootProviders = new Set<ITestRootProvider>();
 
-	public readonly excludeTests = ObservableValue.stored(new StoredValue<ReadonlySet<string>>({
+	public readonly excludeTests = MutableObservableValue.stored(new StoredValue<ReadonlySet<string>>({
 		key: 'excludedTestItems',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER,
@@ -196,7 +196,7 @@ export class TestService extends Disposable implements ITestService {
 		const subscriptions = [...this.testSubscriptions.values()]
 			.filter(v => req.tests.some(t => v.collection.getNodeById(t.testId)))
 			.map(s => this.subscribeToDiffs(s.ident.resource, s.ident.uri));
-		const result = this.testResults.push(LiveTestResult.from(subscriptions.map(s => s.object), req));
+		const result = this.testResults.createLiveResult(subscriptions.map(s => s.object), req);
 
 		try {
 			const tests = groupBy(req.tests, (a, b) => a.src.provider === b.src.provider ? 0 : 1);

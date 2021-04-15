@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
+import { Lazy } from 'vs/base/common/lazy';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -14,11 +15,12 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { HydratedTestResult, ITestResult, LiveOutputController, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const RETAIN_MAX_RESULTS = 128;
 const RETAIN_MIN_RESULTS = 16;
 const RETAIN_MAX_BYTES = 1024 * 128;
+const CLEANUP_PROBABILITY = 0.2;
 
 export interface ITestResultStorage {
 	_serviceBrand: undefined;
@@ -32,6 +34,11 @@ export interface ITestResultStorage {
 	 * Persists the list of test results.
 	 */
 	persist(results: ReadonlyArray<ITestResult>): Promise<void>;
+
+	/**
+	 * Gets the output controller for a new or existing test result.
+	 */
+	getOutputController(resultId: string): LiveOutputController;
 }
 
 export const ITestResultStorage = createDecorator('ITestResultStorage');
@@ -39,7 +46,7 @@ export const ITestResultStorage = createDecorator('ITestResultStorage');
 export abstract class BaseTestResultStorage implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly stored = new StoredValue<ReadonlyArray<{ id: string, bytes: number }>>({
+	protected readonly stored = new StoredValue<ReadonlyArray<{ id: string, bytes: number }>>({
 		key: 'storedTestResults',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE
@@ -62,7 +69,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 					return undefined;
 				}
 
-				return new HydratedTestResult(contents);
+				return new HydratedTestResult(contents, () => this.readOutputForResultId(id));
 			} catch (e) {
 				this.logService.warn(`Error deserializing stored test result ${id}`, e);
 				return undefined;
@@ -70,6 +77,29 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 		}));
 
 		return results.filter(isDefined);
+	}
+
+	/**
+	 * @override
+	 */
+	public getOutputController(resultId: string) {
+		return new LiveOutputController(
+			new Lazy(() => {
+				const stream = newWriteableBufferStream();
+				const promise = this.storeOutputForResultId(resultId, stream);
+				return [stream, promise];
+			}),
+			() => this.readOutputForResultId(resultId),
+		);
+	}
+
+	/**
+	 * @override
+	 */
+	public getResultOutputWriter(resultId: string) {
+		const stream = newWriteableBufferStream();
+		this.storeOutputForResultId(resultId, stream);
+		return stream;
 	}
 
 	/**
@@ -108,6 +138,10 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 			todo.push(this.storeForResultId(result.id, obj));
 			toStore.push({ id: result.id, bytes: contents.byteLength });
 			budget -= contents.byteLength;
+
+			if (result instanceof LiveTestResult && result.completedAt !== undefined) {
+				todo.push(result.output.close());
+			}
 		}
 
 		for (const id of toDelete.keys()) {
@@ -124,6 +158,11 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	protected abstract readForResultId(id: string): Promise<ISerializedTestResults | undefined>;
 
 	/**
+	 * Reads serialized results for the test. Is allowed to throw.
+	 */
+	protected abstract readOutputForResultId(id: string): Promise<VSBufferReadableStream>;
+
+	/**
 	 * Deletes serialized results for the test.
 	 */
 	protected abstract deleteForResultId(id: string): Promise<unknown>;
@@ -132,6 +171,11 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	 * Stores test results by ID.
 	 */
 	protected abstract storeForResultId(id: string, data: ISerializedTestResults): Promise<unknown>;
+
+	/**
+	 * Reads serialized results for the test. Is allowed to throw.
+	 */
+	protected abstract storeOutputForResultId(id: string, input: VSBufferWriteableStream): Promise<void>;
 }
 
 export class InMemoryResultStorage extends BaseTestResultStorage {
@@ -149,6 +193,14 @@ export class InMemoryResultStorage extends BaseTestResultStorage {
 	protected deleteForResultId(id: string) {
 		this.cache.delete(id);
 		return Promise.resolve();
+	}
+
+	protected readOutputForResultId(id: string): Promise<VSBufferReadableStream> {
+		throw new Error('Method not implemented.');
+	}
+
+	protected storeOutputForResultId(id: string, input: VSBufferWriteableStream): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -179,7 +231,53 @@ export class TestResultStorage extends BaseTestResultStorage {
 		return this.fileService.del(this.getResultJsonPath(id)).catch(() => undefined);
 	}
 
+	protected async readOutputForResultId(id: string): Promise<VSBufferReadableStream> {
+		try {
+			const { value } = await this.fileService.readFileStream(this.getResultOutputPath(id));
+			return value;
+		} catch {
+			return bufferToStream(VSBuffer.alloc(0));
+		}
+	}
+
+	protected async storeOutputForResultId(id: string, input: VSBufferWriteableStream) {
+		await this.fileService.createFile(this.getResultOutputPath(id), input);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public override async persist(results: ReadonlyArray<ITestResult>) {
+		await super.persist(results);
+		if (Math.random() < CLEANUP_PROBABILITY) {
+			await this.cleanupDereferenced();
+		}
+	}
+
+	/**
+	 * Cleans up orphaned files. For instance, output can get orphaned if it's
+	 * written but the editor is closed before the test run is complete.
+	 */
+	private async cleanupDereferenced() {
+		const { children } = await this.fileService.resolve(this.directory);
+		if (!children) {
+			return;
+		}
+
+		const stored = new Set(this.stored.get()?.map(({ id }) => id));
+
+		await Promise.all(
+			children
+				.filter(child => !stored.has(child.name.replace(/\.[a-z]+$/, '')))
+				.map(child => this.fileService.del(child.resource))
+		);
+	}
+
 	private getResultJsonPath(id: string) {
 		return URI.joinPath(this.directory, `${id}.json`);
+	}
+
+	private getResultOutputPath(id: string) {
+		return URI.joinPath(this.directory, `${id}.output`);
 	}
 }

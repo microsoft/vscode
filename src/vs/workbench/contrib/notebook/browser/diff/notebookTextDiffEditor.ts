@@ -483,6 +483,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
+	scheduleOutputHeightAck() { }
+
 	private _computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel) {
 		const result: DiffElementViewModelBase[] = [];
 		// modified cells

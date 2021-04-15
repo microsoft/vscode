@@ -48,6 +48,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.search-result'];
@@ -118,6 +119,7 @@ export class ExtensionsListView extends ViewPane {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IExperimentService private readonly experimentService: IExperimentService,
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IWorkbenchExtensionManagementService protected readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IProductService protected readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -392,6 +394,10 @@ export class ExtensionsListView extends ViewPane {
 			extensions = this.filterEnabledExtensions(local, runningExtensions, query, options);
 		}
 
+		else if (/@trustRequired/i.test(value)) {
+			extensions = this.filterTrustRequiredExtensions(local, query, options);
+		}
+
 		return { extensions, canIncludeInstalledExtensions };
 	}
 
@@ -541,6 +547,35 @@ export class ExtensionsListView extends ViewPane {
 
 		return this.sortExtensions(result, options);
 	}
+
+	private filterTrustRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let value = query.value;
+		const onStartOnly = /@trustRequired:onStart/i.test(value);
+		if (onStartOnly) {
+			value = value.replace(/@trustRequired:onStart/g, '');
+		}
+		const onDemandOnly = /@trustRequired:onDemand/i.test(value);
+		if (onDemandOnly) {
+			value = value.replace(/@trustRequired:onDemand/g, '');
+		}
+
+		value = value.replace(/@trustRequired/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local.filter(extension => extension.local && this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) !== 'never' && (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1));
+
+		if (onStartOnly) {
+			const onStartExtensions = result.filter(extension => extension.local && this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onStart');
+			return this.sortExtensions(onStartExtensions, options);
+		}
+
+		if (onDemandOnly) {
+			const onDemandExtensions = result.filter(extension => extension.local && this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.local.manifest) === 'onDemand');
+			return this.sortExtensions(onDemandExtensions, options);
+		}
+
+		return this.sortExtensions(result, options);
+	}
+
 
 	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
 		const oldExtensions = [...extensions];
@@ -928,7 +963,9 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isDisabledExtensionsQuery(query)
 			|| this.isBuiltInExtensionsQuery(query)
 			|| this.isSearchBuiltInExtensionsQuery(query)
-			|| this.isBuiltInGroupExtensionsQuery(query);
+			|| this.isBuiltInGroupExtensionsQuery(query)
+			|| this.isTrustRequiredExtensionsQuery(query)
+			|| this.isTrustRequiredGroupExtensionsQuery(query);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -941,6 +978,14 @@ export class ExtensionsListView extends ViewPane {
 
 	static isBuiltInGroupExtensionsQuery(query: string): boolean {
 		return /^\s*@builtin:.+$/i.test(query.trim());
+	}
+
+	static isTrustRequiredExtensionsQuery(query: string): boolean {
+		return /^\s*@trustRequired$/i.test(query.trim());
+	}
+
+	static isTrustRequiredGroupExtensionsQuery(query: string): boolean {
+		return /^\s*@trustRequired:.+$/i.test(query.trim());
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
@@ -1035,6 +1080,18 @@ export class BuiltInThemesExtensionsView extends ExtensionsListView {
 export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView {
 	async override show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
+	}
+}
+
+export class TrustRequiredOnStartExtensionsView extends ExtensionsListView {
+	async override show(query: string): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onStart');
+	}
+}
+
+export class TrustRequiredOnDemandExtensionsView extends ExtensionsListView {
+	async override show(query: string): Promise<IPagedModel<IExtension>> {
+		return (query && query.trim() !== '@trustRequired') ? this.showEmptyModel() : super.show('@trustRequired:onDemand');
 	}
 }
 

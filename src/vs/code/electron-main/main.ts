@@ -204,7 +204,7 @@ class CodeMain {
 	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
 
 		// Environment service (paths)
-		const environmentServiceInitialization = Promise.all<string | undefined>([
+		const environmentServiceInitialization = Promise.all<void | undefined>([
 			environmentMainService.extensionsPath,
 			environmentMainService.nodeCachedDataDir,
 			environmentMainService.logsPath,

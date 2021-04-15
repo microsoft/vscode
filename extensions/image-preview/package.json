@@ -26,6 +26,9 @@
     "onCommand:imagePreview.zoomIn",
     "onCommand:imagePreview.zoomOut"
   ],
+  "workspaceTrust": {
+    "request": "never"
+  },
   "contributes": {
     "customEditors": [
       {

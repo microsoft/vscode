@@ -22,7 +22,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase, StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -159,7 +159,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private environmentService!: IWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
 	private configurationService!: IConfigurationService;
-	private lifecycleService!: ILifecycleService;
 	private storageService!: IStorageService;
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
@@ -246,7 +245,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Services
 		this.environmentService = accessor.get(IWorkbenchEnvironmentService);
 		this.configurationService = accessor.get(IConfigurationService);
-		this.lifecycleService = accessor.get(ILifecycleService);
 		this.hostService = accessor.get(IHostService);
 		this.contextService = accessor.get(IWorkspaceContextService);
 		this.storageService = accessor.get(IStorageService);
@@ -612,7 +610,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			});
 		}
 
-		// Empty workbench
+		// Empty workbench configured to open untitled file if empty
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
 			if (this.editorGroupService.hasRestorableState) {
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
@@ -656,17 +654,40 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
-	protected async restoreWorkbenchLayout(): Promise<void> {
-		const restorePromises: Promise<void>[] = [];
+	private whenReadyResolve: (() => void) | undefined;
+	protected readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+
+	private whenRestoredResolve: (() => void) | undefined;
+	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private restored = false;
+
+	isRestored(): boolean {
+		return this.restored;
+	}
+
+	protected restoreParts(): void {
+
+		// distinguish long running restore operations that
+		// are required for the layout to be ready from those
+		// that are needed to signal restoring is done
+		const layoutReadyPromises: Promise<unknown>[] = [];
+		const layoutRestoredPromises: Promise<unknown>[] = [];
 
 		// Restore editors
-		restorePromises.push((async () => {
+		layoutReadyPromises.push((async () => {
 			mark('code/willRestoreEditors');
 
-			// first ensure the editor part is restored
-			await this.editorGroupService.whenRestored;
+			// first ensure the editor part is ready
+			await this.editorGroupService.whenReady;
 
 			// then see for editors to open as instructed
+			// it is important that we trigger this from
+			// the overall restore flow to reduce possible
+			// flicker on startup: we want any editor to
+			// open to get a chance to open first before
+			// signaling that layout is restored, but we do
+			// not need to await the editors from having
+			// fully loaded.
 			let editors: IResourceEditorInputType[];
 			if (Array.isArray(this.state.editor.editorsToOpen)) {
 				editors = this.state.editor.editorsToOpen;
@@ -674,11 +695,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				editors = await this.state.editor.editorsToOpen;
 			}
 
+			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
-				await this.editorService.openEditors(editors);
+				openEditorsPromise = this.editorService.openEditors(editors);
 			}
 
-			mark('code/didRestoreEditors');
+			// do not block the overall layout ready flow from potentially
+			// slow editors to resolve on startup
+			layoutRestoredPromises.push(
+				Promise.all([
+					openEditorsPromise,
+					this.editorGroupService.whenRestored
+				]).finally(() => {
+					// the `code/didRestoreEditors` perf mark is specifically
+					// for when visible editors have resolved, so we only mark
+					// if when editor group service has restored.
+					mark('code/didRestoreEditors');
+				})
+			);
 		})());
 
 		// Restore default views (only when `IDefaultLayout` is provided)
@@ -686,7 +720,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.state.views.defaults?.length) {
 				mark('code/willOpenDefaultViews');
 
-				let locationsRestored: { id: string; order: number; }[] = [];
+				const locationsRestored: { id: string; order: number; }[] = [];
 
 				const tryOpenView = (view: { id: string; order: number; }): boolean => {
 					const location = this.viewDescriptorService.getViewLocationById(view.id);
@@ -744,10 +778,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				mark('code/didOpenDefaultViews');
 			}
 		})();
-		restorePromises.push(restoreDefaultViewsPromise);
+		layoutReadyPromises.push(restoreDefaultViewsPromise);
 
 		// Restore Sidebar
-		restorePromises.push((async () => {
+		layoutReadyPromises.push((async () => {
 
 			// Restoring views could mean that sidebar already
 			// restored, as such we need to test again
@@ -767,7 +801,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		})());
 
 		// Restore Panel
-		restorePromises.push((async () => {
+		layoutReadyPromises.push((async () => {
 
 			// Restoring views could mean that panel already
 			// restored, as such we need to test again
@@ -796,8 +830,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.centerEditorLayout(true, true);
 		}
 
-		// Await restore to be done
-		await Promises.settled(restorePromises);
+		// Await for promises that we recorded to update
+		// our ready and restored states properly.
+		Promises.settled(layoutReadyPromises).finally(() => {
+			this.whenReadyResolve?.();
+
+			Promises.settled(layoutRestoredPromises).finally(() => {
+				this.restored = true;
+				this.whenRestoredResolve?.();
+			});
+		});
 	}
 
 	private updatePanelPosition() {
@@ -822,10 +864,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	registerNotifications(delegate: { onDidChangeNotificationsVisibility: Event<boolean> }): void {
 		this._register(delegate.onDidChangeNotificationsVisibility(visible => this._onDidChangeNotificationsVisibility.fire(visible)));
-	}
-
-	isRestored(): boolean {
-		return this.lifecycleService.phase >= LifecyclePhase.Restored;
 	}
 
 	hasFocus(part: Parts): boolean {

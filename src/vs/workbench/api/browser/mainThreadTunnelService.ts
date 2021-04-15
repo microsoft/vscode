@@ -196,8 +196,4 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			// The remote failed to get setup. Errors from that area will already be surfaced to the user.
 		});
 	}
-
-	dispose(): void {
-
-	}
 }

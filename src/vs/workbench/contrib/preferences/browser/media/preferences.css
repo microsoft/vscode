@@ -51,6 +51,7 @@
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	display: block;
+	padding: 0px;
 	border-radius: initial;
 	background: none !important;
 }

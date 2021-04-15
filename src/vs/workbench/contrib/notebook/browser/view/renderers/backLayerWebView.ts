@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from 'vs/base/common/actions';
+import { coalesce } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -12,6 +14,11 @@ import { isWeb } from 'vs/base/common/platform';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
+import * as nls from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -25,8 +32,6 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import * as nls from 'vs/nls';
-import { coalesce } from 'vs/base/common/arrays';
 
 interface BaseToWebviewMessage {
 	readonly __vscode_notebook_message: true;
@@ -98,6 +103,13 @@ export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly shiftKey: boolean;
+}
+
+export interface IContextMenuMarkdownPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'contextMenuMarkdownPreview';
+	readonly cellId: string;
+	readonly clientX: number;
+	readonly clientY: number;
 }
 
 export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
@@ -234,6 +246,13 @@ export interface IFocusOutputMessage {
 	cellId: string;
 }
 
+export interface IAckOutputHeightMessage {
+	type: 'ack-dimension',
+	cellId: string;
+	outputId: string;
+	height: number;
+}
+
 export interface IPreloadResource {
 	originalUri: string;
 	uri: string;
@@ -311,6 +330,7 @@ export type FromWebviewMessage =
 	| ICustomRendererMessage
 	| IClickedDataUrlMessage
 	| IClickMarkdownPreviewMessage
+	| IContextMenuMarkdownPreviewMessage
 	| IMouseEnterMarkdownPreviewMessage
 	| IMouseLeaveMarkdownPreviewMessage
 	| IToggleMarkdownPreviewMessage
@@ -323,6 +343,7 @@ export type FromWebviewMessage =
 export type ToWebviewMessage =
 	| IClearMessage
 	| IFocusOutputMessage
+	| IAckOutputHeightMessage
 	| ICreationRequestMessage
 	| IViewScrollTopRequestMessage
 	| IScrollRequestMessage
@@ -402,6 +423,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -564,11 +588,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					</style>
 				</template>
 				<style>
+					#container .cell_container {
+						width: 100%;
+					}
+
 					#container .output_container {
 						width: 100%;
 					}
 
-					#container > div > div.output {
+					#container > div > div > div.output {
 						width: calc(100% - ${this.options.leftMargin + (this.options.cellMargin * 2) + this.options.runGutter}px);
 						margin-left: ${this.options.leftMargin + this.options.runGutter}px;
 						padding: ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodePadding}px ${this.options.outputNodeLeftPadding}px;
@@ -680,8 +708,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				<script>${preloadsScriptStr({
 			outputNodePadding: this.options.outputNodePadding,
 			outputNodeLeftPadding: this.options.outputNodeLeftPadding,
-			previewNodePadding: this.options.previewNodePadding,
-			leftMargin: this.options.leftMargin
 		})}</script>
 				${markdownRenderersSrc}
 			</body>
@@ -801,7 +827,7 @@ var requirejs = (function() {
 
 			if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
 				|| matchesScheme(link, Schemas.command)) {
-				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true });
+				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
 			}
 		}));
 
@@ -846,6 +872,7 @@ var requirejs = (function() {
 								if (resolvedResult) {
 									const { cellInfo, output } = resolvedResult;
 									this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo.cellId, update.id, height);
 								}
 							} else {
 								this.notebookEditor.updateMarkdownCellHeight(update.id, height, !!update.init);
@@ -951,6 +978,31 @@ var requirejs = (function() {
 								// Normal click
 								this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
 							}
+						}
+						break;
+					}
+				case 'contextMenuMarkdownPreview':
+					{
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
+							// Focus the cell first
+							this.notebookEditor.focusNotebookCell(cell, 'container', { skipReveal: true });
+
+							// Then show the context menu
+							const webviewRect = this.element.getBoundingClientRect();
+							this.contextMenuService.showContextMenu({
+								getActions: () => {
+									const result: IAction[] = [];
+									const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
+									createAndFillInContextMenuActions(menu, undefined, result);
+									menu.dispose();
+									return result;
+								},
+								getAnchor: () => ({
+									x: webviewRect.x + data.clientX,
+									y: webviewRect.y + data.clientY
+								})
+							});
 						}
 						break;
 					}
@@ -1108,6 +1160,15 @@ var requirejs = (function() {
 		}
 
 		return true;
+	}
+
+	ackHeight(cellId: string, id: string, height: number): void {
+		this._sendMessageToWebview({
+			type: 'ack-dimension',
+			cellId: cellId,
+			outputId: id,
+			height: height
+		});
 	}
 
 	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
