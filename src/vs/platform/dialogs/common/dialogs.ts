@@ -9,6 +9,8 @@ import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface FileFilter {
 	extensions: string[];
@@ -178,11 +180,20 @@ export interface IOpenDialogOptions {
 
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
+export interface ICustomDialogDelegate extends IDisposable {
+	render: (messageElement: HTMLElement) => void;
+}
+
+export interface ICustomDialogOptions {
+	renderDelegate?: ICustomDialogDelegate;
+	icon?: Codicon;
+}
+
 export interface IDialogOptions {
 	cancelId?: number;
 	detail?: string;
 	checkbox?: ICheckbox;
-	useCustom?: boolean;
+	custom?: boolean | ICustomDialogOptions;
 }
 
 export interface IInput {

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./workspaceTrustEditor';
+import { $ } from 'vs/base/browser/dom';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -36,6 +37,12 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isWeb } from 'vs/base/common/platform';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
+import product from 'vs/platform/product/common/product';
+import { FileAccess } from 'vs/base/common/network';
+import { parseLinkedText } from 'vs/base/common/linkedText';
+import { Link } from 'vs/platform/opener/browser/link';
+import { attachLinkStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, localize('workspaceTrustIcon', "Icon for workspace trust badge."));
@@ -45,7 +52,7 @@ const workspaceTrustIcon = registerIcon('workspace-trust-icon', Codicon.shield, 
  */
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
 	private readonly badgeDisposable = this._register(new MutableDisposable());
-	private shouldShowManagementEditor = true;
+	private shouldShowIntroduction = true;
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
@@ -55,6 +62,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -71,11 +80,91 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				priority: 10
 			});
 
-			const managementEditorShownKey = 'workspace.trust.management.shown';
-			const seen = this.storageService.getBoolean(managementEditorShownKey, StorageScope.WORKSPACE, false);
-			if (!seen && this.shouldShowManagementEditor) {
-				this.storageService.store(managementEditorShownKey, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-				this.commandService.executeCommand('workbench.trust.manage');
+			const workspaceTrustIntroDialogDoNotShowAgainKey = 'workspace.trust.introduction.doNotShowAgain';
+			const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, false);
+			if (!doNotShowAgain && this.shouldShowIntroduction) {
+				// Show welcome dialog
+				(async () => {
+
+					const disposables = new DisposableStore();
+					const renderBody = (parent: HTMLElement) => {
+						parent.style.minWidth = 'min(50vw, 500px)';
+						parent.style.paddingRight = '24px';
+
+						const details = parent.appendChild($('.workspace-trust-details'));
+						details.innerText = localize('workspaceTrustDescription', "{0} provides many powerful features that rely on the files that are open in the current workspace. This can mean unintended code execution from the workspace and should only happen if you trust the source of the files you have open.", 'VS Code' || product.nameShort);
+
+						const addExplainer = (imagePath: string, imageHeight: number, descriptionText: string) => {
+							const explainerRow = parent.appendChild($('.workspace-trust-explainer'));
+							explainerRow.style.display = 'flex';
+							explainerRow.style.alignItems = 'center';
+							explainerRow.style.marginTop = '20px';
+
+							const imageElement = explainerRow.appendChild($('img.workspace-trust-gear-badge'));
+							(imageElement as HTMLImageElement).src = imagePath;
+							imageElement.style.height = `${imageHeight}px`;
+							imageElement.style.marginRight = '10px';
+
+							const description = explainerRow.appendChild($('.workspace-trust-gear-badge-description'));
+							description.innerText = descriptionText;
+							description.style.fontStyle = 'italic';
+						};
+
+						addExplainer(FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/trusted-badge.png', require).toString(true), 56, localize('workspaceTrustBadgeDescription', "When features are disabled in an untrusted workspace, you will see this shield icon in the Activity Bar."));
+						addExplainer(FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/untrusted-status.png', require).toString(true), 20, localize('workspaceTrustUntrustedDescription', "When the workspace is untrusted, you will see this status bar entry. It is hidden when the workspace is trusted."));
+
+						const linkedText = parseLinkedText(localize('seeTheDocs', "Manage your Workspace Trust configuration now to learn more or [see our docs for additional information](https://aka.ms/vscode-workspace-trust)."));
+						const p = parent.appendChild($('p'));
+						for (const node of linkedText.nodes) {
+							if (typeof node === 'string') {
+								p.appendChild(document.createTextNode(node));
+							} else {
+								const link = this.instantiationService.createInstance(Link, node);
+								p.appendChild(link.el);
+								disposables.add(link);
+								disposables.add(attachLinkStyler(link, this.themeService));
+							}
+						}
+					};
+
+					const result = await this.dialogService.show(
+						Severity.Info,
+						localize('workspaceTrust', "Introducing Workspace Trust"),
+						[
+							localize('manageTrust', "Manage"),
+							localize('close', "Close")
+						],
+						{
+							custom: {
+								icon: Codicon.shield,
+								renderDelegate: {
+									render: renderBody,
+									dispose: () => { },
+								}
+							},
+							cancelId: 1, // Close
+							checkbox: {
+								label: localize('dontShowAgain', "Don't show this message again"),
+								checked: false,
+							}
+						}
+					);
+
+					// Dialog result
+					switch (result.choice) {
+						case 0:
+							this.workspaceTrustRequestService.cancelRequest();
+							await this.commandService.executeCommand('workbench.trust.manage');
+							break;
+						case 1:
+							this.workspaceTrustRequestService.completeRequest(undefined);
+							break;
+					}
+
+					if (result.checkboxChecked) {
+						this.storageService.store(workspaceTrustIntroDialogDoNotShowAgainKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+					}
+				})();
 			}
 		}
 	}
@@ -107,7 +196,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					{
 						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
 						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Using an untrusted workspace may compromise your device or personal information.", message),
-						useCustom: true
+						custom: true
 					}
 				);
 
@@ -170,7 +259,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		// Don't auto-show the UX editor if the request is 5 seconds after startup
-		setTimeout(() => { this.shouldShowManagementEditor = false; }, 5000);
+		setTimeout(() => { this.shouldShowIntroduction = false; }, 5000);
 	}
 }
 
