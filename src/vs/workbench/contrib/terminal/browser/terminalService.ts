@@ -308,6 +308,11 @@ export class TerminalService implements ITerminalService {
 		return this._availableProfiles || [];
 	}
 
+	public async getAvailableProfilesAsync(): Promise<ITerminalProfile[]> {
+		await this._updateAvailableProfilesNow();
+		return this._availableProfiles || [];
+	}
+
 	private async _getWorkspaceProfilePermissions(profile: ITerminalProfile): Promise<boolean> {
 		const platformKey = await this._getPlatformKey();
 		const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(`terminal.integrated.profiles.${platformKey}`);

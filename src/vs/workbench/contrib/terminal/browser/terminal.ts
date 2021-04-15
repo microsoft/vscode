@@ -166,9 +166,15 @@ export interface ITerminalService {
 	showProfileQuickPick(type: 'setDefault' | 'createInstance'): Promise<void>;
 
 	/**
-	 * Gets the detected terminal profiles for the platform
+	 * Gets the detected terminal profiles for the platform, this will queue an update of the
+	 * available profiles but will not wait for it to complete.
 	 */
 	getAvailableProfiles(): ITerminalProfile[];
+
+	/**
+	 * Gets the detected terminal profiles for the platform.
+	 */
+	getAvailableProfilesAsync(): Promise<ITerminalProfile[]>;
 
 	getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined;
 

@@ -12,7 +12,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
@@ -37,6 +37,17 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _terminalService: ITerminalService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
+	}
+
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void {
+		if (shellLaunchConfig.executable) {
+			return;
+		}
+
+		const defaultProfile = this._getRealDefaultProfile(true, platform);
+		if (defaultProfile) {
+			shellLaunchConfig.icon = defaultProfile.icon;
+		}
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
@@ -85,18 +96,31 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Return the real default profile if it exists and is valid
-		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getPlatformKey(options.platform)}`);
-		if (defaultProfileName && typeof defaultProfileName === 'string') {
-			const profiles = this._terminalService.getAvailableProfiles();
-			const defaultProfile = profiles.find(e => e.profileName === defaultProfileName);
-			if (defaultProfile) {
-				return defaultProfile;
-			}
+		const defaultProfile = await this._getRealDefaultProfile(false, options.platform);
+		if (defaultProfile) {
+			return defaultProfile;
 		}
 
 		// If there is no real default profile, create a fallback default profile based on the shell
 		// and shellArgs settings in addition to the current environment.
 		return this._getFallbackDefaultProfile(options);
+	}
+
+	private _getRealDefaultProfile(sync: true, platform: Platform): ITerminalProfile | undefined;
+	private _getRealDefaultProfile(sync: false, platform: Platform): Promise<ITerminalProfile | undefined>;
+	private _getRealDefaultProfile(sync: boolean, platform: Platform): ITerminalProfile | undefined | Promise<ITerminalProfile | undefined> {
+		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getPlatformKey(platform)}`);
+		if (defaultProfileName && typeof defaultProfileName === 'string') {
+			if (sync) {
+				const profiles = this._terminalService.getAvailableProfiles();
+				return profiles.find(e => e.profileName === defaultProfileName);
+			} else {
+				return this._terminalService.getAvailableProfilesAsync().then(profiles => {
+					return profiles.find(e => e.profileName === defaultProfileName);
+				});
+			}
+		}
+		return undefined;
 	}
 
 	private async _getFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {

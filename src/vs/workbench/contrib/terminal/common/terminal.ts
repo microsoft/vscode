@@ -81,6 +81,10 @@ export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '
 export const ITerminalProfileResolverService = createDecorator<ITerminalProfileResolverService>('terminalProfileResolverService');
 export interface ITerminalProfileResolverService {
 	readonly _serviceBrand: undefined;
+	/**
+	 * Resolves the icon of a shell launch config if this will use the default profile
+	 */
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void;
 	resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
