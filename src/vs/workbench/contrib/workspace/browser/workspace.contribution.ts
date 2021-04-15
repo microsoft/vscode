@@ -78,9 +78,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				priority: 10
 			});
 
-			const introducingWorkspaceTrustShownKey = 'workspace.trust.introduction.shown';
-			const seen = this.storageService.getBoolean(introducingWorkspaceTrustShownKey, StorageScope.GLOBAL, false);
-			if (!seen && this.shouldShowIntroduction) {
+			const workspaceTrustIntroDialogDoNotShowAgainKey = 'workspace.trust.introduction.doNotShowAgain';
+			const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, false);
+			if (!doNotShowAgain && this.shouldShowIntroduction) {
 				// Show welcome dialog
 				(async () => {
 
@@ -158,7 +158,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 					}
 
 					if (result.checkboxChecked) {
-						this.storageService.store(introducingWorkspaceTrustShownKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+						this.storageService.store(workspaceTrustIntroDialogDoNotShowAgainKey, true, StorageScope.GLOBAL, StorageTarget.USER);
 					}
 				})();
 			}
