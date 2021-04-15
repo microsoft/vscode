@@ -190,13 +190,13 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 				// Dialog
 				const result = await this.dialogService.show(
-					Severity.Info,
+					Severity.Warning,
 					localize('immediateTrustRequestTitle', "Do you trust the files in this folder?"),
 					buttons.map(b => b.label),
 					{
 						cancelId: buttons.findIndex(b => b.type === 'Cancel'),
 						detail: localize('immediateTrustRequestDetail', "{0}\n\nYou should only trust this workspace if you trust its source. Using an untrusted workspace may compromise your device or personal information.", message),
-						custom: { icon: Codicon.shield }
+						custom: true
 					}
 				);
 
@@ -240,19 +240,15 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
 					const addedFoldersTrustStateInfo = e.changes.added.map(folder => this.workspaceTrustStorageService.getFolderTrustStateInfo(folder.uri));
 					if (!addedFoldersTrustStateInfo.map(i => i.trusted).every(trusted => trusted)) {
-						const result = await this.dialogService.show(
-							Severity.Info,
-							localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
-							[localize('yes', 'Yes'), localize('no', 'No')],
-							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?"),
-								cancelId: 1,
-								custom: { icon: Codicon.shield }
-							}
-						);
+						const result = await this.dialogService.confirm({
+							message: localize('addWorkspaceFolderMessage', "Do you trust the files in this folder?"),
+							detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you want to trust the new files?"),
+							primaryButton: localize('yes', 'Yes'),
+							secondaryButton: localize('no', 'No')
+						});
 
 						// Mark added/changed folders as trusted
-						this.workspaceTrustStorageService.setFoldersTrust(addedFoldersTrustStateInfo.map(i => i.uri), result.choice === 0);
+						this.workspaceTrustStorageService.setFoldersTrust(addedFoldersTrustStateInfo.map(i => i.uri), result.confirmed);
 
 						resolve();
 					}
