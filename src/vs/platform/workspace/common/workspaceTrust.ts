@@ -56,7 +56,10 @@ export interface IWorkspaceTrustManagementService {
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	isWorkpaceTrusted(): boolean;
+	setOpenEditors(openEditors: URI[]): void;
 	setWorkspaceTrust(trusted: boolean): void;
+	canSetParentFolderTrust(): boolean;
+	canSetWorkspaceTrust(): boolean;
 }
 
 export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
