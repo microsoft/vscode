@@ -885,7 +885,7 @@ export class DebugSession implements IDebugSession {
 			if (event.body && event.body.restart) {
 				await this.debugService.restartSession(this, event.body.restart);
 			} else if (this.raw) {
-				await this.raw.disconnect({});
+				await this.raw.disconnect({ terminateDebuggee: false });
 			}
 		}));
 
