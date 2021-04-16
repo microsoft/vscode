@@ -7,7 +7,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILocalTerminalService } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
@@ -23,13 +23,21 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@IShellEnvironmentService shellEnvironmentService: IShellEnvironmentService,
 		@ITerminalService terminalService: ITerminalService,
 		@ILocalTerminalService localTerminalService: ILocalTerminalService,
+		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
 		super(
 			{
-				// TODO: Get remote or local system shell?
-				getDefaultSystemShell: async platform => localTerminalService.getDefaultSystemShell(platform),
-				getShellEnvironment: () => shellEnvironmentService.getShellEnv()
+				getDefaultSystemShell: async (remoteAuthority, platform) => {
+					const service = remoteAuthority ? remoteTerminalService : localTerminalService;
+					return service.getDefaultSystemShell(platform);
+				},
+				getShellEnvironment: (remoteAuthority) => {
+					if (remoteAuthority) {
+						remoteTerminalService.getShellEnvironment();
+					}
+					return shellEnvironmentService.getShellEnv();
+				}
 			},
 			configurationService,
 			configurationResolverService,

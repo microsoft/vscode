@@ -338,7 +338,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		this._configHelper.showRecommendations(shellLaunchConfig);
 		const baseEnv = await (this._configHelper.config.inheritEnv
-			? this._terminalProfileResolverService.getShellEnvironment()
+			? this._terminalProfileResolverService.getShellEnvironment(this.remoteAuthority)
 			: this._terminalInstanceService.getMainProcessParentEnv());
 		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._configurationResolverService);
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);

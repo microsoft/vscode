@@ -19,8 +19,8 @@ import * as path from 'vs/base/common/path';
 import { Codicon } from 'vs/base/common/codicons';
 
 export interface IProfileContextProvider {
-	getDefaultSystemShell: (platform: Platform) => Promise<string>;
-	getShellEnvironment: () => Promise<IProcessEnvironment>;
+	getDefaultSystemShell: (remoteAuthority: string | undefined, platform: Platform) => Promise<string>;
+	getShellEnvironment: (remoteAuthority: string | undefined) => Promise<IProcessEnvironment>;
 }
 
 const generatedProfileName = 'Generated';
@@ -79,8 +79,8 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._resolveProfile(await this._getUnresolvedDefaultProfile(options), options);
 	}
 
-	getShellEnvironment(): Promise<IProcessEnvironment> {
-		return this._context.getShellEnvironment();
+	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment> {
+		return this._context.getShellEnvironment(remoteAuthority);
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
@@ -131,7 +131,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 				args = shellArgsSetting || [];
 			}
 		} else {
-			executable = await this._context.getDefaultSystemShell(options.platform);
+			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.platform);
 		}
 
 		const icon = this._guessProfileIcon(executable);
@@ -160,7 +160,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 			// safe to assume that this was used by accident as Sysnative does not
 			// exist and will break the terminal in non-WoW64 environments.
-			const env = await this._context.getShellEnvironment();
+			const env = await this._context.getShellEnvironment(options.remoteAuthority);
 			const isWoW64 = !!env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 			const windir = env.windir;
 			if (!isWoW64 && windir) {
@@ -177,7 +177,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Resolve path variables
-		const env = await this._context.getShellEnvironment();
+		const env = await this._context.getShellEnvironment(options.remoteAuthority);
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		profile.path = this._resolveVariables(profile.path, env, lastActiveWorkspace);
@@ -263,9 +263,19 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 	) {
 		super(
 			{
-				getDefaultSystemShell: async platform => remoteTerminalService.getDefaultSystemShell(platform),
-				// TODO: Get the actual shell environment from the server
-				getShellEnvironment: async () => env
+				getDefaultSystemShell: async (remoteAuthority, platform) => {
+					if (!remoteAuthority) {
+						// Just return basic values, this is only for serverless web and wouldn't be used
+						return platform === Platform.Windows ? 'pwsh' : 'bash';
+					}
+					return remoteTerminalService.getDefaultSystemShell(platform);
+				},
+				getShellEnvironment: async (remoteAuthority) => {
+					if (!remoteAuthority) {
+						return env;
+					}
+					return remoteTerminalService.getShellEnvironment();
+				}
 			},
 			configurationService,
 			configurationResolverService,

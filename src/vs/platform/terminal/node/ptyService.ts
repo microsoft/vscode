@@ -168,6 +168,10 @@ export class PtyService extends Disposable implements IPtyService {
 		return getSystemShell(platformOverride, process.env);
 	}
 
+	async getShellEnvironment(): Promise<IProcessEnvironment> {
+		return { ...process.env };
+	}
+
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}

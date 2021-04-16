@@ -88,7 +88,7 @@ export interface ITerminalProfileResolverService {
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
-	getShellEnvironment(): Promise<IProcessEnvironment>;
+	getShellEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
 }
 
 export interface IShellLaunchConfigResolveOptions {

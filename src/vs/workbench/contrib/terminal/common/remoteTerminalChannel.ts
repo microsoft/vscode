@@ -21,7 +21,7 @@ import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection
 import { IProcessDataEvent, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -258,6 +258,10 @@ export class RemoteTerminalChannelClient {
 
 	public getDefaultSystemShell(platformOverride?: Platform): Promise<string> {
 		return this._channel.call('$getDefaultSystemShell', [platformOverride]);
+	}
+
+	public getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._channel.call('$getShellEnvironment');
 	}
 
 	public setTerminalLayoutInfo(layout: ITerminalsLayoutInfoById): Promise<void> {
