@@ -18,7 +18,7 @@
 	// noVNC, VNC, debug ports
 	"forwardPorts": [6080, 5901, 9222],
 	"portsAttributes": {
-		"6080": {
+		"6090": {
 			"label": "noVNC"
 		},
 		"5901": {
