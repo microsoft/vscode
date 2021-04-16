@@ -52,7 +52,7 @@ import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/t
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 
@@ -1742,6 +1742,33 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 		if (name) {
 			this.setTitle(name, TitleEventSource.Api);
+		}
+	}
+
+	public async changeIcon() {
+		const items: IQuickPickItem[] = [];
+		for (const icon of iconRegistry.all) {
+			items.push({ label: `$(${icon.id})`, description: `${icon.id}` });
+		}
+		const result = await this._quickInputService.pick(items, {
+			title: nls.localize('changeTerminalIcon', "Change Icon"),
+			matchOnDescription: true
+		});
+		if (result) {
+			this.shellLaunchConfig.icon = result.description;
+			this._onTitleChanged.fire(this);
+		}
+	}
+
+	public async configure(): Promise<void> {
+		const changeIcon: IQuickPickItem = { label: nls.localize('changeIconTerminal', 'Change Icon') };
+		const rename: IQuickPickItem = { label: nls.localize('renameTerminal', 'Rename') };
+		const result = await this._quickInputService.pick([changeIcon, rename], {
+			title: nls.localize('configureTerminalTitle', "Configure Terminal")
+		});
+		switch (result) {
+			case changeIcon: return this.changeIcon();
+			case rename: return this.rename();
 		}
 	}
 }
