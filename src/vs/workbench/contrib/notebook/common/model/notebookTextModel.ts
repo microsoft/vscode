@@ -515,25 +515,28 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean) {
 		const oldMetadata = this.metadata;
-		this.metadata = metadata;
+		const triggerDirtyChange = this._isDocumentMetadataChanged(this.metadata, metadata);
 
-		if (computeUndoRedo) {
-			const that = this;
-			this._operationManager.pushEditOperation(new class implements IResourceUndoRedoElement {
-				readonly type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
-				get resource() {
-					return that.uri;
-				}
-				readonly label = 'Update Notebook Metadata';
-				undo() {
-					that._updateNotebookMetadata(oldMetadata, false);
-				}
-				redo() {
-					that._updateNotebookMetadata(metadata, false);
-				}
-			}(), undefined, undefined);
+		if (triggerDirtyChange) {
+			if (computeUndoRedo) {
+				const that = this;
+				this._operationManager.pushEditOperation(new class implements IResourceUndoRedoElement {
+					readonly type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
+					get resource() {
+						return that.uri;
+					}
+					readonly label = 'Update Notebook Metadata';
+					undo() {
+						that._updateNotebookMetadata(oldMetadata, false);
+					}
+					redo() {
+						that._updateNotebookMetadata(metadata, false);
+					}
+				}(), undefined, undefined);
+			}
 		}
 
+		this.metadata = metadata;
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, metadata: this.metadata, transient: this._isDocumentMetadataChangeTransient(oldMetadata, metadata) }, true);
 	}
 
@@ -593,6 +596,28 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._cells.splice(index, count, ...cells);
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ModelChange, changes: [[index, count, cells]], transient: false }, synchronous, endSelections);
 
+	}
+
+	private _isDocumentMetadataChanged(a: NotebookDocumentMetadata, b: NotebookDocumentMetadata) {
+		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+		for (let key of keys) {
+			if (key === 'custom') {
+				if (!this._customMetadataEqual(a[key], b[key])
+					&&
+					!(this.transientOptions.transientCellMetadata[key as keyof NotebookCellMetadata])
+				) {
+					return true;
+				}
+			} else if (
+				(a[key as keyof NotebookDocumentMetadata] !== b[key as keyof NotebookDocumentMetadata])
+				&&
+				!(this.transientOptions.transientDocumentMetadata[key as keyof NotebookDocumentMetadata])
+			) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
