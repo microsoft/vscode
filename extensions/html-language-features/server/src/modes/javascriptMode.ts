@@ -12,20 +12,34 @@ import {
 } from './languageModes';
 import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
 import { HTMLDocumentRegions } from './embeddedSupport';
+import { normalize, sep } from 'path';
 
 import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
+/** TypeScript does not handle schemes on file references, so normalize and remove the schemes when communicating with tsserver */
+function deschemeURI(uri: string) {
+	if (!uri.startsWith('file://')) { 
+		return uri ;
+	}
+	// This is replicating the logic in TypeScriptServiceClient.normalizedPath
+	const newPath = normalize(uri.replace('file://', ''));
+
+	// Both \ and / must be escaped in regular expressions
+	return newPath.replace(new RegExp('\\' + sep, 'g'), '/');
+}
+
 function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es6.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
+	let currentWorkspace: Workspace = undefined!;
 	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs').then(libs => {
 		const host: ts.LanguageServiceHost = {
 			getCompilationSettings: () => compilerOptions,
-			getScriptFileNames: () => [currentTextDocument.uri, 'jquery'],
+			getScriptFileNames: () => [deschemeURI(currentTextDocument.uri), 'jquery'],
 			getScriptKind: (fileName) => {
 				if (fileName === currentTextDocument.uri) {
 					return scriptKind;
@@ -33,15 +47,17 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				return fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS;
 			},
 			getScriptVersion: (fileName: string) => {
-				if (fileName === currentTextDocument.uri) {
+				if (fileName === deschemeURI(currentTextDocument.uri)) {
 					return String(currentTextDocument.version);
 				}
 				return '1'; // default lib an jquery.d.ts are static
 			},
 			getScriptSnapshot: (fileName: string) => {
 				let text = '';
-				if (fileName === currentTextDocument.uri) {
+				if (fileName === deschemeURI(currentTextDocument.uri)) {
 					text = currentTextDocument.getText();
+				} else if (ts.sys.fileExists(fileName)) {
+					text = ts.sys.readFile(fileName, 'utf8')!;
 				} else {
 					text = libs.loadLibrary(fileName);
 				}
@@ -51,14 +67,24 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 					getChangeRange: () => undefined
 				};
 			},
-			getCurrentDirectory: () => '',
-			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6'
+			getCurrentDirectory:  () => {
+				const workspace = currentWorkspace && currentWorkspace.folders.find(ws => deschemeURI(currentTextDocument.uri).startsWith(deschemeURI(ws.uri)));
+				return workspace ? deschemeURI(workspace.uri) : '';
+			},
+			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6',
+			fileExists: ts.sys.fileExists,
+			readFile: ts.sys.readFile,
+			readDirectory:  ts.sys.readDirectory,
+			directoryExists: ts.sys.directoryExists,
+			getDirectories: ts.sys.getDirectories,
 		};
+
 		return ts.createLanguageService(host);
 	});
 	return {
-		async getLanguageService(jsDocument: TextDocument): Promise<ts.LanguageService> {
+		async getLanguageService(jsDocument: TextDocument, workspace: Workspace): Promise<ts.LanguageService> {
 			currentTextDocument = jsDocument;
+			currentWorkspace = workspace;
 			return jsLanguageService;
 		},
 		getCompilationSettings() {
@@ -84,9 +110,11 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		async doValidation(document: TextDocument, settings = workspace.settings): Promise<Diagnostic[]> {
 			host.getCompilationSettings()['experimentalDecorators'] = settings && settings.javascript && settings.javascript.implicitProjectConfig.experimentalDecorators;
 			const jsDocument = jsDocuments.get(document);
-			const languageService = await host.getLanguageService(jsDocument);
-			const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);
-			const semanticDiagnostics = languageService.getSemanticDiagnostics(jsDocument.uri);
+			const languageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(filePath);
+			const semanticDiagnostics = languageService.getSemanticDiagnostics(filePath);
 			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
 				return {
 					range: convertRange(jsDocument, diag),
@@ -98,9 +126,12 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async doComplete(document: TextDocument, position: Position, _documentContext: DocumentContext): Promise<CompletionList> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
 			let offset = jsDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(jsDocument.uri, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
+			let completions = jsLanguageService.getCompletionsAtPosition(filePath, offset, { includeExternalModuleExports: false, includeInsertTextCompletions: false });
+
 			if (!completions) {
 				return { isIncomplete: false, items: [] };
 			}
@@ -126,9 +157,11 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async doResolve(document: TextDocument, item: CompletionItem): Promise<CompletionItem> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
 			// @ts-expect-error until 4.3 protocol update
-			let details = jsLanguageService.getCompletionEntryDetails(jsDocument.uri, item.data.offset, item.label, undefined, undefined, undefined, undefined);
+			let details = jsLanguageService.getCompletionEntryDetails(filePath, item.data.offset, item.label, undefined, undefined, undefined, undefined);
 			if (details) {
 				item.detail = ts.displayPartsToString(details.displayParts);
 				item.documentation = ts.displayPartsToString(details.documentation);
@@ -138,8 +171,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async doHover(document: TextDocument, position: Position): Promise<Hover | null> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let info = jsLanguageService.getQuickInfoAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			let info = jsLanguageService.getQuickInfoAtPosition(filePath, jsDocument.offsetAt(position));
 			if (info) {
 				const contents = ts.displayPartsToString(info.displayParts);
 				return {
@@ -151,8 +186,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async doSignatureHelp(document: TextDocument, position: Position): Promise<SignatureHelp | null> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let signHelp = jsLanguageService.getSignatureHelpItems(jsDocument.uri, jsDocument.offsetAt(position), undefined);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			let signHelp = jsLanguageService.getSignatureHelpItems(filePath, jsDocument.offsetAt(position), undefined);
 			if (signHelp) {
 				let ret: SignatureHelp = {
 					activeSignature: signHelp.selectedItemIndex,
@@ -189,13 +226,15 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async doRename(document: TextDocument, position: Position, newName: string) {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
 			const jsDocumentPosition = jsDocument.offsetAt(position);
-			const { canRename } = jsLanguageService.getRenameInfo(jsDocument.uri, jsDocumentPosition);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			const { canRename } = jsLanguageService.getRenameInfo(filePath, jsDocumentPosition);
 			if (!canRename) {
 				return null;
 			}
-			const renameInfos = jsLanguageService.findRenameLocations(jsDocument.uri, jsDocumentPosition, false, false);
+			const renameInfos = jsLanguageService.findRenameLocations(filePath, jsDocumentPosition, false, false);
 
 			const edits: TextEdit[] = [];
 			renameInfos?.map(renameInfo => {
@@ -211,8 +250,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async findDocumentHighlight(document: TextDocument, position: Position): Promise<DocumentHighlight[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			const highlights = jsLanguageService.getDocumentHighlights(jsDocument.uri, jsDocument.offsetAt(position), [jsDocument.uri]);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			const highlights = jsLanguageService.getDocumentHighlights(filePath, jsDocument.offsetAt(position), [filePath]);
 			const out: DocumentHighlight[] = [];
 			for (const entry of highlights || []) {
 				for (const highlight of entry.highlightSpans) {
@@ -226,8 +267,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async findDocumentSymbols(document: TextDocument): Promise<SymbolInformation[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let items = jsLanguageService.getNavigationBarItems(jsDocument.uri);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			let items = jsLanguageService.getNavigationBarItems(filePath);
 			if (items) {
 				let result: SymbolInformation[] = [];
 				let existing = Object.create(null);
@@ -263,8 +306,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async findDefinition(document: TextDocument, position: Position): Promise<Definition | null> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let definition = jsLanguageService.getDefinitionAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			let definition = jsLanguageService.getDefinitionAtPosition(filePath, jsDocument.offsetAt(position));
 			if (definition) {
 				return definition.filter(d => d.fileName === jsDocument.uri).map(d => {
 					return {
@@ -277,10 +322,12 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async findReferences(document: TextDocument, position: Position): Promise<Location[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let references = jsLanguageService.getReferencesAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			let references = jsLanguageService.getReferencesAtPosition(filePath, jsDocument.offsetAt(position));
 			if (references) {
-				return references.filter(d => d.fileName === jsDocument.uri).map(d => {
+				return references.filter(d => d.fileName === filePath).map(d => {
 					return {
 						uri: document.uri,
 						range: convertRange(jsDocument, d.textSpan)
@@ -291,17 +338,20 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async getSelectionRange(document: TextDocument, position: Position): Promise<SelectionRange> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
 			function convertSelectionRange(selectionRange: ts.SelectionRange): SelectionRange {
 				const parent = selectionRange.parent ? convertSelectionRange(selectionRange.parent) : undefined;
 				return SelectionRange.create(convertRange(jsDocument, selectionRange.textSpan), parent);
 			}
-			const range = jsLanguageService.getSmartSelectionRange(jsDocument.uri, jsDocument.offsetAt(position));
+			const range = jsLanguageService.getSmartSelectionRange(filePath, jsDocument.offsetAt(position));
 			return convertSelectionRange(range);
 		},
 		async format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): Promise<TextEdit[]> {
 			const jsDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
 
 			let formatterSettings = settings && settings.javascript && settings.javascript.format;
 
@@ -314,7 +364,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				end -= range.end.character;
 				lastLineRange = Range.create(Position.create(range.end.line, 0), range.end);
 			}
-			let edits = jsLanguageService.getFormattingEditsForRange(jsDocument.uri, start, end, formatSettings);
+			let edits = jsLanguageService.getFormattingEditsForRange(filePath, start, end, formatSettings);
 			if (edits) {
 				let result = [];
 				for (let edit of edits) {
@@ -337,8 +387,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async getFoldingRanges(document: TextDocument): Promise<FoldingRange[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			let spans = jsLanguageService.getOutliningSpans(jsDocument.uri);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			let spans = jsLanguageService.getOutliningSpans(filePath);
 			let ranges: FoldingRange[] = [];
 			for (let span of spans) {
 				let curr = convertRange(jsDocument, span.textSpan);
@@ -360,8 +412,10 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		async getSemanticTokens(document: TextDocument): Promise<SemanticTokenData[]> {
 			const jsDocument = jsDocuments.get(document);
-			const jsLanguageService = await host.getLanguageService(jsDocument);
-			return getSemanticTokens(jsLanguageService, jsDocument, jsDocument.uri);
+			const jsLanguageService = await host.getLanguageService(jsDocument, workspace);
+			const filePath = deschemeURI(jsDocument.uri);
+
+			return getSemanticTokens(jsLanguageService, jsDocument, filePath);
 		},
 		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
 			return getSemanticTokenLegend();
