@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -124,6 +124,14 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 
 	public async reduceConnectionGraceTime(): Promise<void> {
 		this._localPtyService.reduceConnectionGraceTime();
+	}
+
+	public async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
+		return this._localPtyService.getDefaultSystemShell(osOverride);
+	}
+
+	public async getShellEnvironment(): Promise<IProcessEnvironment> {
+		return this._localPtyService.getShellEnvironment();
 	}
 
 	public async setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void> {
