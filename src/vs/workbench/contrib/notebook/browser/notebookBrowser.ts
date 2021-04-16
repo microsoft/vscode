@@ -313,12 +313,14 @@ export class NotebookEditorOptions extends EditorOptions {
 
 	readonly cellOptions?: IResourceEditorInput;
 	readonly cellSelections?: ICellRange[];
+	readonly isReadOnly?: boolean;
 
 	constructor(options: Partial<NotebookEditorOptions>) {
 		super();
 		this.overwrite(options);
 		this.cellOptions = options.cellOptions;
 		this.cellSelections = options.cellSelections;
+		this.isReadOnly = options.isReadOnly;
 	}
 
 	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {

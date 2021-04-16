@@ -132,10 +132,10 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: (data: VSBuffer): Promise<NotebookDataDto> => {
-				return this._proxy.$dataToNotebook(handle, data);
+				return this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
 			},
 			notebookToData: (data: NotebookDataDto): Promise<VSBuffer> => {
-				return this._proxy.$notebookToData(handle, data);
+				return this._proxy.$notebookToData(handle, data, CancellationToken.None);
 			}
 		});
 		this._notebookSerializer.set(handle, registration);

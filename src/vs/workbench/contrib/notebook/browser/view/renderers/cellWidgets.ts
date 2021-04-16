@@ -39,7 +39,6 @@ export const enum ClickTargetType {
 }
 
 export class CellEditorStatusBar extends Disposable {
-	readonly cellStatusMessageContainer: HTMLElement;
 	readonly cellRunStatusContainer: HTMLElement;
 	readonly statusBarContainer: HTMLElement;
 	readonly languageStatusBarItem: CellLanguageStatusBarItem;
@@ -64,7 +63,6 @@ export class CellEditorStatusBar extends Disposable {
 		const rightItemsContainer = DOM.append(this.statusBarContainer, $('.cell-status-right'));
 		this.cellRunStatusContainer = DOM.append(leftItemsContainer, $('.cell-run-status'));
 		this.durationContainer = DOM.append(leftItemsContainer, $('.cell-run-duration'));
-		this.cellStatusMessageContainer = DOM.append(leftItemsContainer, $('.cell-status-message'));
 		this.leftContributedItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items.cell-contributed-items-left'));
 		this.rightContributedItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
 		this.languageStatusBarItem = instantiationService.createInstance(CellLanguageStatusBarItem, rightItemsContainer);
@@ -79,8 +77,7 @@ export class CellEditorStatusBar extends Disposable {
 					event: e
 				});
 			} else if (e.target && (
-				this.cellStatusMessageContainer.contains(e.target as Node)
-				|| this.cellRunStatusContainer.contains(e.target as Node)
+				this.cellRunStatusContainer.contains(e.target as Node)
 				|| this.durationContainer.contains(e.target as Node)
 			)) {
 				this._onDidClick.fire({

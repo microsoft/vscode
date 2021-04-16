@@ -75,7 +75,11 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	override isReadonly() {
-		return false;
+		if (!this._editorModelReference) {
+			return super.isReadonly();
+		}
+
+		return this._editorModelReference.object.isReadonly();
 	}
 
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {

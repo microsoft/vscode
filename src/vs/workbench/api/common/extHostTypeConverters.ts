@@ -1405,21 +1405,21 @@ export namespace LanguageSelector {
 	}
 }
 
-export namespace NotebookCellRange {
+export namespace NotebookRange {
 
-	export function from(range: vscode.NotebookCellRange): notebooks.ICellRange {
+	export function from(range: vscode.NotebookRange): notebooks.ICellRange {
 		return { start: range.start, end: range.end };
 	}
 
-	export function to(range: notebooks.ICellRange): types.NotebookCellRange {
-		return new types.NotebookCellRange(range.start, range.end);
+	export function to(range: notebooks.ICellRange): types.NotebookRange {
+		return new types.NotebookRange(range.start, range.end);
 	}
 }
 
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.editable, data.breakpointMargin, data.statusMessage, data.inputCollapsed, data.outputCollapsed, data.custom);
+		return new types.NotebookCellMetadata(data.inputCollapsed, data.outputCollapsed).with({ custom: data.custom });
 	}
 }
 
@@ -1430,14 +1430,15 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.editable, data.cellEditable, data.custom, data.trusted);
+		return new types.NotebookDocumentMetadata(data.trusted, data.custom);
 	}
 }
 
 export namespace NotebookCellPreviousExecutionResult {
 	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
 		return {
-			duration: data.lastRunDuration,
+			startTime: data.runStartTime,
+			endTime: data.runEndTime,
 			executionOrder: data.executionOrder,
 			success: data.lastRunSuccess
 		};
@@ -1446,7 +1447,8 @@ export namespace NotebookCellPreviousExecutionResult {
 	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
 		return {
 			lastRunSuccess: data.success,
-			lastRunDuration: data.duration,
+			runStartTime: data.startTime,
+			runEndTime: data.endTime,
 			executionOrder: data.executionOrder
 		};
 	}
@@ -1634,12 +1636,29 @@ export namespace NotebookDocumentContentOptions {
 			transientMetadata: {
 				...options?.transientMetadata,
 				executionOrder: true,
-				lastRunDuration: true,
 				runState: true,
 				runStartTime: true,
 				runStartTimeAdjustment: true,
+				runEndTime: true,
 				lastRunSuccess: true
 			}
+		};
+	}
+}
+
+export namespace NotebookKernelPreload {
+	export function from(preload: vscode.NotebookKernelPreload): { uri: UriComponents; provides: string[] } {
+		return {
+			uri: preload.uri,
+			provides: typeof preload.provides === 'string'
+				? [preload.provides]
+				: preload.provides ?? []
+		};
+	}
+	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookKernelPreload {
+		return {
+			uri: URI.revive(preload.uri),
+			provides: preload.provides
 		};
 	}
 }

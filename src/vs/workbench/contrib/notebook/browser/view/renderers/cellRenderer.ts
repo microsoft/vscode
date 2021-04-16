@@ -832,7 +832,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel.notebookDocument.metadata);
 		this.updateExecutionOrder(metadata, templateData);
-		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
 		templateData.cellRunState.renderState(element.metadata?.runState, () => {
 			if (!this.notebookEditor.viewModel) {
@@ -848,8 +847,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			} else {
 				templateData.timer.clear();
 			}
-		} else if (typeof metadata.lastRunDuration === 'number') {
-			templateData.timer.show(metadata.lastRunDuration);
+		} else if (metadata.runState !== NotebookCellExecutionState.Pending && metadata.runStartTime && metadata.runEndTime) {
+			templateData.timer.show(metadata.runEndTime - metadata.runStartTime);
 		} else {
 			templateData.timer.clear();
 		}

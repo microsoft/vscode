@@ -402,12 +402,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		mark('code/didInitWorkspaceService');
 	}
 
-	initializeWorkspaceTrust(workspaceTrustManagementService: IWorkspaceTrustManagementService): void {
-		this.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => this.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
-	}
-
-	private updateWorkspaceTrust(trusted: boolean): void {
+	updateWorkspaceTrust(trusted: boolean): void {
 		if (this.isWorkspaceTrusted !== trusted) {
 			this.isWorkspaceTrusted = trusted;
 			const data = this._configuration.toData();
@@ -518,9 +513,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			const folderChanges = this.compareFolders(previousFolders, this.workspace.folders);
 			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
-				this.checkFoldersTrustState(folderChanges, () => {
-					this._onDidChangeWorkspaceFolders.fire(folderChanges);
-				});
+				await this.handleWillChangeWorkspaceFolders(folderChanges);
+				this._onDidChangeWorkspaceFolders.fire(folderChanges);
 			}
 		}
 
@@ -749,28 +743,24 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (changes.added.length || changes.removed.length || changes.changed.length) {
 			this.workspace.folders = workspaceFolders;
 			const change = await this.onFoldersChanged();
-
-			this.checkFoldersTrustState(changes, async () => {
-				this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
-				this._onDidChangeWorkspaceFolders.fire(changes);
-			});
+			await this.handleWillChangeWorkspaceFolders(changes);
+			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE_FOLDER);
+			this._onDidChangeWorkspaceFolders.fire(changes);
 		} else {
 			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
 		}
 		this.updateUntrustedSettings();
 	}
 
-	private checkFoldersTrustState(changes: IWorkspaceFoldersChangeEvent, action: () => void): void {
+	private async handleWillChangeWorkspaceFolders(changes: IWorkspaceFoldersChangeEvent): Promise<void> {
 		const joiners: Promise<void>[] = [];
-
 		this._onWillChangeWorkspaceFolders.fire({
 			join(updateWorkspaceTrustStatePromise) {
 				joiners.push(updateWorkspaceTrustStatePromise);
 			},
 			changes
 		});
-
-		Promises.settled(joiners).finally(() => action());
+		try { await Promises.settled(joiners); } catch (error) { /* Ignore */ }
 	}
 
 	private async onWorkspaceFolderConfigurationChanged(folder: IWorkspaceFolder): Promise<void> {

@@ -209,14 +209,19 @@
 	padding-left: 1em;
 }
 
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .codicon {
 	padding-right: 8px;
 	position: relative;
 	top: 3px;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .start-container .codicon {
-	left: 1px;
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .start-container img {
+	padding-right: 8px;
+	position: relative;
+	top: 3px;
+	max-width: 16px;
+	max-height: 16px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .keybinding-label {

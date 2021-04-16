@@ -23,7 +23,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionWorkspaceTrustRequestType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
+import { IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -393,8 +393,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 				const primaryButton = localize('workspaceTrustTransitionPrimaryButton', "Yes");
 				const secondaryButton = localize('workspaceTrustTransitionSecondaryButton', "No");
 
-				const result = await this.dialogService.confirm({ type: 'info', message, detail, primaryButton, secondaryButton });
-				if (!result.confirmed) {
+				const result = await this.dialogService.show(Severity.Info, message, [primaryButton, secondaryButton], { cancelId: 1, detail, custom: { icon: Codicon.shield } });
+				if (result.choice !== 0) {
 					return;
 				}
 			}
@@ -402,10 +402,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 			applyChanges();
 		};
 
-
 		if (isArray(change.value)) {
 			if (change.key === 'trustedFolders') {
-				applyChangesWithPrompt(change.type === 'changed' || change.type === 'removed', () => this.workspaceTrustStorageService.setTrustedFolders(change.value!));
+				applyChangesWithPrompt(false, () => this.workspaceTrustStorageService.setTrustedFolders(change.value!));
 			}
 		}
 	}
