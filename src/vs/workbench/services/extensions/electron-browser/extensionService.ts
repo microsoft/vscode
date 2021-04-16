@@ -42,6 +42,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const MACHINE_PROMPT = false;
@@ -364,12 +365,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 			if (MACHINE_PROMPT) {
 				const dialogResult = await this._dialogService.show(
-					Severity.Warning,
+					Severity.Info,
 					nls.localize('machineTrustQuestion', "Do you trust the machine you're connecting to?"),
 					[nls.localize('yes', "Yes, connect."), nls.localize('no', "No, disconnect.")],
 					{
 						cancelId: 1,
-						useCustom: true,
+						custom: {
+							icon: Codicon.remoteExplorer
+						},
 						// checkbox: { label: nls.localize('remember', "Remember my choice"), checked: true }
 					}
 				);
