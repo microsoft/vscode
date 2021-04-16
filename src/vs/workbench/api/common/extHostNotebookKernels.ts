@@ -223,6 +223,16 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj.controller.interruptHandler) {
 			obj.controller.interruptHandler(document.notebookDocument);
 		}
+
+		// we do both? interrupt and cancellation or should we be selective?
+		for (const range of ranges) {
+			for (let i = range.start; i < range.end; i++) {
+				const cell = document.getCellFromIndex(i);
+				if (cell) {
+					this._extHostNotebook.cancelOneNotebookCellExecution(cell);
+				}
+			}
+		}
 	}
 
 	$acceptRendererMessage(handle: number, editorId: string, message: any): void {

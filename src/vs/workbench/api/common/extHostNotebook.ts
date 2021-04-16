@@ -624,7 +624,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 	}
 
-	private cancelOneNotebookCellExecution(cell: ExtHostCell): void {
+	cancelOneNotebookCellExecution(cell: ExtHostCell): void {
 		const execution = this._activeExecutions.get(cell.uri);
 		execution?.cancel();
 	}
