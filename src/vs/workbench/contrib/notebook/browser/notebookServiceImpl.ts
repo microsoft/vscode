@@ -83,18 +83,23 @@ export class NotebookKernelProviderInfoStore {
 }
 
 export class NotebookProviderInfoStore extends Disposable {
+
 	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
 	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
 
 	private readonly _memento: Memento;
 	private _handled: boolean = false;
+
+	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
+	private readonly _contributedEditorDisposables = new DisposableStore();
+
 	constructor(
-		storageService: IStorageService,
-		extensionService: IExtensionService,
-		private readonly _editorOverrideService: IEditorOverrideService,
-		private readonly _instantiationService: IInstantiationService,
-		private readonly _configurationService: IConfigurationService,
-		private readonly _accessibilityService: IAccessibilityService,
+		@IStorageService storageService: IStorageService,
+		@IExtensionService extensionService: IExtensionService,
+		@IEditorOverrideService private readonly _editorOverrideService: IEditorOverrideService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
@@ -110,18 +115,25 @@ export class NotebookProviderInfoStore extends Disposable {
 			if (!this._handled) {
 				// there is no extension point registered for notebook content provider
 				// clear the memento and cache
-				this.clear();
+				this._clear();
 				mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = [];
 				this._memento.saveMemento();
 
 				this._updateProviderExtensionsInfo();
 			}
 		}));
+
+		notebookProviderExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
 	}
 
-	setupHandler(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
+	override dispose(): void {
+		this._clear();
+		super.dispose();
+	}
+
+	private _setupHandler(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
 		this._handled = true;
-		this.clear();
+		this._clear();
 
 		for (const extension of extensions) {
 			for (const notebookContribution of extension.value) {
@@ -174,10 +186,10 @@ export class NotebookProviderInfoStore extends Disposable {
 
 	}
 
-	private registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): void {
+	private _registerContributionPoint(notebookProviderInfo: NotebookProviderInfo): void {
 		for (const selector of notebookProviderInfo.selectors) {
 			const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as glob.IRelativePattern | string;
-			this._register(this._editorOverrideService.registerContributionPoint(
+			this._contributedEditorDisposables.add(this._editorOverrideService.registerContributionPoint(
 				globPattern,
 				priorityToRank(notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority),
 				{
@@ -215,10 +227,10 @@ export class NotebookProviderInfoStore extends Disposable {
 		}
 	}
 
-	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
 
-	clear() {
+	private _clear(): void {
 		this._contributedEditors.clear();
+		this._contributedEditorDisposables.clear();
 	}
 
 	get(viewType: string): NotebookProviderInfo | undefined {
@@ -230,7 +242,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			return;
 		}
 		this._contributedEditors.set(info.id, info);
-		this.registerContributionPoint(info);
+		this._registerContributionPoint(info);
 
 		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
 		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
@@ -318,8 +330,6 @@ class ModelData implements IDisposable {
 	}
 }
 
-
-
 export class NotebookService extends Disposable implements INotebookService, IEditorTypesHandler {
 
 	declare readonly _serviceBrand: undefined;
@@ -352,25 +362,15 @@ export class NotebookService extends Disposable implements INotebookService, IEd
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorOverrideService private readonly _editorOverrideService: IEditorOverrideService,
 	) {
 		super();
 
-		this._notebookProviderInfoStore = new NotebookProviderInfoStore(
-			this._storageService,
-			this._extensionService, this._editorOverrideService,
-			this._instantiationService, this._configurationService,
-			this._accessibilityService
-		);
+		this._notebookProviderInfoStore = _instantiationService.createInstance(NotebookProviderInfoStore);
 		this._register(this._notebookProviderInfoStore);
 
-		notebookProviderExtensionPoint.setHandler((extensions) => {
-			this._notebookProviderInfoStore.setupHandler(extensions);
-		});
 
 		notebookRendererExtensionPoint.setHandler((renderers) => {
 			this._notebookRenderersInfoStore.clear();

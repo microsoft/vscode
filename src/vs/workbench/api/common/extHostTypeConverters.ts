@@ -1419,7 +1419,17 @@ export namespace NotebookRange {
 export namespace NotebookCellMetadata {
 
 	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata(data.inputCollapsed, data.outputCollapsed).with({ custom: data.custom });
+		return new types.NotebookCellMetadata().with({
+			...data,
+			...{
+				executionOrder: null,
+				lastRunSuccess: null,
+				runState: null,
+				runStartTime: null,
+				runStartTimeAdjustment: null,
+				runEndTime: null
+			}
+		});
 	}
 }
 
@@ -1430,7 +1440,7 @@ export namespace NotebookDocumentMetadata {
 	}
 
 	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata(data.trusted, data.custom);
+		return new types.NotebookDocumentMetadata().with(data);
 	}
 }
 
@@ -1633,15 +1643,16 @@ export namespace NotebookDocumentContentOptions {
 	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
 			transientOutputs: options?.transientOutputs ?? false,
-			transientMetadata: {
-				...options?.transientMetadata,
+			transientCellMetadata: {
+				...(options?.transientCellMetadata ?? options?.transientMetadata),
 				executionOrder: true,
 				runState: true,
 				runStartTime: true,
 				runStartTimeAdjustment: true,
 				runEndTime: true,
 				lastRunSuccess: true
-			}
+			},
+			transientDocumentMetadata: options?.transientDocumentMetadata ?? {}
 		};
 	}
 }

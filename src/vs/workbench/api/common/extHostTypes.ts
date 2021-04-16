@@ -2916,11 +2916,16 @@ export class NotebookRange {
 		if (start < 0) {
 			throw illegalArgument('start must be positive');
 		}
-		if (end < start) {
-			throw illegalArgument('end cannot be smaller than start');
+		if (end < 0) {
+			throw illegalArgument('end must be positive');
 		}
-		this._start = start;
-		this._end = end;
+		if (start <= end) {
+			this._start = start;
+			this._end = end;
+		} else {
+			this._start = end;
+			this._end = start;
+		}
 	}
 
 	with(change: { start?: number, end?: number }): NotebookRange {

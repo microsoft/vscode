@@ -420,7 +420,6 @@
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left,
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
-	padding-right: 12px;
 	display: flex;
 	z-index: 26;
 }
@@ -448,22 +447,13 @@
 	cursor: pointer;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker {
-	cursor: pointer;
-}
-
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration {
 	margin-right: 8px;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration,
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-message {
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration {
 	display: flex;
 	align-items: center;
-}
-
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-message {
-	margin-right: 6px;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status {

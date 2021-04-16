@@ -6,7 +6,7 @@
 import { flatten } from 'vs/base/common/arrays';
 import { Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -18,6 +18,8 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 
 	private readonly _visibleCells = new Map<number, CellStatusBarHelper>();
 
+	private readonly _viewModelDisposables = new DisposableStore();
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@INotebookCellStatusBarService private readonly _notebookCellStatusBarService: INotebookCellStatusBarService
@@ -25,9 +27,20 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 		super();
 		this._updateVisibleCells();
 		this._register(this._notebookEditor.onDidChangeVisibleRanges(this._updateVisibleCells, this));
-		this._register(this._notebookEditor.onDidChangeModel(this._updateEverything, this));
+		this._register(this._notebookEditor.onDidChangeModel(this._onModelChange, this));
 		this._register(this._notebookCellStatusBarService.onDidChangeProviders(this._updateEverything, this));
 		this._register(this._notebookCellStatusBarService.onDidChangeItems(this._updateEverything, this));
+	}
+
+	private _onModelChange() {
+		this._viewModelDisposables.clear();
+		const vm = this._notebookEditor.viewModel;
+		if (!vm) {
+			return;
+		}
+
+		this._viewModelDisposables.add(vm.onDidChangeViewCells(() => this._updateEverything()));
+		this._updateEverything();
 	}
 
 	private _updateEverything(): void {

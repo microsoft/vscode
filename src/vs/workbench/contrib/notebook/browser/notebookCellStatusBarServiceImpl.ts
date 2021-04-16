@@ -43,9 +43,9 @@ export class NotebookCellStatusBarService extends Disposable implements INoteboo
 
 	async getStatusBarItemsForCell(docUri: URI, cellIndex: number, viewType: string, token: CancellationToken): Promise<INotebookCellStatusBarItemList[]> {
 		const providers = this._providers.filter(p => notebookDocumentFilterMatch(p.selector, viewType, docUri));
-		return await Promise.all(providers.map(p => {
+		return await Promise.all(providers.map(async p => {
 			try {
-				return p.provideCellStatusBarItems(docUri, cellIndex, token);
+				return await p.provideCellStatusBarItems(docUri, cellIndex, token) ?? { items: [] };
 			} catch (e) {
 				onUnexpectedExternalError(e);
 				return { items: [] };
