@@ -33,6 +33,7 @@ const $ = dom.$;
 
 const FIND_FOCUS_CLASS = 'find-focused';
 const TABS_WIDGET_WIDTH_KEY = 'tabs-widget-width';
+const MAX_TABS_WIDGET_WIDTH = 500;
 
 export class TerminalTabbedView extends Disposable {
 
@@ -196,7 +197,7 @@ export class TerminalTabbedView extends Disposable {
 			element: this._tabTreeContainer,
 			layout: width => this._tabsWidget.layout(this._height ? this._height - 28 : 0, width),
 			minimumSize: MIN_TABS_WIDGET_WIDTH,
-			maximumSize: Number.POSITIVE_INFINITY,
+			maximumSize: MAX_TABS_WIDGET_WIDTH,
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
