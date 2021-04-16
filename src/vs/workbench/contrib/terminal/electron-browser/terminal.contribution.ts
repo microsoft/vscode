@@ -15,7 +15,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { getSystemShell } from 'vs/base/node/shell';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { Platform } from 'vs/base/common/platform';
-import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-browser/terminalProfileResolverService';
+import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalProfileResolverService';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 // This file contains additional desktop-only contributions on top of those in browser/
