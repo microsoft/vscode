@@ -1663,11 +1663,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// (Re-)create the widget
-		this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Warning, icon: Codicon.warning });
 		this._environmentInfo?.disposable.dispose();
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
 		const disposable = this._widgetManager.attachWidget(widget);
-		this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Warning, icon: Codicon.warning });
+		if (info.requiresAction) {
+			this.statusList.add({ id: TerminalStatus.RelaunchNeeded, severity: Severity.Warning, icon: Codicon.warning });
+		}
 		if (disposable) {
 			this._environmentInfo = { widget, disposable };
 		}
