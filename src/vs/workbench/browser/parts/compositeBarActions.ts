@@ -221,6 +221,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		super.render(container);
 
 		this.container = container;
+		if (this.options.icon) {
+			this.container.classList.add('icon');
+		}
 
 		if (this.options.hasPopup) {
 			this.container.setAttribute('role', 'button');
