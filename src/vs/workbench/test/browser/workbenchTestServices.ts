@@ -129,6 +129,7 @@ import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerm
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
+import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -1529,6 +1530,16 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	createWindowsShellHelper(shellProcessId: number, xterm: any): any { throw new Error('Method not implemented.'); }
+}
+
+export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {
+	_serviceBrand: undefined;
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void { }
+	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> { }
+	async getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> { return { path: '/default', profileName: 'Default' }; }
+	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> { return '/default'; }
+	async getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]> { return []; }
+	async getShellEnvironment(): Promise<IProcessEnvironment> { return process.env; }
 }
 
 export class TestLocalTerminalService implements ILocalTerminalService {
