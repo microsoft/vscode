@@ -402,12 +402,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		mark('code/didInitWorkspaceService');
 	}
 
-	initializeWorkspaceTrust(workspaceTrustManagementService: IWorkspaceTrustManagementService): void {
-		this.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => this.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
-	}
-
-	private updateWorkspaceTrust(trusted: boolean): void {
+	updateWorkspaceTrust(trusted: boolean): void {
 		if (this.isWorkspaceTrusted !== trusted) {
 			this.isWorkspaceTrusted = trusted;
 			const data = this._configuration.toData();
