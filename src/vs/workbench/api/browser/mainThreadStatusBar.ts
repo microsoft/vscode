@@ -35,7 +35,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 			ariaLabel = accessibilityInformation.label;
 			role = accessibilityInformation.role;
 		} else {
-			ariaLabel = text ? text.replace(MainThreadStatusBar.CODICON_REGEXP, (_match, codiconName) => codiconName) : '';
+			ariaLabel = text ? text.replace(MainThreadStatusBar.CODICON_REGEXP, (_match, codiconName) => ` ${codiconName} `) : '';
 		}
 		const entry: IStatusbarEntry = { text, tooltip, command, color, backgroundColor, ariaLabel, role };
 

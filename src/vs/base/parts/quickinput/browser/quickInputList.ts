@@ -240,6 +240,7 @@ export enum QuickInputListFocus {
 
 export class QuickInputList {
 
+	private static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 	readonly id: string;
 	private container: HTMLElement;
 	private list: List<ListElement>;
@@ -427,7 +428,7 @@ export class QuickInputList {
 				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
 				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
 				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
-					.map(s => s && parseLabelWithIcons(s).text)
+					.map(s => s && s.replace(QuickInputList.CODICON_REGEXP, (_match, codiconName) => ` ${codiconName} `))
 					.filter(s => !!s)
 					.join(', ');
 

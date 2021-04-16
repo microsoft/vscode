@@ -261,7 +261,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
 		}
 
-		const ariaLabel = text.replace(RemoteStatusIndicator.CODICON_REGEXP, (_match, codiconName) => codiconName);
+		const ariaLabel = text.replace(RemoteStatusIndicator.CODICON_REGEXP, (_match, codiconName) => ` ${codiconName} `);
 		const properties: IStatusbarEntry = {
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
