@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, ICommandActionTitle, ILocalizedString, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -1187,7 +1187,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}]
 			});
 		}
@@ -1277,7 +1280,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}
 			});
 		}
@@ -1344,7 +1350,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}
 			});
 		}
@@ -1589,7 +1598,10 @@ export function registerTerminalActions() {
 		},
 		group: 'navigation',
 		order: 0,
-		when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+		when: ContextKeyAndExpr.create([
+			ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+			ContextKeyExpr.not('config.terminal.integrated.showTabs')
+		]),
 	});
 }
 
