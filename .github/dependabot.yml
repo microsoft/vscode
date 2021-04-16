@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    # default location of `.github/workflows`
+    directory: "/"
+    open-pull-requests-limit: 10
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "npm"
+    # location of package manifests
+    directory: "/"
+    open-pull-requests-limit: 100
+    schedule:
+      interval: "daily"
+
+# Built with ❤ by [Pipeline Foundation](https://pipeline.foundation)
