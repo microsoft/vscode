@@ -1052,11 +1052,39 @@ declare module 'vscode' {
 		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
 	}
 
+	/**
+	 * Represents a notebook. Notebooks are composed of cells and metadata.
+	 */
 	export interface NotebookDocument {
+
+		/**
+		 * The associated uri for this notebook.
+		 *
+		 * *Note* that most notebooks use the `file`-scheme, which means they are files on disk. However, **not** all notebooks are
+		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 *
+		 * @see [FileSystemProvider](#FileSystemProvider)
+		 * @see [TextDocumentContentProvider](#TextDocumentContentProvider)
+		 */
 		readonly uri: Uri;
+
+		// todo@API should we really expose this?
+		readonly viewType: string;
+
+		/**
+		 * The version number of this notebook (it will strictly increase after each
+		 * change, including undo/redo).
+		 */
 		readonly version: number;
 
+		/**
+		 * `true` if there are unpersisted changes.
+		 */
 		readonly isDirty: boolean;
+
+		/**
+		 * Is this notebook representing an untitled file which has not been saved yet.
+		 */
 		readonly isUntitled: boolean;
 
 		/**
@@ -1065,13 +1093,13 @@ declare module 'vscode' {
 		 */
 		readonly isClosed: boolean;
 
+		/**
+		 * The [metadata](#NotebookDocumentMetadata) for this notebook.
+		 */
 		readonly metadata: NotebookDocumentMetadata;
 
-		// todo@API should we really expose this?
-		readonly viewType: string;
-
 		/**
-		 * The number of cells in the notebook document.
+		 * The number of cells in the notebook.
 		 */
 		readonly cellCount: number;
 
@@ -1102,17 +1130,43 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 	}
 
+	/**
+	 * A notebook range represents on ordered pair of two cell indicies.
+	 * It is guaranteed that start is less than or equal to end.
+	 */
 	export class NotebookRange {
-		readonly start: number;
+
 		/**
-		 * exclusive
+		 * The zero-based start index of this range.
+		 */
+		readonly start: number;
+
+		/**
+		 * The exclusive end index of this range (zero-based).
 		 */
 		readonly end: number;
 
+		/**
+		 * `true` if `start` and `end` are equals
+		 */
 		readonly isEmpty: boolean;
 
+		/**
+		 * Create a new notebook range. If `start` is not
+		 * before or equal to `end`, the values will be swapped.
+		 *
+		 * @param start start index
+		 * @param end end index.
+		 */
 		constructor(start: number, end: number);
 
+		/**
+		 * Derive a new range for this range.
+		 *
+		 * @param change An object that describes a change to this range.
+		 * @return A range that reflects the given change. Will return `this` range if the change
+		 * is not changing anything.
+		 */
 		with(change: { start?: number, end?: number }): NotebookRange;
 	}
 
