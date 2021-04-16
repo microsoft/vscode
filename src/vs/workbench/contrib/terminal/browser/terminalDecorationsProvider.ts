@@ -33,7 +33,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		if (resource.scheme !== TERMINAL_DECORATIONS_SCHEME) {
+		if (resource.scheme !== TERMINAL_DECORATIONS_SCHEME || !parseInt(resource.path)) {
 			return;
 		}
 
