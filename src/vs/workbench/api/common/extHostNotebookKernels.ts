@@ -16,8 +16,6 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 
-type ExecuteHandler = (cells: vscode.NotebookCell[], controller: vscode.NotebookController) => void;
-type InterruptHandler = (notebook: vscode.NotebookDocument) => void;
 
 interface IKernelData {
 	controller: vscode.NotebookController;
@@ -62,8 +60,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		};
 
 		//
-		let _executeHandler: ExecuteHandler = options.executeHandler;
-		let _interruptHandler: InterruptHandler | undefined = options.interruptHandler;
+		let _executeHandler = options.executeHandler;
+		let _interruptHandler = options.interruptHandler;
 
 		// todo@jrieken the selector needs to be massaged
 		this._proxy.$addKernel(handle, data);
@@ -200,7 +198,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		try {
-			obj.controller.executeHandler(cells, obj.controller);
+			obj.controller.executeHandler.call(obj.controller, cells, obj.controller);
 		} catch (err) {
 			//
 			console.error(err);
@@ -218,7 +216,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			throw new Error('MISSING notebook');
 		}
 		if (obj.controller.interruptHandler) {
-			obj.controller.interruptHandler(document.notebookDocument);
+			obj.controller.interruptHandler.call(obj.controller);
 		}
 
 		// we do both? interrupt and cancellation or should we be selective?

@@ -1393,6 +1393,18 @@ declare module 'vscode' {
 
 	export type NotebookSelector = NotebookFilter | string | ReadonlyArray<NotebookFilter | string>;
 
+	export interface NotebookExecutionHandler {
+		/**
+		 * @param cells The notebook cells to execute
+		 * @param controller The controller that the handler is attached to
+		 */
+		(this: NotebookController, cells: NotebookCell[], controller: NotebookController): void
+	}
+
+	export interface NotebookInterruptHandler {
+		(this: NotebookController): void;
+	}
+
 	export interface NotebookController {
 
 		readonly id: string;
@@ -1419,12 +1431,10 @@ declare module 'vscode' {
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
 		 * Run Selection etc.
 		 */
-		readonly executeHandler: (cells: NotebookCell[], controller: NotebookController) => void;
+		executeHandler: NotebookExecutionHandler;
 
 		// optional kernel interrupt command
-		interruptHandler?: (notebook: NotebookDocument) => void
-
-		// remove kernel
+		interruptHandler?: NotebookInterruptHandler
 		dispose(): void;
 
 		/**
@@ -1451,9 +1461,9 @@ declare module 'vscode' {
 		selector: NotebookSelector;
 		supportedLanguages?: string[];
 		hasExecutionOrder?: boolean;
-		executeHandler: (cells: NotebookCell[], controller: NotebookController) => void;
-		interruptHandler?: (notebook: NotebookDocument) => void
-		preloads?: NotebookKernelPreload[]
+		executeHandler: NotebookExecutionHandler;
+		interruptHandler?: NotebookInterruptHandler;
+		preloads?: NotebookKernelPreload[];
 	}
 
 	export namespace notebook {
