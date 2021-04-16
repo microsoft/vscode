@@ -251,7 +251,6 @@ export interface ITerminalProfile {
 	profileName: string;
 	path: string;
 	isAutoDetected?: boolean;
-	isWorkspaceProfile?: boolean;
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
