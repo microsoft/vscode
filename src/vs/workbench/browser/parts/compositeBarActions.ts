@@ -270,7 +270,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			this.container.removeAttribute('title');
 			this._register(domEvent(container, EventType.MOUSE_OVER, true)(() => {
 				if (!this.showHoverScheduler.isScheduled()) {
-					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay());
+					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 150);
 				}
 			}));
 			this._register(domEvent(container, EventType.MOUSE_LEAVE, true)(() => {

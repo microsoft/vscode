@@ -15,6 +15,13 @@ export interface ResolvedAuthority {
 	readonly connectionToken: string | undefined;
 }
 
+export enum RemoteTrustOption {
+	Unknown = 0,
+	DisableTrust = 1,
+	MachineTrusted = 2,
+	MachineUntrusted = 3
+}
+
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 }

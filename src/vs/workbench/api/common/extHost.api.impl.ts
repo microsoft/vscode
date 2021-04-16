@@ -85,6 +85,7 @@ import { IExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
+import { RemoteTrustOption } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -1240,6 +1241,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineHint: extHostTypes.InlineHint,
 			InlineHintKind: extHostTypes.InlineHintKind,
 			RemoteAuthorityResolverError: extHostTypes.RemoteAuthorityResolverError,
+			RemoteTrustOption: RemoteTrustOption,
 			ResolvedAuthority: extHostTypes.ResolvedAuthority,
 			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			ExtensionRuntime: extHostTypes.ExtensionRuntime,
