@@ -24,6 +24,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 export class AdapterManager implements IAdapterManager {
@@ -43,7 +44,8 @@ export class AdapterManager implements IAdapterManager {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IModeService private readonly modeService: IModeService
 	) {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
@@ -226,10 +228,13 @@ export class AdapterManager implements IAdapterManager {
 
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] = [];
-		let language: string | undefined;
+		let languageLabel: string | null = null;
 		if (isCodeEditor(activeTextEditorControl)) {
 			const model = activeTextEditorControl.getModel();
-			language = model ? model.getLanguageIdentifier().language : undefined;
+			const language = model ? model.getLanguageIdentifier().language : undefined;
+			if (language) {
+				languageLabel = this.modeService.getLanguageName(language);
+			}
 			const adapters = this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {
 				return adapters[0];
@@ -244,20 +249,20 @@ export class AdapterManager implements IAdapterManager {
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
 		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
-		let placeHolder = language ? nls.localize('CouldNotFindLanguage', "Can not find extension to debug '{0}'", language) : nls.localize('CouldNotFind', "Can not find extension to debug");
+		let placeHolder = languageLabel ? nls.localize('CouldNotFindLanguage', "Can not find extension to debug {0}", languageLabel) : nls.localize('CouldNotFind', "Can not find extension to debug");
 		if (picks.length > 0) {
 			placeHolder = nls.localize('selectDebug', "Select environment");
 			picks.push({ type: 'separator', label: '' });
 		}
 
-		picks.push({ label: language ? nls.localize('installLanguage', "Install {0} extension...", language) : nls.localize('installExt', "Install extension...") });
+		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install {0} extension...", languageLabel) : nls.localize('installExt', "Install extension...") });
 		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
 			.then(picked => {
 				if (picked && picked.debugger) {
 					return picked.debugger;
 				}
 				if (picked) {
-					this.commandService.executeCommand('debug.installAdditionalDebuggers', language);
+					this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
 				}
 				return undefined;
 			});
