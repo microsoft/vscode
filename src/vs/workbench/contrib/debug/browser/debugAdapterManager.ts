@@ -249,13 +249,13 @@ export class AdapterManager implements IAdapterManager {
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
 		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
-		let placeHolder = languageLabel ? nls.localize('CouldNotFindLanguage', "Can not find extension to debug {0}", languageLabel) : nls.localize('CouldNotFind', "Can not find extension to debug");
+		let placeHolder = languageLabel ? nls.localize('CouldNotFindLanguage', "Can not find an extension to debug {0}", languageLabel) : nls.localize('CouldNotFind', "Can not find extension to debug");
 		if (picks.length > 0) {
 			placeHolder = nls.localize('selectDebug', "Select environment");
 			picks.push({ type: 'separator', label: '' });
 		}
 
-		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install {0} extension...", languageLabel) : nls.localize('installExt', "Install extension...") });
+		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
 		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
 			.then(picked => {
 				if (picked && picked.debugger) {
