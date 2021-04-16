@@ -123,9 +123,9 @@ export interface ITerminalConfiguration {
 	};
 	profiles: ITerminalProfiles;
 	defaultProfile: {
-		// linux: string | null;
+		linux: string | null;
 		osx: string | null;
-		// windows: string | null;
+		windows: string | null;
 	};
 	useWslProfiles: boolean;
 	showTabs: boolean;

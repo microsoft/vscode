@@ -52,10 +52,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return WebglAddon;
 	}
 
-	// private _isWorkspaceShellAllowed(): boolean {
-	// 	return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
-	// }
-
 	public getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 		return getMainProcessParentEnv();
 	}
