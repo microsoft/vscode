@@ -50,7 +50,7 @@ suite('NotebookKernel', function () {
 
 	test('create/dispose kernel', async function () {
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, { id: 'foo', label: 'Foo', selector: '*', executeHandler: () => { }, supportedLanguages: ['plaintext'] });
+		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
 		assert.ok(kernel);
 		assert.strictEqual(kernel.id, 'foo');
@@ -73,7 +73,7 @@ suite('NotebookKernel', function () {
 
 	test('update kernel', async function () {
 
-		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, { id: 'foo', label: 'Foo', selector: '*', executeHandler: () => { }, supportedLanguages: ['plaintext'] });
+		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
 		await rpcProtocol.sync();
 		assert.ok(kernel);

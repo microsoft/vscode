@@ -1508,20 +1508,18 @@ declare module 'vscode' {
 		asWebviewUri(localResource: Uri): Uri;
 	}
 
-	export interface NotebookControllerOptions {
-		id: string;
-		label: string;
-		description?: string;
-		selector: NotebookSelector;
-		supportedLanguages?: string[];
-		hasExecutionOrder?: boolean;
-		executeHandler: NotebookExecutionHandler;
-		interruptHandler?: NotebookInterruptHandler;
-		preloads?: NotebookKernelPreload[];
-	}
-
 	export namespace notebook {
-		export function createNotebookController(options: NotebookControllerOptions): NotebookController;
+
+		/**
+		 * Creates a new notebook controller.
+		 *
+		 * @param id Unique identifier of the controller
+		 * @param selector A notebook selector to narrow down notebook type or path
+		 * @param label The label of the controller
+		 * @param handler
+		 * @param preloads
+		 */
+		export function createNotebookController(id: string, selector: NotebookSelector, label: string, handler?: NotebookExecutionHandler, preloads?: NotebookKernelPreload[]): NotebookController;
 	}
 
 	//#endregion

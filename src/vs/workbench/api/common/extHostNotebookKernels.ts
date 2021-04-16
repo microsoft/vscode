@@ -38,16 +38,19 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createNotebookController(extension: IExtensionDescription, options: vscode.NotebookControllerOptions): vscode.NotebookController {
+	createNotebookController(extension: IExtensionDescription, id: string, selector: vscode.NotebookSelector, label: string, handler?: vscode.NotebookExecutionHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
 
 		for (let data of this._kernelData.values()) {
-			if (data.controller.id === options.id) {
-				throw new Error(`notebook controller with id '${options.id}' ALREADY exist`);
+			if (data.controller.id === id) {
+				throw new Error(`notebook controller with id '${id}' ALREADY exist`);
 			}
 		}
 
 		const handle = this._handlePool++;
 		const that = this;
+
+		const _defaultSupportedLanguages = ['plaintext'];
+		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
 
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
@@ -56,18 +59,18 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
 
 		const data: INotebookKernelDto2 = {
-			id: options.id,
-			selector: options.selector,
+			id: id,
+			selector: selector,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
-			label: options.label,
-			supportedLanguages: [],
-			preloads: options.preloads ? options.preloads.map(extHostTypeConverters.NotebookKernelPreload.from) : []
+			label: label || extension.identifier.value,
+			supportedLanguages: _defaultSupportedLanguages,
+			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookKernelPreload.from) : []
 		};
 
 		//
-		let _executeHandler = options.executeHandler;
-		let _interruptHandler = options.interruptHandler;
+		let _executeHandler: vscode.NotebookExecutionHandler = handler ?? _defaultExecutHandler;
+		let _interruptHandler: vscode.NotebookInterruptHandler | undefined;
 
 		// todo@jrieken the selector needs to be massaged
 		this._proxy.$addKernel(handle, data).catch(err => {
@@ -100,7 +103,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return data.label;
 			},
 			set label(value) {
-				data.label = value;
+				data.label = value ?? extension.displayName ?? extension.name;
 				_update();
 			},
 			get description() {
@@ -121,7 +124,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return data.supportedLanguages;
 			},
 			set supportedLanguages(value) {
-				data.supportedLanguages = isNonEmptyArray(value) ? value : ['plaintext'];
+				data.supportedLanguages = isNonEmptyArray(value) ? value : _defaultSupportedLanguages;
 				_update();
 			},
 			get hasExecutionOrder() {
@@ -138,7 +141,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return _executeHandler;
 			},
 			set executeHandler(value) {
-				_executeHandler = value ?? (() => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`));
+				_executeHandler = value ?? _defaultExecutHandler;
 			},
 			get interruptHandler() {
 				return _interruptHandler;
@@ -176,12 +179,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		};
 
 		this._kernelData.set(handle, { extensionId: extension.identifier, controller, onDidChangeSelection, onDidReceiveMessage });
-
-		controller.supportedLanguages = options.supportedLanguages ?? [];
-		controller.executeHandler = options.executeHandler;
-		controller.interruptHandler = options.interruptHandler;
-		controller.hasExecutionOrder = options.hasExecutionOrder ?? false;
-
 		return controller;
 	}
 
