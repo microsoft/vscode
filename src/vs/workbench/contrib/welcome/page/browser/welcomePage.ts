@@ -118,7 +118,6 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
-		@IGettingStartedService _gettingStartedService: IGettingStartedService, // initializes event listeners
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		this.tasExperimentService = tasExperimentService;
