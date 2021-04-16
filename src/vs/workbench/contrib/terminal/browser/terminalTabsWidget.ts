@@ -205,7 +205,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		});
 
 		if (instance.statusList.statuses.length) {
-			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: instance.instanceId.toString(), path: instance.instanceId.toString() }), name: label };
+			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: instance.instanceId.toString() }), name: label };
 			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
 			template.label.setResource(labelProps, options);
 		}
