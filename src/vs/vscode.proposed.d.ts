@@ -1236,43 +1236,17 @@ declare module 'vscode' {
 		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
 	}
 
-	/**
-	 * Communication object passed to the {@link NotebookContentProvider} and
-	 * {@link NotebookOutputRenderer} to communicate with the webview.
-	 */
+	/** @deprecated used NotebookController */
 	export interface NotebookCommunication {
-		/**
-		 * ID of the editor this object communicates with. A single notebook
-		 * document can have multiple attached webviews and editors, when the
-		 * notebook is split for instance. The editor ID lets you differentiate
-		 * between them.
-		 */
+		/** @deprecated used NotebookController */
 		readonly editorId: string;
-
-		/**
-		 * Fired when the output hosting webview posts a message.
-		 */
+		/** @deprecated used NotebookController */
 		readonly onDidReceiveMessage: Event<any>;
-		/**
-		 * Post a message to the output hosting webview.
-		 *
-		 * Messages are only delivered if the editor is live.
-		 *
-		 * @param message Body of the message. This must be a string or other json serializable object.
-		 */
+		/** @deprecated used NotebookController */
 		postMessage(message: any): Thenable<boolean>;
-
-		/**
-		 * Convert a uri for the local file system to one that can be used inside outputs webview.
-		 */
+		/** @deprecated used NotebookController */
 		asWebviewUri(localResource: Uri): Uri;
-
-		// @rebornix
-		// readonly onDidDispose: Event<void>;
 	}
-
-	// export function registerNotebookKernel(selector: string, kernel: NotebookKernel): Disposable;
-
 
 	export interface NotebookDocumentShowOptions {
 		viewColumn?: ViewColumn;
@@ -1566,6 +1540,7 @@ declare module 'vscode' {
 		uri: Uri;
 	}
 
+	/** @deprecated used NotebookController */
 	export interface NotebookKernel {
 
 		// todo@API make this mandatory?
@@ -1679,8 +1654,7 @@ declare module 'vscode' {
 		filenamePattern?: NotebookFilenamePattern;
 	}
 
-	// todo@API very unclear, provider MUST not return alive object but only data object
-	// todo@API unclear how the flow goes
+	/** @deprecated used NotebookController */
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
 		onDidChangeKernels?: Event<NotebookDocument | undefined>;
 		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
@@ -1688,9 +1662,6 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookEditor {
-
-		// todo@API unsure about that
-		// kernel, kernel selection, kernel provider
 		/** @deprecated kernels are private object*/
 		readonly kernel?: NotebookKernel;
 	}
@@ -1698,7 +1669,7 @@ declare module 'vscode' {
 	export namespace notebook {
 		/** @deprecated */
 		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined; }>;
-		/** @deprecated use createNotebookKernel */
+		/** @deprecated used NotebookController */
 		export function registerNotebookKernelProvider(selector: NotebookDocumentFilter, provider: NotebookKernelProvider): Disposable;
 	}
 
