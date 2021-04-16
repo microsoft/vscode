@@ -20,7 +20,7 @@ export interface ITerminalDecorationData {
 }
 
 export class TerminalDecorationsProvider implements IDecorationsProvider {
-	readonly label: string = localize('terminal.decorations-provider', "Terminal");
+	readonly label: string = localize('terminal.decorations.provider', "Terminal");
 	private readonly _onDidChange = new Emitter<URI[]>();
 
 	constructor(
