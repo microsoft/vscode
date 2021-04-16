@@ -94,11 +94,6 @@ suite('HTML Completion', () => {
 	});
 });
 
-const triggerSuggestCommand = {
-	title: 'Suggest',
-	command: 'editor.action.triggerSuggest'
-};
-
 suite('JSDoc Imports', () => {
 	const fixtureRoot = path.resolve(__dirname, '../../src/test/jsdocImportFixtures');
 	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
@@ -115,6 +110,10 @@ suite('JSDoc Imports', () => {
 });
 
 suite('HTML Path Completion', () => {
+	const triggerSuggestCommand = {
+		title: 'Suggest',
+		command: 'editor.action.triggerSuggest'
+	};
 
 	const fixtureRoot = path.resolve(__dirname, '../../src/test/pathCompletionFixtures');
 	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
