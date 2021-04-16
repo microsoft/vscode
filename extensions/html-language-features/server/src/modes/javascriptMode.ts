@@ -21,8 +21,8 @@ const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\
 
 /** TypeScript does not handle schemes on file references, so normalize and remove the schemes when communicating with tsserver */
 function deschemeURI(uri: string) {
-	if (!uri.startsWith('file://')) { 
-		return uri ;
+	if (!uri.startsWith('file://')) {
+		return uri;
 	}
 	// This is replicating the logic in TypeScriptServiceClient.normalizedPath
 	const newPath = normalize(uri.replace('file://', ''));
@@ -67,14 +67,14 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 					getChangeRange: () => undefined
 				};
 			},
-			getCurrentDirectory:  () => {
+			getCurrentDirectory: () => {
 				const workspace = currentWorkspace && currentWorkspace.folders.find(ws => deschemeURI(currentTextDocument.uri).startsWith(deschemeURI(ws.uri)));
 				return workspace ? deschemeURI(workspace.uri) : '';
 			},
 			getDefaultLibFileName: (_options: ts.CompilerOptions) => 'es6',
 			fileExists: ts.sys.fileExists,
 			readFile: ts.sys.readFile,
-			readDirectory:  ts.sys.readDirectory,
+			readDirectory: ts.sys.readDirectory,
 			directoryExists: ts.sys.directoryExists,
 			getDirectories: ts.sys.getDirectories,
 		};
