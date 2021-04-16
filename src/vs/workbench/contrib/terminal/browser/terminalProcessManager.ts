@@ -194,29 +194,24 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processType = ProcessType.PsuedoTerminal;
 			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
 		} else {
-			const forceExtHostProcess = (this._configHelper.config as any).extHostProcess;
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 			} else {
 				this.remoteAuthority = this._environmentService.remoteAuthority;
 			}
 			const hasRemoteAuthority = !!this.remoteAuthority;
-			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
 			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
 			this.userHome = this._pathService.resolvedUserHome?.fsPath;
 			this.os = platform.OS;
-			if (launchRemotely) {
+			if (hasRemoteAuthority) {
 				const userHomeUri = await this._pathService.userHome();
 				this.userHome = userHomeUri.path;
-				if (hasRemoteAuthority) {
-					this._remoteAgentService.getEnvironment().then(remoteEnv => {
-						if (remoteEnv) {
-							this.userHome = remoteEnv.userHome.path;
-							this.os = remoteEnv.os;
-						}
-					});
+				const remoteEnv = await this._remoteAgentService.getEnvironment();
+				if (remoteEnv) {
+					this.userHome = remoteEnv.userHome.path;
+					this.os = remoteEnv.os;
 				}
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
@@ -234,6 +229,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						return undefined;
 					}
 				} else {
+					await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+						platform: this._osToPlatform(this.os)
+					});
 					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
 				if (!this._isDisposed) {
@@ -370,8 +368,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalChildProcess> {
 		await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
-			platform: platform.platform,
-			allowAutomationShell: false
+			platform: platform.platform
 		});
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -546,6 +543,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId);
 		this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
+	}
+
+	private _osToPlatform(os: platform.OperatingSystem) {
+		switch (os) {
+			case platform.OperatingSystem.Linux: return platform.Platform.Linux;
+			case platform.OperatingSystem.Macintosh: return platform.Platform.Mac;
+			case platform.OperatingSystem.Windows: return platform.Platform.Windows;
+		}
 	}
 }
 
