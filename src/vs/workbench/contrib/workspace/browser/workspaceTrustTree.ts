@@ -28,7 +28,7 @@ import { NonCollapsibleObjectTreeModel } from 'vs/workbench/contrib/preferences/
 import { AbstractListSettingWidget, focusedRowBackground, focusedRowBorder, ISettingListChangeEvent, rowHoverBackground, settingsHeaderForeground, settingsSelectBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { attachButtonStyler, attachInputBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IWorkspaceTrustStateInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { IAction } from 'vs/base/common/actions';
 import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -573,7 +573,7 @@ export class WorkspaceTrustTreeModel {
 
 	settings: WorkspaceTrustSettingsTreeEntry[] = [];
 
-	update(trustInfo: IWorkspaceTrustStateInfo): void {
+	update(trustInfo: IWorkspaceTrustInfo): void {
 		this.settings = [];
 		if (trustInfo.uriTrustInfo) {
 			const trustedFolders = trustInfo.uriTrustInfo.filter(folder => folder.trusted).map(folder => folder.uri);

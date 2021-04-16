@@ -45,8 +45,8 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/product/common/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
-import { WorkspaceTrustManagementService, WorkspaceTrustStorageService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export abstract class SharedDesktopMain extends Disposable {
 
@@ -263,10 +263,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		// TODO @lszomoru: Following two services shall be merged into single service
-		const workspaceTrustStorageService = new WorkspaceTrustStorageService(storageService, uriIdentityService);
-		serviceCollection.set(IWorkspaceTrustStorageService, workspaceTrustStorageService);
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, configurationService, workspaceTrustStorageService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, configurationService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
