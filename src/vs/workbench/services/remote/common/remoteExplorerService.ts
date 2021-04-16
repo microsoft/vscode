@@ -247,7 +247,12 @@ export class PortsAttributes extends Disposable {
 					const match = (<string>attributesKey).match(PortsAttributes.RANGE);
 					key = { start: Number(match![1]), end: Number(match![2]) };
 				} else {
-					const regTest: RegExp = RegExp(attributesKey);
+					let regTest: RegExp | undefined = undefined;
+					try {
+						regTest = RegExp(attributesKey);
+					} catch (e) {
+						// The user entered an invalid regular expression.
+					}
 					if (regTest) {
 						key = regTest;
 					}
