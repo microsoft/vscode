@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
  */
 
-export function mergeEnvironments(parent: platform.IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
+export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
 		return;
 	}
 
 	// On Windows apply the new values ignoring case, while still retaining
 	// the case of the original key.
-	if (platform.isWindows) {
+	if (isWindows) {
 		for (const configKey in other) {
 			let actualKey = configKey;
 			for (const envKey in parent) {
@@ -55,7 +55,7 @@ function _mergeEnvironmentValue(env: ITerminalEnvironment, key: string, value: s
 	}
 }
 
-export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, version: string | undefined, locale: string | undefined, detectLocale: 'auto' | 'off' | 'on'): void {
+export function addTerminalEnvironmentKeys(env: IProcessEnvironment, version: string | undefined, locale: string | undefined, detectLocale: 'auto' | 'off' | 'on'): void {
 	env['TERM_PROGRAM'] = 'vscode';
 	if (version) {
 		env['TERM_PROGRAM_VERSION'] = version;
@@ -66,7 +66,7 @@ export function addTerminalEnvironmentKeys(env: platform.IProcessEnvironment, ve
 	env['COLORTERM'] = 'truecolor';
 }
 
-function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnvironment | undefined) {
+function mergeNonNullKeys(env: IProcessEnvironment, other: ITerminalEnvironment | undefined) {
 	if (!other) {
 		return;
 	}
@@ -92,7 +92,7 @@ function resolveConfigurationVariables(variableResolver: VariableResolver, env: 
 	return env;
 }
 
-export function shouldSetLangEnvVariable(env: platform.IProcessEnvironment, detectLocale: 'auto' | 'off' | 'on'): boolean {
+export function shouldSetLangEnvVariable(env: IProcessEnvironment, detectLocale: 'auto' | 'off' | 'on'): boolean {
 	if (detectLocale === 'on') {
 		return true;
 	}
@@ -230,7 +230,7 @@ function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined
 
 function _sanitizeCwd(cwd: string): string {
 	// Make the drive letter uppercase on Windows (see #9448)
-	if (platform.platform === platform.Platform.Windows && cwd && cwd[1] === ':') {
+	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
 		return cwd[0].toUpperCase() + cwd.substr(1);
 	}
 	return cwd;
@@ -281,7 +281,7 @@ export function getDefaultShell(
 	variableResolver: VariableResolver | undefined,
 	logService: ILogService,
 	useAutomationShell: boolean,
-	platformOverride: platform.Platform = platform.platform
+	platformOverride: Platform = platform
 ): string {
 	let maybeExecutable: string | undefined;
 	if (useAutomationShell) {
@@ -296,7 +296,7 @@ export function getDefaultShell(
 	// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 	// safe to assume that this was used by accident as Sysnative does not
 	// exist and will break the terminal in non-WoW64 environments.
-	if ((platformOverride === platform.Platform.Windows) && !isWoW64 && windir) {
+	if ((platformOverride === Platform.Windows) && !isWoW64 && windir) {
 		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
 		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
 			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
@@ -304,7 +304,7 @@ export function getDefaultShell(
 	}
 
 	// Convert / to \ on Windows for convenience
-	if (executable && platformOverride === platform.Platform.Windows) {
+	if (executable && platformOverride === Platform.Windows) {
 		executable = executable.replace(/\//g, '\\');
 	}
 
@@ -327,7 +327,7 @@ export function getDefaultShellArgs(
 	useAutomationShell: boolean,
 	variableResolver: VariableResolver | undefined,
 	logService: ILogService,
-	platformOverride: platform.Platform = platform.platform,
+	platformOverride: Platform = platform,
 ): string | string[] {
 	if (useAutomationShell) {
 		if (!!getShellSetting(fetchSetting, 'automationShell', platformOverride)) {
@@ -335,12 +335,12 @@ export function getDefaultShellArgs(
 		}
 	}
 
-	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
 	let args = fetchSetting(<TerminalShellArgsSetting>`terminal.integrated.shellArgs.${platformKey}`);
 	if (!args) {
 		return [];
 	}
-	if (typeof args === 'string' && platformOverride === platform.Platform.Windows) {
+	if (typeof args === 'string' && platformOverride === Platform.Windows) {
 		return variableResolver ? variableResolver(args) : args;
 	}
 	if (variableResolver) {
@@ -361,9 +361,9 @@ export function getDefaultShellArgs(
 function getShellSetting(
 	fetchSetting: (key: TerminalShellSetting) => string | string[] | undefined,
 	type: 'automationShell' | 'shell',
-	platformOverride: platform.Platform = platform.platform,
+	platformOverride: Platform = platform,
 ): string | string[] | undefined {
-	const platformKey = platformOverride === platform.Platform.Windows ? 'windows' : platformOverride === platform.Platform.Mac ? 'osx' : 'linux';
+	const platformKey = platformOverride === Platform.Windows ? 'windows' : platformOverride === Platform.Mac ? 'osx' : 'linux';
 	return fetchSetting(<TerminalShellSetting>`terminal.integrated.${type}.${platformKey}`);
 }
 
@@ -373,10 +373,10 @@ export function createTerminalEnvironment(
 	variableResolver: VariableResolver | undefined,
 	version: string | undefined,
 	detectLocale: 'auto' | 'off' | 'on',
-	baseEnv: platform.IProcessEnvironment
-): platform.IProcessEnvironment {
+	baseEnv: IProcessEnvironment
+): IProcessEnvironment {
 	// Create a terminal environment based on settings, launch config and permissions
-	let env: platform.IProcessEnvironment = {};
+	let env: IProcessEnvironment = {};
 	if (shellLaunchConfig.strictEnv) {
 		// strictEnv is true, only use the requested env (ignoring null entries)
 		mergeNonNullKeys(env, shellLaunchConfig.env);
@@ -405,7 +405,7 @@ export function createTerminalEnvironment(
 		mergeEnvironments(env, shellLaunchConfig.env);
 
 		// Adding other env keys necessary to create the process
-		addTerminalEnvironmentKeys(env, version, platform.locale, detectLocale);
+		addTerminalEnvironmentKeys(env, version, locale, detectLocale);
 	}
 	return env;
 }
