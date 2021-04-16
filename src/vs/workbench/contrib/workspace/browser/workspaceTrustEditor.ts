@@ -275,10 +275,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		const workspaceFolders = this.workspaceService.getWorkspace().folders;
-
-
-		if (workspaceFolders.length) {
+		if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 			const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
 			const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
 			const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
@@ -308,8 +305,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 			};
 
 			const trustUris = async (uris?: URI[]) => {
-				const folderURIs = uris || this.workspaceService.getWorkspace().folders.map(folder => folder.uri);
-				this.workspaceTrustStorageService.setFoldersTrust(folderURIs, true);
+				if (!uris) {
+					this.workspaceTrustManagementService.setWorkspaceTrust(true);
+				} else {
+					this.workspaceTrustStorageService.setFoldersTrust(uris, true);
+				}
 			};
 
 			const trustChoiceWithMenu: IPromptChoiceWithMenu = {
@@ -342,8 +342,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private addUntrustedTextToElement(parent: HTMLElement): void {
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+		const canSetWorkspaceTrust = this.workspaceTrustManagementService.canSetWorkspaceTrust();
 
-		if (isWorkspaceTrusted) {
+		if (canSetWorkspaceTrust && isWorkspaceTrusted) {
 			const textElement = append(parent, $('.workspace-trust-untrusted-description'));
 			textElement.innerText = localize('untrustedFolder', "This workspace is trusted via one or more of the trusted folders below.");
 		}

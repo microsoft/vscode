@@ -5,6 +5,8 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -12,6 +14,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService as IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
+import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
@@ -166,6 +169,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrust = this._register(new Emitter<boolean>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
 
+	private _filesOutsideWorkspace: URI[] = [];
 	private _isWorkspaceTrusted: boolean = false;
 
 	constructor(
@@ -194,22 +198,39 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return true;
+			return this._filesOutsideWorkspace.length ? this.workspaceTrustStorageService.getFoldersTrust(this._filesOutsideWorkspace) : true;
 		}
 
 		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
-		const trusted = this.workspaceTrustStorageService.getFoldersTrust(folderURIs);
+		const trusted = this.workspaceTrustStorageService.getFoldersTrust([...folderURIs, ...this._filesOutsideWorkspace]);
 
 		return trusted;
+	}
+
+	canSetWorkspaceTrust(): boolean {
+		return this.workspaceService.getWorkspace().folders.length > 0 || this._filesOutsideWorkspace.length > 0;
+	}
+
+	canSetParentFolderTrust(): boolean {
+		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
+		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file;
 	}
 
 	isWorkpaceTrusted(): boolean {
 		return this._isWorkspaceTrusted;
 	}
 
+	setOpenEditors(openEditors: URI[]): void {
+		this._filesOutsideWorkspace = openEditors.filter(editor => !this.workspaceService.isInsideWorkspace(editor));
+		this.currentTrustState = this.calculateWorkspaceTrust();
+	}
+
 	setWorkspaceTrust(trusted: boolean): void {
+		// TODO: workspace file for multi-root workspaces
 		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
-		this.workspaceTrustStorageService.setFoldersTrust(folderURIs, trusted);
+		const fileParentFolderURIs = this._filesOutsideWorkspace.map(f => dirname(f));
+
+		this.workspaceTrustStorageService.setFoldersTrust([...folderURIs, ...fileParentFolderURIs], trusted);
 	}
 }
 
