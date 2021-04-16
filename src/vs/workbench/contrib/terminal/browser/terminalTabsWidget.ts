@@ -30,7 +30,9 @@ import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 
 const $ = DOM.$;
-const SHOW_TEXT_MIN_WIDTH = 124;
+export const MIN_TABS_WIDGET_WIDTH = 46;
+export const DEFAULT_TABS_WIDGET_WIDTH = 124;
+export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
@@ -155,7 +157,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < SHOW_TEXT_MIN_WIDTH : false;
+		return this._container ? this._container.clientWidth < MIDPOINT_WIDGET_WIDTH : false;
 	}
 
 
