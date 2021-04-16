@@ -552,10 +552,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: undefined,
-	handler: async (accessor) => {
+	handler: async (accessor, query: string) => {
 		const viewletService = accessor.get(IViewletService);
 		const viewlet = (await viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-		viewlet.search('tag:debuggers @sort:installs');
+		let searchFor = `tag:debuggers @sort:installs`;
+		if (typeof query === 'string') {
+			searchFor += ` ${query}`;
+		}
+		viewlet.search(searchFor);
 		viewlet.focus();
 	}
 });

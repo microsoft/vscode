@@ -225,10 +225,11 @@ export class AdapterManager implements IAdapterManager {
 		}
 
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
-		let candidates: Debugger[] | undefined;
+		let candidates: Debugger[] = [];
+		let language: string | undefined;
 		if (isCodeEditor(activeTextEditorControl)) {
 			const model = activeTextEditorControl.getModel();
-			const language = model ? model.getLanguageIdentifier().language : undefined;
+			language = model ? model.getLanguageIdentifier().language : undefined;
 			const adapters = this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
 			if (adapters.length === 1) {
 				return adapters[0];
@@ -236,22 +237,27 @@ export class AdapterManager implements IAdapterManager {
 			if (adapters.length > 1) {
 				candidates = adapters;
 			}
-		}
-
-		if (!candidates) {
+		} else {
 			await this.activateDebuggers('onDebugInitialConfigurations');
 			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
-		const picks = candidates.map(c => ({ label: c.label, debugger: c }));
-		return this.quickInputService.pick<{ label: string, debugger: Debugger | undefined }>([...picks, { type: 'separator' }, { label: nls.localize('more', "More..."), debugger: undefined }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
+		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
+		let placeHolder = language ? nls.localize('CouldNotFindLanguage', "Can not find extension to debug '{0}'", language) : nls.localize('CouldNotFind', "Can not find extension to debug");
+		if (picks.length > 0) {
+			placeHolder = nls.localize('selectDebug', "Select environment");
+			picks.push({ type: 'separator', label: '' });
+		}
+
+		picks.push({ label: language ? nls.localize('installLanguage', "Install {0} extension...", language) : nls.localize('installExt', "Install extension...") });
+		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
 			.then(picked => {
 				if (picked && picked.debugger) {
 					return picked.debugger;
 				}
 				if (picked) {
-					this.commandService.executeCommand('debug.installAdditionalDebuggers');
+					this.commandService.executeCommand('debug.installAdditionalDebuggers', language);
 				}
 				return undefined;
 			});

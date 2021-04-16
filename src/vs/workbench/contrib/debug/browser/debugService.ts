@@ -465,7 +465,7 @@ export class DebugService implements IDebugService {
 						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
 						undefined,
 						true,
-						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers')
+						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
 					));
 
 					await this.showError(message, actionList);
