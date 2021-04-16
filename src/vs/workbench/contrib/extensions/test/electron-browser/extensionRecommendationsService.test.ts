@@ -340,7 +340,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations during extension development', () => {
-		instantiationService.stub(IEnvironmentService, { extensionDevelopmentLocationURI: [URI.file('/folder/file')] });
+		instantiationService.stub(IEnvironmentService, { extensionDevelopmentLocationURI: [URI.file('/folder/file')], isExtensionDevelopment: true });
 		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
