@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -45,6 +45,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _tabsWidget: TerminalTabsWidget;
 	private _findWidget: TerminalFindWidget;
+	private _sashDisposables: IDisposable[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
 
@@ -113,6 +114,7 @@ export class TerminalTabbedView extends Disposable {
 					if (this._plusButton) {
 						this._tabTreeContainer.removeChild(this._plusButton);
 					}
+					this._removeSashListener();
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
 				this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
@@ -183,19 +185,9 @@ export class TerminalTabbedView extends Disposable {
 			priority: LayoutPriority.High
 		}, Sizing.Distribute, this._terminalContainerIndex);
 
-		let interval: number;
-		this._splitView.sashes[0].onDidStart(e => {
-			interval = window.setInterval(() => {
-				this._refreshHasTextClass();
-				for (const instance of this._terminalService.terminalInstances) {
-					this._tabsWidget.rerender(instance);
-				}
-			}, 100);
-		});
-		this._splitView.sashes[0].onDidEnd(e => {
-			window.clearInterval(interval);
-			interval = 0;
-		});
+		if (this._showTabs) {
+			this._addSashListener();
+		}
 	}
 
 	private _addTabTree() {
@@ -208,6 +200,32 @@ export class TerminalTabbedView extends Disposable {
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
 		this._createButton();
+		this._addSashListener();
+	}
+
+	private _addSashListener() {
+		let interval: number;
+		this._sashDisposables = [
+			this._splitView.sashes[0].onDidStart(e => {
+				interval = window.setInterval(() => {
+					this._refreshHasTextClass();
+					for (const instance of this._terminalService.terminalInstances) {
+						this._tabsWidget.rerender(instance);
+					}
+				}, 100);
+			}),
+			this._splitView.sashes[0].onDidEnd(e => {
+				window.clearInterval(interval);
+				interval = 0;
+			})
+		];
+	}
+
+	private _removeSashListener() {
+		if (this._sashDisposables) {
+			dispose(this._sashDisposables);
+			this._sashDisposables = undefined;
+		}
 	}
 
 	layout(width: number, height: number): void {
