@@ -1746,7 +1746,14 @@ declare module 'vscode' {
 	}
 
 	interface NotebookCellStatusBarItemProvider {
+		/**
+		 * Implement and fire this event to signal that statusbar items have changed. The provide method will be called again.
+		 */
 		onDidChangeCellStatusBarItems?: Event<void>;
+
+		/**
+		 * The provider will be called when the cell scrolls into view, when its content, outputs, language, or metadata change, and when it changes execution state.
+		 */
 		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
