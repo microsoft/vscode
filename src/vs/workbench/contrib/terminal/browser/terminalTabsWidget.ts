@@ -203,7 +203,9 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			label = `${prefix}$(${instance.icon.id}) ${instance.title}`;
+			// Remove "Task - " from only tabs to give more horizontal space as it's obvious from
+			// the tab icon
+			label = `${prefix}$(${instance.icon.id}) ${instance.title.replace(/^Task - /, '')}`;
 		}
 
 		template.label.setLabel(label, undefined, {
