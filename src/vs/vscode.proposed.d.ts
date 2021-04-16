@@ -988,10 +988,10 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCellExecutionSummary {
-		executionOrder?: number;
-		success?: boolean;
-		startTime?: number;
-		endTime?: number;
+		readonly executionOrder?: number;
+		readonly success?: boolean;
+		readonly startTime?: number;
+		readonly endTime?: number;
 	}
 
 	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
