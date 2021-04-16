@@ -201,6 +201,10 @@ export class TerminalTabbedView extends Disposable {
 		}, Sizing.Distribute, this._tabTreeIndex);
 		this._createButton();
 		this._addSashListener();
+		this._refreshHasTextClass();
+		for (const instance of this._terminalService.terminalInstances) {
+			this._tabsWidget.rerender(instance);
+		}
 	}
 
 	private _addSashListener() {
