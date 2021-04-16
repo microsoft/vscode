@@ -81,7 +81,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private showIntroductionModal(): void {
 		const workspaceTrustIntroDialogDoNotShowAgainKey = 'workspace.trust.introduction.doNotShowAgain';
-		const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, false);
+		const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, true);
 		if (!doNotShowAgain && this.shouldShowIntroduction) {
 			// Show welcome dialog
 			(async () => {
