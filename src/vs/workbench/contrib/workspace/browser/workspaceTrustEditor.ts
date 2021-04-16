@@ -9,6 +9,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { Action } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Color, RGBA } from 'vs/base/common/color';
 import { debounce } from 'vs/base/common/decorators';
 import { Iterable } from 'vs/base/common/iterator';
 import { splitName } from 'vs/base/common/labels';
@@ -27,8 +28,9 @@ import { IPromptChoiceWithMenu, Severity } from 'vs/platform/notification/common
 import { Link } from 'vs/platform/opener/browser/link';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -105,6 +107,14 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this._register(attachStylerCallback(this.themeService, { trustedForegroundColor, untrustedForegroundColor }, colors => {
 			this.rootElement.style.setProperty('--workspace-trust-state-trusted-color', colors.trustedForegroundColor?.toString() || '');
 			this.rootElement.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
+		}));
+
+		this._register(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+			const foregroundColor = theme.getColor(foreground);
+			if (foregroundColor) {
+				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.3));
+				collector.addRule(`.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations { border: 1px solid ${fgWithOpacity}; margin: 0px 4px; display: flex; flex-direction: column; padding: 10px 40px;}`);
+			}
 		}));
 	}
 
