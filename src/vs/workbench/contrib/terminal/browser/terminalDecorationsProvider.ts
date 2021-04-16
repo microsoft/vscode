@@ -38,7 +38,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 		}
 
 		const instance = this._terminalService.getInstanceFromId(parseInt(resource.path));
-		if (!(instance?.statusList?.primary && instance.statusList.primary.icon)) {
+		if (!instance?.statusList?.primary?.icon) {
 			return;
 		}
 
