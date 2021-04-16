@@ -1052,6 +1052,17 @@ declare module 'vscode' {
 		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
 	}
 
+	export interface NotebookDocumentContentOptions {
+		/**
+		 * Not ready for production or development use yet.
+		 */
+		viewOptions?: {
+			displayName: string;
+			filenamePattern: NotebookFilenamePattern[];
+			exclusive?: boolean;
+		};
+	}
+
 	/**
 	 * Represents a notebook. Notebooks are composed of cells and metadata.
 	 */
@@ -1580,18 +1591,7 @@ declare module 'vscode' {
 
 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
 		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
-		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider,
-			options?: NotebookDocumentContentOptions & {
-				/**
-				 * Not ready for production or development use yet.
-				 */
-				viewOptions?: {
-					displayName: string;
-					filenamePattern: NotebookFilenamePattern[];
-					exclusive?: boolean;
-				};
-			}
-		): Disposable;
+		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions): Disposable;
 	}
 
 	//#endregion
