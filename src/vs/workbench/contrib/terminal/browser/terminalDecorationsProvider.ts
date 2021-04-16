@@ -45,8 +45,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 		return {
 			color: this.getColorForSeverity(instance.statusList.primary.severity),
 			letter: this.getStatusIcon(instance.statusList.primary.icon, instance.statusList.statuses.length),
-			// Commenting out this line to unblock build
-			// tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id)
+			tooltip: instance.statusList.description
 		};
 	}
 
