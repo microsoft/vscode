@@ -64,9 +64,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	) {
 		super();
 
-		this.registerListeners();
-
-		this.showIntroductionModal();
+		if (isWorkspaceTrustEnabled(configurationService)) {
+			this.registerListeners();
+			this.showIntroductionModal();
+		}
 	}
 
 	private toggleRequestBadge(visible: boolean): void {
@@ -82,7 +83,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private showIntroductionModal(): void {
 		const workspaceTrustIntroDialogDoNotShowAgainKey = 'workspace.trust.introduction.doNotShowAgain';
-		const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, true);
+		const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, false);
 		if (!doNotShowAgain && this.shouldShowIntroduction) {
 			// Show welcome dialog
 			(async () => {
