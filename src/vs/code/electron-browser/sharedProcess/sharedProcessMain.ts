@@ -209,12 +209,12 @@ class SharedProcessMain extends Disposable {
 		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
 
 		// Telemetry
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
-
 		let telemetryService: ITelemetryService;
 		let telemetryAppender: ITelemetryAppender;
-		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && productService.enableTelemetry) {
+		if (!environmentService.isExtensionDevelopment && !environmentService.disableTelemetry && productService.enableTelemetry) {
 			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
+
+			const { appRoot, extensionsPath, isBuilt, installSourcePath } = environmentService;
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey && isBuilt) {

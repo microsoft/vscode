@@ -57,12 +57,15 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		this.registerListeners();
+
+		this.showIntroductionModal();
 	}
 
 	private toggleRequestBadge(visible: boolean): void {
@@ -73,65 +76,67 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				badge: new IconBadge(workspaceTrustIcon, () => localize('requestTrustIconText', "Some features require workspace trust.")),
 				priority: 10
 			});
+		}
+	}
 
-			const workspaceTrustIntroDialogDoNotShowAgainKey = 'workspace.trust.introduction.doNotShowAgain';
-			const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, false);
-			if (!doNotShowAgain && this.shouldShowIntroduction) {
-				// Show welcome dialog
-				(async () => {
+	private showIntroductionModal(): void {
+		const workspaceTrustIntroDialogDoNotShowAgainKey = 'workspace.trust.introduction.doNotShowAgain';
+		const doNotShowAgain = this.storageService.getBoolean(workspaceTrustIntroDialogDoNotShowAgainKey, StorageScope.GLOBAL, true);
+		if (!doNotShowAgain && this.shouldShowIntroduction) {
+			// Show welcome dialog
+			(async () => {
 
-					const result = await this.dialogService.show(
-						Severity.Info,
-						localize('workspaceTrust', "Introducing Workspace Trust"),
-						[
-							localize('manageTrust', "Manage"),
-							localize('close', "Close")
-						],
-						{
-							custom: {
-								icon: Codicon.shield,
-								classes: ['workspace-trust-intro-dialog'],
-								markdownDetails: [
-									{
-										markdown: new MarkdownString(localize('workspaceTrustDescription', "{0} provides many powerful features that rely on the files that are open in the current workspace. This can mean unintended code execution from the workspace and should only happen if you trust the source of the files you have open.", 'VS Code' || product.nameShort)),
-									},
-									{
-										markdown: new MarkdownString(`![${localize('altTextTrustedBadge', "Shield Badge on Activity Bar")}](${FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/trusted-badge.png', require).toString(true)})\n*${localize('workspaceTrustBadgeDescription', "When features are disabled in an untrusted workspace, you will see this shield icon in the Activity Bar.")}*`),
-										classes: ['workspace-trust-dialog-image-row', 'badge-row']
-									},
-									{
-										markdown: new MarkdownString(`![${localize('altTextUntrustedStatus', "Workspace Trust Status Bar Entry")}](${FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/untrusted-status.png', require).toString(true)})\n*${localize('workspaceTrustUntrustedDescription', "When the workspace is untrusted, you will see this status bar entry. It is hidden when the workspace is trusted.")}*`),
-										classes: ['workspace-trust-dialog-image-row', 'status-bar']
-									},
-									{
-										markdown: new MarkdownString(localize('seeTheDocs', "Manage your Workspace Trust configuration now to learn more or [see our docs for additional information](https://aka.ms/vscode-workspace-trust).")),
-									}
-								],
-							},
-							cancelId: 1, // Close
-							checkbox: {
-								label: localize('dontShowAgain', "Don't show this message again"),
-								checked: false,
-							}
+				const result = await this.dialogService.show(
+					Severity.Info,
+					localize('workspaceTrust', "Introducing Workspace Trust"),
+					[
+						localize('manageTrust', "Manage"),
+						localize('close', "Close")
+					],
+					{
+						custom: {
+							icon: Codicon.shield,
+							classes: ['workspace-trust-intro-dialog'],
+							markdownDetails: [
+								{
+									markdown: new MarkdownString(localize('workspaceTrustDescription', "{0} provides many powerful features that rely on the files that are open in the current workspace. This can mean unintended code execution from the workspace and should only happen if you trust the source of the files you have open.", 'VS Code' || product.nameShort)),
+								},
+								{
+									markdown: new MarkdownString(`![${localize('altTextTrustedBadge', "Shield Badge on Activity Bar")}](${FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/trusted-badge.png', require).toString(true)})\n*${localize('workspaceTrustBadgeDescription', "When features are disabled in an untrusted workspace, you will see this shield icon in the Activity Bar.")}*`),
+									classes: ['workspace-trust-dialog-image-row', 'badge-row']
+								},
+								{
+									markdown: new MarkdownString(`![${localize('altTextUntrustedStatus', "Workspace Trust Status Bar Entry")}](${FileAccess.asBrowserUri('vs/workbench/contrib/workspace/browser/media/untrusted-status.png', require).toString(true)})\n*${localize('workspaceTrustUntrustedDescription', "When the workspace is untrusted, you will see this status bar entry. It is hidden when the workspace is trusted.")}*`),
+									classes: ['workspace-trust-dialog-image-row', 'status-bar']
+								},
+								{
+									markdown: new MarkdownString(localize('seeTheDocs', "Manage your Workspace Trust configuration now to learn more or [see our docs for additional information](https://aka.ms/vscode-workspace-trust).")),
+								}
+							],
+						},
+						cancelId: 1, // Close
+						checkbox: {
+							label: localize('dontShowAgain', "Don't show this message again"),
+							checked: false,
 						}
-					);
-
-					// Dialog result
-					switch (result.choice) {
-						case 0:
-							this.workspaceTrustRequestService.cancelRequest();
-							await this.commandService.executeCommand('workbench.trust.manage');
-							break;
-						case 1:
-							this.workspaceTrustRequestService.completeRequest(undefined);
-							break;
 					}
+				);
 
-					if (result.checkboxChecked) {
-						this.storageService.store(workspaceTrustIntroDialogDoNotShowAgainKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-					}
-				})();
-			}
+				// Dialog result
+				switch (result.choice) {
+					case 0:
+						this.workspaceTrustRequestService.cancelRequest();
+						await this.commandService.executeCommand('workbench.trust.manage');
+						break;
+					case 1:
+						this.workspaceTrustRequestService.completeRequest(undefined);
+						break;
+				}
+
+				if (result.checkboxChecked) {
+					this.storageService.store(workspaceTrustIntroDialogDoNotShowAgainKey, true, StorageScope.GLOBAL, StorageTarget.USER);
+				}
+			})();
 		}
 	}
 
@@ -199,6 +204,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
+			if (e.fromCache) {
+				return;
+			}
+			if (!isWorkspaceTrustEnabled(this.configurationService)) {
+				return;
+			}
 			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 
 			return e.join(new Promise(async resolve => {

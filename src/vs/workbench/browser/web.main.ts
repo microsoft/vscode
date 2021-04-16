@@ -207,6 +207,8 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IWorkspaceTrustStorageService, workspaceTrustStorageService);
 		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, configurationService, workspaceTrustStorageService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
 
 		// Request Service
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);

@@ -859,7 +859,7 @@ registerThemingParticipant((theme, collector) => {
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 	if (toolbarHoverBackgroundColor) {
 		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover:not(.icon) {
 				background-color: ${toolbarHoverBackgroundColor} !important;
 			}
 		`);
