@@ -51,8 +51,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	async resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void> {
-		// TODO: Consider workspace trust
-
 		// Resolve the shell and shell args
 		let resolvedProfile: ITerminalProfile;
 		if (shellLaunchConfig.executable) {
@@ -67,7 +65,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		shellLaunchConfig.executable = resolvedProfile.path;
 		shellLaunchConfig.args = resolvedProfile.args;
 		shellLaunchConfig.icon = shellLaunchConfig.icon || resolvedProfile.icon;
-		// TODO: Also resolve environment
 	}
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
