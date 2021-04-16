@@ -58,6 +58,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionLocation: extension.extensionLocation,
 			label: options.label,
 			supportedLanguages: [],
+			preloads: options.preloads ? options.preloads.map(extHostTypeConverters.NotebookKernelPreload.from) : []
 		};
 
 		//
@@ -123,11 +124,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get preloads() {
-				return data.preloads && data.preloads.map(extHostTypeConverters.NotebookKernelPreload.to);
-			},
-			set preloads(value) {
-				data.preloads = value && value.map(extHostTypeConverters.NotebookKernelPreload.from);
-				_update();
+				return data.preloads ? data.preloads.map(extHostTypeConverters.NotebookKernelPreload.to) : [];
 			},
 			get executeHandler() {
 				return _executeHandler;
@@ -162,8 +159,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			postMessage(message, editor) {
 				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
 			},
-			asWebviewUri(uri: URI, editor) {
-				return asWebviewUri(that._initData.environment, that._extHostNotebook.getIdByEditor(editor)!, uri);
+			asWebviewUri(uri: URI) {
+				return asWebviewUri(that._initData.environment, data.id, uri);
 			}
 		};
 

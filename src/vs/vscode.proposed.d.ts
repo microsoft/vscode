@@ -1414,7 +1414,6 @@ declare module 'vscode' {
 
 		supportedLanguages: string[];
 		hasExecutionOrder?: boolean;
-		preloads?: NotebookKernelPreload[];
 
 		/**
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
@@ -1439,9 +1438,10 @@ declare module 'vscode' {
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 
 		// ipc
+		readonly preloads: NotebookKernelPreload[];
 		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
 		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
-		asWebviewUri(localResource: Uri, editor: NotebookEditor): Uri;
+		asWebviewUri(localResource: Uri): Uri;
 	}
 
 	export interface NotebookControllerOptions {
@@ -1453,6 +1453,7 @@ declare module 'vscode' {
 		hasExecutionOrder?: boolean;
 		executeHandler: (cells: NotebookCell[], controller: NotebookController) => void;
 		interruptHandler?: (notebook: NotebookDocument) => void
+		preloads?: NotebookKernelPreload[]
 	}
 
 	export namespace notebook {
