@@ -51,7 +51,6 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CON
 
 export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false, nls.localize('terminalProcessSupportedContextKey', "Whether terminal processes can be launched"));
 
-export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
@@ -185,19 +184,8 @@ export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', '
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
 
-	onWorkspacePermissionsChanged: Event<boolean>;
-
 	configFontIsMonospace(): boolean;
 	getFont(): ITerminalFont;
-	/** Sets whether a workspace shell configuration is allowed or not */
-	setWorkspaceShellAllowed(isAllowed: boolean): void;
-	/**
-	 * Checks and returns whether it's safe to launch the process. If the user has not yet been
-	 * asked, ask for future calls and return false.
-	 * @param osOverride Use a custom OS (eg. remote).
-	 * @param profile The profile if this is launching with a profile.
-	 */
-	checkIsProcessLaunchSafe(osOverride?: OperatingSystem, profile?: ITerminalProfile): boolean;
 	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
@@ -463,7 +451,6 @@ export const enum TERMINAL_COMMAND_ID {
 	SCROLL_TO_TOP = 'workbench.action.terminal.scrollToTop',
 	CLEAR = 'workbench.action.terminal.clear',
 	CLEAR_SELECTION = 'workbench.action.terminal.clearSelection',
-	MANAGE_WORKSPACE_SHELL_PERMISSIONS = 'workbench.action.terminal.manageWorkspaceShellPermissions',
 	RENAME = 'workbench.action.terminal.rename',
 	RENAME_WITH_ARG = 'workbench.action.terminal.renameWithArg',
 	FIND_FOCUS = 'workbench.action.terminal.focusFind',

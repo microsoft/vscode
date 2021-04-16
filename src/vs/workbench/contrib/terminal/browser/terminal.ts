@@ -179,7 +179,6 @@ export interface ITerminalService {
 	getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
-	manageWorkspaceShellPermissions(): void;
 
 	/**
 	 * Injects native Windows functionality into the service.

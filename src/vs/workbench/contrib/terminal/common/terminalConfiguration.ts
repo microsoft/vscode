@@ -59,6 +59,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.automationShell.linux': {
+			requireTrust: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.linux',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -67,6 +68,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.osx': {
+			requireTrust: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.osx',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -75,6 +77,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.automationShell.windows': {
+			requireTrust: true,
 			markdownDescription: localize({
 				key: 'terminal.integrated.automationShell.windows',
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
@@ -83,6 +86,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: null
 		},
 		'terminal.integrated.shellArgs.linux': {
+			requireTrust: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.linux', "The command line arguments to use when on the Linux terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -91,6 +95,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: []
 		},
 		'terminal.integrated.shellArgs.osx': {
+			requireTrust: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.osx', "The command line arguments to use when on the macOS terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			type: 'array',
 			items: {
@@ -102,6 +107,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: ['-l']
 		},
 		'terminal.integrated.shellArgs.windows': {
+			requireTrust: true,
 			markdownDescription: localize('terminal.integrated.shellArgs.windows', "The command line arguments to use when on the Windows terminal. [Read more about configuring the shell](https://code.visualstudio.com/docs/editor/integrated-terminal#_configuration)."),
 			'anyOf': [
 				{
@@ -119,6 +125,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: []
 		},
 		'terminal.integrated.profiles.windows': {
+			requireTrust: true,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profiles.windows',
@@ -178,6 +185,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.osx': {
+			requireTrust: true,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.osx',
@@ -213,6 +221,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			}
 		},
 		'terminal.integrated.profiles.linux': {
+			requireTrust: true,
 			markdownDescription: localize(
 				{
 					key: 'terminal.integrated.profile.linux',
@@ -477,6 +486,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		'terminal.integrated.env.osx': {
+			requireTrust: true,
 			markdownDescription: localize('terminal.integrated.env.osx', "Object with environment variables that will be added to the VS Code process to be used by the terminal on macOS. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -485,6 +495,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.linux': {
+			requireTrust: true,
 			markdownDescription: localize('terminal.integrated.env.linux', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Linux. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -493,6 +504,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: {}
 		},
 		'terminal.integrated.env.windows': {
+			requireTrust: true,
 			markdownDescription: localize('terminal.integrated.env.windows', "Object with environment variables that will be added to the VS Code process to be used by the terminal on Windows. Set to `null` to delete the environment variable."),
 			type: 'object',
 			additionalProperties: {
@@ -614,16 +626,19 @@ function getTerminalShellConfigurationStub(linux: string, osx: string, windows: 
 		type: 'object',
 		properties: {
 			'terminal.integrated.shell.linux': {
+				requireTrust: true,
 				markdownDescription: linux,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.osx': {
+				requireTrust: true,
 				markdownDescription: osx,
 				type: ['string', 'null'],
 				default: null
 			},
 			'terminal.integrated.shell.windows': {
+				requireTrust: true,
 				markdownDescription: windows,
 				type: ['string', 'null'],
 				default: null

@@ -146,14 +146,12 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 			cwd: shellLaunchConfig.cwd,
 			env: shellLaunchConfig.env
 		};
-		const isWorkspaceShellAllowed = configHelper.checkIsProcessLaunchSafe(remoteEnv.os);
 		const result = await this._remoteTerminalChannel.createProcess(
 			shellLaunchConfigDto,
 			activeWorkspaceRootUri,
 			shouldPersist,
 			cols,
 			rows,
-			isWorkspaceShellAllowed,
 		);
 		const pty = new RemotePty(result.persistentTerminalId, shouldPersist, this._remoteTerminalChannel, this._remoteAgentService, this._logService);
 		this._ptys.set(result.persistentTerminalId, pty);
