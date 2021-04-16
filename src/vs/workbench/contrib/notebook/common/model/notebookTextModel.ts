@@ -193,7 +193,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _cells: NotebookCellTextModel[] = [];
 
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
-	transientOptions: TransientOptions = { transientMetadata: {}, transientOutputs: false };
+	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false };
 	private _versionId = 0;
 
 	/**
@@ -601,14 +601,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			if (key === 'custom') {
 				if (!this._customMetadataEqual(a[key], b[key])
 					&&
-					!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
+					!(this.transientOptions.transientCellMetadata[key as keyof NotebookCellMetadata])
 				) {
 					return true;
 				}
 			} else if (
 				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
 				&&
-				!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
+				!(this.transientOptions.transientCellMetadata[key as keyof NotebookCellMetadata])
 			) {
 				return true;
 			}

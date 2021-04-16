@@ -376,7 +376,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const internalOptions = typeConverters.NotebookDocumentContentOptions.from(options);
 		this._notebookProxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, {
 			transientOutputs: internalOptions.transientOutputs,
-			transientMetadata: internalOptions.transientMetadata,
+			transientCellMetadata: internalOptions.transientCellMetadata,
+			transientDocumentMetadata: internalOptions.transientDocumentMetadata,
 			viewOptions: options?.viewOptions && viewOptionsFilenamePattern ? { displayName: options.viewOptions.displayName, filenamePattern: viewOptionsFilenamePattern, exclusive: options.viewOptions.exclusive || false } : undefined
 		});
 

@@ -92,11 +92,13 @@ export interface NotebookCellMetadata {
 	custom?: { [key: string]: unknown };
 }
 
-export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
-	transientMetadata: TransientMetadata;
+	transientCellMetadata: TransientCellMetadata;
+	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
 export interface INotebookMimeTypeSelector {

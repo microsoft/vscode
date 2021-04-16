@@ -1633,15 +1633,16 @@ export namespace NotebookDocumentContentOptions {
 	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
 			transientOutputs: options?.transientOutputs ?? false,
-			transientMetadata: {
-				...options?.transientMetadata,
+			transientCellMetadata: {
+				...(options?.transientCellMetadata ?? options?.transientMetadata),
 				executionOrder: true,
 				runState: true,
 				runStartTime: true,
 				runStartTimeAdjustment: true,
 				runEndTime: true,
 				lastRunSuccess: true
-			}
+			},
+			transientDocumentMetadata: options?.transientDocumentMetadata ?? {}
 		};
 	}
 }
