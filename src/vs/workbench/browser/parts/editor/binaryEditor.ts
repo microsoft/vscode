@@ -13,7 +13,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { URI } from 'vs/base/common/uri';
 import { Dimension, size, clearNode, append, addDisposableListener, EventType, $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -23,7 +22,6 @@ import { ByteSize } from 'vs/platform/files/common/files';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
-	openExternal: (uri: URI) => void;
 }
 
 /*
