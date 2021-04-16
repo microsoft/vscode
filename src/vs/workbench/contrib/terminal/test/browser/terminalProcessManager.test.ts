@@ -16,7 +16,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
-suite.only('Workbench - TerminalProcessManager', () => {
+suite('Workbench - TerminalProcessManager', () => {
 	let instantiationService: ITestInstantiationService;
 	let manager: TerminalProcessManager;
 
