@@ -109,6 +109,7 @@ export class TerminalTabbedView extends Disposable {
 				this._showTabs = this._terminalService.configHelper.config.showTabs;
 				if (this._showTabs) {
 					this._addTabTree();
+					this._addSashListener();
 				} else {
 					this._splitView.removeView(this._tabTreeIndex);
 					if (this._plusButton) {
@@ -200,7 +201,6 @@ export class TerminalTabbedView extends Disposable {
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
 		this._createButton();
-		this._addSashListener();
 		this._refreshHasTextClass();
 		for (const instance of this._terminalService.terminalInstances) {
 			this._tabsWidget.rerender(instance);
