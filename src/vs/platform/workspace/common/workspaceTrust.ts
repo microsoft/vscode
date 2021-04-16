@@ -39,15 +39,17 @@ export interface IWorkspaceTrustManagementService {
 	readonly _serviceBrand: undefined;
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
+	onDidChangeTrustedFolders: Event<void>;
+
 	isWorkpaceTrusted(): boolean;
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): void;
 	canSetWorkspaceTrust(): boolean;
 	setWorkspaceTrust(trusted: boolean): void;
 	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
-	getTrustInfo(): IWorkspaceTrustInfo;
 	setOpenEditors(openEditors: URI[]): void;
 	setFoldersTrust(folders: URI[], trusted: boolean): void;
+	getTrustedFolders(): URI[];
 	setTrustedFolders(folders: URI[]): void;
 }
 

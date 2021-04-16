@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 
 
 export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManagementService {
@@ -14,23 +14,31 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	private _onDidChangeTrust = new Emitter<boolean>();
 	onDidChangeTrust = this._onDidChangeTrust.event;
 
+	private _onDidChangeTrustedFolders = new Emitter<void>();
+	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
+
 	private trusted: boolean;
 
 	constructor(trusted: boolean = true) {
 		this.trusted = trusted;
 	}
+
+	getTrustedFolders(): URI[] {
+		throw new Error('Method not implemented.');
+	}
+
 	setParentFolderTrust(trusted: boolean): void {
 		throw new Error('Method not implemented.');
 	}
+
 	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
 		throw new Error('Method not implemented.');
 	}
-	getTrustInfo(): IWorkspaceTrustInfo {
-		throw new Error('Method not implemented.');
-	}
+
 	setTrustedFolders(folders: URI[]): void {
 		throw new Error('Method not implemented.');
 	}
+
 	setFoldersTrust(folders: URI[], trusted: boolean): void {
 		throw new Error('Method not implemented.');
 	}

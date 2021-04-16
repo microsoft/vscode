@@ -39,6 +39,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrust = this._register(new Emitter<boolean>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
 
+	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
+	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
+
 	private _filesOutsideWorkspace: URI[] = [];
 	private _isWorkspaceTrusted: boolean = false;
 	private _trustStateInfo: IWorkspaceTrustInfo;
@@ -102,6 +105,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private saveTrustInfo(): void {
 		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._onDidChangeTrustedFolders.fire();
 	}
 
 	private calculateWorkspaceTrust(): boolean {
@@ -206,6 +210,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this.setFoldersTrust([...folderURIs, ...fileParentFolderURIs], trusted);
 	}
 
+	getTrustedFolders(): URI[] {
+		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
+	}
+
 	setTrustedFolders(folders: URI[]): void {
 		this._trustStateInfo.uriTrustInfo = [];
 		for (const folder of folders) {
@@ -216,10 +224,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		this.saveTrustInfo();
-	}
-
-	getTrustInfo(): IWorkspaceTrustInfo {
-		return this._trustStateInfo;
 	}
 }
 

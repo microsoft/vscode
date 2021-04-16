@@ -488,18 +488,14 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 
 		type WorkspaceTrustInfoEventClassification = {
 			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			untrustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
 
 		type WorkspaceTrustInfoEvent = {
 			trustedFoldersCount: number,
-			untrustedFoldersCount: number
 		};
 
-		const trustStateInfo = this.workspaceTrustManagementService.getTrustInfo();
 		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
-			trustedFoldersCount: trustStateInfo.uriTrustInfo.filter(item => item.trusted).length,
-			untrustedFoldersCount: trustStateInfo.uriTrustInfo.filter(item => !item.trusted).length
+			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedFolders().length,
 		});
 	}
 
