@@ -268,7 +268,8 @@ export abstract class SharedDesktopMain extends Disposable {
 		serviceCollection.set(IWorkspaceTrustStorageService, workspaceTrustStorageService);
 		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, configurationService, workspaceTrustStorageService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
-		configurationService.initializeWorkspaceTrust(workspaceTrustManagementService);
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//

@@ -12,7 +12,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IGettingStartedCategory, IGettingStartedCategoryDescriptor, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
+import { IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -141,10 +141,14 @@ export class GettingStartedPage extends EditorPane {
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
 		this.buildSlideThrottle = new Throttler();
-		this._register(this.gettingStartedService.onDidAddTask(task => {
+
+		const rerender = () => {
 			this.gettingStartedCategories = this.gettingStartedService.getCategories();
 			this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
-		}));
+		};
+
+		this._register(this.gettingStartedService.onDidAddCategory(rerender));
+		this._register(this.gettingStartedService.onDidRemoveCategory(rerender));
 
 		this._register(this.gettingStartedService.onDidChangeTask(task => {
 			const ourCategory = this.gettingStartedCategories.find(c => c.id === task.category);
@@ -154,6 +158,7 @@ export class GettingStartedPage extends EditorPane {
 			ourTask.title = task.title;
 			ourTask.description = task.description;
 			ourTask.media.path = task.media.path;
+			// TODO: JacksonKearl, update the actual rendering if not much time has passed
 		}));
 
 		this._register(this.gettingStartedService.onDidChangeCategory(category => {
@@ -162,12 +167,13 @@ export class GettingStartedPage extends EditorPane {
 
 			ourCategory.title = category.title;
 			ourCategory.description = category.description;
+			// TODO: JacksonKearl, update the actual rendering if not much time has passed
 		}));
 
 		this._register(this.gettingStartedService.onDidProgressTask(task => {
 			const category = this.gettingStartedCategories.find(category => category.id === task.category);
 			if (!category) { throw Error('Could not find category with ID: ' + task.category); }
-			if (category.content.type !== 'items') { throw Error('internaal error: progressing task in a non-items category'); }
+			if (category.content.type !== 'items') { throw Error('internal error: progressing task in a non-items category'); }
 			const ourTask = category.content.items.find(_task => _task.id === task.id);
 			if (!ourTask) {
 				throw Error('Could not find task with ID: ' + task.id);
@@ -581,7 +587,7 @@ export class GettingStartedPage extends EditorPane {
 
 		const startList = this.startList = new GettingStartedIndexList(
 			localize('start', "Start"),
-			'recently-opened',
+			'start-container',
 			10,
 			undefined,
 			undefined,
@@ -693,7 +699,7 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
-	private iconWidgetFor(category: IGettingStartedCategoryDescriptor) {
+	private iconWidgetFor(category: IGettingStartedCategory) {
 		return category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
 	}
 

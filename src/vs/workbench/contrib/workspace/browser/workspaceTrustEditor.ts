@@ -401,10 +401,9 @@ export class WorkspaceTrustEditor extends EditorPane {
 			applyChanges();
 		};
 
-
 		if (isArray(change.value)) {
 			if (change.key === 'trustedFolders') {
-				applyChangesWithPrompt(change.type === 'changed' || change.type === 'removed', () => this.workspaceTrustStorageService.setTrustedFolders(change.value!));
+				applyChangesWithPrompt(false, () => this.workspaceTrustStorageService.setTrustedFolders(change.value!));
 			}
 		}
 	}
