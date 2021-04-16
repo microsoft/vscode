@@ -92,6 +92,7 @@ export interface ITerminalProfileResolverService {
 }
 
 export interface IShellLaunchConfigResolveOptions {
+	remoteAuthority: string | undefined;
 	// TODO: Pass remote authority in so that local and remote terminals can be resolved correctly
 	// TODO: Consider converting to OperatingSystem such that it's not possible to pass Platform.web in
 	platform: Platform;

@@ -1014,7 +1014,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 			if (variableResolver.taskSystemInfo) {
 				defaultConfig = await variableResolver.taskSystemInfo.getDefaultShellAndArgs();
 			} else {
-				const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({ allowAutomationShell: true, platform });
+				const defaultProfile = await this.terminalProfileResolverService.getDefaultProfile({
+					allowAutomationShell: true,
+					platform,
+					remoteAuthority: this.environmentService.remoteAuthority
+				});
 				defaultConfig = {
 					shell: defaultProfile.path,
 					args: defaultProfile.args

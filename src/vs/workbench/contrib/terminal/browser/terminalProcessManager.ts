@@ -209,10 +209,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				const userHomeUri = await this._pathService.userHome();
 				this.userHome = userHomeUri.path;
 				const remoteEnv = await this._remoteAgentService.getEnvironment();
-				if (remoteEnv) {
-					this.userHome = remoteEnv.userHome.path;
-					this.os = remoteEnv.os;
+				if (!remoteEnv) {
+					throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
 				}
+				this.userHome = remoteEnv.userHome.path;
+				this.os = remoteEnv.os;
 
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 
@@ -230,6 +231,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					}
 				} else {
 					await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+						remoteAuthority: this.remoteAuthority,
 						platform: this._osToPlatform(this.os)
 					});
 					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
@@ -368,6 +370,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		isScreenReaderModeEnabled: boolean
 	): Promise<ITerminalChildProcess> {
 		await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+			remoteAuthority: undefined,
 			platform: platform.platform
 		});
 
