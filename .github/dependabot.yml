@@ -10,7 +10,7 @@ updates:
   - package-ecosystem: "npm"
     # location of package manifests
     directory: "/"
-    open-pull-requests-limit: 100
+    open-pull-requests-limit: 10
     schedule:
       interval: "daily"
 
