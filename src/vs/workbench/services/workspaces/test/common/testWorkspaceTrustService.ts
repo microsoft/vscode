@@ -49,8 +49,20 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		this.trusted = trusted;
 	}
 
+	canSetParentFolderTrust(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	canSetWorkspaceTrust(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
 	isWorkpaceTrusted(): boolean {
 		return this.trusted;
+	}
+
+	setOpenEditors(openEditors: URI[]): void {
+		throw new Error('Method not implemented.');
 	}
 
 	setWorkspaceTrust(trusted: boolean): void {

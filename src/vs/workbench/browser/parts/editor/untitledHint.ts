@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { inputPlaceholderForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ChangeModeAction } from 'vs/workbench/browser/parts/editor/editorStatus';
@@ -17,6 +16,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 const $ = dom.$;
 
 const untitledHintSetting = 'workbench.editor.untitled.hint';
@@ -82,6 +82,11 @@ class UntitledHintContentWidget implements IContentWidget {
 	) {
 		this.toDispose = [];
 		this.toDispose.push(editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
+		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
+				this.editor.applyFontInfo(this.domNode);
+			}
+		}));
 		this.onDidChangeModelContent();
 	}
 
@@ -137,9 +142,9 @@ class UntitledHintContentWidget implements IContentWidget {
 				this.editor.focus();
 			}));
 
-			this.domNode.style.fontFamily = DEFAULT_FONT_FAMILY;
 			this.domNode.style.fontStyle = 'italic';
 			this.domNode.style.paddingLeft = '4px';
+			this.editor.applyFontInfo(this.domNode);
 		}
 
 		return this.domNode;
