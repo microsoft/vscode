@@ -213,6 +213,13 @@ export class SettingsEditor2 extends EditorPane {
 			if (this.settingsTreeModel) {
 				this.settingsTreeModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
 			}
+			this.renderTree();
+		}));
+
+		this._register(configurationService.onDidChangeUntrustdSettings(e => {
+			if (e.default.length) {
+				this.updateElementsByKey([...e.default]);
+			}
 		}));
 
 		this.modelDisposables = this._register(new DisposableStore());
