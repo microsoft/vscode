@@ -83,8 +83,7 @@ declare module 'vscode' {
 	export enum RemoteTrustOption {
 		Unknown = 0,
 		DisableTrust = 1,
-		MachineTrusted = 2,
-		MachineUntrusted = 3
+		MachineTrusted = 2
 	}
 
 	export interface ResolvedOptions {

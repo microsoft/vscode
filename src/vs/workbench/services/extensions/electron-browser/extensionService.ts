@@ -15,7 +15,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState, IWebExtensionsSc
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteTrustOption, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -44,6 +44,7 @@ import { updateProxyConfigurationsScope } from 'vs/platform/request/common/reque
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 const MACHINE_PROMPT = false;
 
@@ -74,6 +75,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly _logService: ILogService,
 		@IDialogService private readonly _dialogService: IDialogService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
@@ -363,11 +365,20 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				return;
 			}
 
-			if (MACHINE_PROMPT) {
+			let promptForMachineTrust = MACHINE_PROMPT;
+
+			if (resolverResult.options?.trust === RemoteTrustOption.DisableTrust) {
+				promptForMachineTrust = false;
+				this._workspaceTrustManagementService.setWorkspaceTrust(true);
+			} else if (resolverResult.options?.trust === RemoteTrustOption.MachineTrusted) {
+				promptForMachineTrust = false;
+			}
+
+			if (promptForMachineTrust) {
 				const dialogResult = await this._dialogService.show(
 					Severity.Info,
 					nls.localize('machineTrustQuestion', "Do you trust the machine you're connecting to?"),
-					[nls.localize('yes', "Yes, connect."), nls.localize('no', "No, disconnect.")],
+					[nls.localize('yes', "Yes, connect."), nls.localize('no', "No, do not connect.")],
 					{
 						cancelId: 1,
 						custom: {
