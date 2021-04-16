@@ -14,7 +14,7 @@ import { getTerminalShellConfiguration } from 'vs/workbench/contrib/terminal/com
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getSystemShell } from 'vs/base/node/shell';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { Platform } from 'vs/base/common/platform';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { ElectronTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalProfileResolverService';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -30,5 +30,5 @@ workbenchRegistry.registerWorkbenchContribution(TerminalNativeContribution, Life
 // Register configurations
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
-const systemShell = async (p: Platform) => getSystemShell(p, await process.shellEnv());
+const systemShell = async (os: OperatingSystem) => getSystemShell(os, await process.shellEnv());
 getTerminalShellConfiguration(systemShell).then(config => configurationRegistry.registerConfiguration(config));

@@ -6,7 +6,7 @@
 import * as path from 'path';
 import { spawn } from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IProcessEnvironment, isWindows, platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
@@ -77,7 +77,7 @@ async function doResolveUnixShellEnv(logService: ILogService): Promise<typeof pr
 		};
 
 		logService.trace('getUnixShellEnvironment#env', env);
-		const systemShellUnix = await getSystemShell(platform, env);
+		const systemShellUnix = await getSystemShell(OS, env);
 		logService.trace('getUnixShellEnvironment#shell', systemShellUnix);
 
 		let command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;

@@ -232,7 +232,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				} else {
 					await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 						remoteAuthority: this.remoteAuthority,
-						platform: this._osToPlatform(this.os)
+						os: this.os
 					});
 					newProcess = await this._remoteTerminalService.createProcess(shellLaunchConfig, activeWorkspaceRootUri, cols, rows, shouldPersist, this._configHelper);
 				}
@@ -371,7 +371,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	): Promise<ITerminalChildProcess> {
 		await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 			remoteAuthority: undefined,
-			platform: platform.platform
+			os: platform.OS
 		});
 
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
@@ -546,14 +546,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._instanceId);
 		this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
-	}
-
-	private _osToPlatform(os: platform.OperatingSystem) {
-		switch (os) {
-			case platform.OperatingSystem.Linux: return platform.Platform.Linux;
-			case platform.OperatingSystem.Macintosh: return platform.Platform.Mac;
-			case platform.OperatingSystem.Windows: return platform.Platform.Windows;
-		}
 	}
 }
 

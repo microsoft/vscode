@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IProcessEnvironment, OperatingSystem, Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensions, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -83,7 +83,7 @@ export interface ITerminalProfileResolverService {
 	/**
 	 * Resolves the icon of a shell launch config if this will use the default profile
 	 */
-	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void;
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void;
 	resolveShellLaunchConfig(shellLaunchConfig: IShellLaunchConfig, options: IShellLaunchConfigResolveOptions): Promise<void>;
 	getDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile>;
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
@@ -93,9 +93,7 @@ export interface ITerminalProfileResolverService {
 
 export interface IShellLaunchConfigResolveOptions {
 	remoteAuthority: string | undefined;
-	// TODO: Pass remote authority in so that local and remote terminals can be resolved correctly
-	// TODO: Consider converting to OperatingSystem such that it's not possible to pass Platform.web in
-	platform: Platform;
+	os: OperatingSystem;
 	allowAutomationShell?: boolean;
 }
 

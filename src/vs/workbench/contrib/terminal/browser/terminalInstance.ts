@@ -250,7 +250,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs
 		if (!this.shellLaunchConfig.executable) {
-			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig);
+			// TODO: This will pass in the wrong OS for the remote case
+			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, platform.OS);
 		}
 
 		this._initDimensions();

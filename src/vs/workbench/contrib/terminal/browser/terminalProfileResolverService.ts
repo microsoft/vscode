@@ -12,14 +12,14 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IProcessEnvironment, platform, Platform } from 'vs/base/common/platform';
+import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfile, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon } from 'vs/base/common/codicons';
 
 export interface IProfileContextProvider {
-	getDefaultSystemShell: (remoteAuthority: string | undefined, platform: Platform) => Promise<string>;
+	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
 	getShellEnvironment: (remoteAuthority: string | undefined) => Promise<IProcessEnvironment>;
 }
 
@@ -39,12 +39,12 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	) {
 	}
 
-	resolveIcon(shellLaunchConfig: IShellLaunchConfig): void {
+	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
 		if (shellLaunchConfig.executable) {
 			return;
 		}
 
-		const defaultProfile = this._getRealDefaultProfile(true, platform);
+		const defaultProfile = this._getRealDefaultProfile(true, os);
 		if (defaultProfile) {
 			shellLaunchConfig.icon = defaultProfile.icon;
 		}
@@ -93,7 +93,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		// Return the real default profile if it exists and is valid
-		const defaultProfile = await this._getRealDefaultProfile(false, options.platform);
+		const defaultProfile = await this._getRealDefaultProfile(false, options.os);
 		if (defaultProfile) {
 			return defaultProfile;
 		}
@@ -103,10 +103,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return this._getFallbackDefaultProfile(options);
 	}
 
-	private _getRealDefaultProfile(sync: true, platform: Platform): ITerminalProfile | undefined;
-	private _getRealDefaultProfile(sync: false, platform: Platform): Promise<ITerminalProfile | undefined>;
-	private _getRealDefaultProfile(sync: boolean, platform: Platform): ITerminalProfile | undefined | Promise<ITerminalProfile | undefined> {
-		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getPlatformKey(platform)}`);
+	private _getRealDefaultProfile(sync: true, os: OperatingSystem): ITerminalProfile | undefined;
+	private _getRealDefaultProfile(sync: false, os: OperatingSystem): Promise<ITerminalProfile | undefined>;
+	private _getRealDefaultProfile(sync: boolean, os: OperatingSystem): ITerminalProfile | undefined | Promise<ITerminalProfile | undefined> {
+		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getOsKey(os)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
 			if (sync) {
 				const profiles = this._terminalService.getAvailableProfiles();
@@ -123,15 +123,15 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	private async _getFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		let executable: string;
 		let args: string | string[] | undefined;
-		const shellSetting = this._configurationService.getValue(`terminal.integrated.shell.${this._getPlatformKey(options.platform)}`);
+		const shellSetting = this._configurationService.getValue(`terminal.integrated.shell.${this._getOsKey(options.os)}`);
 		if (this._isValidShell(shellSetting)) {
 			executable = shellSetting;
-			const shellArgsSetting = this._configurationService.getValue(`terminal.integrated.shellArgs.${this._getPlatformKey(options.platform)}`);
-			if (this._isValidShellArgs(shellArgsSetting, options.platform)) {
+			const shellArgsSetting = this._configurationService.getValue(`terminal.integrated.shellArgs.${this._getOsKey(options.os)}`);
+			if (this._isValidShellArgs(shellArgsSetting, options.os)) {
 				args = shellArgsSetting || [];
 			}
 		} else {
-			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.platform);
+			executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 		}
 
 		const icon = this._guessProfileIcon(executable);
@@ -145,7 +145,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getAutomationShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
-		const automationShell = this._configurationService.getValue(`terminal.integrated.automationShell.${this._getPlatformKey(options.platform)}`);
+		const automationShell = this._configurationService.getValue(`terminal.integrated.automationShell.${this._getOsKey(options.os)}`);
 		if (!automationShell || typeof automationShell !== 'string') {
 			return undefined;
 		}
@@ -156,7 +156,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private async _resolveProfile(profile: ITerminalProfile, options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
-		if (options.platform === Platform.Windows) {
+		if (options.os === OperatingSystem.Windows) {
 			// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 			// safe to assume that this was used by accident as Sysnative does not
 			// exist and will break the terminal in non-WoW64 environments.
@@ -171,7 +171,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			}
 
 			// Convert / to \ on Windows for convenience
-			if (profile.path && options.platform === Platform.Windows) {
+			if (profile.path) {
 				profile.path = profile.path.replace(/\//g, '\\');
 			}
 		}
@@ -205,12 +205,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return value;
 	}
 
-	private _getPlatformKey(platform: Platform): string {
-		switch (platform) {
-			case Platform.Linux: return 'linux';
-			case Platform.Mac: return 'osx';
-			case Platform.Windows: return 'windows';
-			default: return '';
+	private _getOsKey(os: OperatingSystem): string {
+		switch (os) {
+			case OperatingSystem.Linux: return 'linux';
+			case OperatingSystem.Macintosh: return 'osx';
+			case OperatingSystem.Windows: return 'windows';
 		}
 	}
 
@@ -236,11 +235,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return typeof shell === 'string';
 	}
 
-	private _isValidShellArgs(shellArgs: unknown, platform: Platform): shellArgs is string | string[] | undefined {
+	private _isValidShellArgs(shellArgs: unknown, os: OperatingSystem): shellArgs is string | string[] | undefined {
 		if (shellArgs === undefined) {
 			return true;
 		}
-		if (platform === Platform.Windows && typeof shellArgs === 'string') {
+		if (os === OperatingSystem.Windows && typeof shellArgs === 'string') {
 			return true;
 		}
 		if (Array.isArray(shellArgs) && shellArgs.every(e => typeof e === 'string')) {
@@ -263,12 +262,12 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 	) {
 		super(
 			{
-				getDefaultSystemShell: async (remoteAuthority, platform) => {
+				getDefaultSystemShell: async (remoteAuthority, os) => {
 					if (!remoteAuthority) {
 						// Just return basic values, this is only for serverless web and wouldn't be used
-						return platform === Platform.Windows ? 'pwsh' : 'bash';
+						return os === OperatingSystem.Windows ? 'pwsh' : 'bash';
 					}
-					return remoteTerminalService.getDefaultSystemShell(platform);
+					return remoteTerminalService.getDefaultSystemShell(os);
 				},
 				getShellEnvironment: async (remoteAuthority) => {
 					if (!remoteAuthority) {
