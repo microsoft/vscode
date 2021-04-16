@@ -83,6 +83,7 @@ export const enum WorkbenchState {
 export interface IWorkspaceFoldersWillChangeEvent {
 	join(promise: Promise<void>): void;
 	readonly changes: IWorkspaceFoldersChangeEvent;
+	readonly fromCache: boolean;
 }
 
 export interface IWorkspaceFoldersChangeEvent {

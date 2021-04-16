@@ -203,6 +203,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}));
 
 		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
+			if (e.fromCache) {
+				return;
+			}
 			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 
 			return e.join(new Promise(async resolve => {
