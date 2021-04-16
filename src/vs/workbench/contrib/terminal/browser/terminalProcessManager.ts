@@ -317,6 +317,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
+
 		// Fire reconnect if needed to ensure the terminal is usable again
 		if (this.isDisconnected) {
 			this.isDisconnected = false;
