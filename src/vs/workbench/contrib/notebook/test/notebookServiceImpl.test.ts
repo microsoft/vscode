@@ -31,11 +31,9 @@ suite('NotebookProviderInfoStore', function () {
 				override onDidRegisterExtensions = Event.None;
 			},
 			instantiationService.createInstance(EditorOverrideService),
-			instantiationService,
 			new TestConfigurationService(),
-			new class extends mock<IAccessibilityService>() {
-
-			}
+			new class extends mock<IAccessibilityService>() { },
+			instantiationService,
 		);
 
 		const fooInfo = new NotebookProviderInfo({
