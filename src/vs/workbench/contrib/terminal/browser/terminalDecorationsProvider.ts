@@ -10,7 +10,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
-import { listErrorForeground, listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 
 export interface ITerminalDecorationData {
 	tooltip: string,
@@ -32,7 +32,10 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		const instance = this._terminalService.getInstanceFromId(parseInt(resource.toString()));
+		if (resource.scheme !== 'vscode-terminal') {
+			return;
+		}
+		const instance = this._terminalService.getInstanceFromId(parseInt(resource.path));
 		if (!instance) {
 			return;
 		}
@@ -51,7 +54,7 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 			case Severity.Error:
 				return listErrorForeground;
 			case Severity.Warning:
-				return listInvalidItemForeground;
+				return listWarningForeground;
 			default:
 				return '';
 		}

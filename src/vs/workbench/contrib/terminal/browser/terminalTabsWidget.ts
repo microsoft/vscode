@@ -27,6 +27,7 @@ import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLab
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { URI } from 'vs/base/common/uri';
+import Severity from 'vs/base/common/severity';
 
 const $ = DOM.$;
 
@@ -191,7 +192,12 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		let label: string;
 		if (!hasText) {
 			template.actionBar.clear();
-			label = `${prefix}$(${instance.icon.id})`;
+			const primaryStatus = instance.statusList.primary;
+			if (primaryStatus && primaryStatus.severity >= Severity.Warning) {
+				label = `${prefix}$(${primaryStatus.icon?.id || instance.icon.id})`;
+			} else {
+				label = `${prefix}$(${instance.icon.id})`;
+			}
 		} else {
 			this.fillActionBar(instance, template);
 			label = `${prefix}$(${instance.icon.id}) ${instance.title}`;
@@ -204,8 +210,8 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 			}
 		});
 
-		if (instance.statusList.statuses.length) {
-			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: instance.instanceId.toString() }), name: label };
+		if (instance.statusList.statuses.length && hasText) {
+			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: 'vscode-terminal', path: instance.instanceId.toString() }), name: label };
 			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
 			template.label.setResource(labelProps, options);
 		}
