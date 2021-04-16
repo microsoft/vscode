@@ -250,6 +250,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				if (selectedContribution.editorInfo.instanceOf(existing)) {
 					existing.dispose();
 				}
+				return;
 			}
 		}
 		return group.openEditor(input, options);
