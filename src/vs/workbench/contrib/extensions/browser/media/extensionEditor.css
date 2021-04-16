@@ -158,8 +158,15 @@
 	min-width: 0;
 }
 
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action:not(.icon) {
+	margin-left: 2px; /* margin for outline */
+}
+
+.extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
+	margin-right: 2px; /* margin for outline */
+}
+
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
-	margin-top: 0px; /* overrides from extension actions */
 	border-radius: 0;
 	padding-top: 0;
 	padding-bottom: 0;
@@ -172,7 +179,7 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
-	margin-right: 8px;
+	margin-right: 6px;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,

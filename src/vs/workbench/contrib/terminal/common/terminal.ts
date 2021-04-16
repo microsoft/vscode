@@ -97,6 +97,8 @@ export interface IShellLaunchConfigResolveOptions {
 	allowAutomationShell?: boolean;
 }
 
+export const TERMINAL_DECORATIONS_SCHEME = 'vscode-terminal';
+
 export type FontWeight = 'normal' | 'bold' | number;
 
 export interface ITerminalProfiles {
