@@ -119,7 +119,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -197,7 +197,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
 				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
 			} else {
-				this.remoteAuthority = this._environmentService.remoteAuthority;
+				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
 			const hasRemoteAuthority = !!this.remoteAuthority;
 
