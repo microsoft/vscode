@@ -57,6 +57,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -204,6 +205,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
 			if (e.fromCache) {
+				return;
+			}
+			if (!isWorkspaceTrustEnabled(this.configurationService)) {
 				return;
 			}
 			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
