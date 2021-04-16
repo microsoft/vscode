@@ -31,7 +31,7 @@ import Severity from 'vs/base/common/severity';
 
 const $ = DOM.$;
 export const MIN_TABS_WIDGET_WIDTH = 46;
-export const DEFAULT_TABS_WIDGET_WIDTH = 124;
+export const DEFAULT_TABS_WIDGET_WIDTH = 80;
 export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGET_WIDTH) / 2;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
