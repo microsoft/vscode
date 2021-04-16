@@ -40,14 +40,15 @@ export interface IWorkspaceTrustManagementService {
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	isWorkpaceTrusted(): boolean;
-	setOpenEditors(openEditors: URI[]): void;
-	setWorkspaceTrust(trusted: boolean): void;
 	canSetParentFolderTrust(): boolean;
+	setParentFolderTrust(trusted: boolean): void;
 	canSetWorkspaceTrust(): boolean;
+	setWorkspaceTrust(trusted: boolean): void;
 	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
 	getTrustInfo(): IWorkspaceTrustInfo;
-	setTrustedFolders(folders: URI[]): void;
+	setOpenEditors(openEditors: URI[]): void;
 	setFoldersTrust(folders: URI[], trusted: boolean): void;
+	setTrustedFolders(folders: URI[]): void;
 }
 
 export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');

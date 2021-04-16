@@ -153,26 +153,23 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return { trusted: resultState, uri: resultUri };
 	}
 
-	private setFolderTrust(folder: URI, trusted: boolean): boolean {
-		if (trusted) {
-			const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
-			if (!foundItem) {
-				this._trustStateInfo.uriTrustInfo.push({ uri: folder, trusted: true });
-				return true;
-			}
-		} else {
-			const previousLength = this._trustStateInfo.uriTrustInfo.length;
-			this._trustStateInfo.uriTrustInfo = this._trustStateInfo.uriTrustInfo.filter(trustInfo => !this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
-			return previousLength !== this._trustStateInfo.uriTrustInfo.length;
-		}
-
-		return false;
-	}
-
 	setFoldersTrust(folders: URI[], trusted: boolean): void {
 		let changed = false;
+
 		for (const folder of folders) {
-			changed = this.setFolderTrust(folder, trusted) || changed;
+			if (trusted) {
+				const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
+				if (!foundItem) {
+					this._trustStateInfo.uriTrustInfo.push({ uri: folder, trusted: true });
+					changed = true;
+				}
+			} else {
+				const previousLength = this._trustStateInfo.uriTrustInfo.length;
+				this._trustStateInfo.uriTrustInfo = this._trustStateInfo.uriTrustInfo.filter(trustInfo => !this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
+				if (previousLength !== this._trustStateInfo.uriTrustInfo.length) {
+					changed = true;
+				}
+			}
 		}
 
 		if (changed) {
@@ -220,7 +217,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		this.saveTrustInfo();
 	}
-
 
 	getTrustInfo(): IWorkspaceTrustInfo {
 		return this._trustStateInfo;

@@ -19,6 +19,9 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	constructor(trusted: boolean = true) {
 		this.trusted = trusted;
 	}
+	setParentFolderTrust(trusted: boolean): void {
+		throw new Error('Method not implemented.');
+	}
 	getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
 		throw new Error('Method not implemented.');
 	}
