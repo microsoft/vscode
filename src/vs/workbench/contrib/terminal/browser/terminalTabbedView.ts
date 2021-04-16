@@ -28,7 +28,6 @@ import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'v
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Codicon } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from 'vs/workbench/browser/labels';
 
 const $ = dom.$;
 
@@ -90,9 +89,8 @@ export class TerminalTabbedView extends Disposable {
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
 		// this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
 
-		const terminalLabels = this._register(this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-		this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree, terminalLabels);
-		this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState());
+		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
+		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
 		parentElement.appendChild(this._findWidget.getDomNode());
 
 		this._terminalContainer = document.createElement('div');

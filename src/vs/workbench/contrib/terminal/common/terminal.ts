@@ -77,6 +77,8 @@ export const DEFAULT_FONT_WEIGHT = 'normal';
 export const DEFAULT_BOLD_FONT_WEIGHT = 'bold';
 export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 
+export const TERMINAL_DECORATIONS_SCHEME = 'vscode-terminal';
+
 export type FontWeight = 'normal' | 'bold' | number;
 
 export interface ITerminalProfiles {

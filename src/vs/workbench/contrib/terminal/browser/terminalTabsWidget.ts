@@ -18,25 +18,25 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_COMMAND_ID, TERMINAL_DECORATIONS_SCHEME } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
-import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
+import { DEFAULT_LABELS_CONTAINER, IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 
 const $ = DOM.$;
+const SHOW_TEXT_MIN_WIDTH = 124;
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
 
 	constructor(
 		container: HTMLElement,
-		resourceLabels: ResourceLabels,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -52,7 +52,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, resourceLabels)],
+			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER))],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -154,7 +154,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 	}
 
 	shouldHideText(): boolean {
-		return this._container ? this._container.clientWidth < 124 : false;
+		return this._container ? this._container.clientWidth < SHOW_TEXT_MIN_WIDTH : false;
 	}
 
 
@@ -211,7 +211,7 @@ class TerminalTabsRenderer implements ITreeRenderer<ITerminalInstance, never, IT
 		});
 
 		if (instance.statusList.statuses.length && hasText) {
-			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: 'vscode-terminal', path: instance.instanceId.toString() }), name: label };
+			const labelProps: IResourceLabelProps = { resource: URI.from({ scheme: TERMINAL_DECORATIONS_SCHEME, path: instance.instanceId.toString() }), name: label };
 			const options: IResourceLabelOptions = { fileDecorations: { colors: true, badges: true } };
 			template.label.setResource(labelProps, options);
 		}

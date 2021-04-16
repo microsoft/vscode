@@ -11,6 +11,7 @@ import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/dec
 import { Event, Emitter } from 'vs/base/common/event';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { TERMINAL_DECORATIONS_SCHEME } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface ITerminalDecorationData {
 	tooltip: string,
@@ -19,7 +20,7 @@ export interface ITerminalDecorationData {
 }
 
 export class TerminalDecorationsProvider implements IDecorationsProvider {
-	readonly label: string = localize('label', "Terminal");
+	readonly label: string = localize('terminal.decorations-provider', "Terminal");
 	private readonly _onDidChange = new Emitter<URI[]>();
 
 	constructor(
@@ -32,21 +33,20 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		if (resource.scheme !== 'vscode-terminal') {
+		if (resource.scheme !== TERMINAL_DECORATIONS_SCHEME) {
 			return;
 		}
+
 		const instance = this._terminalService.getInstanceFromId(parseInt(resource.path));
-		if (!instance) {
+		if (!(instance?.statusList?.primary && instance.statusList.primary.icon)) {
 			return;
 		}
-		if (instance.statusList.primary && instance.statusList.primary.icon) {
-			return {
-				color: this.getColorForSeverity(instance.statusList.primary.severity),
-				letter: this.getStatusIcon(instance.statusList.primary.icon, instance.statusList.statuses.length),
-				tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id)
-			};
-		}
-		return undefined;
+
+		return {
+			color: this.getColorForSeverity(instance.statusList.primary.severity),
+			letter: this.getStatusIcon(instance.statusList.primary.icon, instance.statusList.statuses.length),
+			tooltip: localize(instance.statusList.primary.id, '{0}', instance.statusList.primary.id)
+		};
 	}
 
 	getColorForSeverity(severity: Severity): string {
