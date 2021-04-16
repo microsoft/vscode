@@ -177,7 +177,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	// --- kernel adding/updating/removal
 
-	$addKernel(handle: number, data: INotebookKernelDto2): void {
+	async $addKernel(handle: number, data: INotebookKernelDto2): Promise<void> {
 		const that = this;
 		const kernel = new class extends MainThreadKernel {
 			executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void {

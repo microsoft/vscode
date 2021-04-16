@@ -40,7 +40,7 @@ export class NotebookKernelService implements INotebookKernelService {
 
 	registerKernel(kernel: INotebookKernel2): IDisposable {
 		if (this._kernels.has(kernel.id)) {
-			throw new Error(`KERNEL with id '${kernel.id}' already exists`);
+			throw new Error(`NOTEBOOK CONTROLLER with id '${kernel.id}' already exists`);
 		}
 
 		this._kernels.set(kernel.id, kernel);

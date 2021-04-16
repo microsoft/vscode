@@ -924,7 +924,7 @@ export interface INotebookKernelDto2 {
 
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
-	$addKernel(handle: number, data: INotebookKernelDto2): void;
+	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
 	$removeKernel(handle: number): void;
 }
