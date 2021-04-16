@@ -437,7 +437,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _handleExtensionTests(): Promise<void> {
-		if (!this._environmentService.extensionDevelopmentLocationURI || !this._environmentService.extensionTestsLocationURI) {
+		if (!this._environmentService.isExtensionDevelopment || !this._environmentService.extensionTestsLocationURI) {
 			return;
 		}
 
@@ -691,23 +691,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return extensions.filter(extension => this._isEnabled(extension));
 	}
 
-	private _isExtensionUnderDevelopment(extension: IExtensionDescription): boolean {
-		if (this._environmentService.isExtensionDevelopment) {
-			const extDevLocs = this._environmentService.extensionDevelopmentLocationURI;
-			if (extDevLocs) {
-				const extLocation = extension.extensionLocation;
-				for (let p of extDevLocs) {
-					if (isEqualOrParent(extLocation, p)) {
-						return true;
-					}
-				}
-			}
-		}
-		return false;
-	}
-
 	protected _isEnabled(extension: IExtensionDescription): boolean {
-		if (this._isExtensionUnderDevelopment(extension)) {
+		if (extension.isUnderDevelopment) {
 			// Never disable extensions under development
 			return true;
 		}
@@ -939,7 +924,7 @@ class ProposedApiController {
 
 		this.enableProposedApiForAll =
 			!_environmentService.isBuilt || // always allow proposed API when running out of sources
-			(!!_environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
+			(_environmentService.isExtensionDevelopment && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
 			(this.enableProposedApiFor.length === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();
