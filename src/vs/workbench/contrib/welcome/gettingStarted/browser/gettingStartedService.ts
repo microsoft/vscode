@@ -113,7 +113,6 @@ export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStarte
 export interface IGettingStartedService {
 	_serviceBrand: undefined,
 
-	readonly onDidAddTask: Event<IGettingStartedTaskWithProgress>
 	readonly onDidAddCategory: Event<IGettingStartedCategoryWithProgress>
 	readonly onDidRemoveCategory: Event<string>
 	readonly onDidChangeTask: Event<IGettingStartedTaskWithProgress>
@@ -131,8 +130,6 @@ export interface IGettingStartedService {
 export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddTask = new Emitter<IGettingStartedTaskWithProgress>();
-	onDidAddTask: Event<IGettingStartedTaskWithProgress> = this._onDidAddTask.event;
 	private readonly _onDidAddCategory = new Emitter<IGettingStartedCategoryWithProgress>();
 	onDidAddCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidAddCategory.event;
 
