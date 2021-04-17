@@ -159,7 +159,11 @@ suite('WorkingCopyBackupService', () => {
 			assert.strictEqual(untypedBackupHash, hash(uri.fsPath).toString(16));
 
 			const typedBackupHash = hashIdentifier({ typeId: 'hashTest', resource: uri });
-			assert.strictEqual(typedBackupHash, '-8ad5f4f');
+			if (isWindows) {
+				assert.strictEqual(typedBackupHash, '-17c47cdc');
+			} else {
+				assert.strictEqual(typedBackupHash, '-8ad5f4f');
+			}
 
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// If these hashes collide people will lose their backed up files
@@ -185,7 +189,7 @@ suite('WorkingCopyBackupService', () => {
 
 			const typedBackupHash = hashIdentifier({ typeId: 'hashTest', resource: uri });
 			if (isWindows) {
-				//TODO@bpasero fill in
+				assert.strictEqual(typedBackupHash, '-55fc55db');
 			} else {
 				assert.strictEqual(typedBackupHash, '51e56bf');
 			}
