@@ -72,6 +72,8 @@ export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('noteboo
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
 export const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
+export const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
+export const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
 
 //#endregion
 

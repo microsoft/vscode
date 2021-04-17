@@ -170,6 +170,7 @@ class WorkbenchConfigurationContribution {
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IGettingStartedService _gettingStartedService: IGettingStartedService,
 	) {
+		// Init the getting started service via DI.
 	}
 }
 

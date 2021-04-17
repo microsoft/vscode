@@ -195,13 +195,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 						// Sandbox
 						{
-							sandbox: true,
-							contextIsolation: true
+							sandbox: true
 						} :
 
 						// No Sandbox
 						{
-							nodeIntegration: true
+							nodeIntegration: true,
+							contextIsolation: false
 						}
 				}
 			};
@@ -431,12 +431,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Block all SVG requests from unsupported origins
 		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, 'devtools']); // TODO: handle webview origin
+
+		// But allow them if the are made from inside an webview
+		const isSafeFrameUrl = (url: string | undefined) => url?.startsWith(`${Schemas.vscodeWebview}://`);
+
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
 			if (uri.path.endsWith('.svg')) {
-				const safeScheme = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
-				if (!safeScheme) {
-					return callback({ cancel: true });
+				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
+				if (!isSafeResourceUrl) {
+					const isSafeContext = isSafeFrameUrl(details.frame?.url);
+					return callback({ cancel: !isSafeContext });
 				}
 			}
 
@@ -462,7 +467,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
 				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					return callback({ cancel: true });
+					const isSafeContext = isSafeFrameUrl(details.frame?.url);
+					return callback({ cancel: !isSafeContext });
 				}
 			}
 

@@ -113,7 +113,6 @@ export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStarte
 export interface IGettingStartedService {
 	_serviceBrand: undefined,
 
-	readonly onDidAddTask: Event<IGettingStartedTaskWithProgress>
 	readonly onDidAddCategory: Event<IGettingStartedCategoryWithProgress>
 	readonly onDidRemoveCategory: Event<string>
 	readonly onDidChangeTask: Event<IGettingStartedTaskWithProgress>
@@ -131,8 +130,6 @@ export interface IGettingStartedService {
 export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddTask = new Emitter<IGettingStartedTaskWithProgress>();
-	onDidAddTask: Event<IGettingStartedTaskWithProgress> = this._onDidAddTask.event;
 	private readonly _onDidAddCategory = new Emitter<IGettingStartedCategoryWithProgress>();
 	onDidAddCategory: Event<IGettingStartedCategoryWithProgress> = this._onDidAddCategory.event;
 
@@ -503,21 +500,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		listening.forEach(id => this.progressTask(id));
 	}
 
-	public registerTask(task: IGettingStartedTask): IGettingStartedTask {
-		const category = this.gettingStartedContributions.get(task.category);
-		if (!category) { throw Error('Registering getting started task to category that does not exist (' + task.category + ')'); }
-		if (category.content.type !== 'items') { throw Error('Registering getting started task to category that is not of `items` type (' + task.category + ')'); }
-		if (this.tasks.has(task.id)) { throw Error('Attempting to register task with id ' + task.id + ' twice. Second is dropped.'); }
-		this.tasks.set(task.id, task);
-		let insertIndex: number | undefined = category.content.items.findIndex(item => item.order > task.order);
-		if (insertIndex === -1) { insertIndex = undefined; }
-		insertIndex = insertIndex ?? category.content.items.length;
-		category.content.items.splice(insertIndex, 0, task);
-		this.registerDoneListeners(task);
-		this._onDidAddTask.fire(this.getTaskProgress(task));
-		return task;
-	}
-
 	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
@@ -539,8 +521,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}
 
 		const category: IGettingStartedCategory = { ...categoryDescriptor, content: { type: 'items', items } };
-
 		this.gettingStartedContributions.set(categoryDescriptor.id, category);
+		items.forEach(task => {
+			if (this.tasks.has(task.id)) { throw Error('Attempting to register task with id ' + task.id + ' twice. Second is dropped.'); }
+			this.tasks.set(task.id, task);
+			this.registerDoneListeners(task);
+		});
 		this._onDidAddCategory.fire(this.getCategoryProgress(category));
 	}
 

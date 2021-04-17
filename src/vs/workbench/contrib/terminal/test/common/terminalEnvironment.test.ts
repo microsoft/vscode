@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as platform from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { addTerminalEnvironmentKeys, mergeEnvironments, getCwd, getDefaultShell, getLangEnvVariable, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { isWindows, Platform } from 'vs/base/common/platform';
 
 suite('Workbench - TerminalEnvironment', () => {
 	suite('addTerminalEnvironmentKeys', () => {
@@ -132,7 +132,7 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 		});
 
-		(!platform.isWindows ? test.skip : test)('should add keys ignoring case on Windows', () => {
+		(!isWindows ? test.skip : test)('should add keys ignoring case on Windows', () => {
 			const parent = {
 				a: 'b'
 			};
@@ -159,7 +159,7 @@ suite('Workbench - TerminalEnvironment', () => {
 			});
 		});
 
-		(!platform.isWindows ? test.skip : test)('null values should delete keys from the parent env ignoring case on Windows', () => {
+		(!isWindows ? test.skip : test)('null values should delete keys from the parent env ignoring case on Windows', () => {
 			const parent = {
 				a: 'b',
 				c: 'd'
@@ -212,43 +212,39 @@ suite('Workbench - TerminalEnvironment', () => {
 	suite('getDefaultShell', () => {
 		test('should change Sysnative to System32 in non-WoW64 systems', () => {
 			const shell = getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': { userValue: 'C:\\Windows\\Sysnative\\cmd.exe', value: undefined, defaultValue: undefined }
-				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, platform.Platform.Windows);
+				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
+			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
 			assert.strictEqual(shell, 'C:\\Windows\\System32\\cmd.exe');
 		});
 
 		test('should not change Sysnative to System32 in WoW64 systems', () => {
 			const shell = getDefaultShell(key => {
-				return ({
-					'terminal.integrated.shell.windows': { userValue: 'C:\\Windows\\Sysnative\\cmd.exe', value: undefined, defaultValue: undefined }
-				} as any)[key];
-			}, false, 'DEFAULT', true, 'C:\\Windows', undefined, {} as any, false, platform.Platform.Windows);
+				return ({ 'terminal.integrated.shell.windows': 'C:\\Windows\\Sysnative\\cmd.exe' } as any)[key];
+			}, 'DEFAULT', true, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
 			assert.strictEqual(shell, 'C:\\Windows\\Sysnative\\cmd.exe');
 		});
 
 		test('should use automationShell when specified', () => {
 			const shell1 = getDefaultShell(key => {
 				return ({
-					'terminal.integrated.shell.windows': { userValue: 'shell', value: undefined, defaultValue: undefined },
-					'terminal.integrated.automationShell.windows': { userValue: undefined, value: undefined, defaultValue: undefined }
+					'terminal.integrated.shell.windows': 'shell',
+					'terminal.integrated.automationShell.windows': undefined
 				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, platform.Platform.Windows);
+			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, false, Platform.Windows);
 			assert.strictEqual(shell1, 'shell', 'automationShell was false');
 			const shell2 = getDefaultShell(key => {
 				return ({
-					'terminal.integrated.shell.windows': { userValue: 'shell', value: undefined, defaultValue: undefined },
-					'terminal.integrated.automationShell.windows': { userValue: undefined, value: undefined, defaultValue: undefined }
+					'terminal.integrated.shell.windows': 'shell',
+					'terminal.integrated.automationShell.windows': undefined
 				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, platform.Platform.Windows);
+			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
 			assert.strictEqual(shell2, 'shell', 'automationShell was true');
 			const shell3 = getDefaultShell(key => {
 				return ({
-					'terminal.integrated.shell.windows': { userValue: 'shell', value: undefined, defaultValue: undefined },
-					'terminal.integrated.automationShell.windows': { userValue: 'automationShell', value: undefined, defaultValue: undefined }
+					'terminal.integrated.shell.windows': 'shell',
+					'terminal.integrated.automationShell.windows': 'automationShell'
 				} as any)[key];
-			}, false, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, platform.Platform.Windows);
+			}, 'DEFAULT', false, 'C:\\Windows', undefined, {} as any, true, Platform.Windows);
 			assert.strictEqual(shell3, 'automationShell', 'automationShell was true and specified in settings');
 		});
 	});

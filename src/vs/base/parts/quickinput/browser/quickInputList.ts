@@ -603,6 +603,7 @@ export class QuickInputList {
 
 		// Filter by value (since we support icons in labels, use $(..) aware fuzzy matching)
 		else {
+			let currentSeparator: IQuickPickSeparator | undefined;
 			this.elements.forEach(element => {
 				const labelHighlights = this.matchOnLabel ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneLabel))) : undefined;
 				const descriptionHighlights = this.matchOnDescription ? withNullAsUndefined(matchesFuzzyIconAware(query, parseLabelWithIcons(element.saneDescription || ''))) : undefined;
@@ -621,6 +622,16 @@ export class QuickInputList {
 					element.hidden = !element.item.alwaysShow;
 				}
 				element.separator = undefined;
+
+				// we can show the separator unless the list gets sorted by match
+				if (!this.sortByLabel) {
+					const previous = element.index && this.inputElements[element.index - 1];
+					currentSeparator = previous && previous.type === 'separator' ? previous : currentSeparator;
+					if (currentSeparator && !element.hidden) {
+						element.separator = currentSeparator;
+						currentSeparator = undefined;
+					}
+				}
 			});
 		}
 

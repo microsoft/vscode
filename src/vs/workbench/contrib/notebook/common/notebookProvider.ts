@@ -61,7 +61,8 @@ export class NotebookProviderInfo {
 		this.dynamicContribution = descriptor.dynamicContribution;
 		this.exclusive = descriptor.exclusive;
 		this._options = {
-			transientMetadata: {},
+			transientCellMetadata: {},
+			transientDocumentMetadata: {},
 			transientOutputs: false
 		};
 	}

@@ -45,7 +45,8 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspace,
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannel } from 'vs/workbench/contrib/output/common/output';
 
-import { ITerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo, ITaskExecuteResult } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import {
@@ -252,7 +253,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
+		@ITerminalProfileResolverService private readonly terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly pathService: IPathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
@@ -921,8 +922,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	// runTaskPromise is used for queueing calls to run so that we don't end up with the same task runnin
-	private runTaskPromise: Promise<ITaskSummary | undefined> = Promise.resolve(undefined);
 	public async run(task: Task | undefined, options?: ProblemMatcherRunOptions, runSource: TaskRunSource = TaskRunSource.System): Promise<ITaskSummary | undefined> {
 		if (!(await this.trust())) {
 			return;
@@ -932,7 +931,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			throw new TaskError(Severity.Info, nls.localize('TaskServer.noTask', 'Task to execute is undefined'), TaskErrors.TaskNotFound);
 		}
 
-		return this.runTaskPromise = this.runTaskPromise.then(() => new Promise<ITaskSummary | undefined>(async (resolve) => {
+		return new Promise<ITaskSummary | undefined>(async (resolve) => {
 			let resolver = this.createResolver();
 			if (options && options.attachProblemMatcher && this.shouldAttachProblemMatcher(task) && !InMemoryTask.is(task)) {
 				const toExecute = await this.attachProblemMatcher(task);
@@ -954,7 +953,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}, (error) => {
 			this.handleError(error);
 			return Promise.reject(error);
-		}));
+		});
 	}
 
 	private isProvideTasksEnabled(): boolean {
@@ -1641,7 +1640,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.terminalService, this.outputService, this.panelService, this.viewsService, this.markerService,
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
-			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
+			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
 			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {

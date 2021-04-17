@@ -17,7 +17,7 @@ import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, ICommandActionTitle, ILocalizedString, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -619,15 +619,29 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.MANAGE_WORKSPACE_SHELL_PERMISSIONS,
-				title: { value: localize('workbench.action.terminal.manageWorkspaceShellPermissions', "Manage Workspace Shell Permissions"), original: 'Manage Workspace Shell Permissions' },
+				id: TERMINAL_COMMAND_ID.CONFIGURE_ACTIVE,
+				title: { value: localize('workbench.action.terminal.configureActive', "Configure Active Terminal"), original: 'Configure Active Terminal' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).manageWorkspaceShellPermissions();
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalService).getActiveInstance()?.configure();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.CHANGE_ICON,
+				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon"), original: 'Change Icon' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			return accessor.get(ITerminalService).getActiveInstance()?.changeIcon();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1173,7 +1187,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}]
 			});
 		}
@@ -1263,7 +1280,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}
 			});
 		}
@@ -1330,7 +1350,10 @@ export function registerTerminalActions() {
 					id: MenuId.ViewTitle,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not('config.terminal.integrated.showTabs')
+					]),
 				}
 			});
 		}
@@ -1557,11 +1580,8 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (profile) {
-					const workspaceShellAllowed = terminalService.configHelper.checkIsProcessLaunchSafe(undefined, profile);
-					if (workspaceShellAllowed) {
-						const instance = terminalService.createTerminal(profile);
-						terminalService.setActiveInstance(instance);
-					}
+					const instance = terminalService.createTerminal(profile);
+					terminalService.setActiveInstance(instance);
 				} else {
 					console.warn(`No profile with name "${profileSelection}"`);
 				}
@@ -1578,7 +1598,10 @@ export function registerTerminalActions() {
 		},
 		group: 'navigation',
 		order: 0,
-		when: ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+		when: ContextKeyAndExpr.create([
+			ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+			ContextKeyExpr.not('config.terminal.integrated.showTabs')
+		]),
 	});
 }
 

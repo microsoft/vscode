@@ -337,7 +337,7 @@ export class DebugSession implements IDebugSession {
 		}
 
 		this.cancelAllRequests();
-		await this.raw.restart();
+		await this.raw.restart({ arguments: this.configuration });
 	}
 
 	async sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): Promise<void> {

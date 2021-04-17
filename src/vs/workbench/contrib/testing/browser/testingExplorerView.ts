@@ -475,7 +475,7 @@ export class TestingExplorerViewModel extends Disposable {
 	 */
 	private async tryPeekError(item: ITestTreeElement) {
 		const lookup = item.test && this.testResults.getStateById(item.test.item.extId);
-		return lookup && isFailedState(lookup[1].state.state)
+		return lookup && lookup[1].tasks.some(s => isFailedState(s.state))
 			? this.peekOpener.tryPeekFirstError(lookup[0], lookup[1], { preserveFocus: true })
 			: false;
 	}
@@ -638,9 +638,9 @@ class TestsFilter implements ITreeFilter<ITestTreeElement> {
 			case TestExplorerStateFilter.All:
 				return FilterResult.Include;
 			case TestExplorerStateFilter.OnlyExecuted:
-				return element.ownState !== TestResultState.Unset ? FilterResult.Include : FilterResult.Inherit;
+				return element.state !== TestResultState.Unset ? FilterResult.Include : FilterResult.Inherit;
 			case TestExplorerStateFilter.OnlyFailed:
-				return isFailedState(element.ownState) ? FilterResult.Include : FilterResult.Inherit;
+				return isFailedState(element.state) ? FilterResult.Include : FilterResult.Inherit;
 		}
 	}
 

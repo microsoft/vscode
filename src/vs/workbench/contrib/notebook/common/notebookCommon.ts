@@ -92,11 +92,13 @@ export interface NotebookCellMetadata {
 	custom?: { [key: string]: unknown };
 }
 
-export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
 	transientOutputs: boolean;
-	transientMetadata: TransientMetadata;
+	transientCellMetadata: TransientCellMetadata;
+	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
 export interface INotebookMimeTypeSelector {
@@ -793,7 +795,7 @@ export interface INotebookKernelProvider {
 export interface INotebookCellStatusBarItemProvider {
 	selector: INotebookDocumentFilter;
 	onDidChangeStatusBarItems?: Event<void>;
-	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList>;
+	provideCellStatusBarItems(uri: URI, index: number, token: CancellationToken): Promise<INotebookCellStatusBarItemList | undefined>;
 }
 
 export class CellSequence implements ISequence {
