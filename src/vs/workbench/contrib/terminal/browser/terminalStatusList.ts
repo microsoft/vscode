@@ -7,7 +7,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put
@@ -40,9 +39,6 @@ export interface ITerminalStatusList {
 	/** Gets all active statues. */
 	readonly statuses: ITerminalStatus[];
 
-	/** Gets the primary status ID as a localized string */
-	readonly description: string | undefined;
-
 	readonly onDidAddStatus: Event<ITerminalStatus>;
 	readonly onDidRemoveStatus: Event<ITerminalStatus>;
 	readonly onDidChangePrimaryStatus: Event<ITerminalStatus | undefined>;
@@ -62,8 +58,6 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 	private readonly _statuses: Map<string, ITerminalStatus> = new Map();
 	private readonly _statusTimeouts: Map<string, number> = new Map();
 
-	private _description: string | undefined;
-
 	private readonly _onDidAddStatus = this._register(new Emitter<ITerminalStatus>());
 	get onDidAddStatus(): Event<ITerminalStatus> { return this._onDidAddStatus.event; }
 	private readonly _onDidRemoveStatus = this._register(new Emitter<ITerminalStatus>());
@@ -79,10 +73,6 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 			}
 		}
 		return result;
-	}
-
-	get description(): string | undefined {
-		return this._description;
 	}
 
 	get statuses(): ITerminalStatus[] { return Array.from(this._statuses.values()); }
@@ -103,7 +93,6 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 			this._onDidAddStatus.fire(status);
 			const newPrimary = this.primary;
 			if (oldPrimary !== newPrimary) {
-				this._description = localize(status.id, '{0}', status.id);
 				this._onDidChangePrimaryStatus.fire(newPrimary);
 			}
 		}
