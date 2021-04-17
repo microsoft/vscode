@@ -150,7 +150,6 @@ export class SearchView extends ViewPane {
 	private pauseSearching = false;
 
 	private treeAccessibilityProvider: SearchAccessibilityProvider;
-	messages: any;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1418,7 +1417,6 @@ export class SearchView extends ViewPane {
 		});
 
 		this.searchWidget.searchInput.clearMessage();
-		this.messages = [];
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
 
@@ -1457,12 +1455,11 @@ export class SearchView extends ViewPane {
 					type: MessageType.WARNING
 				});
 			}
-			console.log({ completed });
+
 			if (completed && completed.messages) {
 				for (const message of completed.messages) {
 					this.addMessage(message);
 				}
-
 			}
 
 			if (!hasResults) {
