@@ -32,7 +32,7 @@ import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachLinkStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
@@ -84,7 +84,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
 
@@ -128,10 +127,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private registerListeners(): void {
-		this._register(this.workspaceTrustStorageService.onDidStorageChange(() => this.render()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
 		this._register(this.extensionWorkbenchService.onChange(() => this.render()));
 		this._register(this.configurationService.onDidChangeUntrustdSettings(() => this.render()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this.render()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this.render()));
 	}
 
 	private getHeaderContainerClass(trusted: boolean): string {
@@ -213,7 +212,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, onDemandExtensionCount + onStartExtensionCount);
 
 		// Configuration Tree
-		this.workspaceTrustSettingsTreeModel.update(this.workspaceTrustStorageService.getTrustStateInfo());
+		this.workspaceTrustSettingsTreeModel.update(this.workspaceTrustManagementService.getTrustedFolders());
 		this.trustSettingsTree.setChildren(null, Iterable.map(this.workspaceTrustSettingsTreeModel.settings, s => { return { element: s }; }));
 
 		this.bodyScrollBar.scanDomNode();
@@ -318,7 +317,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 				if (!uris) {
 					this.workspaceTrustManagementService.setWorkspaceTrust(true);
 				} else {
-					this.workspaceTrustStorageService.setFoldersTrust(uris, true);
+					this.workspaceTrustManagementService.setFoldersTrust(uris, true);
 				}
 			};
 
@@ -414,7 +413,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		if (isArray(change.value)) {
 			if (change.key === 'trustedFolders') {
-				applyChangesWithPrompt(false, () => this.workspaceTrustStorageService.setTrustedFolders(change.value!));
+				applyChangesWithPrompt(false, () => this.workspaceTrustManagementService.setTrustedFolders(change.value!));
 			}
 		}
 	}

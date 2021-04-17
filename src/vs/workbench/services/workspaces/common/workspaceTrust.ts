@@ -13,7 +13,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustStateInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustStorageService as IWorkspaceTrustStorageService } from 'vs/platform/workspace/common/workspaceTrust';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -30,34 +30,57 @@ export function isWorkspaceTrustEnabled(configurationService: IConfigurationServ
 	return configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? false;
 }
 
-export class WorkspaceTrustStorageService extends Disposable implements IWorkspaceTrustStorageService {
+export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
+
 	_serviceBrand: undefined;
 
 	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
-	private trustStateInfo: IWorkspaceTrustStateInfo;
 
-	private readonly _onDidStorageChange = this._register(new Emitter<void>());
-	readonly onDidStorageChange = this._onDidStorageChange.event;
+	private readonly _onDidChangeTrust = this._register(new Emitter<boolean>());
+	readonly onDidChangeTrust = this._onDidChangeTrust.event;
+
+	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
+	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
+
+	private _filesOutsideWorkspace: URI[] = [];
+	private _isWorkspaceTrusted: boolean = false;
+	private _trustStateInfo: IWorkspaceTrustInfo;
 
 	constructor(
+		@IConfigurationService readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
 	) {
 		super();
 
-		this.trustStateInfo = this.loadTrustInfo();
+		this._trustStateInfo = this.loadTrustInfo();
+		this._isWorkspaceTrusted = this.calculateWorkspaceTrust();
+
+		this.registerListeners();
+	}
+
+	private set currentTrustState(trusted: boolean) {
+		if (this._isWorkspaceTrusted === trusted) { return; }
+		this._isWorkspaceTrusted = trusted;
+
+		this._onDidChangeTrust.fire(trusted);
+	}
+
+	private registerListeners(): void {
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrust()));
 		this._register(this.storageService.onDidChangeValue(changeEvent => {
 			if (changeEvent.key === this.storageKey) {
-				this.trustStateInfo = this.loadTrustInfo();
-				this._onDidStorageChange.fire();
+				this._trustStateInfo = this.loadTrustInfo();
+				this.currentTrustState = this.calculateWorkspaceTrust();
 			}
 		}));
 	}
 
-	private loadTrustInfo(): IWorkspaceTrustStateInfo {
+	private loadTrustInfo(): IWorkspaceTrustInfo {
 		const infoAsString = this.storageService.get(this.storageKey, StorageScope.GLOBAL);
 
-		let result: IWorkspaceTrustStateInfo | undefined;
+		let result: IWorkspaceTrustInfo | undefined;
 		try {
 			if (infoAsString) {
 				result = JSON.parse(infoAsString);
@@ -81,16 +104,46 @@ export class WorkspaceTrustStorageService extends Disposable implements IWorkspa
 	}
 
 	private saveTrustInfo(): void {
-		this.storageService.store(this.storageKey, JSON.stringify(this.trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this.storageService.store(this.storageKey, JSON.stringify(this._trustStateInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._onDidChangeTrustedFolders.fire();
 	}
 
-	getFolderTrustStateInfo(folder: URI): IWorkspaceTrustUriInfo {
+	private calculateWorkspaceTrust(): boolean {
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+			return true;
+		}
+
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return this._filesOutsideWorkspace.length ? this.getFoldersTrust(this._filesOutsideWorkspace) : true;
+		}
+
+		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
+		const trusted = this.getFoldersTrust([...folderURIs, ...this._filesOutsideWorkspace]);
+
+		return trusted;
+	}
+
+	private getFoldersTrust(folders: URI[]): boolean {
+		let state = true;
+		for (const folder of folders) {
+			const { trusted } = this.getFolderTrustInfo(folder);
+
+			if (!trusted) {
+				state = trusted;
+				return state;
+			}
+		}
+
+		return state;
+	}
+
+	public getFolderTrustInfo(folder: URI): IWorkspaceTrustUriInfo {
 		let resultState = false;
 		let maxLength = -1;
 
 		let resultUri = folder;
 
-		for (const trustInfo of this.trustStateInfo.uriTrustInfo) {
+		for (const trustInfo of this._trustStateInfo.uriTrustInfo) {
 			if (this.uriIdentityService.extUri.isEqualOrParent(folder, trustInfo.uri)) {
 				const fsPath = trustInfo.uri.fsPath;
 				if (fsPath.length > maxLength) {
@@ -104,107 +157,28 @@ export class WorkspaceTrustStorageService extends Disposable implements IWorkspa
 		return { trusted: resultState, uri: resultUri };
 	}
 
-	private setFolderTrustState(folder: URI, trusted: boolean): boolean {
-		if (trusted) {
-			const foundItem = this.trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
-			if (!foundItem) {
-				this.trustStateInfo.uriTrustInfo.push({ uri: folder, trusted: true });
-				return true;
-			}
-		} else {
-			const previousLength = this.trustStateInfo.uriTrustInfo.length;
-			this.trustStateInfo.uriTrustInfo = this.trustStateInfo.uriTrustInfo.filter(trustInfo => !this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
-			return previousLength !== this.trustStateInfo.uriTrustInfo.length;
-		}
-
-		return false;
-	}
-
 	setFoldersTrust(folders: URI[], trusted: boolean): void {
 		let changed = false;
+
 		for (const folder of folders) {
-			changed = this.setFolderTrustState(folder, trusted) || changed;
+			if (trusted) {
+				const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
+				if (!foundItem) {
+					this._trustStateInfo.uriTrustInfo.push({ uri: folder, trusted: true });
+					changed = true;
+				}
+			} else {
+				const previousLength = this._trustStateInfo.uriTrustInfo.length;
+				this._trustStateInfo.uriTrustInfo = this._trustStateInfo.uriTrustInfo.filter(trustInfo => !this.uriIdentityService.extUri.isEqual(trustInfo.uri, folder));
+				if (previousLength !== this._trustStateInfo.uriTrustInfo.length) {
+					changed = true;
+				}
+			}
 		}
 
 		if (changed) {
 			this.saveTrustInfo();
 		}
-	}
-
-	getFoldersTrust(folders: URI[]): boolean {
-		let state = true;
-		for (const folder of folders) {
-			const { trusted } = this.getFolderTrustStateInfo(folder);
-
-			if (!trusted) {
-				state = trusted;
-				return state;
-			}
-		}
-
-		return state;
-	}
-
-	setTrustedFolders(folders: URI[]): void {
-		this.trustStateInfo.uriTrustInfo = [];
-		for (const folder of folders) {
-			this.trustStateInfo.uriTrustInfo.push({
-				trusted: true,
-				uri: folder
-			});
-		}
-
-		this.saveTrustInfo();
-	}
-
-	getTrustStateInfo(): IWorkspaceTrustStateInfo {
-		return this.trustStateInfo;
-	}
-}
-
-export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
-
-	_serviceBrand: undefined;
-
-	private readonly _onDidChangeTrust = this._register(new Emitter<boolean>());
-	readonly onDidChangeTrust = this._onDidChangeTrust.event;
-
-	private _filesOutsideWorkspace: URI[] = [];
-	private _isWorkspaceTrusted: boolean = false;
-
-	constructor(
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IWorkspaceTrustStorageService private readonly workspaceTrustStorageService: IWorkspaceTrustStorageService
-	) {
-		super();
-
-		this._isWorkspaceTrusted = this.calculateWorkspaceTrust();
-
-		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this.currentTrustState = this.calculateWorkspaceTrust()));
-		this._register(this.workspaceTrustStorageService.onDidStorageChange(() => this.currentTrustState = this.calculateWorkspaceTrust()));
-	}
-
-	private set currentTrustState(trusted: boolean) {
-		if (this._isWorkspaceTrusted === trusted) { return; }
-		this._isWorkspaceTrusted = trusted;
-
-		this._onDidChangeTrust.fire(trusted);
-	}
-
-	private calculateWorkspaceTrust(): boolean {
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
-			return true;
-		}
-
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return this._filesOutsideWorkspace.length ? this.workspaceTrustStorageService.getFoldersTrust(this._filesOutsideWorkspace) : true;
-		}
-
-		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
-		const trusted = this.workspaceTrustStorageService.getFoldersTrust([...folderURIs, ...this._filesOutsideWorkspace]);
-
-		return trusted;
 	}
 
 	canSetWorkspaceTrust(): boolean {
@@ -225,12 +199,31 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this.currentTrustState = this.calculateWorkspaceTrust();
 	}
 
+	setParentFolderTrust(trusted: boolean): void {
+	}
+
 	setWorkspaceTrust(trusted: boolean): void {
 		// TODO: workspace file for multi-root workspaces
 		const folderURIs = this.workspaceService.getWorkspace().folders.map(f => f.uri);
 		const fileParentFolderURIs = this._filesOutsideWorkspace.map(f => dirname(f));
 
-		this.workspaceTrustStorageService.setFoldersTrust([...folderURIs, ...fileParentFolderURIs], trusted);
+		this.setFoldersTrust([...folderURIs, ...fileParentFolderURIs], trusted);
+	}
+
+	getTrustedFolders(): URI[] {
+		return this._trustStateInfo.uriTrustInfo.map(info => info.uri);
+	}
+
+	setTrustedFolders(folders: URI[]): void {
+		this._trustStateInfo.uriTrustInfo = [];
+		for (const folder of folders) {
+			this._trustStateInfo.uriTrustInfo.push({
+				trusted: true,
+				uri: folder
+			});
+		}
+
+		this.saveTrustInfo();
 	}
 }
 
