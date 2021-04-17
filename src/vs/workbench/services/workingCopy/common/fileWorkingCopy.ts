@@ -17,7 +17,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ITextFileEditorModel, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IBackupMeta, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { isWindows } from 'vs/base/common/platform';
 
 export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
@@ -309,7 +309,7 @@ export interface IFileWorkingCopyResolveOptions {
 /**
  * Metadata associated with a file working copy backup.
  */
-interface IFileWorkingCopyBackupMetaData {
+interface IFileWorkingCopyBackupMetaData extends IBackupMeta {
 	mtime: number;
 	ctime: number;
 	size: number;
@@ -592,7 +592,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private async resolveFromBackup(): Promise<boolean> {
 
 		// Resolve backup if any
-		const backup = await this.backupFileService.resolve<IFileWorkingCopyBackupMetaData>(this.resource);
+		const backup = await this.backupFileService.resolve<IFileWorkingCopyBackupMetaData>(this);
 
 		// Abort if someone else managed to resolve the working copy by now
 		let isNew = !this.isResolved();

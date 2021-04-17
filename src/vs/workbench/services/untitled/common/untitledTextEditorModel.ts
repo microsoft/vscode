@@ -294,7 +294,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	async override resolve(): Promise<void> {
 
 		// Check for backups
-		const backup = await this.backupFileService.resolve(this.resource);
+		const backup = await this.backupFileService.resolve(this);
 
 		let untitledContents: ITextBufferFactory;
 		if (backup) {

@@ -127,7 +127,7 @@ export abstract class BackupTracker extends Disposable {
 					if (workingCopy.isDirty()) {
 						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
-						await this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
+						await this.backupFileService.backup(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
 					}
 				} catch (error) {
 					this.logService.error(error);
@@ -172,7 +172,7 @@ export abstract class BackupTracker extends Disposable {
 		this.cancelBackup(workingCopy);
 
 		// Forward to backup file service
-		this.backupFileService.discardBackup(workingCopy.resource);
+		this.backupFileService.discardBackup(workingCopy);
 	}
 
 	private cancelBackup(workingCopy: IWorkingCopy): void {

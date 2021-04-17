@@ -240,7 +240,9 @@ suite('FileWorkingCopy', function () {
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello backup')) });
 
 		const backup = await workingCopy.backup(CancellationToken.None);
-		accessor.backupFileService.backup(workingCopy.resource, backup.content, undefined, backup.meta);
+		await accessor.backupFileService.backup(workingCopy, backup.content, undefined, backup.meta);
+
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(workingCopy), true);
 
 		workingCopy.dispose();
 
@@ -273,7 +275,9 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.ORPHAN), true);
 
 		const backup = await workingCopy.backup(CancellationToken.None);
-		accessor.backupFileService.backup(workingCopy.resource, backup.content, undefined, backup.meta);
+		await accessor.backupFileService.backup(workingCopy, backup.content, undefined, backup.meta);
+
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(workingCopy), true);
 
 		workingCopy.dispose();
 

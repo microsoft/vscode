@@ -43,7 +43,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
 	private readonly _name: string;
-	private readonly _workingCopyResource: URI;
+	private readonly _workingCopy: IWorkingCopy;
 	private readonly _saveSequentializer = new TaskSequentializer();
 
 	private _dirty: boolean = false;
@@ -67,8 +67,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		this._name = labelService.getUriBasenameLabel(resource);
 
 		const that = this;
-		this._workingCopyResource = URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() });
-		const workingCopyAdapter = new class implements IWorkingCopy {
+		this._workingCopy = new class implements IWorkingCopy {
 			// TODO@jrieken TODO@rebornix consider to enable a `typeId` that is
 			// specific for custom editors. Using a distinct `typeId` allows the
 			// working copy to have any resource (including file based resources)
@@ -84,7 +83,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			// a fallback solution to resolve any existing backups that do not have
 			// this seed.
 			readonly typeId = NO_TYPE_ID;
-			readonly resource = that._workingCopyResource;
+			readonly resource = URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() });
 			get name() { return that._name; }
 			readonly capabilities = that._isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = that.onDidChangeDirty;
@@ -95,7 +94,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			revert(options?: IRevertOptions): Promise<void> { return that.revert(options); }
 		};
 
-		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
+		this._register(this._workingCopyService.registerWorkingCopy(this._workingCopy));
 		this._register(this._fileService.onDidFilesChange(async e => {
 			if (this.isDirty() || !this.isResolved() || this._saveSequentializer.hasPending()) {
 				// skip when dirty, unresolved, or when saving
@@ -137,7 +136,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 	}
 
-	async backup(token: CancellationToken): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
+	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 
 		if (!this.isResolved()) {
 			return {};
@@ -184,7 +183,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return this;
 		}
 
-		const backup = await this._backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopyResource);
+		const backup = await this._backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopy);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
@@ -258,7 +257,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 
 		if (backupId) {
-			this._backupFileService.discardBackup(this._workingCopyResource);
+			this._backupFileService.discardBackup(this._workingCopy);
 			this.setDirty(true);
 		} else {
 			this.setDirty(false);

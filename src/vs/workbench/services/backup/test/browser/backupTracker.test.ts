@@ -82,13 +82,13 @@ suite('BackupTracker (browser)', function () {
 
 		await backupFileService.joinBackupResource();
 
-		assert.strictEqual(backupFileService.hasBackupSync(untitledEditor.resource), true);
+		assert.strictEqual(backupFileService.hasBackupSync(untitledModel), true);
 
 		untitledModel.dispose();
 
 		await backupFileService.joinDiscardBackup();
 
-		assert.strictEqual(backupFileService.hasBackupSync(untitledEditor.resource), false);
+		assert.strictEqual(backupFileService.hasBackupSync(untitledModel), false);
 
 		cleanup();
 	}
@@ -127,23 +127,23 @@ suite('BackupTracker (browser)', function () {
 		// Normal
 		customWorkingCopy.setDirty(true);
 		await backupFileService.joinBackupResource();
-		assert.strictEqual(backupFileService.hasBackupSync(resource), true);
+		assert.strictEqual(backupFileService.hasBackupSync(customWorkingCopy), true);
 
 		customWorkingCopy.setDirty(false);
 		customWorkingCopy.setDirty(true);
 		await backupFileService.joinBackupResource();
-		assert.strictEqual(backupFileService.hasBackupSync(resource), true);
+		assert.strictEqual(backupFileService.hasBackupSync(customWorkingCopy), true);
 
 		customWorkingCopy.setDirty(false);
 		await backupFileService.joinDiscardBackup();
-		assert.strictEqual(backupFileService.hasBackupSync(resource), false);
+		assert.strictEqual(backupFileService.hasBackupSync(customWorkingCopy), false);
 
 		// Cancellation
 		customWorkingCopy.setDirty(true);
 		await timeout(0);
 		customWorkingCopy.setDirty(false);
 		await backupFileService.joinDiscardBackup();
-		assert.strictEqual(backupFileService.hasBackupSync(resource), false);
+		assert.strictEqual(backupFileService.hasBackupSync(customWorkingCopy), false);
 
 		customWorkingCopy.dispose();
 		cleanup();

@@ -10,7 +10,7 @@ import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IBackupMeta, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -25,7 +25,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
 
-interface IBackupMetaData {
+interface IBackupMetaData extends IBackupMeta {
 	mtime: number;
 	ctime: number;
 	size: number;
@@ -339,7 +339,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private async resolveFromBackup(options?: ITextFileResolveOptions): Promise<boolean> {
 
 		// Resolve backup if any
-		const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
+		const backup = await this.backupFileService.resolve<IBackupMetaData>(this);
 
 		// Resolve preferred encoding if we need it
 		let encoding = UTF8;

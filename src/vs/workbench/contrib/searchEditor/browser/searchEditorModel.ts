@@ -12,6 +12,7 @@ import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browse
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { SearchConfiguration } from './searchEditorInput';
 import { assertIsDefined } from 'vs/base/common/types';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 
 export class SearchEditorModel {
@@ -34,7 +35,7 @@ export class SearchEditorModel {
 		@IModeService private readonly modeService: IModeService) {
 		this.onModelResolved = new Promise<ITextModel>(resolve => this.resolveContents = resolve);
 		this.onModelResolved.then(model => this.cachedContentsModel = model);
-		this.ongoingResolve = backupService.resolve(modelUri)
+		this.ongoingResolve = backupService.resolve({ resource: modelUri, typeId: NO_TYPE_ID })
 			.then(backup => modelService.getModel(modelUri) ?? (backup ? modelService.createModel(backup.value, modeService.create('search-result'), modelUri) : undefined))
 			.then(model => { if (model) { this.resolveContents(model); } });
 	}

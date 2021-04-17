@@ -56,6 +56,7 @@ import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/d
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
@@ -183,7 +184,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 			return instantiationService.invokeFunction(async accessor => {
 				const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
 
-				const backup = await backupFileService.resolve<NotebookDocumentBackupData>(resource);
+				const backup = await backupFileService.resolve<NotebookDocumentBackupData>({ resource, typeId: NO_TYPE_ID });
 				if (!backup?.meta) {
 					throw new Error(`No backup found for Notebook editor: ${resource}`);
 				}

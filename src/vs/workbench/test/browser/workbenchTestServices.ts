@@ -12,7 +12,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, Extensions as EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, SideBySideEditorInput, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { BackupIdentifier, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -113,7 +113,6 @@ import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Iterable } from 'vs/base/common/iterator';
 import { InMemoryBackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
-import { hash } from 'vs/base/common/hash';
 import { BrowserBackupFileService } from 'vs/workbench/services/backup/browser/backupFileService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -959,15 +958,24 @@ export class TestFileService implements IFileService {
 export class TestBackupFileService extends InMemoryBackupFileService {
 
 	constructor() {
-		super(resource => String(hash(resource.path)));
+		super();
 	}
 
 	parseBackupContent(textBufferFactory: ITextBufferFactory): string {
 		const textBuffer = textBufferFactory.create(DefaultEndOfLine.LF).textBuffer;
 		const lineCount = textBuffer.getLineCount();
 		const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
+
 		return textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);
 	}
+}
+
+export function toUntypedBackup(resource: URI): BackupIdentifier {
+	return toTypedBackup(resource, '');
+}
+
+export function toTypedBackup(resource: URI, typeId = 'testBackupTypeId'): BackupIdentifier {
+	return { typeId, resource };
 }
 
 export class InMemoryTestBackupFileService extends BrowserBackupFileService {
@@ -977,7 +985,7 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 
-	discardedBackups: URI[];
+	discardedBackups: BackupIdentifier[];
 
 	constructor() {
 		const environmentService = TestEnvironmentService;
@@ -1002,25 +1010,25 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async override backup(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
-		await super.backup(resource, content, versionId, meta, token);
+	async override backup(identifier: BackupIdentifier, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+		await super.backup(identifier, content, versionId, meta, token);
 
 		while (this.backupResourceJoiners.length) {
 			this.backupResourceJoiners.pop()!();
 		}
 	}
 
-	async override discardBackup(resource: URI): Promise<void> {
-		await super.discardBackup(resource);
-		this.discardedBackups.push(resource);
+	async override discardBackup(identifier: BackupIdentifier): Promise<void> {
+		await super.discardBackup(identifier);
+		this.discardedBackups.push(identifier);
 
 		while (this.discardBackupJoiners.length) {
 			this.discardBackupJoiners.pop()!();
 		}
 	}
 
-	async getBackupContents(resource: URI): Promise<string> {
-		const backupResource = this.toBackupResource(resource);
+	async getBackupContents(identifier: BackupIdentifier): Promise<string> {
+		const backupResource = this.toBackupResource(identifier);
 
 		const fileContents = await this.fileService.readFile(backupResource);
 

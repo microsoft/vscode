@@ -14,7 +14,7 @@ import { EditorService } from 'vs/workbench/services/editor/browser/editorServic
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { createEditorPart, InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, toUntypedBackup, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { BackupRestorer } from 'vs/workbench/services/backup/common/backupRestorer';
 import { BrowserBackupTracker } from 'vs/workbench/services/backup/browser/backupTracker';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -60,11 +60,11 @@ suite('BackupRestorer', () => {
 		disposables.add(instantiationService.createInstance(BrowserBackupTracker));
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
-		// Backup 2 normal files and 2 untitled file
-		await backupFileService.backup(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await backupFileService.backup(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await backupFileService.backup(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await backupFileService.backup(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		// Backup 2 normal files, 2 untitled file and 2 files with custom typeId
+		await backupFileService.backup(toUntypedBackup(untitledFile1), createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		await backupFileService.backup(toUntypedBackup(untitledFile2), createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		await backupFileService.backup(toUntypedBackup(fooFile), createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		await backupFileService.backup(toUntypedBackup(barFile), createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();
@@ -77,7 +77,7 @@ suite('BackupRestorer', () => {
 			if (isEqual(resource, untitledFile1)) {
 				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
 				if (model.textEditorModel?.getValue() !== 'untitled-1') {
-					const backupContents = await backupFileService.getBackupContents(untitledFile1);
+					const backupContents = await backupFileService.getBackupContents(model);
 					assert.fail(`Unable to restore backup for resource ${untitledFile1.toString()}. Backup contents: ${backupContents}`);
 				}
 				model.dispose();
@@ -85,7 +85,7 @@ suite('BackupRestorer', () => {
 			} else if (isEqual(resource, untitledFile2)) {
 				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
 				if (model.textEditorModel?.getValue() !== 'untitled-2') {
-					const backupContents = await backupFileService.getBackupContents(untitledFile2);
+					const backupContents = await backupFileService.getBackupContents(model);
 					assert.fail(`Unable to restore backup for resource ${untitledFile2.toString()}. Backup contents: ${backupContents}`);
 				}
 				model.dispose();
@@ -94,7 +94,7 @@ suite('BackupRestorer', () => {
 				const model = accessor.textFileService.files.get(fooFile);
 				await model?.resolve();
 				if (model?.textEditorModel?.getValue() !== 'fooFile') {
-					const backupContents = await backupFileService.getBackupContents(fooFile);
+					const backupContents = await backupFileService.getBackupContents(model!);
 					assert.fail(`Unable to restore backup for resource ${fooFile.toString()}. Backup contents: ${backupContents}`);
 				}
 				counter++;
@@ -102,7 +102,7 @@ suite('BackupRestorer', () => {
 				const model = accessor.textFileService.files.get(barFile);
 				await model?.resolve();
 				if (model?.textEditorModel?.getValue() !== 'barFile') {
-					const backupContents = await backupFileService.getBackupContents(barFile);
+					const backupContents = await backupFileService.getBackupContents(model!);
 					assert.fail(`Unable to restore backup for resource ${barFile.toString()}. Backup contents: ${backupContents}`);
 				}
 				counter++;

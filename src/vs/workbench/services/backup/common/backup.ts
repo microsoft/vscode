@@ -10,13 +10,58 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
-export interface IResolvedBackup<T extends object> {
+/**
+ * Backups are associated with an identifier that is composed
+ * of a resource and a type identifier. Combinations of the
+ * same resource and type identifier will result in the same
+ * backup location.
+ */
+export type BackupIdentifier = {
+
+	/**
+	 * The type identifier of the backup should be
+	 * the same for all backups of the same kind.
+	 */
+	typeId: string;
+
+	/**
+	 * The specific resource the backup is about.
+	 */
+	resource: URI;
+};
+
+/**
+ * Backup metadata that can be associated with the backup.
+ *
+ * Some properties may be reserved as outlined here and
+ * cannot be used.
+ */
+export interface IBackupMeta {
+	[key: string]: unknown;
+	typeId?: never;
+}
+
+/**
+ * A resolved backup carries the backup value as
+ * well as associated metadata with it.
+ */
+export interface IResolvedBackup<T extends IBackupMeta> {
+
+	/**
+	 * The actual backed up value of the entity.
+	 */
 	readonly value: ITextBufferFactory;
+
+	/**
+	 * Additional metadata that is associated with
+	 * the entity.
+	 */
 	readonly meta?: T;
 }
 
 /**
- * A service that handles any I/O and state associated with the backup system.
+ * The backup file service is the main service to handle backups in VS Code.
+ * Methods allow to persist and resolve backups from the file system.
  */
 export interface IBackupFileService {
 
@@ -28,48 +73,34 @@ export interface IBackupFileService {
 	hasBackups(): Promise<boolean>;
 
 	/**
-	 * Finds out if the provided resource with the given version is backed up.
+	 * Finds out if a backup with the given identifier and optional version
+	 * exists.
 	 *
 	 * Note: if the backup service has not been initialized yet, this may return
 	 * the wrong result. Always use `resolve()` if you can do a long running
 	 * operation.
 	 */
-	hasBackupSync(resource: URI, versionId?: number): boolean;
+	hasBackupSync(identifier: BackupIdentifier, versionId?: number): boolean;
 
 	/**
-	 * Gets a list of file backups for the current workspace.
-	 *
-	 * @return The list of backups.
+	 * Gets a list of backups for the current workspace.
 	 */
-	getBackups(): Promise<URI[]>;
+	getBackups(): Promise<BackupIdentifier[]>;
 
 	/**
-	 * Resolves the backup for the given resource if that exists.
-	 *
-	 * @param resource The resource to get the backup for.
-	 * @return The backup file's backed up content and metadata if available or undefined
-	 * if not backup exists.
+	 * Resolves the backup for the given identifier if that exists.
 	 */
-	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined>;
+	resolve<T extends IBackupMeta>(identifier: BackupIdentifier): Promise<IResolvedBackup<T> | undefined>;
 
 	/**
-	 * Backs up a resource.
-	 *
-	 * @param resource The resource to back up.
-	 * @param content The optional content of the resource as snapshot.
-	 * @param versionId The optionsl version id of the resource to backup.
-	 * @param meta The optional meta data of the resource to backup. This information
-	 * can be restored later when loading the backup again.
-	 * @param token The optional cancellation token if the operation can be cancelled.
+	 * Stores a new backup for the given identifier.
 	 */
-	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T, token?: CancellationToken): Promise<void>;
+	backup(identifier: BackupIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IBackupMeta, token?: CancellationToken): Promise<void>;
 
 	/**
-	 * Discards the backup associated with a resource if it exists.
-	 *
-	 * @param resource The resource whose backup is being discarded discard to back up.
+	 * Discards the backup associated with the identifier if it exists.
 	 */
-	discardBackup(resource: URI): Promise<void>;
+	discardBackup(identifier: BackupIdentifier): Promise<void>;
 
 	/**
 	 * Discards all backups.

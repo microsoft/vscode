@@ -668,21 +668,23 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 		const primaryEditor = editors[0];
 
-		const backupData: IWorkingCopyBackup<CustomDocumentBackupData> = {
-			meta: {
-				viewType: this.viewType,
-				editorResource: this._editorResource,
-				backupId: '',
-				extension: primaryEditor.extension ? {
-					id: primaryEditor.extension.id.value,
-					location: primaryEditor.extension.location,
-				} : undefined,
-				webview: {
-					id: primaryEditor.id,
-					options: primaryEditor.webview.options,
-					state: primaryEditor.webview.state,
-				}
+		const backupMeta: CustomDocumentBackupData = {
+			viewType: this.viewType,
+			editorResource: this._editorResource,
+			backupId: '',
+			extension: primaryEditor.extension ? {
+				id: primaryEditor.extension.id.value,
+				location: primaryEditor.extension.location,
+			} : undefined,
+			webview: {
+				id: primaryEditor.id,
+				options: primaryEditor.webview.options,
+				state: primaryEditor.webview.state,
 			}
+		};
+
+		const backupData: IWorkingCopyBackup = {
+			meta: backupMeta
 		};
 
 		if (!this._editable) {

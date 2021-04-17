@@ -11,7 +11,7 @@ import { join } from 'vs/base/common/path';
 import { rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { hashPath } from 'vs/workbench/services/backup/common/backupFileService';
+import { hash } from 'vs/base/common/hash';
 import { NativeBackupTracker } from 'vs/workbench/services/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -90,7 +90,7 @@ flakySuite('BackupTracker (native)', function () {
 		const workspacesJsonPath = join(backupHome, 'workspaces.json');
 
 		const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
-		workspaceBackupPath = join(backupHome, hashPath(workspaceResource));
+		workspaceBackupPath = join(backupHome, hash(workspaceResource.fsPath).toString(16));
 
 		const instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -162,17 +162,18 @@ flakySuite('BackupTracker (native)', function () {
 		await accessor.editorService.openEditor({ resource, options: { pinned: true } });
 
 		const fileModel = accessor.textFileService.files.get(resource);
-		fileModel?.textEditorModel?.setValue('Super Good');
+		assert.ok(fileModel);
+		fileModel.textEditorModel?.setValue('Super Good');
 
 		await accessor.backupFileService.joinBackupResource();
 
-		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), true);
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(fileModel), true);
 
-		fileModel?.dispose();
+		fileModel.dispose();
 
 		await accessor.backupFileService.joinDiscardBackup();
 
-		assert.strictEqual(accessor.backupFileService.hasBackupSync(resource), false);
+		assert.strictEqual(accessor.backupFileService.hasBackupSync(fileModel), false);
 
 		await cleanup();
 	}

@@ -10,9 +10,10 @@ import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/cus
 import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { SerializedWebviewOptions, DeserializedWebview, reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputSerializer, restoreWebviewContentOptions, restoreWebviewOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IBackupFileService, IBackupMeta } from 'vs/workbench/services/backup/common/backup';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export interface CustomDocumentBackupData {
+export interface CustomDocumentBackupData extends IBackupMeta {
 	readonly viewType: string;
 	readonly editorResource: UriComponents;
 	backupId: string;
@@ -109,7 +110,7 @@ export const customEditorInputFactory = new class implements ICustomEditorInputF
 			const webviewService = accessor.get<IWebviewService>(IWebviewService);
 			const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
 
-			const backup = await backupFileService.resolve<CustomDocumentBackupData>(resource);
+			const backup = await backupFileService.resolve<CustomDocumentBackupData>({ resource, typeId: NO_TYPE_ID });
 			if (!backup?.meta) {
 				throw new Error(`No backup found for custom editor: ${resource}`);
 			}

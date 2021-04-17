@@ -12,6 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IBackupMeta } from 'vs/workbench/services/backup/common/backup';
 
 export const enum WorkingCopyCapabilities {
 
@@ -33,12 +34,12 @@ export const enum WorkingCopyCapabilities {
  * `IBackupFileService.resolve(workingCopy.resource)` to
  * retrieve the backup when loading the working copy.
  */
-export interface IWorkingCopyBackup<MetaType = object> {
+export interface IWorkingCopyBackup {
 
 	/**
 	 * Any serializable metadata to be associated with the backup.
 	 */
-	meta?: MetaType;
+	meta?: IBackupMeta;
 
 	/**
 	 * Use this for larger textual content of the backup.

@@ -199,14 +199,14 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				const contentVersion = this.getContentVersion(workingCopy);
 
 				// Backup exists
-				if (this.backupFileService.hasBackupSync(workingCopy.resource, contentVersion)) {
+				if (this.backupFileService.hasBackupSync(workingCopy, contentVersion)) {
 					backups.push(workingCopy);
 				}
 
 				// Backup does not exist
 				else {
 					const backup = await workingCopy.backup(token);
-					await this.backupFileService.backup(workingCopy.resource, backup.content, contentVersion, backup.meta, token);
+					await this.backupFileService.backup(workingCopy, backup.content, contentVersion, backup.meta, token);
 
 					backups.push(workingCopy);
 				}
@@ -316,7 +316,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return false; // if editors have not restored, we are very likely not up to speed with backups and thus should not discard them
 		}
 
-		return Promises.settled(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy.resource))).then(() => false, () => false);
+		return Promises.settled(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy))).then(() => false, () => false);
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
