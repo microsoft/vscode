@@ -31,7 +31,6 @@ import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -60,8 +59,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IBackupFileService private readonly _backupService: IBackupFileService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -229,7 +227,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, () => {
 						return Array.from(this.mainThreadWebviewPanels.webviewInputs)
 							.filter(editor => editor instanceof CustomEditorInput && isEqual(editor.resource, resource)) as CustomEditorInput[];
-					}, cancellation, this._backupService);
+					}, cancellation);
 					return this._customEditorService.models.add(resource, viewType, model);
 				}
 		}
@@ -320,7 +318,6 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		options: { backupId?: string },
 		getEditors: () => CustomEditorInput[],
 		cancellation: CancellationToken,
-		_backupFileService: IBackupFileService,
 	): Promise<MainThreadCustomEditorModel> {
 		const editors = getEditors();
 		let untitledDocumentData: VSBuffer | undefined;

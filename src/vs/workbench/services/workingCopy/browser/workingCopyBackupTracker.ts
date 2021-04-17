@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { BackupTracker } from 'vs/workbench/services/backup/common/backupTracker';
+import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
 
-export class BrowserBackupTracker extends BackupTracker implements IWorkbenchContribution {
+export class BrowserWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
 	constructor(
-		@IBackupFileService backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILogService logService: ILogService
 	) {
-		super(backupFileService, workingCopyService, logService, lifecycleService, filesConfigurationService);
+		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService);
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -40,7 +40,7 @@ export class BrowserBackupTracker extends BackupTracker implements IWorkbenchCon
 		}
 
 		for (const dirtyWorkingCopy of dirtyWorkingCopies) {
-			if (!this.backupFileService.hasBackupSync(dirtyWorkingCopy, this.getContentVersion(dirtyWorkingCopy))) {
+			if (!this.workingCopyBackupService.hasBackupSync(dirtyWorkingCopy, this.getContentVersion(dirtyWorkingCopy))) {
 				this.logService.warn('Unload veto: pending backups');
 
 				return true; // dirty without backup: veto

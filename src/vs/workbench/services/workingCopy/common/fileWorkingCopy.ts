@@ -17,7 +17,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ITextFileEditorModel, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IBackupFileService, IBackupMeta, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService, IWorkingCopyBackupMeta, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows } from 'vs/base/common/platform';
 
 export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
@@ -309,7 +309,7 @@ export interface IFileWorkingCopyResolveOptions {
 /**
  * Metadata associated with a file working copy backup.
  */
-interface IFileWorkingCopyBackupMetaData extends IBackupMeta {
+interface IFileWorkingCopyBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
 	ctime: number;
 	size: number;
@@ -361,7 +361,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		@ILogService private readonly logService: ILogService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService
 	) {
 		super();
@@ -592,7 +592,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 	private async resolveFromBackup(): Promise<boolean> {
 
 		// Resolve backup if any
-		const backup = await this.backupFileService.resolve<IFileWorkingCopyBackupMetaData>(this);
+		const backup = await this.workingCopyBackupService.resolve<IFileWorkingCopyBackupMetaData>(this);
 
 		// Abort if someone else managed to resolve the working copy by now
 		let isNew = !this.isResolved();
@@ -613,7 +613,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		return false;
 	}
 
-	private async doResolveFromBackup(backup: IResolvedBackup<IFileWorkingCopyBackupMetaData>): Promise<void> {
+	private async doResolveFromBackup(backup: IResolvedWorkingCopyBackup<IFileWorkingCopyBackupMetaData>): Promise<void> {
 		this.trace('[file working copy] doResolveFromBackup()');
 
 		// Resolve with backup

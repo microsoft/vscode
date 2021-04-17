@@ -16,7 +16,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -24,7 +24,7 @@ suite('NotebookEditorModel', function () {
 
 	const instaService = new InstantiationService();
 	const notebokService = new class extends mock<INotebookService>() { };
-	const backupService = new class extends mock<IBackupFileService>() { };
+	const backupService = new class extends mock<IWorkingCopyBackupService>() { };
 	const notificationService = new class extends mock<INotificationService>() { };
 	const untitledTextEditorService = new class extends mock<IUntitledTextEditorService>() { };
 	const fileService = new class extends mock<IFileService>() {

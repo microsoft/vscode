@@ -21,7 +21,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { IBackupMeta } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 export enum CellKind {
 	Markdown = 1,
@@ -684,7 +684,7 @@ export interface INotebookTextModelBackup {
 	cells: ICellDto2[]
 }
 
-export interface NotebookDocumentBackupData extends IBackupMeta {
+export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
 	readonly backupId?: string;
 	readonly mtime?: number;

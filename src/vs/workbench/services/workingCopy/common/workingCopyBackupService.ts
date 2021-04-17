@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
-import { IResolvedBackup, IBackupFileService, BackupIdentifier, IBackupMeta } from 'vs/workbench/services/backup/common/backup';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -22,16 +22,17 @@ import { Schemas } from 'vs/base/common/network';
 import { hash } from 'vs/base/common/hash';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { BackupRestorer } from 'vs/workbench/services/backup/common/backupRestorer';
+import { WorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export class BackupFilesModel {
+export class WorkingCopyBackupsModel {
 
-	private readonly cache = new ResourceMap<{ versionId?: number; meta?: IBackupMeta; }>();
+	private readonly cache = new ResourceMap<{ versionId?: number; meta?: IWorkingCopyBackupMeta; }>();
 
-	static async create(fileService: IFileService, backupRoot: URI): Promise<BackupFilesModel> {
-		const model = new BackupFilesModel(fileService);
+	static async create(fileService: IFileService, backupRoot: URI): Promise<WorkingCopyBackupsModel> {
+		const model = new WorkingCopyBackupsModel(fileService);
 
 		await model.resolve(backupRoot);
 
@@ -60,7 +61,7 @@ export class BackupFilesModel {
 		}
 	}
 
-	add(resource: URI, versionId = 0, meta?: IBackupMeta): void {
+	add(resource: URI, versionId = 0, meta?: IWorkingCopyBackupMeta): void {
 		this.cache.set(resource, { versionId, meta: deepClone(meta) }); // make sure to not store original meta in our cache...
 	}
 
@@ -68,7 +69,7 @@ export class BackupFilesModel {
 		return this.cache.size;
 	}
 
-	has(resource: URI, versionId?: number, meta?: IBackupMeta): boolean {
+	has(resource: URI, versionId?: number, meta?: IWorkingCopyBackupMeta): boolean {
 		const entry = this.cache.get(resource);
 		if (!entry) {
 			return false; // unknown resource
@@ -106,11 +107,11 @@ export class BackupFilesModel {
 	}
 }
 
-export abstract class BackupFileService implements IBackupFileService {
+export abstract class WorkingCopyBackupService implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private impl: NativeBackupFileServiceImpl | InMemoryBackupFileService;
+	private impl: NativeWorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService;
 
 	constructor(
 		backupWorkspaceHome: URI | undefined,
@@ -120,22 +121,22 @@ export abstract class BackupFileService implements IBackupFileService {
 		this.impl = this.initialize(backupWorkspaceHome);
 	}
 
-	private initialize(backupWorkspaceHome: URI | undefined): NativeBackupFileServiceImpl | InMemoryBackupFileService {
+	private initialize(backupWorkspaceHome: URI | undefined): NativeWorkingCopyBackupServiceImpl | InMemoryWorkingCopyBackupService {
 		if (backupWorkspaceHome) {
-			return new NativeBackupFileServiceImpl(backupWorkspaceHome, this.fileService, this.logService);
+			return new NativeWorkingCopyBackupServiceImpl(backupWorkspaceHome, this.fileService, this.logService);
 		}
 
-		return new InMemoryBackupFileService();
+		return new InMemoryWorkingCopyBackupService();
 	}
 
 	reinitialize(backupWorkspaceHome: URI | undefined): void {
 
 		// Re-init implementation (unless we are running in-memory)
-		if (this.impl instanceof NativeBackupFileServiceImpl) {
+		if (this.impl instanceof NativeWorkingCopyBackupServiceImpl) {
 			if (backupWorkspaceHome) {
 				this.impl.initialize(backupWorkspaceHome);
 			} else {
-				this.impl = new InMemoryBackupFileService();
+				this.impl = new InMemoryWorkingCopyBackupService();
 			}
 		}
 	}
@@ -144,15 +145,15 @@ export abstract class BackupFileService implements IBackupFileService {
 		return this.impl.hasBackups();
 	}
 
-	hasBackupSync(identifier: BackupIdentifier, versionId?: number): boolean {
+	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
 		return this.impl.hasBackupSync(identifier, versionId);
 	}
 
-	backup(identifier: BackupIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IBackupMeta, token?: CancellationToken): Promise<void> {
+	backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		return this.impl.backup(identifier, content, versionId, meta, token);
 	}
 
-	discardBackup(identifier: BackupIdentifier): Promise<void> {
+	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
 		return this.impl.discardBackup(identifier);
 	}
 
@@ -160,20 +161,20 @@ export abstract class BackupFileService implements IBackupFileService {
 		return this.impl.discardBackups();
 	}
 
-	getBackups(): Promise<BackupIdentifier[]> {
+	getBackups(): Promise<IWorkingCopyIdentifier[]> {
 		return this.impl.getBackups();
 	}
 
-	resolve<T extends IBackupMeta>(identifier: BackupIdentifier): Promise<IResolvedBackup<T> | undefined> {
+	resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
 		return this.impl.resolve(identifier);
 	}
 
-	toBackupResource(identifier: BackupIdentifier): URI {
+	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return this.impl.toBackupResource(identifier);
 	}
 }
 
-class NativeBackupFileServiceImpl extends Disposable implements IBackupFileService {
+class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBackupService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
@@ -183,8 +184,8 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 
 	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
 
-	private ready!: Promise<BackupFilesModel>;
-	private model!: BackupFilesModel;
+	private ready!: Promise<WorkingCopyBackupsModel>;
+	private model!: WorkingCopyBackupsModel;
 
 	constructor(
 		private backupWorkspaceHome: URI,
@@ -202,10 +203,10 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		this.ready = this.doInitialize();
 	}
 
-	private async doInitialize(): Promise<BackupFilesModel> {
+	private async doInitialize(): Promise<WorkingCopyBackupsModel> {
 
 		// Create backup model
-		this.model = await BackupFilesModel.create(this.fileService, this.backupWorkspaceHome);
+		this.model = await WorkingCopyBackupsModel.create(this.fileService, this.backupWorkspaceHome);
 
 		// Migrate hashes as needed. We used to hash with a MD5
 		// sum of the path but switched to our own simpler hash
@@ -249,13 +250,13 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		return model.count() > 0;
 	}
 
-	hasBackupSync(identifier: BackupIdentifier, versionId?: number): boolean {
+	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
 		const backupResource = this.toBackupResource(identifier);
 
 		return this.model.has(backupResource, versionId);
 	}
 
-	async backup(identifier: BackupIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IBackupMeta, token?: CancellationToken): Promise<void> {
+	async backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const model = await this.ready;
 		if (token?.isCancellationRequested) {
 			return;
@@ -275,7 +276,7 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 			// and respect max length restrictions in case
 			// meta is too large.
 			let preamble = this.createPreamble(identifier, meta);
-			if (preamble.length >= NativeBackupFileServiceImpl.PREAMBLE_MAX_LENGTH) {
+			if (preamble.length >= NativeWorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH) {
 				preamble = this.createPreamble(identifier);
 			}
 
@@ -287,8 +288,8 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		});
 	}
 
-	private createPreamble(identifier: BackupIdentifier, meta?: IBackupMeta): string {
-		return `${identifier.resource.toString()}${NativeBackupFileServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${NativeBackupFileServiceImpl.PREAMBLE_END_MARKER}`;
+	private createPreamble(identifier: IWorkingCopyIdentifier, meta?: IWorkingCopyBackupMeta): string {
+		return `${identifier.resource.toString()}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR}${JSON.stringify({ ...meta, typeId: identifier.typeId })}${NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER}`;
 	}
 
 	async discardBackups(): Promise<void> {
@@ -299,7 +300,7 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		model.clear();
 	}
 
-	discardBackup(identifier: BackupIdentifier): Promise<void> {
+	discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
 
 		return this.doDiscardBackup(backupResource);
@@ -325,7 +326,7 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		}
 	}
 
-	async getBackups(): Promise<BackupIdentifier[]> {
+	async getBackups(): Promise<IWorkingCopyIdentifier[]> {
 		const model = await this.ready;
 
 		const backups = await Promise.all(model.get().map(backupResource => this.resolveIdentifier(backupResource)));
@@ -333,12 +334,12 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		return coalesce(backups);
 	}
 
-	private async resolveIdentifier(backupResource: URI): Promise<BackupIdentifier | undefined> {
+	private async resolveIdentifier(backupResource: URI): Promise<IWorkingCopyIdentifier | undefined> {
 
 		// Read the entire backup preamble by reading up to
 		// `PREAMBLE_MAX_LENGTH` in the backup file until
 		// the `PREAMBLE_END_MARKER` is found
-		const backupPreamble = await this.readToMatchingString(backupResource, NativeBackupFileServiceImpl.PREAMBLE_END_MARKER, NativeBackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
+		const backupPreamble = await this.readToMatchingString(backupResource, NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER, NativeWorkingCopyBackupServiceImpl.PREAMBLE_MAX_LENGTH);
 		if (!backupPreamble) {
 			return undefined;
 		}
@@ -346,7 +347,7 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		// Figure out the offset in the preamble where meta
 		// information possibly starts. This can be `-1` for
 		// older backups without meta.
-		const metaStartIndex = backupPreamble.indexOf(NativeBackupFileServiceImpl.PREAMBLE_META_SEPARATOR);
+		const metaStartIndex = backupPreamble.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
 
 		// Extract the preamble content for resource and meta
 		let resourcePreamble: string;
@@ -387,7 +388,7 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		return undefined;
 	}
 
-	async resolve<T extends IBackupMeta>(identifier: BackupIdentifier): Promise<IResolvedBackup<T> | undefined> {
+	async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
 		const backupResource = this.toBackupResource(identifier);
 
 		const model = await this.ready;
@@ -404,7 +405,7 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 			const chunkString = chunk.toString();
 
 			if (!metaEndFound) {
-				const metaEndIndex = chunkString.indexOf(NativeBackupFileServiceImpl.PREAMBLE_END_MARKER);
+				const metaEndIndex = chunkString.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER);
 				if (metaEndIndex === -1) {
 					metaRaw += chunkString;
 
@@ -426,7 +427,7 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 
 		// Extract meta data (if any)
 		let meta: T | undefined;
-		const metaStartIndex = metaRaw.indexOf(NativeBackupFileServiceImpl.PREAMBLE_META_SEPARATOR);
+		const metaStartIndex = metaRaw.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
 		if (metaStartIndex !== -1) {
 			try {
 				meta = JSON.parse(metaRaw.substr(metaStartIndex + 1));
@@ -459,16 +460,16 @@ class NativeBackupFileServiceImpl extends Disposable implements IBackupFileServi
 		return { value: factory, meta };
 	}
 
-	toBackupResource(identifier: BackupIdentifier): URI {
+	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return joinPath(this.backupWorkspaceHome, identifier.resource.scheme, hashIdentifier(identifier));
 	}
 }
 
-export class InMemoryBackupFileService implements IBackupFileService {
+export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private backups = new ResourceMap<{ typeId: string, content: ITextSnapshot, meta?: IBackupMeta }>();
+	private backups = new ResourceMap<{ typeId: string, content: ITextSnapshot, meta?: IWorkingCopyBackupMeta }>();
 
 	constructor() { }
 
@@ -476,18 +477,18 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return this.backups.size > 0;
 	}
 
-	hasBackupSync(identifier: BackupIdentifier, versionId?: number): boolean {
+	hasBackupSync(identifier: IWorkingCopyIdentifier, versionId?: number): boolean {
 		const backupResource = this.toBackupResource(identifier);
 
 		return this.backups.has(backupResource);
 	}
 
-	async backup(identifier: BackupIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IBackupMeta, token?: CancellationToken): Promise<void> {
+	async backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
 		this.backups.set(backupResource, { typeId: identifier.typeId, content: content || stringToSnapshot(''), meta });
 	}
 
-	async resolve<T extends IBackupMeta>(identifier: BackupIdentifier): Promise<IResolvedBackup<T> | undefined> {
+	async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
 		const backupResource = this.toBackupResource(identifier);
 		const backup = this.backups.get(backupResource);
 		if (backup) {
@@ -497,11 +498,11 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return undefined;
 	}
 
-	async getBackups(): Promise<BackupIdentifier[]> {
+	async getBackups(): Promise<IWorkingCopyIdentifier[]> {
 		return Array.from(this.backups.entries()).map(([resource, backup]) => ({ typeId: backup.typeId, resource }));
 	}
 
-	async discardBackup(identifier: BackupIdentifier): Promise<void> {
+	async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
 		this.backups.delete(this.toBackupResource(identifier));
 	}
 
@@ -509,7 +510,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		this.backups.clear();
 	}
 
-	toBackupResource(identifier: BackupIdentifier): URI {
+	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		return URI.from({ scheme: Schemas.inMemory, path: hashIdentifier(identifier) });
 	}
 }
@@ -517,7 +518,7 @@ export class InMemoryBackupFileService implements IBackupFileService {
 /*
  * Exported only for testing
  */
-export function hashIdentifier(identifier: BackupIdentifier): string {
+export function hashIdentifier(identifier: IWorkingCopyIdentifier): string {
 
 	// IMPORTANT: for backwards compatibility, ensure that
 	// we ignore the `typeId` unless a value is provided.
@@ -542,4 +543,4 @@ function hashPath(resource: URI): string {
 }
 
 // Register Backup Restorer
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BackupRestorer, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkingCopyBackupRestorer, LifecyclePhase.Starting);

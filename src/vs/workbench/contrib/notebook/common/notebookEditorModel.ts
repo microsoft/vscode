@@ -12,7 +12,7 @@ import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleN
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -55,7 +55,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
-		@IBackupFileService private readonly _backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@IFileService private readonly _fileService: IFileService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
@@ -183,7 +183,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return this;
 		}
 
-		const backup = await this._backupFileService.resolve<NotebookDocumentBackupData>(this._workingCopy);
+		const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopy);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
@@ -257,7 +257,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 
 		if (backupId) {
-			this._backupFileService.discardBackup(this._workingCopy);
+			this._workingCopyBackupService.discardBackup(this._workingCopy);
 			this.setDirty(true);
 		} else {
 			this.setDirty(false);

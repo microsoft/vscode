@@ -88,7 +88,7 @@ suite('FileWorkingCopy', function () {
 	let workingCopy: FileWorkingCopy<TestFileWorkingCopyModel>;
 
 	function createWorkingCopy() {
-		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.backupFileService, accessor.workingCopyService);
+		return new FileWorkingCopy<TestFileWorkingCopyModel>('testWorkingCopyType', resource, basename(resource), factory, accessor.fileService, accessor.logService, accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService);
 	}
 
 	setup(() => {
@@ -240,9 +240,9 @@ suite('FileWorkingCopy', function () {
 		await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello backup')) });
 
 		const backup = await workingCopy.backup(CancellationToken.None);
-		await accessor.backupFileService.backup(workingCopy, backup.content, undefined, backup.meta);
+		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
 
-		assert.strictEqual(accessor.backupFileService.hasBackupSync(workingCopy), true);
+		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
 
 		workingCopy.dispose();
 
@@ -275,9 +275,9 @@ suite('FileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.hasState(FileWorkingCopyState.ORPHAN), true);
 
 		const backup = await workingCopy.backup(CancellationToken.None);
-		await accessor.backupFileService.backup(workingCopy, backup.content, undefined, backup.meta);
+		await accessor.workingCopyBackupService.backup(workingCopy, backup.content, undefined, backup.meta);
 
-		assert.strictEqual(accessor.backupFileService.hasBackupSync(workingCopy), true);
+		assert.strictEqual(accessor.workingCopyBackupService.hasBackupSync(workingCopy), true);
 
 		workingCopy.dispose();
 

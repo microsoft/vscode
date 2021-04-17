@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -11,7 +11,7 @@ import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecyc
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
-export abstract class BackupTracker extends Disposable {
+export abstract class WorkingCopyBackupTracker extends Disposable {
 
 	// A map from working copy to a version ID we compute on each content
 	// change. This version ID allows to e.g. ask if a backup for a specific
@@ -36,7 +36,7 @@ export abstract class BackupTracker extends Disposable {
 	};
 
 	constructor(
-		protected readonly backupFileService: IBackupFileService,
+		protected readonly workingCopyBackupService: IWorkingCopyBackupService,
 		protected readonly workingCopyService: IWorkingCopyService,
 		protected readonly logService: ILogService,
 		private readonly lifecycleService: ILifecycleService,
@@ -127,7 +127,7 @@ export abstract class BackupTracker extends Disposable {
 					if (workingCopy.isDirty()) {
 						this.logService.trace(`[backup tracker] storing backup`, workingCopy.resource.toString(true), workingCopy.typeId);
 
-						await this.backupFileService.backup(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
+						await this.workingCopyBackupService.backup(workingCopy, backup.content, this.getContentVersion(workingCopy), backup.meta, cts.token);
 					}
 				} catch (error) {
 					this.logService.error(error);
@@ -158,7 +158,7 @@ export abstract class BackupTracker extends Disposable {
 			autoSaveMode = AutoSaveMode.OFF; // auto-save is never on for untitled working copies
 		}
 
-		return BackupTracker.BACKUP_SCHEDULE_DELAYS[autoSaveMode];
+		return WorkingCopyBackupTracker.BACKUP_SCHEDULE_DELAYS[autoSaveMode];
 	}
 
 	protected getContentVersion(workingCopy: IWorkingCopy): number {
@@ -171,8 +171,8 @@ export abstract class BackupTracker extends Disposable {
 		// Clear any running backup operation
 		this.cancelBackup(workingCopy);
 
-		// Forward to backup file service
-		this.backupFileService.discardBackup(workingCopy);
+		// Forward to working copy backup service
+		this.workingCopyBackupService.discardBackup(workingCopy);
 	}
 
 	private cancelBackup(workingCopy: IWorkingCopy): void {

@@ -10,7 +10,7 @@ import { promises, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs
 import { dirname, join } from 'vs/base/common/path';
 import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { BackupFilesModel, hashIdentifier } from 'vs/workbench/services/backup/common/backupFileService';
+import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -22,16 +22,17 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
-import { NativeBackupFileService } from 'vs/workbench/services/backup/electron-sandbox/backupFileService';
+import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestProductService, toTypedBackup, toUntypedBackup } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';
 import { isEqual } from 'vs/base/common/resources';
-import { BackupIdentifier, IBackupMeta } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -40,13 +41,13 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 	}
 }
 
-export class NodeTestBackupFileService extends NativeBackupFileService {
+export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupService {
 
 	override readonly fileService: IFileService;
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
-	discardedBackups: BackupIdentifier[];
+	discardedBackups: IWorkingCopyIdentifier[];
 	private pendingBackupsArr: Promise<void>[];
 
 	constructor(testDir: string, workspaceBackupPath: string) {
@@ -74,7 +75,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async override backup(identifier: BackupIdentifier, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	async override backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		const p = super.backup(identifier, content, versionId, meta, token);
 		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
 
@@ -93,7 +94,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async override discardBackup(identifier: BackupIdentifier): Promise<void> {
+	async override discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
 		await super.discardBackup(identifier);
 		this.discardedBackups.push(identifier);
 
@@ -102,7 +103,7 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 		}
 	}
 
-	async getBackupContents(identifier: BackupIdentifier): Promise<string> {
+	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
 		const backupResource = this.toBackupResource(identifier);
 
 		const fileContents = await this.fileService.readFile(backupResource);
@@ -111,14 +112,14 @@ export class NodeTestBackupFileService extends NativeBackupFileService {
 	}
 }
 
-suite('BackupFileService', () => {
+suite('WorkingCopyBackupService', () => {
 
 	let testDir: string;
 	let backupHome: string;
 	let workspacesJsonPath: string;
 	let workspaceBackupPath: string;
 
-	let service: NodeTestBackupFileService;
+	let service: NodeTestWorkingCopyBackupService;
 
 	let workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
 	let fooFile = URI.file(isWindows ? 'c:\\Foo' : '/Foo');
@@ -129,12 +130,12 @@ suite('BackupFileService', () => {
 	let untitledFile = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 
 	setup(async () => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'backupfileservice');
+		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'workingcopybackupservice');
 		backupHome = join(testDir, 'Backups');
 		workspacesJsonPath = join(backupHome, 'workspaces.json');
 		workspaceBackupPath = join(backupHome, hash(workspaceResource.fsPath).toString(16));
 
-		service = new NodeTestBackupFileService(testDir, workspaceBackupPath);
+		service = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
 
 		await promises.mkdir(backupHome, { recursive: true });
 
@@ -153,7 +154,7 @@ suite('BackupFileService', () => {
 			// If these hashes change people will lose their backed up files
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-			const untypedBackupHash = hashIdentifier(toUntypedBackup(uri));
+			const untypedBackupHash = hashIdentifier(toUntypedWorkingCopyId(uri));
 			assert.strictEqual(untypedBackupHash, '-7f9c1a2e');
 			assert.strictEqual(untypedBackupHash, hash(uri.fsPath).toString(16));
 
@@ -174,7 +175,7 @@ suite('BackupFileService', () => {
 			// If these hashes change people will lose their backed up files
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-			const untypedBackupHash = hashIdentifier(toUntypedBackup(uri));
+			const untypedBackupHash = hashIdentifier(toUntypedWorkingCopyId(uri));
 			if (isWindows) {
 				assert.strictEqual(untypedBackupHash, '20ffaa13');
 			} else {
@@ -206,7 +207,7 @@ suite('BackupFileService', () => {
 			// If these hashes change people will lose their backed up files
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-			const untypedBackupHash = hashIdentifier(toUntypedBackup(uri));
+			const untypedBackupHash = hashIdentifier(toUntypedWorkingCopyId(uri));
 			assert.strictEqual(untypedBackupHash, '-44972d98');
 			assert.strictEqual(untypedBackupHash, hash(uri.toString()).toString(16));
 
@@ -229,13 +230,13 @@ suite('BackupFileService', () => {
 			const workspaceHash = hash(workspaceResource.fsPath).toString(16);
 
 			// No Type ID
-			let backupId = toUntypedBackup(backupResource);
+			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
 			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
-			backupId = toTypedBackup(backupResource);
+			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
 			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
@@ -248,13 +249,13 @@ suite('BackupFileService', () => {
 			const workspaceHash = hash(workspaceResource.fsPath).toString(16);
 
 			// No Type ID
-			let backupId = toUntypedBackup(backupResource);
+			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
 			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
-			backupId = toTypedBackup(backupResource);
+			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
 			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
@@ -267,13 +268,13 @@ suite('BackupFileService', () => {
 			const workspaceHash = hash(workspaceResource.fsPath).toString(16);
 
 			// No Type ID
-			let backupId = toUntypedBackup(backupResource);
+			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
 			let expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
-			backupId = toTypedBackup(backupResource);
+			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
 			expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
@@ -282,12 +283,12 @@ suite('BackupFileService', () => {
 
 	suite('backup', () => {
 
-		function toExpectedPreamble(identifier: BackupIdentifier, content = '', meta?: object): string {
+		function toExpectedPreamble(identifier: IWorkingCopyIdentifier, content = '', meta?: object): string {
 			return `${identifier.resource.toString()} ${JSON.stringify({ ...meta, typeId: identifier.typeId })}\n${content}`;
 		}
 
 		test('no text', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
 			await service.backup(identifier);
@@ -298,7 +299,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
 			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
@@ -309,7 +310,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (with version)', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
 			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 666);
@@ -321,7 +322,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (with meta)', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678', orphaned: true };
 
@@ -334,7 +335,7 @@ suite('BackupFileService', () => {
 
 		test('text file with whitespace in name and type (with meta)', async () => {
 			let fileWithSpace = URI.file(isWindows ? 'c:\\Foo \n Bar' : '/Foo \n Bar');
-			const identifier = toTypedBackup(fileWithSpace, ' test id \n');
+			const identifier = toTypedWorkingCopyId(fileWithSpace, ' test id \n');
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678', orphaned: true };
 
@@ -346,7 +347,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file', async () => {
-			const identifier = toUntypedBackup(untitledFile);
+			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
 			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
@@ -357,7 +358,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (ITextSnapshot)', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const model = createTextModel('test');
 
@@ -371,7 +372,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file (ITextSnapshot)', async () => {
-			const identifier = toUntypedBackup(untitledFile);
+			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const model = createTextModel('test');
 
@@ -384,7 +385,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('text file (large file, ITextSnapshot)', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = createTextModel(largeString);
@@ -399,7 +400,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file (large file, ITextSnapshot)', async () => {
-			const identifier = toUntypedBackup(untitledFile);
+			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const largeString = (new Array(10 * 1024)).join('Large String\n');
 			const model = createTextModel(largeString);
@@ -414,7 +415,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('cancellation', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
 			const cts = new CancellationTokenSource();
@@ -427,9 +428,9 @@ suite('BackupFileService', () => {
 		});
 
 		test('multiple same resource, different type id', async () => {
-			const backupId1 = toUntypedBackup(fooFile);
-			const backupId2 = toTypedBackup(fooFile, 'type1');
-			const backupId3 = toTypedBackup(fooFile, 'type2');
+			const backupId1 = toUntypedWorkingCopyId(fooFile);
+			const backupId2 = toTypedWorkingCopyId(fooFile, 'type1');
+			const backupId3 = toTypedWorkingCopyId(fooFile, 'type2');
 
 			await service.backup(backupId1);
 			await service.backup(backupId2);
@@ -449,7 +450,7 @@ suite('BackupFileService', () => {
 	suite('discardBackup', () => {
 
 		test('text file', async () => {
-			const identifier = toUntypedBackup(fooFile);
+			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
 			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
@@ -463,7 +464,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file', async () => {
-			const identifier = toUntypedBackup(untitledFile);
+			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
 			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
@@ -475,9 +476,9 @@ suite('BackupFileService', () => {
 		});
 
 		test('multiple same resource, different type id', async () => {
-			const backupId1 = toUntypedBackup(fooFile);
-			const backupId2 = toTypedBackup(fooFile, 'type1');
-			const backupId3 = toTypedBackup(fooFile, 'type2');
+			const backupId1 = toUntypedWorkingCopyId(fooFile);
+			const backupId2 = toTypedWorkingCopyId(fooFile, 'type1');
+			const backupId3 = toTypedWorkingCopyId(fooFile, 'type2');
 
 			await service.backup(backupId1);
 			await service.backup(backupId2);
@@ -496,9 +497,9 @@ suite('BackupFileService', () => {
 
 	suite('discardBackups', () => {
 		test('text file', async () => {
-			const backupId1 = toUntypedBackup(fooFile);
-			const backupId2 = toUntypedBackup(barFile);
-			const backupId3 = toTypedBackup(barFile);
+			const backupId1 = toUntypedWorkingCopyId(fooFile);
+			const backupId2 = toUntypedWorkingCopyId(barFile);
+			const backupId3 = toTypedWorkingCopyId(barFile);
 
 			await service.backup(backupId1, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
@@ -519,7 +520,7 @@ suite('BackupFileService', () => {
 		});
 
 		test('untitled file', async () => {
-			const backupId = toUntypedBackup(untitledFile);
+			const backupId = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
 
 			await service.backup(backupId, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
@@ -532,16 +533,16 @@ suite('BackupFileService', () => {
 
 		test('can backup after discarding all', async () => {
 			await service.discardBackups();
-			await service.backup(toUntypedBackup(untitledFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(untitledFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 			assert.strictEqual(existsSync(workspaceBackupPath), true);
 		});
 	});
 
 	suite('getBackups', () => {
 		test('text file', async () => {
-			await service.backup(toUntypedBackup(fooFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedBackup(fooFile, 'type1'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedBackup(fooFile, 'type2'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(fooFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toTypedWorkingCopyId(fooFile, 'type1'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toTypedWorkingCopyId(fooFile, 'type2'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 
 			let backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);
@@ -558,16 +559,16 @@ suite('BackupFileService', () => {
 				}
 			}
 
-			await service.backup(toUntypedBackup(barFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(barFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 
 			backups = await service.getBackups();
 			assert.strictEqual(backups.length, 4);
 		});
 
 		test('untitled file', async () => {
-			await service.backup(toUntypedBackup(untitledFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedBackup(untitledFile, 'type1'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedBackup(untitledFile, 'type2'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(untitledFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toTypedWorkingCopyId(untitledFile, 'type1'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toTypedWorkingCopyId(untitledFile, 'type2'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 
 			const backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);
@@ -588,7 +589,7 @@ suite('BackupFileService', () => {
 
 	suite('resolve', () => {
 
-		interface IBackupTestMetaData extends IBackupMeta {
+		interface IBackupTestMetaData extends IWorkingCopyBackupMeta {
 			mtime?: number;
 			size?: number;
 			etag?: string;
@@ -677,11 +678,11 @@ suite('BackupFileService', () => {
 		});
 
 		test('should restore the original contents (text file with broken metadata)', async () => {
-			await testShouldRestoreOriginalContents(toUntypedBackup(fooFile));
-			await testShouldRestoreOriginalContents(toTypedBackup(fooFile));
+			await testShouldRestoreOriginalContents(toUntypedWorkingCopyId(fooFile));
+			await testShouldRestoreOriginalContents(toTypedWorkingCopyId(fooFile));
 		});
 
-		async function testShouldRestoreOriginalContents(identifier: BackupIdentifier): Promise<void> {
+		async function testShouldRestoreOriginalContents(identifier: IWorkingCopyIdentifier): Promise<void> {
 			const contents = [
 				'Lorem ipsum ',
 				'dolor öäü sit amet ',
@@ -770,18 +771,18 @@ suite('BackupFileService', () => {
 		test('should ignore invalid backups', async () => {
 			const contents = 'test\nand more stuff';
 
-			await service.backup(toUntypedBackup(fooBarFile), createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1);
+			await service.backup(toUntypedWorkingCopyId(fooBarFile), createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1);
 
-			const backup = await service.resolve(toUntypedBackup(fooBarFile));
+			const backup = await service.resolve(toUntypedWorkingCopyId(fooBarFile));
 			if (!backup) {
 				throw new Error('Unexpected missing backup');
 			}
 
-			await service.fileService.writeFile(service.toBackupResource(toUntypedBackup(fooBarFile)), VSBuffer.fromString(''));
+			await service.fileService.writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooBarFile)), VSBuffer.fromString(''));
 
 			let err: Error | undefined = undefined;
 			try {
-				await service.resolve<IBackupTestMetaData>(toUntypedBackup(fooBarFile));
+				await service.resolve<IBackupTestMetaData>(toUntypedWorkingCopyId(fooBarFile));
 			} catch (error) {
 				err = error;
 			}
@@ -790,11 +791,11 @@ suite('BackupFileService', () => {
 		});
 
 		async function testResolveBackup(resource: URI, contents: string, meta?: IBackupTestMetaData, expectNoMeta?: boolean) {
-			await doTestResolveBackup(toUntypedBackup(resource), contents, meta, expectNoMeta);
-			await doTestResolveBackup(toTypedBackup(resource), contents, meta, expectNoMeta);
+			await doTestResolveBackup(toUntypedWorkingCopyId(resource), contents, meta, expectNoMeta);
+			await doTestResolveBackup(toTypedWorkingCopyId(resource), contents, meta, expectNoMeta);
 		}
 
-		async function doTestResolveBackup(identifier: BackupIdentifier, contents: string, meta?: IBackupTestMetaData, expectNoMeta?: boolean) {
+		async function doTestResolveBackup(identifier: IWorkingCopyIdentifier, contents: string, meta?: IBackupTestMetaData, expectNoMeta?: boolean) {
 			await service.backup(identifier, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1, meta);
 
 			const backup = await service.resolve<IBackupTestMetaData>(identifier);
@@ -815,10 +816,10 @@ suite('BackupFileService', () => {
 		}
 	});
 
-	suite('BackupFilesModel', () => {
+	suite('WorkingCopyBackupsModel', () => {
 
 		test('simple', async () => {
-			const model = await BackupFilesModel.create(service.fileService, URI.file(workspaceBackupPath));
+			const model = await WorkingCopyBackupsModel.create(service.fileService, URI.file(workspaceBackupPath));
 
 			const resource1 = URI.file('test.html');
 
@@ -874,17 +875,17 @@ suite('BackupFileService', () => {
 		});
 
 		test('resolve', async () => {
-			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(toUntypedBackup(fooFile)));
+			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(toUntypedWorkingCopyId(fooFile)));
 			await promises.mkdir(dirname(fooBackupPath), { recursive: true });
 			writeFileSync(fooBackupPath, 'foo');
-			const model = await BackupFilesModel.create(service.fileService, URI.file(workspaceBackupPath));
+			const model = await WorkingCopyBackupsModel.create(service.fileService, URI.file(workspaceBackupPath));
 
 			await model.resolve(URI.file(workspaceBackupPath));
 			assert.strictEqual(model.has(URI.file(fooBackupPath)), true);
 		});
 
 		test('get', async () => {
-			const model = await BackupFilesModel.create(service.fileService, URI.file(workspaceBackupPath));
+			const model = await WorkingCopyBackupsModel.create(service.fileService, URI.file(workspaceBackupPath));
 
 			assert.deepStrictEqual(model.get(), []);
 
@@ -903,9 +904,9 @@ suite('BackupFileService', () => {
 	suite('Hash migration', () => {
 
 		test('works', async () => {
-			const fooBackupId = toUntypedBackup(fooFile);
-			const untitledBackupId = toUntypedBackup(untitledFile);
-			const customBackupId = toUntypedBackup(customFile);
+			const fooBackupId = toUntypedWorkingCopyId(fooFile);
+			const untitledBackupId = toUntypedWorkingCopyId(untitledFile);
+			const customBackupId = toUntypedWorkingCopyId(customFile);
 
 			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(fooBackupId));
 			const untitledBackupPath = join(workspaceBackupPath, untitledFile.scheme, hashIdentifier(untitledBackupId));
@@ -947,9 +948,9 @@ suite('BackupFileService', () => {
 	suite('typeId migration', () => {
 
 		test('works (when meta is missing)', async () => {
-			const fooBackupId = toUntypedBackup(fooFile);
-			const untitledBackupId = toUntypedBackup(untitledFile);
-			const customBackupId = toUntypedBackup(customFile);
+			const fooBackupId = toUntypedWorkingCopyId(fooFile);
+			const untitledBackupId = toUntypedWorkingCopyId(untitledFile);
+			const customBackupId = toUntypedWorkingCopyId(customFile);
 
 			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(fooBackupId));
 			const untitledBackupPath = join(workspaceBackupPath, untitledFile.scheme, hashIdentifier(untitledBackupId));
@@ -974,9 +975,9 @@ suite('BackupFileService', () => {
 		});
 
 		test('works (when typeId in meta is missing)', async () => {
-			const fooBackupId = toUntypedBackup(fooFile);
-			const untitledBackupId = toUntypedBackup(untitledFile);
-			const customBackupId = toUntypedBackup(customFile);
+			const fooBackupId = toUntypedWorkingCopyId(fooFile);
+			const untitledBackupId = toUntypedWorkingCopyId(untitledFile);
+			const customBackupId = toUntypedWorkingCopyId(customFile);
 
 			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(fooBackupId));
 			const untitledBackupPath = join(workspaceBackupPath, untitledFile.scheme, hashIdentifier(untitledBackupId));

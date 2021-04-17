@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { BackupIdentifier, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
@@ -17,8 +17,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export class BackupRestorer implements IWorkbenchContribution {
+export class WorkingCopyBackupRestorer implements IWorkbenchContribution {
 
 	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
 
@@ -26,7 +27,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -43,7 +44,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	protected async doRestoreBackups(): Promise<void> {
 
 		// Resolve all backup resources that exist for this window
-		const backups = await this.backupFileService.getBackups();
+		const backups = await this.workingCopyBackupService.getBackups();
 
 		// Trigger `resolve` in each opened editor that can be found
 		// for the given resource and keep track of backups that are
@@ -63,8 +64,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		}
 	}
 
-	private async resolveOpenedBackupEditors(backups: BackupIdentifier[]): Promise<BackupIdentifier[]> {
-		const unresolvedBackups: BackupIdentifier[] = [];
+	private async resolveOpenedBackupEditors(backups: IWorkingCopyIdentifier[]): Promise<IWorkingCopyIdentifier[]> {
+		const unresolvedBackups: IWorkingCopyIdentifier[] = [];
 
 		await Promises.settled(backups.map(async backup => {
 			const openedEditor = this.findOpenedEditor(backup);
@@ -82,7 +83,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		return unresolvedBackups;
 	}
 
-	private findOpenedEditor(backup: BackupIdentifier): IEditorInput | undefined {
+	private findOpenedEditor(backup: IWorkingCopyIdentifier): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
 			const customFactory = this.editorInputFactories.getCustomEditorInputFactory(backup.resource.scheme);
 			if (customFactory?.canResolveBackup(editor, backup.resource) || isEqual(editor.resource, backup.resource)) {
@@ -93,14 +94,14 @@ export class BackupRestorer implements IWorkbenchContribution {
 		return undefined;
 	}
 
-	private async openEditors(backups: BackupIdentifier[]): Promise<void> {
+	private async openEditors(backups: IWorkingCopyIdentifier[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
 		const editors = await Promises.settled(backups.map((backup, index) => this.resolveEditor(backup, index, hasOpenedEditors)));
 
 		await this.editorService.openEditors(editors);
 	}
 
-	private async resolveEditor(backup: BackupIdentifier, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
+	private async resolveEditor(backup: IWorkingCopyIdentifier, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
 
 		// Set editor as `inactive` if we have other editors
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
@@ -108,7 +109,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// This is a (weak) strategy to find out if the untitled input had
 		// an associated file path or not by just looking at the path. and
 		// if so, we must ensure to restore the local resource it had.
-		if (backup.resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(backup.resource.path)) {
+		if (backup.resource.scheme === Schemas.untitled && !WorkingCopyBackupRestorer.UNTITLED_REGEX.test(backup.resource.path)) {
 			return { resource: toLocalResource(backup.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
 		}
 

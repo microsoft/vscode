@@ -12,7 +12,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IBackupMeta } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 export const enum WorkingCopyCapabilities {
 
@@ -31,7 +31,7 @@ export const enum WorkingCopyCapabilities {
 
 /**
  * Data to be associated with working copy backups. Use
- * `IBackupFileService.resolve(workingCopy.resource)` to
+ * `IWorkingCopyBackupService.resolve(workingCopy.resource)` to
  * retrieve the backup when loading the working copy.
  */
 export interface IWorkingCopyBackup {
@@ -39,7 +39,7 @@ export interface IWorkingCopyBackup {
 	/**
 	 * Any serializable metadata to be associated with the backup.
 	 */
-	meta?: IBackupMeta;
+	meta?: IWorkingCopyBackupMeta;
 
 	/**
 	 * Use this for larger textual content of the backup.
@@ -54,20 +54,11 @@ export interface IWorkingCopyBackup {
 export const NO_TYPE_ID = '';
 
 /**
- * A working copy is an abstract concept to unify handling of
- * data that can be worked on (e.g. edited) in an editor.
- *
  * Every working copy has in common that it is identified by
  * a resource `URI` and a `typeId`. There can only be one
  * working copy registered with the same `URI` and `typeId`.
- *
- * A working copy resource may be the backing store of the data
- * (e.g. a file on disk), but that is not a requirement. If
- * your working copy is file based, consider to use the
- * `IFileWorkingCopy` instead that simplifies a lot of things
- * when working with file based working copies.
  */
-export interface IWorkingCopy {
+export interface IWorkingCopyIdentifier {
 
 	/**
 	 * The type identifier of the working copy for grouping
@@ -83,6 +74,20 @@ export interface IWorkingCopy {
 	 * working copies of the same `typeId`.
 	 */
 	readonly resource: URI;
+}
+
+/**
+ * A working copy is an abstract concept to unify handling of
+ * data that can be worked on (e.g. edited) in an editor.
+ *
+ *
+ * A working copy resource may be the backing store of the data
+ * (e.g. a file on disk), but that is not a requirement. If
+ * your working copy is file based, consider to use the
+ * `IFileWorkingCopy` instead that simplifies a lot of things
+ * when working with file based working copies.
+ */
+export interface IWorkingCopy extends IWorkingCopyIdentifier {
 
 	/**
 	 * Human readable name of the working copy.
@@ -127,7 +132,7 @@ export interface IWorkingCopy {
 	 * the `onDidChangeContent` event for the working copy. The motivation
 	 * is to allow to quit VSCode with dirty working copies present.
 	 *
-	 * Providers of working copies should use `IBackupFileService.resolve(workingCopy.resource)`
+	 * Providers of working copies should use `IWorkingCopyBackupService.resolve(workingCopy.resource)`
 	 * to retrieve the backup metadata associated when loading the working copy.
 	 *
 	 * @param token support for cancellation

@@ -12,7 +12,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, Extensions as EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, SideBySideEditorInput, IEditorMoveEvent } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
-import { BackupIdentifier, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
@@ -73,7 +73,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyIdentifier, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -112,8 +112,8 @@ import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfil
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Iterable } from 'vs/base/common/iterator';
-import { InMemoryBackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
-import { BrowserBackupFileService } from 'vs/workbench/services/backup/browser/backupFileService';
+import { InMemoryWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
+import { BrowserWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
@@ -204,7 +204,7 @@ export function workbenchInstantiationService(
 	const fileService = new TestFileService();
 	instantiationService.stub(IFileService, fileService);
 	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
-	instantiationService.stub(IBackupFileService, new TestBackupFileService());
+	instantiationService.stub(IWorkingCopyBackupService, new TestWorkingCopyBackupService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
@@ -252,7 +252,7 @@ export class TestServiceAccessor {
 		@ITextModelService public textModelResolverService: ITextModelService,
 		@IUntitledTextEditorService public untitledTextEditorService: UntitledTextEditorService,
 		@IConfigurationService public testConfigurationService: TestConfigurationService,
-		@IBackupFileService public backupFileService: TestBackupFileService,
+		@IWorkingCopyBackupService public workingCopyBackupService: TestWorkingCopyBackupService,
 		@IHostService public hostService: TestHostService,
 		@IQuickInputService public quickInputService: IQuickInputService,
 		@ILabelService public labelService: ILabelService,
@@ -955,7 +955,7 @@ export class TestFileService implements IFileService {
 	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
 }
 
-export class TestBackupFileService extends InMemoryBackupFileService {
+export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupService {
 
 	constructor() {
 		super();
@@ -970,22 +970,22 @@ export class TestBackupFileService extends InMemoryBackupFileService {
 	}
 }
 
-export function toUntypedBackup(resource: URI): BackupIdentifier {
-	return toTypedBackup(resource, '');
+export function toUntypedWorkingCopyId(resource: URI): IWorkingCopyIdentifier {
+	return toTypedWorkingCopyId(resource, '');
 }
 
-export function toTypedBackup(resource: URI, typeId = 'testBackupTypeId'): BackupIdentifier {
+export function toTypedWorkingCopyId(resource: URI, typeId = 'testBackupTypeId'): IWorkingCopyIdentifier {
 	return { typeId, resource };
 }
 
-export class InMemoryTestBackupFileService extends BrowserBackupFileService {
+export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBackupService {
 
 	override readonly fileService: IFileService;
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 
-	discardedBackups: BackupIdentifier[];
+	discardedBackups: IWorkingCopyIdentifier[];
 
 	constructor() {
 		const environmentService = TestEnvironmentService;
@@ -1010,7 +1010,7 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
 	}
 
-	async override backup(identifier: BackupIdentifier, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	async override backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		await super.backup(identifier, content, versionId, meta, token);
 
 		while (this.backupResourceJoiners.length) {
@@ -1018,7 +1018,7 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 		}
 	}
 
-	async override discardBackup(identifier: BackupIdentifier): Promise<void> {
+	async override discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
 		await super.discardBackup(identifier);
 		this.discardedBackups.push(identifier);
 
@@ -1027,7 +1027,7 @@ export class InMemoryTestBackupFileService extends BrowserBackupFileService {
 		}
 	}
 
-	async getBackupContents(identifier: BackupIdentifier): Promise<string> {
+	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
 		const backupResource = this.toBackupResource(identifier);
 
 		const fileContents = await this.fileService.readFile(backupResource);

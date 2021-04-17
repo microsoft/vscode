@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -15,7 +15,7 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { BackupTracker } from 'vs/workbench/services/backup/common/backupTracker';
+import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -25,10 +25,10 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { Promises, raceCancellation } from 'vs/base/common/async';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
-export class NativeBackupTracker extends BackupTracker implements IWorkbenchContribution {
+export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker implements IWorkbenchContribution {
 
 	constructor(
-		@IBackupFileService backupFileService: IBackupFileService,
+		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -42,7 +42,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(backupFileService, workingCopyService, logService, lifecycleService, filesConfigurationService);
+		super(workingCopyBackupService, workingCopyService, logService, lifecycleService, filesConfigurationService);
 	}
 
 	protected onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -199,14 +199,14 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 				const contentVersion = this.getContentVersion(workingCopy);
 
 				// Backup exists
-				if (this.backupFileService.hasBackupSync(workingCopy, contentVersion)) {
+				if (this.workingCopyBackupService.hasBackupSync(workingCopy, contentVersion)) {
 					backups.push(workingCopy);
 				}
 
 				// Backup does not exist
 				else {
 					const backup = await workingCopy.backup(token);
-					await this.backupFileService.backup(workingCopy, backup.content, contentVersion, backup.meta, token);
+					await this.workingCopyBackupService.backup(workingCopy, backup.content, contentVersion, backup.meta, token);
 
 					backups.push(workingCopy);
 				}
@@ -316,7 +316,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 			return false; // if editors have not restored, we are very likely not up to speed with backups and thus should not discard them
 		}
 
-		return Promises.settled(backupsToDiscard.map(workingCopy => this.backupFileService.discardBackup(workingCopy))).then(() => false, () => false);
+		return Promises.settled(backupsToDiscard.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy))).then(() => false, () => false);
 	}
 
 	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
@@ -327,7 +327,7 @@ export class NativeBackupTracker extends BackupTracker implements IWorkbenchCont
 		// https://github.com/microsoft/vscode/issues/92962
 		if (this.editorGroupService.isRestored()) {
 			try {
-				await this.backupFileService.discardBackups();
+				await this.workingCopyBackupService.discardBackups();
 			} catch (error) {
 				this.logService.error(`[backup tracker] error discarding backups: ${error}`);
 			}
