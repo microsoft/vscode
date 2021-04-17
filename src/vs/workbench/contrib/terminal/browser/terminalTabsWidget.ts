@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TERMINAL_COMMAND_ID, TERMINAL_DECORATIONS_SCHEME } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
@@ -57,7 +57,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService,
-		@IMenuService _menuService: IMenuService,
+		@IMenuService private readonly _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super('TerminalTabsTree', container,
@@ -145,7 +145,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		this._toolbarContainer.classList.add('toolbar-container');
 		this._toolbar = new ToolBar(this._toolbarContainer, this._contextMenuService, {
 			renderDropdownAsChildElement: true,
-			moreIcon: Codicon.dropDownButton
+			moreIcon: Codicon.dropDownButton,
 		});
 		this._container.appendChild(this._toolbarContainer);
 
@@ -157,6 +157,9 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		}
 
 		if (actions.length) {
+			for (const p of profiles) {
+				actions.push(new SubmenuItemAction({ title: 'Split', submenu: MenuId.TerminalTabsSplitContext, icon: Codicon.splitVertical }, this._menuService, this._contextKeyService, { arg: p, shouldForwardArgs: true }));
+			}
 			actions.push(new Separator());
 		}
 
@@ -166,7 +169,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 
 		const newTerminalAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
 
-		this._toolbar?.setActions(
+		this._toolbar.setActions(
 			[newTerminalAction], [
 			...actions
 		]);

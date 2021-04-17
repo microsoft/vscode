@@ -1198,19 +1198,39 @@ export function registerTerminalActions() {
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.not('config.terminal.integrated.showTabs')
 					]),
-				}]
+				}],
+				description: {
+					description: 'workbench.action.terminal.split',
+					args: [{
+						name: 'profile',
+						schema: {
+							type: 'object'
+						}
+					}]
+				},
 			});
 		}
-		async run(accessor: ServicesAccessor) {
+		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
-			await terminalService.doWithActiveInstance(async t => {
-				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
-				if (cwd === undefined) {
-					return undefined;
-				}
-				terminalService.splitInstance(t, { cwd });
-				return terminalService.showPanel(true);
-			});
+			if (profile) {
+				await terminalService.doWithActiveInstance(async t => {
+					const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
+					if (cwd === undefined) {
+						return undefined;
+					}
+					terminalService.splitInstance(t, profile);
+					return terminalService.showPanel(true);
+				});
+			} else {
+				await terminalService.doWithActiveInstance(async t => {
+					const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
+					if (cwd === undefined) {
+						return undefined;
+					}
+					terminalService.splitInstance(t, { cwd });
+					return terminalService.showPanel(true);
+				});
+			}
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
@@ -1224,6 +1244,13 @@ export function registerTerminalActions() {
 		command: {
 			id: TERMINAL_COMMAND_ID.SPLIT,
 			title: localize('workbench.action.terminal.split.short', "Split")
+		},
+		group: ContextMenuGroup.Create
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsSplitContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SPLIT,
+			title: localize('workbench.action.terminal.split.short', "Split"),
 		},
 		group: ContextMenuGroup.Create
 	});
