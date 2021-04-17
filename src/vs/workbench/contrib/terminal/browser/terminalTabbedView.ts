@@ -28,6 +28,8 @@ import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'v
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Codicon } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const $ = dom.$;
 
@@ -43,12 +45,15 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalTabTree: HTMLElement;
 	private _parentElement: HTMLElement;
 	private _tabTreeContainer: HTMLElement;
+	private _toolbarContainer: HTMLElement | undefined;
 
 	private _tabsWidget: TerminalTabsWidget;
 	private _findWidget: TerminalFindWidget;
 	private _sashDisposables: IDisposable[] | undefined;
 
 	private _plusButton: HTMLElement | undefined;
+
+	private _toolbar: ToolBar | undefined;
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
@@ -61,7 +66,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _cancelContextMenu: boolean = false;
 	private _instanceMenu: IMenu;
-	// private _dropdownMenu: IMenu;
+	private _dropdownMenu: IMenu;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -71,7 +76,8 @@ export class TerminalTabbedView extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
@@ -85,8 +91,8 @@ export class TerminalTabbedView extends Disposable {
 		tabWidgetContainer.appendChild(this._terminalTabTree);
 		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
-		// this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
+		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, _contextKeyService));
 
 		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
@@ -101,9 +107,11 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
 		this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(_contextKeyService);
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
+
+		this._terminalService.onRequestAvailableProfiles(async () => await this._createToolbar());
 
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
@@ -201,7 +209,7 @@ export class TerminalTabbedView extends Disposable {
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
-		this._createButton();
+		this._createToolbar();
 		this._refreshHasTextClass();
 		for (const instance of this._terminalService.terminalInstances) {
 			this._tabsWidget.rerender(instance);
@@ -247,12 +255,34 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth >= MIDPOINT_WIDGET_WIDTH);
 	}
 
-	private _createButton(): void {
-		const toolBar = new ToolBar(this._tabTreeContainer, this._contextMenuService);
-		toolBar.setActions([
-			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined),
-			// TODO: Bring back context menu: await this._openTabsContextMenu(e);
-			this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: nls.localize('terminal.newWithProfile', "New Terminal With Profile"), icon: Codicon.chevronDown }, undefined, undefined)
+	private async _createToolbar(): Promise<void> {
+		if (this._toolbarContainer) {
+			this._tabTreeContainer.removeChild(this._toolbarContainer);
+			this._toolbar?.dispose();
+		}
+
+		this._toolbarContainer = document.createElement('div');
+		this._toolbarContainer.classList.add('toolbar-container');
+		this._toolbar = new ToolBar(this._toolbarContainer, this._contextMenuService, {
+			renderDropdownAsChildElement: true,
+			moreIcon: Codicon.dropDownButton
+		});
+		this._tabTreeContainer.appendChild(this._toolbarContainer);
+
+		const tabsMenu = this._dropdownMenu;
+		const actions: IAction[] = [];
+		for (const [, configureActions] of tabsMenu.getActions()) {
+			actions.push(...configureActions);
+		}
+
+		const profiles = await this._terminalService.getAvailableProfiles();
+		for (const p of profiles) {
+			const action = new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
+			actions.push(action);
+		}
+
+		this._toolbar?.setActions([this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined)], [
+			...actions
 		]);
 	}
 

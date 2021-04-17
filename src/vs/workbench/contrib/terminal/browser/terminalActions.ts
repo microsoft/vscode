@@ -1330,13 +1330,6 @@ export function registerTerminalActions() {
 		},
 		group: ContextMenuGroup.Create
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
-		command: {
-			id: TERMINAL_COMMAND_ID.NEW,
-			title: localize('workbench.action.terminal.new.short', "New Terminal")
-		},
-		group: ContextMenuTabsGroup.Default
-	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
