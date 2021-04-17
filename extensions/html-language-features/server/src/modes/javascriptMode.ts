@@ -24,11 +24,17 @@ function deschemeURI(uri: string) {
 	if (!uri.startsWith('file://')) {
 		return uri;
 	}
-	// This is replicating the logic in TypeScriptServiceClient.normalizedPath
-	const newPath = normalize(uri.replace('file://', ''));
+
+	// This function aims to replicate the logic in TypeScriptServiceClient.normalizedPath
+	let newPath = normalize(uri.replace('file://', ''));
 
 	// Both \ and / must be escaped in regular expressions
-	return newPath.replace(new RegExp('\\' + sep, 'g'), '/');
+	newPath = newPath.replace(new RegExp('\\' + sep, 'g'), '/');
+
+	if (process.platform !== 'win32') return newPath;
+
+	// Windows URIs come in like '/c%3A/Users/orta/dev/...', we need to switch it to 'c:/Users/orta/dev/...'
+	return newPath.slice(1).replace('%3A', ':');
 }
 
 function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
