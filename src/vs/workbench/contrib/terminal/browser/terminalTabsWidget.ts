@@ -16,11 +16,11 @@ import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TERMINAL_COMMAND_ID, TERMINAL_DECORATIONS_SCHEME } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -57,7 +57,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService,
-		@IMenuService private readonly _menuService: IMenuService,
+		@IMenuService _menuService: IMenuService,
 		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super('TerminalTabsTree', container,
@@ -157,9 +157,11 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		}
 
 		if (actions.length) {
+			const submenuActions: IAction[] = [];
 			for (const p of profiles) {
-				actions.push(new SubmenuItemAction({ title: 'Split', submenu: MenuId.TerminalTabsSplitContext, icon: Codicon.splitVertical }, this._menuService, this._contextKeyService, { arg: p, shouldForwardArgs: true }));
+				submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 			}
+			actions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
 			actions.push(new Separator());
 		}
 
