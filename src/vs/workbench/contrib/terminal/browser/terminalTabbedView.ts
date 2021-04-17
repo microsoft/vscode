@@ -20,7 +20,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Separator } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -271,14 +271,19 @@ export class TerminalTabbedView extends Disposable {
 
 		const tabsMenu = this._dropdownMenu;
 		const actions: IAction[] = [];
-		for (const [, configureActions] of tabsMenu.getActions()) {
-			actions.push(...configureActions);
-		}
 
 		const profiles = await this._terminalService.getAvailableProfiles();
 		for (const p of profiles) {
 			const action = new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
 			actions.push(action);
+		}
+
+		if (actions.length) {
+			actions.push(new Separator());
+		}
+
+		for (const [, configureActions] of tabsMenu.getActions()) {
+			actions.push(...configureActions);
 		}
 
 		this._toolbar?.setActions([this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined)], [
