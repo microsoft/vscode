@@ -205,6 +205,7 @@ export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProg
 
 export interface ISearchCompleteStats {
 	limitHit?: boolean;
+	messages: string[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
@@ -504,11 +505,13 @@ export interface ISearchEngine<T> {
 export interface ISerializedSearchSuccess {
 	type: 'success';
 	limitHit: boolean;
+	messages: string[];
 	stats?: IFileSearchStats | ITextSearchStats;
 }
 
 export interface ISearchEngineSuccess {
 	limitHit: boolean;
+	messages: string[];
 	stats: ISearchEngineStats;
 }
 

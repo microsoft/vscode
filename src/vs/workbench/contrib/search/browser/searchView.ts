@@ -18,6 +18,7 @@ import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { parseLinkedText } from 'vs/base/common/linkedText';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -44,11 +45,13 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Link } from 'vs/platform/opener/browser/link';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder, foreground, listActiveSelectionForeground, textLinkActiveForeground, textLinkForeground, toolbarActiveBackground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -147,6 +150,7 @@ export class SearchView extends ViewPane {
 	private pauseSearching = false;
 
 	private treeAccessibilityProvider: SearchAccessibilityProvider;
+	messages: any;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -1414,6 +1418,7 @@ export class SearchView extends ViewPane {
 		});
 
 		this.searchWidget.searchInput.clearMessage();
+		this.messages = [];
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
 
@@ -1451,6 +1456,13 @@ export class SearchView extends ViewPane {
 					content: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."),
 					type: MessageType.WARNING
 				});
+			}
+			console.log({ completed });
+			if (completed && completed.messages) {
+				for (const message of completed.messages) {
+					this.addMessage(message);
+				}
+
 			}
 
 			if (!hasResults) {
@@ -1618,6 +1630,30 @@ export class SearchView extends ViewPane {
 			this.reLayout();
 		} else if (!msgWasHidden) {
 			dom.hide(this.messagesElement);
+		}
+	}
+
+	private addMessage(message: string) {
+		const linkedText = parseLinkedText(message);
+
+		const messageBox = this.messagesElement.firstChild as HTMLDivElement;
+		if (!messageBox) {
+			return;
+		}
+
+		if (messageBox.innerText) {
+			dom.append(messageBox, document.createTextNode(' - '));
+		}
+
+		for (const node of linkedText.nodes) {
+			if (typeof node === 'string') {
+				dom.append(messageBox, document.createTextNode(node));
+			} else {
+				const link = this.instantiationService.createInstance(Link, node);
+				dom.append(messageBox, link.el);
+				this.messageDisposables.add(link);
+				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
+			}
 		}
 	}
 
