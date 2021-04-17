@@ -56,7 +56,7 @@ import { Dto } from 'vs/base/common/types';
 import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff, ISerializedTestResults, ITestMessage } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff, ISerializedTestResults, ITestMessage, ITestItem, ITestRunTask, ExtensionRunTestsRequest } from 'vs/workbench/contrib/testing/common/testCollection';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -2008,16 +2008,39 @@ export interface ExtHostTestingShape {
 }
 
 export interface MainThreadTestingShape {
-	$registerTestProvider(id: string): void;
-	$unregisterTestProvider(id: string): void;
+	/** Registeres that there's a test controller with the given ID */
+	$registerTestController(id: string): void;
+	/** Diposes of the test controller with the given ID */
+	$unregisterTestController(id: string): void;
+	/** Requests tests from the given resource/uri, from the observer API. */
 	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	/** Stops requesting tests from the given resource/uri, from the observer API. */
 	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	/** Publishes that new tests were available on the given source. */
 	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
-	$updateTestStateInRun(runId: string, testId: string, state: TestResultState, duration?: number): void;
-	$appendTestMessageInRun(runId: string, testId: string, message: ITestMessage): void;
-	$appendOutputToRun(runId: string, output: VSBuffer): void;
+	/** Request by an extension to run tests. */
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
-	$publishExtensionProvidedResults(results: ISerializedTestResults, persist: boolean): void;
+
+	// --- test run handling:
+	/**
+	 * Adds tests to the run. The tests are given in descending depth. The first
+	 * item will be a previously-known test, or a test root.
+	 */
+	$addTestsToRun(runId: string, tests: ITestItem[]): void;
+	/** Updates the state of a test run in the given run. */
+	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
+	/** Appends a message to a test in the run. */
+	$appendTestMessageInRun(runId: string, taskId: string, testId: string, message: ITestMessage): void;
+	/** Appends raw output to the test run.. */
+	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer): void;
+	/** Signals a task in a test run started. */
+	$startedTestRunTask(runId: string, task: ITestRunTask): void;
+	/** Signals a task in a test run ended. */
+	$finishedTestRunTask(runId: string, taskId: string): void;
+	/** Start a new extension-provided test run. */
+	$startedExtensionTestRun(req: ExtensionRunTestsRequest): void;
+	/** Signals that an extension-provided test run finished. */
+	$finishedExtensionTestRun(runId: string): void;
 }
 
 // --- proxy identifiers

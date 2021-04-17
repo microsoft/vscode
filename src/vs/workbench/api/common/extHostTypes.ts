@@ -7,12 +7,13 @@ import { coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
-import { ResourceMap } from 'vs/base/common/map';
+import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { getPrivateApiFor, ExtHostTestItemEventType, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
@@ -3236,16 +3237,17 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export const TestItemHookProperty = Symbol('TestItemHookProperty');
-
-export interface ITestItemHook {
-	created(item: vscode.TestItem): void;
-	setProp<K extends keyof vscode.TestItem>(key: K, value: vscode.TestItem[K]): void;
-	invalidate(id: string): void;
-	delete(id: string): void;
+export enum TestItemStatus {
+	Pending = 0,
+	Resolved = 1,
 }
 
-const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, key: K, defaultValue: vscode.TestItem[K]) => {
+const testItemPropAccessor = <K extends keyof vscode.TestItem<never>>(
+	api: IExtHostTestItemApi,
+	key: K,
+	defaultValue: vscode.TestItem<never>[K],
+	equals: (a: vscode.TestItem<never>[K], b: vscode.TestItem<never>[K]) => boolean
+) => {
 	let value = defaultValue;
 	return {
 		enumerable: true,
@@ -3253,80 +3255,41 @@ const testItemPropAccessor = <K extends keyof vscode.TestItem>(item: TestItem, k
 		get() {
 			return value;
 		},
-		set(newValue: vscode.TestItem[K]) {
-			item[TestItemHookProperty]?.setProp(key, newValue);
-			value = newValue;
+		set(newValue: vscode.TestItem<never>[K]) {
+			if (!equals(value, newValue)) {
+				value = newValue;
+				api.bus.fire([ExtHostTestItemEventType.SetProp, key, newValue]);
+			}
 		},
 	};
 };
 
-export class TestChildrenCollection implements vscode.TestChildrenCollection<vscode.TestItem> {
-	#map = new Map<string, vscode.TestItem>();
-	#hookRef: () => ITestItemHook | undefined;
+const strictEqualComparator = <T>(a: T, b: T) => a === b;
+const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefined) => {
+	if (a === b) { return true; }
+	if (!a || !b) { return false; }
+	return a.isEqual(b);
+};
 
-	public get size() {
-		return this.#map.size;
-	}
+export class TestItemImpl implements vscode.TestItem<unknown> {
+	public readonly id!: string;
+	public readonly uri!: vscode.Uri;
+	public readonly children!: ReadonlyMap<string, TestItemImpl>;
+	public readonly parent!: TestItemImpl | undefined;
 
-	constructor(hookRef: () => ITestItemHook | undefined) {
-		this.#hookRef = hookRef;
-	}
-
-	public add(child: vscode.TestItem) {
-		const map = this.#map;
-		const hook = this.#hookRef();
-
-		const existing = map.get(child.id);
-		if (existing === child) {
-			return;
-		}
-
-		if (existing) {
-			hook?.delete(child.id);
-		}
-
-		map.set(child.id, child);
-		hook?.created(child);
-	}
-
-	public get(id: string) {
-		return this.#map.get(id);
-	}
-
-	public clear() {
-		for (const key of this.#map.keys()) {
-			this.delete(key);
-		}
-	}
-
-	public delete(childOrId: vscode.TestItem | string) {
-		const id = typeof childOrId === 'string' ? childOrId : childOrId.id;
-		if (this.#map.has(id)) {
-			this.#map.delete(id);
-			this.#hookRef()?.delete(id);
-		}
-	}
-
-	public toJSON() {
-		return [...this.#map.values()];
-	}
-
-	public [Symbol.iterator]() {
-		return this.#map.values();
-	}
-}
-
-export class TestItem implements vscode.TestItem {
-	public id!: string;
 	public range!: vscode.Range | undefined;
 	public description!: string | undefined;
 	public runnable!: boolean;
 	public debuggable!: boolean;
-	public children!: TestChildrenCollection;
-	public uri!: vscode.Uri;
-	public [TestItemHookProperty]!: ITestItemHook | undefined;
+	public error!: string | vscode.MarkdownString;
+	public status!: vscode.TestItemStatus;
 
-	constructor(id: string, public label: string, uri: vscode.Uri, public expandable: boolean) {
+	/** Extension-owned resolve handler */
+	public resolveHandler?: (token: vscode.CancellationToken) => void;
+
+	constructor(id: string, public label: string, uri: vscode.Uri, public data: unknown) {
+		const api = getPrivateApiFor(this);
+
 		Object.defineProperties(this, {
 			id: {
 				value: id,
@@ -3338,31 +3301,51 @@ export class TestItem implements vscode.TestItem {
 				enumerable: true,
 				writable: false,
 			},
+			parent: {
+				enumerable: false,
+				get: () => api.parent,
+			},
 			children: {
-				value: new TestChildrenCollection(() => this[TestItemHookProperty]),
+				value: new ReadonlyMapView(api.children),
 				enumerable: true,
 				writable: false,
 			},
-			[TestItemHookProperty]: {
-				enumerable: false,
-				writable: true,
-				configurable: false,
-			},
-			range: testItemPropAccessor(this, 'range', undefined),
-			description: testItemPropAccessor(this, 'description', undefined),
-			runnable: testItemPropAccessor(this, 'runnable', true),
-			debuggable: testItemPropAccessor(this, 'debuggable', true),
+			range: testItemPropAccessor(api, 'range', undefined, rangeComparator),
+			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
+			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
+			debuggable: testItemPropAccessor(api, 'debuggable', true, strictEqualComparator),
+			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
 		});
 	}
 
 	public invalidate() {
-		this[TestItemHookProperty]?.invalidate(this.id);
+		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Invalidated]);
 	}
 
-	public discoverChildren(progress: vscode.Progress<{ busy: boolean }>, _token: vscode.CancellationToken) {
-		progress.report({ busy: false });
+	public dispose() {
+		const api = getPrivateApiFor(this);
+		if (api.parent) {
+			getPrivateApiFor(api.parent).children.delete(this.id);
+		}
+
+		api.bus.fire([ExtHostTestItemEventType.Disposed]);
+	}
+
+	public addChild(child: vscode.TestItem<unknown>) {
+		if (!(child instanceof TestItemImpl)) {
+			throw new Error('Test child must be created through vscode.test.createTestItem()');
+		}
+
+		const api = getPrivateApiFor(this);
+		if (api.children.has(child.id)) {
+			throw new Error(`Attempted to insert a duplicate test item ID ${child.id}`);
+		}
+
+		api.children.set(child.id, child);
+		api.bus.fire([ExtHostTestItemEventType.NewChild, child]);
 	}
 }
+
 
 export class TestMessage implements vscode.TestMessage {
 	public severity = TestMessageSeverity.Error;

@@ -440,8 +440,9 @@ export class ShowMostRecentOutputAction extends Action2 {
 	constructor() {
 		super({
 			id: 'testing.showMostRecentOutput',
-			title: localize('testing.showMostRecentOutput', "Show Most Recent Output"),
-			f1: false,
+			title: localize('testing.showMostRecentOutput', "Show Output"),
+			f1: true,
+			category,
 			icon: Codicon.terminal,
 			menu: {
 				id: MenuId.ViewTitle,
@@ -878,7 +879,7 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
 			const resultSet = results[i];
 			for (const test of resultSet.tests) {
 				const path = this.getPathForTest(test, resultSet).join(sep);
-				if (isFailedState(test.state.state)) {
+				if (isFailedState(test.ownComputedState)) {
 					paths.add(path);
 				} else {
 					paths.delete(path);

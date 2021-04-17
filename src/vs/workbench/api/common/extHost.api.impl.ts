@@ -336,9 +336,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			: extHostTypes.ExtensionKind.UI;
 
 		const test: typeof vscode.test = {
-			registerTestProvider(provider) {
+			registerTestController(provider) {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.registerTestProvider(provider);
+				return extHostTesting.registerTestController(extension.identifier.value, provider);
 			},
 			createDocumentTestObserver(document) {
 				checkProposedApiEnabled(extension);
@@ -352,9 +352,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
 			},
-			publishTestResult(results, persist = true) {
+			createTestItem<T>(options: vscode.TestItemOptions, data?: T) {
+				return new extHostTypes.TestItemImpl(options.id, options.label, options.uri, data);
+			},
+			createTestRunTask(request, name, persist) {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.publishExtensionProvidedResults(results, persist);
+				return extHostTesting.createTestRunTask(extension.identifier.value, request, name, persist);
 			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension);
@@ -1259,7 +1262,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
-			TestItem: extHostTypes.TestItem,
+			TestItemStatus: extHostTypes.TestItemStatus,
 			TestResultState: extHostTypes.TestResultState,
 			TestMessage: extHostTypes.TestMessage,
 			TestMessageSeverity: extHostTypes.TestMessageSeverity,
