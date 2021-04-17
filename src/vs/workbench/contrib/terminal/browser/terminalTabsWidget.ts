@@ -150,17 +150,15 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 		this._container.appendChild(this._toolbarContainer);
 
 		const actions: IAction[] = [];
+		const submenuActions: IAction[] = [];
 
 		const profiles = await this._terminalService.getAvailableProfiles();
 		for (const p of profiles) {
 			actions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
 		}
 
 		if (actions.length) {
-			const submenuActions: IAction[] = [];
-			for (const p of profiles) {
-				submenuActions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.SPLIT, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-			}
 			actions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
 			actions.push(new Separator());
 		}
