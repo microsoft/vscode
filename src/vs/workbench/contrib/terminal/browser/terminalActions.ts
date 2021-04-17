@@ -665,6 +665,13 @@ export function registerTerminalActions() {
 		},
 		group: ContextMenuGroup.Edit
 	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalWidgetContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.RENAME,
+			title: localize('workbench.action.terminal.rename', "Rename")
+		},
+		group: ContextMenuGroup.Edit
+	});
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1361,6 +1368,13 @@ export function registerTerminalActions() {
 		}
 	});
 	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.KILL,
+			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
+		},
+		group: ContextMenuGroup.Kill
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalWidgetContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.KILL,
 			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")

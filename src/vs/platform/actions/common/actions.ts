@@ -158,6 +158,7 @@ export class MenuId {
 	static readonly PanelTitle = new MenuId('PanelTitle');
 	static readonly TerminalContext = new MenuId('TerminalContext');
 	static readonly TerminalTabsContext = new MenuId('TerminalTabsContext');
+	static readonly TerminalWidgetContext = new MenuId('TerminalWidgetContext');
 
 	readonly id: number;
 	readonly _debugName: string;

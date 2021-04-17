@@ -57,6 +57,7 @@ export class TerminalTabbedView extends Disposable {
 
 	private _cancelContextMenu: boolean = false;
 	private _instanceMenu: IMenu;
+	private _tabMenu: IMenu;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -81,6 +82,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
+		this._tabMenu = this._register(menuService.createMenu(MenuId.TerminalWidgetContext, _contextKeyService));
 
 		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
@@ -268,7 +270,7 @@ export class TerminalTabbedView extends Disposable {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						this._openContextMenu(event);
+						this._openContextMenu(event, parentDomElement);
 						return;
 					}
 
@@ -295,9 +297,17 @@ export class TerminalTabbedView extends Disposable {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._terminalContainer, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
-				this._openContextMenu(event);
+				this._openContextMenu(event, this._terminalContainer);
+			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			this._cancelContextMenu = false;
+		}));
+		this._register(dom.addDisposableListener(this._tabTreeContainer, 'contextmenu', (event: MouseEvent) => {
+			if (!this._cancelContextMenu) {
+				this._openContextMenu(event, this._tabTreeContainer);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -344,19 +354,32 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 	}
-	private _openContextMenu(event: MouseEvent): void {
+	private _openContextMenu(event: MouseEvent, container: HTMLElement): void {
+
 		const standardEvent = new StandardMouseEvent(event);
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this._instanceMenu, undefined, actions);
+		if (container === this._terminalContainer) {
+			const actions: IAction[] = [];
+			const actionsDisposable = createAndFillInContextMenuActions(this._instanceMenu, undefined, actions);
 
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => actions,
-			getActionsContext: () => this._parentElement,
-			onHide: () => actionsDisposable.dispose()
-		});
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => actions,
+				getActionsContext: () => this._terminalContainer,
+				onHide: () => actionsDisposable.dispose()
+			});
+		} else {
+			const actions: IAction[] = [];
+			const actionsDisposable = createAndFillInContextMenuActions(this._tabMenu, undefined, actions);
+
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => actions,
+				getActionsContext: () => this._tabTreeContainer,
+				onHide: () => actionsDisposable.dispose()
+			});
+		}
 	}
 
 	public focusFindWidget() {
