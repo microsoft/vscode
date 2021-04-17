@@ -375,7 +375,9 @@ export class SingleUseTestCollection implements IDisposable {
 
 		// Discover any existing children that might have already been added
 		for (const child of api.children.values()) {
-			this.addItem(child, controllerId, internal);
+			if (!this.testItemToInternal.has(child)) {
+				this.addItem(child, controllerId, internal);
+			}
 		}
 	}
 
