@@ -359,29 +359,6 @@ export class TerminalTabbedView extends Disposable {
 		});
 	}
 
-	// private async _openTabsContextMenu(event: MouseEvent): Promise<void> {
-	// 	const standardEvent = new StandardMouseEvent(event);
-	// 	const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-
-	// 	const actions: IAction[] = [];
-
-	// 	const profiles = await this._terminalService.getAvailableProfiles().filter(p => this._terminalService.configHelper.checkIsProcessLaunchSafe(undefined, p));
-	// 	const tabsMenu = this._dropdownMenu;
-	// 	for (const p of profiles) {
-	// 		const action = new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
-	// 		actions.push(action);
-	// 	}
-
-	// 	const actionsDisposable = createAndFillInContextMenuActions(tabsMenu, undefined, actions);
-
-	// 	this._contextMenuService.showContextMenu({
-	// 		getAnchor: () => anchor,
-	// 		getActions: () => actions,
-	// 		getActionsContext: () => this._parentElement,
-	// 		onHide: () => actionsDisposable.dispose()
-	// 	});
-	// }
-
 	public focusFindWidget() {
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalService.getActiveInstance();
