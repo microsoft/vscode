@@ -9,7 +9,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Delayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
@@ -33,7 +33,7 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -52,6 +52,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPatternInfo, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { IFileService } from 'vs/platform/files/common/files';
+import { parseLinkedText } from 'vs/base/common/linkedText';
+import { Link } from 'vs/platform/opener/browser/link';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -80,7 +82,7 @@ export class SearchEditor extends BaseTextEditor {
 	private inputFocusContextKey: IContextKey<boolean>;
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
-	private messageDisposables: IDisposable[] = [];
+	private messageDisposables: DisposableStore;
 	private container: HTMLElement;
 	private searchModel: SearchModel;
 	private ongoingOperations: number = 0;
@@ -114,6 +116,8 @@ export class SearchEditor extends BaseTextEditor {
 		this.inSearchEditorContextKey.set(true);
 		this.inputFocusContextKey = InputBoxFocusedKey.bindTo(scopedContextKeyService);
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
+		this._register(this.messageDisposables = new DisposableStore());
+
 		this.searchHistoryDelayer = new Delayer<void>(2000);
 
 		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
@@ -193,15 +197,13 @@ export class SearchEditor extends BaseTextEditor {
 
 	private toggleRunAgainMessage(show: boolean) {
 		DOM.clearNode(this.messageBox);
-		dispose(this.messageDisposables);
-		this.messageDisposables = [];
+		this.messageDisposables.clear();
 
 		if (show) {
 			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runSearch', "Run Search")));
-			this.messageDisposables.push(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
+			this.messageDisposables.add(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
 				await this.triggerSearch();
 				this.searchResultEditor.focus();
-				this.toggleRunAgainMessage(false);
 			}));
 		}
 	}
@@ -427,8 +429,8 @@ export class SearchEditor extends BaseTextEditor {
 
 		if (!this.pauseSearching) {
 			await this.runSearchDelayer.trigger(async () => {
-				await this.doRunSearch();
 				this.toggleRunAgainMessage(false);
+				await this.doRunSearch();
 				if (options.resetCursor) {
 					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
@@ -533,10 +535,41 @@ export class SearchEditor extends BaseTextEditor {
 		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.filesToInclude, config.filesToExclude, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
 		const { body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
+		if (exit.messages) {
+			for (const message of exit.messages) {
+				this.addMessage(message);
+			}
+		}
 		input.config = config;
 
 		input.setDirty(!input.isUntitled());
 		input.setMatchRanges(results.matchRanges);
+	}
+
+	private addMessage(message: string) {
+		const linkedText = parseLinkedText(message);
+
+		let messageBox: HTMLElement;
+		if (this.messageBox.firstChild) {
+			messageBox = this.messageBox.firstChild as HTMLElement;
+		} else {
+			messageBox = DOM.append(this.messageBox, DOM.$('.message'));
+		}
+
+		if (messageBox.innerText) {
+			DOM.append(messageBox, document.createTextNode(' - '));
+		}
+
+		for (const node of linkedText.nodes) {
+			if (typeof node === 'string') {
+				DOM.append(messageBox, document.createTextNode(node));
+			} else {
+				const link = this.instantiationService.createInstance(Link, node);
+				DOM.append(messageBox, link.el);
+				this.messageDisposables.add(link);
+				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
+			}
+		}
 	}
 
 	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
