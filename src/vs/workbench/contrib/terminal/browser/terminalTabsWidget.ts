@@ -120,7 +120,7 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 
-		this._dropdownMenu = _menuService.createMenu(MenuId.TerminalTabsContext, _contextKeyService);
+		this._dropdownMenu = _menuService.createMenu(MenuId.TerminalToolbarContext, _contextKeyService);
 
 		this._createToolbar();
 	}

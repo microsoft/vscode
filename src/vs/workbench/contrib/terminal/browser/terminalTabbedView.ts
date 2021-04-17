@@ -81,8 +81,8 @@ export class TerminalTabbedView extends Disposable {
 		tabWidgetContainer.appendChild(this._terminalTabTree);
 		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
-		this._tabMenu = this._register(menuService.createMenu(MenuId.TerminalWidgetContext, _contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContainerContext, _contextKeyService));
+		this._tabMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetContext, _contextKeyService));
 
 		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));

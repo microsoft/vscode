@@ -658,14 +658,14 @@ export function registerTerminalActions() {
 			return accessor.get(ITerminalService).getActiveInstance()?.rename();
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.RENAME,
 			title: localize('workbench.action.terminal.rename', "Rename")
 		},
 		group: ContextMenuGroup.Edit
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalWidgetContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.RENAME,
 			title: localize('workbench.action.terminal.rename', "Rename")
@@ -1213,7 +1213,14 @@ export function registerTerminalActions() {
 			});
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
+		command: {
+			id: TERMINAL_COMMAND_ID.SPLIT,
+			title: localize('workbench.action.terminal.split.short', "Split")
+		},
+		group: ContextMenuGroup.Create
+	});
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.SPLIT,
 			title: localize('workbench.action.terminal.split.short', "Split")
@@ -1259,7 +1266,7 @@ export function registerTerminalActions() {
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
 				}],
 				menu: {
-					id: MenuId.TerminalContext,
+					id: MenuId.TerminalContainerContext,
 					group: ContextMenuGroup.Edit,
 					order: 3
 				}
@@ -1330,7 +1337,7 @@ export function registerTerminalActions() {
 			await terminalService.showPanel(true);
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.NEW,
 			title: localize('workbench.action.terminal.new.short', "New Terminal")
@@ -1367,14 +1374,14 @@ export function registerTerminalActions() {
 			});
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.KILL,
 			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
 		},
 		group: ContextMenuGroup.Kill
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalWidgetContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalTabsWidgetContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.KILL,
 			title: localize('workbench.action.terminal.kill.short', "Kill Terminal")
@@ -1398,7 +1405,7 @@ export function registerTerminalActions() {
 					when: KEYBINDING_CONTEXT_TERMINAL_FOCUS
 				}],
 				menu: {
-					id: MenuId.TerminalContext,
+					id: MenuId.TerminalContainerContext,
 					group: ContextMenuGroup.Clear
 				}
 			});
@@ -1424,7 +1431,7 @@ export function registerTerminalActions() {
 			await accessor.get(ITerminalService).showProfileQuickPick('setDefault');
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalToolbarContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.SELECT_DEFAULT_PROFILE,
 			title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' }
@@ -1445,7 +1452,7 @@ export function registerTerminalActions() {
 			await accessor.get(IPreferencesService).openSettings(false, '@feature:terminal');
 		}
 	});
-	MenuRegistry.appendMenuItem(MenuId.TerminalTabsContext, {
+	MenuRegistry.appendMenuItem(MenuId.TerminalToolbarContext, {
 		command: {
 			id: TERMINAL_COMMAND_ID.CONFIGURE_TERMINAL_SETTINGS,
 			title: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings")
@@ -1476,7 +1483,7 @@ export function registerTerminalActions() {
 				await accessor.get(ITerminalService).getActiveInstance()?.copySelection();
 			}
 		});
-		MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 			command: {
 				id: TERMINAL_COMMAND_ID.COPY_SELECTION,
 				title: localize('workbench.action.terminal.copySelection.short', "Copy")
@@ -1508,7 +1515,7 @@ export function registerTerminalActions() {
 				await accessor.get(ITerminalService).getActiveInstance()?.paste();
 			}
 		});
-		MenuRegistry.appendMenuItem(MenuId.TerminalContext, {
+		MenuRegistry.appendMenuItem(MenuId.TerminalContainerContext, {
 			command: {
 				id: TERMINAL_COMMAND_ID.PASTE,
 				title: localize('workbench.action.terminal.paste.short', "Paste")
