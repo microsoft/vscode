@@ -11,7 +11,6 @@ import { ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { DEFAULT_TABS_WIDGET_WIDTH, MIDPOINT_WIDGET_WIDTH, MIN_TABS_WIDGET_WIDTH, TerminalTabsWidget } from 'vs/workbench/contrib/terminal/browser/terminalTabsWidget';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import * as nls from 'vs/nls';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -20,16 +19,12 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IAction } from 'vs/base/common/actions';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Codicon } from 'vs/base/common/codicons';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const $ = dom.$;
 
@@ -45,15 +40,11 @@ export class TerminalTabbedView extends Disposable {
 	private _terminalTabTree: HTMLElement;
 	private _parentElement: HTMLElement;
 	private _tabTreeContainer: HTMLElement;
-	private _toolbarContainer: HTMLElement | undefined;
+
 
 	private _tabsWidget: TerminalTabsWidget;
 	private _findWidget: TerminalFindWidget;
 	private _sashDisposables: IDisposable[] | undefined;
-
-	private _plusButton: HTMLElement | undefined;
-
-	private _toolbar: ToolBar | undefined;
 
 	private _tabTreeIndex: number;
 	private _terminalContainerIndex: number;
@@ -66,7 +57,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _cancelContextMenu: boolean = false;
 	private _instanceMenu: IMenu;
-	private _dropdownMenu: IMenu;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -76,10 +66,9 @@ export class TerminalTabbedView extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IMenuService menuService: IMenuService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -92,7 +81,6 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, _contextKeyService));
-		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, _contextKeyService));
 
 		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
@@ -111,8 +99,6 @@ export class TerminalTabbedView extends Disposable {
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
 
-		this._terminalService.onRequestAvailableProfiles(async () => await this._createToolbar());
-
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated.showTabs')) {
 				this._showTabs = this._terminalService.configHelper.config.showTabs;
@@ -121,9 +107,6 @@ export class TerminalTabbedView extends Disposable {
 					this._addSashListener();
 				} else {
 					this._splitView.removeView(this._tabTreeIndex);
-					if (this._plusButton) {
-						this._tabTreeContainer.removeChild(this._plusButton);
-					}
 					this._removeSashListener();
 				}
 			} else if (e.affectsConfiguration('terminal.integrated.tabsLocation')) {
@@ -209,7 +192,6 @@ export class TerminalTabbedView extends Disposable {
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
-		this._createToolbar();
 		this._refreshHasTextClass();
 		for (const instance of this._terminalService.terminalInstances) {
 			this._tabsWidget.rerender(instance);
@@ -253,42 +235,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _refreshHasTextClass() {
 		this._tabTreeContainer.classList.toggle('has-text', this._tabTreeContainer.clientWidth >= MIDPOINT_WIDGET_WIDTH);
-	}
-
-	private async _createToolbar(): Promise<void> {
-		if (this._toolbarContainer) {
-			this._tabTreeContainer.removeChild(this._toolbarContainer);
-			this._toolbar?.dispose();
-		}
-
-		this._toolbarContainer = document.createElement('div');
-		this._toolbarContainer.classList.add('toolbar-container');
-		this._toolbar = new ToolBar(this._toolbarContainer, this._contextMenuService, {
-			renderDropdownAsChildElement: true,
-			moreIcon: Codicon.dropDownButton
-		});
-		this._tabTreeContainer.appendChild(this._toolbarContainer);
-
-		const tabsMenu = this._dropdownMenu;
-		const actions: IAction[] = [];
-
-		const profiles = await this._terminalService.getAvailableProfiles();
-		for (const p of profiles) {
-			const action = new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
-			actions.push(action);
-		}
-
-		if (actions.length) {
-			actions.push(new Separator());
-		}
-
-		for (const [, configureActions] of tabsMenu.getActions()) {
-			actions.push(...configureActions);
-		}
-
-		this._toolbar?.setActions([this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: nls.localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined)], [
-			...actions
-		]);
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {

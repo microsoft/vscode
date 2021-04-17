@@ -16,11 +16,11 @@ import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TERMINAL_COMMAND_ID, TERMINAL_DECORATIONS_SCHEME } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -28,6 +28,10 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { URI } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
+import { ContextMenuTabsGroup } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const $ = DOM.$;
 export const MIN_TABS_WIDGET_WIDTH = 46;
@@ -36,25 +40,32 @@ export const MIDPOINT_WIDGET_WIDTH = (MIN_TABS_WIDGET_WIDTH + DEFAULT_TABS_WIDGE
 
 export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  {
 	private _decorationsProvider: TerminalDecorationsProvider | undefined;
+	private _dropdownMenu: IMenu;
+	private _toolbarContainer: HTMLElement | undefined;
+	private _toolbar: ToolBar | undefined;
+	private _container: HTMLElement;
 
 	constructor(
 		container: HTMLElement,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService _decorationsService: IDecorationsService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IDecorationsService _decorationsService: IDecorationsService,
+		@IMenuService _menuService: IMenuService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super('TerminalTabsTree', container,
 			{
 				getHeight: () => 22,
 				getTemplateId: () => 'terminal.tabs'
 			},
-			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER))],
+			[_instantiationService.createInstance(TerminalTabsRenderer, container, _instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER))],
 			{
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
@@ -72,13 +83,15 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				expandOnlyOnTwistieClick: true,
 				selectionNavigation: true
 			},
-			contextKeyService,
+			_contextKeyService,
 			listService,
 			themeService,
 			configurationService,
 			keybindingService,
 			accessibilityService,
 		);
+
+		this._container = container;
 
 		this._terminalService.onInstancesChanged(() => this._render());
 		this._terminalService.onInstanceTitleChanged(() => this._render());
@@ -88,6 +101,10 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				this.reveal(e);
 			}
 		});
+
+		this._terminalService.onInstancePrimaryStatusChanged(() => this._render());
+		this._terminalService.onRequestAvailableProfiles(async () => await this._createToolbar());
+
 		this.onDidOpen(async e => {
 			const instance = e.element;
 			if (!instance) {
@@ -99,10 +116,13 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 			}
 		});
 		if (!this._decorationsProvider) {
-			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
+			this._decorationsProvider = _instantiationService.createInstance(TerminalDecorationsProvider);
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
-		this._terminalService.onInstancePrimaryStatusChanged(() => this._render());
+
+		this._dropdownMenu = _menuService.createMenu(MenuId.TerminalTabsContext, _contextKeyService);
+
+		this._createToolbar();
 	}
 
 	private _render(): void {
@@ -113,6 +133,43 @@ export class TerminalTabsWidget extends WorkbenchObjectTree<ITerminalInstance>  
 				collapsible: false
 			};
 		}));
+	}
+
+	private async _createToolbar(): Promise<void> {
+		if (this._toolbarContainer) {
+			this._container.removeChild(this._toolbarContainer);
+			this._toolbar?.dispose();
+		}
+
+		this._toolbarContainer = document.createElement('div');
+		this._toolbarContainer.classList.add('toolbar-container');
+		this._toolbar = new ToolBar(this._toolbarContainer, this._contextMenuService, {
+			renderDropdownAsChildElement: true,
+			moreIcon: Codicon.dropDownButton
+		});
+		this._container.appendChild(this._toolbarContainer);
+
+		const actions: IAction[] = [];
+
+		const profiles = await this._terminalService.getAvailableProfiles();
+		for (const p of profiles) {
+			actions.push(new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+		}
+
+		if (actions.length) {
+			actions.push(new Separator());
+		}
+
+		for (const [, configureActions] of this._dropdownMenu.getActions()) {
+			actions.push(...configureActions);
+		}
+
+		const newTerminalAction = this._instantiationService.createInstance(MenuItemAction, { id: TERMINAL_COMMAND_ID.NEW, title: localize('terminal.new', "New Terminal"), icon: Codicon.plus }, undefined, undefined);
+
+		this._toolbar?.setActions(
+			[newTerminalAction], [
+			...actions
+		]);
 	}
 }
 
