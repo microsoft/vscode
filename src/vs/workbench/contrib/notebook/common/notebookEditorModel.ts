@@ -10,7 +10,8 @@ import { INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorMode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Schemas } from 'vs/base/common/network';

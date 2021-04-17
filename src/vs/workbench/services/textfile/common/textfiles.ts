@@ -13,7 +13,7 @@ import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';

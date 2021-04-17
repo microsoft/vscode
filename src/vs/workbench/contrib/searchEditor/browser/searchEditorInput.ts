@@ -26,7 +26,8 @@ import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEdito
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export type SearchConfiguration = {

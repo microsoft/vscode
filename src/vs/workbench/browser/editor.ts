@@ -18,7 +18,8 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IWorkingCopyService, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/workbench/workbench.web.api';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 

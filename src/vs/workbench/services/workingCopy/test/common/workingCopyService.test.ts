@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/base/common/uri';
 import { TestWorkingCopy, TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 

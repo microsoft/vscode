@@ -56,7 +56,7 @@ import { getFormatedMetadataJSON } from 'vs/workbench/contrib/notebook/browser/d
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 // Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';

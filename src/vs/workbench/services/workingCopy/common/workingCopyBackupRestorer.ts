@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Promises } from 'vs/base/common/async';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class WorkingCopyBackupRestorer implements IWorkbenchContribution {
 

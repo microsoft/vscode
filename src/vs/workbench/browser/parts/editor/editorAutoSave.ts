@@ -11,7 +11,8 @@ import { SaveReason, IEditorIdentifier, IEditorInput, GroupIdentifier, ISaveOpti
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {

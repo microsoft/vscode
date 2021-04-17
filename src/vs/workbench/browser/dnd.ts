@@ -29,7 +29,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Emitter } from 'vs/base/common/event';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export interface IDraggedResource {
 	resource: URI;

@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const IWorkingCopyBackupService = createDecorator<IWorkingCopyBackupService>('workingCopyBackupService');
 

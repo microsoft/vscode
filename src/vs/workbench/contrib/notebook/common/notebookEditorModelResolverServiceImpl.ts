@@ -16,7 +16,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { ResourceMap } from 'vs/base/common/map';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {

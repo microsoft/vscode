@@ -11,7 +11,7 @@ import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewE
 import { SerializedWebviewOptions, DeserializedWebview, reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputSerializer, restoreWebviewContentOptions, restoreWebviewOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInputSerializer';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IWorkingCopyBackupService, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;

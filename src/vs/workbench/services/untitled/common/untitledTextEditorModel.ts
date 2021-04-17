@@ -14,7 +14,8 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';

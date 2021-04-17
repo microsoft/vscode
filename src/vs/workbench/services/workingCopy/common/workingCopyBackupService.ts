@@ -25,7 +25,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { WorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isEmptyObject } from 'vs/base/common/types';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class WorkingCopyBackupsModel {
 

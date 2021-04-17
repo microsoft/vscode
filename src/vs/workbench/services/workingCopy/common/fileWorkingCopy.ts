@@ -9,7 +9,8 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ETAG_DISABLED, FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata, IFileStreamContent } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DefaultEndOfLine, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';

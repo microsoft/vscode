@@ -32,7 +32,7 @@ import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';
 import { isEqual } from 'vs/base/common/resources';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 

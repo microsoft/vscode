@@ -12,7 +12,7 @@ import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browse
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { SearchConfiguration } from './searchEditorInput';
 import { assertIsDefined } from 'vs/base/common/types';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 
 export class SearchEditorModel {

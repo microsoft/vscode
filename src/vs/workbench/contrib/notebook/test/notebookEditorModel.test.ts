@@ -18,7 +18,8 @@ import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IWorkingCopy, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 suite('NotebookEditorModel', function () {
 

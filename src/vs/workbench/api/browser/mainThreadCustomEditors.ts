@@ -36,7 +36,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 const enum CustomEditorModelType {
 	Custom,
