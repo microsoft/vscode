@@ -7,15 +7,6 @@ import { UriComponents } from 'vs/base/common/uri';
 import { IRawTerminalTabLayoutInfo, ITerminalEnvironment, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
-export interface IShellLaunchConfigDto {
-	name?: string;
-	executable?: string;
-	args?: string[] | string;
-	cwd?: string | UriComponents;
-	env?: { [key: string]: string | null; };
-	hideFromUser?: boolean;
-}
-
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
 	value: T | undefined;
@@ -65,6 +56,7 @@ export interface IProcessDetails {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
+	icon: string | undefined;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;

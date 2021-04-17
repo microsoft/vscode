@@ -123,6 +123,10 @@ export class ExtensionsWatcher extends Disposable {
 				}
 			});
 			const removed = this.installedExtensions.filter(identifier => {
+				// Extension being installed
+				if (this.installingExtensions.some(installingExtension => areSameExtensions(installingExtension, identifier))) {
+					return false;
+				}
 				if (extensions.every(e => !areSameExtensions(e.identifier, identifier))) {
 					this.logService.info('Detected extension removed from another source', identifier.id);
 					return true;

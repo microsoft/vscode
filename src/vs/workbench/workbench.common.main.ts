@@ -171,10 +171,7 @@ import 'vs/workbench/contrib/files/browser/explorerViewlet';
 import 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import 'vs/workbench/contrib/files/browser/files.contribution';
 
-// Backup
-import 'vs/workbench/contrib/backup/common/backup.contribution';
-
-// bulkEdit
+// Bulk Edit
 import 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution';
 
@@ -274,13 +271,13 @@ import 'vs/workbench/contrib/watermark/browser/watermark';
 
 // Surveys
 import 'vs/workbench/contrib/surveys/browser/nps.contribution';
+import 'vs/workbench/contrib/surveys/browser/ces.contribution';
 import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
 import 'vs/workbench/contrib/welcome/overlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcome/page/browser/welcomePage.contribution';
 import 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted.contribution';
-import 'vs/workbench/contrib/welcome/walkthroughs/browser/walkthroughs.contribution';
 import 'vs/workbench/contrib/welcome/walkThrough/browser/walkThrough.contribution';
 
 // Call Hierarchy

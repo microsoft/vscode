@@ -78,7 +78,7 @@ abstract class BaseOpenRecentAction extends Action {
 
 	protected abstract isQuickNavigate(): boolean;
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		const recentlyOpened = await this.workspacesService.getRecentlyOpened();
 		const dirtyWorkspacesAndFolders = await this.workspacesService.getDirtyWorkspaces();
 
@@ -286,7 +286,7 @@ class ToggleFullScreenAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.hostService.toggleFullScreen();
 	}
 }
@@ -304,10 +304,8 @@ export class ReloadWindowAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<boolean> {
+	async override run(): Promise<void> {
 		await this.hostService.reload();
-
-		return true;
 	}
 }
 
@@ -324,7 +322,7 @@ class ShowAboutDialogAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.dialogService.about();
 	}
 }
@@ -342,7 +340,7 @@ export class NewWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.hostService.openWindow({ remoteAuthority: null });
 	}
 }

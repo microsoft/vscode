@@ -19,6 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -51,7 +52,8 @@ registerAction2(class extends Action2 {
 			};
 
 			const label = diffEditorInput.textDiffName;
-			await editorService.openEditor({ leftResource, rightResource, label, options }, viewColumnToEditorGroup(editorGroupService, undefined));
+			const input = editorService.createEditorInput({ leftResource, rightResource, label, options });
+			await editorService.openEditor(input, { override: EditorOverride.DISABLED }, viewColumnToEditorGroup(editorGroupService, undefined));
 		}
 	}
 });

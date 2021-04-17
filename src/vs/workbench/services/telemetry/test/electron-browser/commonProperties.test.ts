@@ -59,7 +59,7 @@ suite('Telemetry - common properties', function () {
 		// assert.ok('common.version.renderer' in first.data);
 		assert.ok('common.platformVersion' in props, 'platformVersion');
 		assert.ok('version' in props);
-		assert.equal(props['common.source'], 'my.install.source');
+		assert.strictEqual(props['common.source'], 'my.install.source');
 		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
 		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
 		assert.ok('common.isNewSession' in props, 'isNewSession');
@@ -78,7 +78,7 @@ suite('Telemetry - common properties', function () {
 		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), commit, version, 'someMachineId', undefined, installSource);
 		assert.ok('common.lastSessionDate' in props); // conditional, see below
 		assert.ok('common.isNewSession' in props);
-		assert.equal(props['common.isNewSession'], 0);
+		assert.strictEqual(props['common.isNewSession'], '0');
 	});
 
 	test('values chance on ask', async function () {

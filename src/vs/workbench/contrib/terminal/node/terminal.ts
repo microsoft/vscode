@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as platform from 'vs/base/common/platform';
+import { isLinux } from 'vs/base/common/platform';
 import { SymlinkSupport } from 'vs/base/node/pfs';
 import { LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 
 let detectedDistro = LinuxDistro.Unknown;
-if (platform.isLinux) {
+if (isLinux) {
 	const file = '/etc/os-release';
 	SymlinkSupport.existsFile(file).then(async exists => {
 		if (!exists) {

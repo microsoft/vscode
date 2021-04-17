@@ -13,7 +13,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { IResolvedTextEditorModel, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
@@ -57,15 +57,15 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 	setEncoding(encoding: string): void;
 
 	/**
-	 * Load the untitled model.
+	 * Resolves the untitled model.
 	 */
-	load(): Promise<IUntitledTextEditorModel & IResolvedTextEditorModel>;
+	resolve(): Promise<void>;
 
 	/**
 	 * Updates the value of the untitled model optionally allowing to ignore dirty.
 	 * The model must be resolved for this method to work.
 	 */
-	setValue(this: IResolvedTextEditorModel, value: string, ignoreDirty?: boolean): void;
+	setValue(value: string, ignoreDirty?: boolean): void;
 }
 
 export class UntitledTextEditorModel extends BaseTextEditorModel implements IUntitledTextEditorModel {
@@ -177,7 +177,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private _hasModeSetExplicitly: boolean = false;
 	get hasModeSetExplicitly(): boolean { return this._hasModeSetExplicitly; }
 
-	setMode(mode: string): void {
+	override setMode(mode: string): void {
 
 		// Remember that an explicit mode was set
 		this._hasModeSetExplicitly = true;
@@ -199,7 +199,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-	getMode(): string | undefined {
+	override getMode(): string | undefined {
 		if (this.textEditorModel) {
 			return this.textEditorModel.getModeId();
 		}
@@ -233,7 +233,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		}
 	}
 
-	isReadonly(): boolean {
+	override isReadonly(): boolean {
 		return false;
 	}
 
@@ -272,7 +272,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return { content: withNullAsUndefined(this.createSnapshot()) };
 	}
 
-	async load(): Promise<UntitledTextEditorModel & IResolvedTextEditorModel> {
+	async override resolve(): Promise<void> {
 
 		// Check for backups
 		const backup = await this.backupFileService.resolve(this.resource);
@@ -321,8 +321,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				this._onDidChangeContent.fire();
 			}
 		}
-
-		return this as UntitledTextEditorModel & IResolvedTextEditorModel;
 	}
 
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {

@@ -7,7 +7,7 @@ import { Schemas } from 'vs/base/common/network';
 import { isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CLIOutput, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagementCLIService';
@@ -15,9 +15,9 @@ import { getExtensionId } from 'vs/platform/extensionManagement/common/extension
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
@@ -28,7 +28,17 @@ import { IExtensionManifest } from 'vs/workbench/workbench.web.api';
 
 CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents | string) {
 	const openerService = accessor.get(IOpenerService);
-	openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
+	return openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
+});
+
+CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) {
+	const commandService = accessor.get(ICommandService);
+	return commandService.executeCommand('_files.windowOpen', toOpen, options);
+});
+
+CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accessor: ServicesAccessor) {
+	const commandService = accessor.get(ICommandService);
+	return commandService.executeCommand('_issues.getSystemStatus');
 });
 
 interface ManageExtensionsArgs {
@@ -85,11 +95,10 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@ILocalizationsService localizationsService: ILocalizationsService,
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService envService: IWorkbenchEnvironmentService
 	) {
-		super(extensionManagementService, extensionGalleryService, localizationsService);
+		super(extensionManagementService, extensionGalleryService);
 
 		const remoteAuthority = envService.remoteAuthority;
 		this._location = remoteAuthority ? labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) : undefined;
@@ -97,11 +106,11 @@ class RemoteExtensionCLIManagementService extends ExtensionManagementCLIService 
 		this._extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
-	protected get location(): string | undefined {
+	protected override get location(): string | undefined {
 		return this._location;
 	}
 
-	protected validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
+	protected override validateExtensionKind(manifest: IExtensionManifest, output: CLIOutput): boolean {
 		if (!this._extensionKindController.canExecuteOnWorkspace(manifest)) {
 			output.log(localize('cannot be installed', "Cannot install the '{0}' extension because it is declared to not run in this setup.", getExtensionId(manifest.publisher, manifest.name)));
 			return false;

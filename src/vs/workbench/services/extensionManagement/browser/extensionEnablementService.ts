@@ -25,8 +25,9 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
-import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
+import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -38,8 +39,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;
-	private extensionsDisabledByTrustRequirement: IExtension[] = [];
-
 	private readonly extensionKindController: ExtensionKindController;
 
 	constructor(
@@ -48,6 +47,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService productService: IProductService,
@@ -57,7 +57,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@INotificationService private readonly notificationService: INotificationService,
 		@IHostService readonly hostService: IHostService,
 		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -66,22 +67,19 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		this._register(extensionManagementService.onDidUninstallExtension(this._onDidUninstallExtension, this));
 
 		// Trusted extensions notification
-		// TODO: Confirm that this is the right lifecycle phase
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			if (this.extensionsDisabledByTrustRequirement.length > 0) {
-				this.workspaceTrustService.requireWorkspaceTrust({ modal: false })
-					.then(trustState => {
-						if (trustState === WorkspaceTrustState.Trusted) {
-							this._onEnablementChanged.fire(this.extensionsDisabledByTrustRequirement);
-							this.extensionsDisabledByTrustRequirement = [];
-						}
-					});
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			if (!this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+				this._getExtensionsByWorkspaceTrustRequirement().then(extensions => {
+					if (extensions.length) {
+						this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: false });
+					}
+				});
 			}
 		});
 
 		// delay notification for extensions disabled until workbench restored
 		if (this.allUserExtensionsDisabled) {
-			this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
 					label: localize('Reload', "Reload and Enable Extensions"),
 					run: () => hostService.reload({ disableExtensions: false })
@@ -174,9 +172,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		const result = await Promises.settled(extensions.map(e => {
 			if (this._isDisabledByTrustRequirement(e)) {
-				return this.workspaceTrustService.requireWorkspaceTrust()
+				return this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: true })
 					.then(trustState => {
-						if (trustState === WorkspaceTrustState.Trusted) {
+						if (trustState) {
 							return this._setEnablement(e, newState);
 						} else {
 							return Promise.resolve(false);
@@ -279,15 +277,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByTrustRequirement(extension: IExtension): boolean {
-		const workspaceTrustState = this.workspaceTrustService.getWorkspaceTrustState();
-
-		if (extension.manifest.workspaceTrust?.required === 'onStart') {
-			if (workspaceTrustState !== WorkspaceTrustState.Trusted) {
-				this._addToWorkspaceDisabledExtensionsByTrustRequirement(extension);
-			}
-			return workspaceTrustState !== WorkspaceTrustState.Trusted;
+		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
+			return false;
 		}
-		return false;
+
+		return this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(extension.manifest) === 'onStart';
 	}
 
 	private _getEnablementState(identifier: IExtensionIdentifier): EnablementState {
@@ -390,26 +384,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return false;
 	}
 
-	private _addToWorkspaceDisabledExtensionsByTrustRequirement(extension: IExtension): void {
-		if (this.extensionsDisabledByTrustRequirement.every(e => !areSameExtensions(extension.identifier, e.identifier))) {
-			this.extensionsDisabledByTrustRequirement.push(extension);
-		}
-	}
-
-	private _removeFromWorkspaceDisabledExtensionsByTrustRequirement(identifier: IExtensionIdentifier): void {
-		let index = -1;
-		for (let i = 0; i < this.extensionsDisabledByTrustRequirement.length; i++) {
-			const disabledExtension = this.extensionsDisabledByTrustRequirement[i];
-			if (areSameExtensions(disabledExtension.identifier, identifier)) {
-				index = i;
-				break;
-			}
-		}
-		if (index !== -1) {
-			this.extensionsDisabledByTrustRequirement.splice(index, 1);
-		}
-	}
-
 	protected _getWorkspaceEnabledExtensions(): IExtensionIdentifier[] {
 		return this._getExtensions(ENABLED_EXTENSIONS_STORAGE_PATH);
 	}
@@ -447,7 +421,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private _onDidInstallExtension({ local, error }: DidInstallExtensionEvent): void {
 		if (local && !error && this._isDisabledByTrustRequirement(local)) {
-			this.workspaceTrustService.requireWorkspaceTrust();
+			this.workspaceTrustRequestService.requestWorkspaceTrust({ modal: false });
+			this._onEnablementChanged.fire([local]);
 		}
 	}
 
@@ -457,10 +432,21 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
+	private async _getExtensionsByWorkspaceTrustRequirement(): Promise<IExtension[]> {
+		const extensions = await this.extensionManagementService.getInstalled();
+		return extensions.filter(e => this.extensionWorkspaceTrustRequestService.getExtensionWorkspaceTrustRequestType(e.manifest) === 'onStart');
+	}
+
+	public async updateEnablementByWorkspaceTrustRequirement(): Promise<void> {
+		const extensions = await this._getExtensionsByWorkspaceTrustRequirement();
+		if (extensions.length) {
+			this._onEnablementChanged.fire(extensions);
+		}
+	}
+
 	private _reset(extension: IExtensionIdentifier) {
 		this._removeFromWorkspaceDisabledExtensions(extension);
 		this._removeFromWorkspaceEnabledExtensions(extension);
-		this._removeFromWorkspaceDisabledExtensionsByTrustRequirement(extension);
 		this.globalExtensionEnablementService.enableExtension(extension);
 	}
 }

@@ -84,10 +84,10 @@ suite('Color Registry', function () {
 		}
 
 		let undocumentedKeys = Object.keys(missing).map(k => `\`${k}\`: ${missing[k]}`);
-		assert.deepEqual(undocumentedKeys, [], 'Undocumented colors ids');
+		assert.deepStrictEqual(undocumentedKeys, [], 'Undocumented colors ids');
 
 		let superfluousKeys = Object.keys(colorsInDoc);
-		assert.deepEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
+		assert.deepStrictEqual(superfluousKeys, [], 'Colors ids in doc that do not exist');
 
 	});
 });

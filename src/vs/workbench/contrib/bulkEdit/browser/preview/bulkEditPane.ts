@@ -100,12 +100,12 @@ export class BulkEditPane extends ViewPane {
 		this._ctxHasCheckedChanges = BulkEditPane.ctxHasCheckedChanges.bindTo(_contextKeyService);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
 	}
 
-	protected renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
 		const resourceLabels = this._instaService.createInstance(
@@ -154,7 +154,7 @@ export class BulkEditPane extends ViewPane {
 		this._setState(State.Message);
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree.layout(height, width);
 	}

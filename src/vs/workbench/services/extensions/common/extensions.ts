@@ -238,9 +238,19 @@ export interface IExtensionService {
 	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 
 	/**
+	 * Stops the extension hosts.
+	 */
+	stopExtensionHosts(): void;
+
+	/**
 	 * Restarts the extension host.
 	 */
-	restartExtensionHost(): void;
+	restartExtensionHost(): Promise<void>;
+
+	/**
+	 * Starts the extension hosts.
+	 */
+	startExtensionHosts(): Promise<void>;
 
 	/**
 	 * Modify the environment of the remote extension host
@@ -267,16 +277,6 @@ export function checkProposedApiEnabled(extension: IExtensionDescription): void 
 
 export function throwProposedApiError(extension: IExtensionDescription): never {
 	throw new Error(`[${extension.identifier.value}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.identifier.value}`);
-}
-
-export function checkRequiresWorkspaceTrust(extension: IExtensionDescription): void {
-	if (!extension.workspaceTrust?.required) {
-		throwRequiresWorkspaceTrustError(extension);
-	}
-}
-
-export function throwRequiresWorkspaceTrustError(extension: IExtensionDescription): void {
-	throw new Error(`[${extension.identifier.value}]: This API is only available when the "workspaceTrust.require" is set to "onStart" or "onDemand" in the extension's package.json.`);
 }
 
 export function toExtension(extensionDescription: IExtensionDescription): IExtension {
@@ -316,7 +316,9 @@ export class NullExtensionService implements IExtensionService {
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
 	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
-	restartExtensionHost(): void { }
+	stopExtensionHosts(): void { }
+	async restartExtensionHost(): Promise<void> { }
+	async startExtensionHosts(): Promise<void> { }
 	async setRemoteEnvironment(_env: { [key: string]: string | null }): Promise<void> { }
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }

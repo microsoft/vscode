@@ -374,10 +374,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		let type = config?.type;
 		if (name && names.indexOf(name) >= 0) {
 			this.setSelectedLaunchName(name);
-			if (!config && name && launch) {
-				config = launch.getConfiguration(name);
-				type = config?.type;
-			}
 		} else if (dynamicConfig && dynamicConfig.type) {
 			// We could not find the previously used name and config is not passed. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
@@ -412,6 +408,11 @@ export class ConfigurationManager implements IConfigurationManager {
 			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration
 			const nameToSet = names.length ? names[0] : undefined;
 			this.setSelectedLaunchName(nameToSet);
+		}
+
+		if (!config && launch && this.selectedName) {
+			config = launch.getConfiguration(this.selectedName);
+			type = config?.type;
 		}
 
 		this.selectedType = dynamicConfig?.type || config?.type;
@@ -684,7 +685,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 		return nls.localize('user settings', "user settings");
 	}
 
-	get hidden(): boolean {
+	override get hidden(): boolean {
 		return true;
 	}
 

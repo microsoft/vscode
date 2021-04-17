@@ -346,7 +346,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return editorCommon.EditorType.ICodeEditor;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._codeEditorService.removeCodeEditor(this);
 
 		this._focusTracker.dispose();
@@ -1906,7 +1906,7 @@ export class EditorModeContext extends Disposable {
 		update();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 	}
 

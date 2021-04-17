@@ -27,7 +27,7 @@ import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
-	readonly _serviceBrand: undefined;
+	override readonly _serviceBrand: undefined;
 
 	private _integratedTerminalInstances = new DebugTerminalCollection();
 	private _terminalDisposedListener: IDisposable | undefined;
@@ -43,7 +43,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
 	}
 
-	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
+	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
 		switch (adapter.type) {
 			case 'server':
 				return new SocketDebugAdapter(adapter);
@@ -55,7 +55,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		return super.createDebugAdapter(adapter, session);
 	}
 
-	protected daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
+	protected override daExecutableFromPackage(session: ExtHostDebugSession, extensionRegistry: ExtensionDescriptionRegistry): DebugAdapterExecutable | undefined {
 		const dae = ExecutableDebugAdapter.platformAdapterExecutable(extensionRegistry.getAllExtensionDescriptions(), session.type);
 		if (dae) {
 			return new DebugAdapterExecutable(dae.command, dae.args, dae.options);
@@ -63,11 +63,11 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		return undefined;
 	}
 
-	protected createSignService(): ISignService | undefined {
+	protected override createSignService(): ISignService | undefined {
 		return new SignService();
 	}
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+	public async override $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
 
 		if (args.kind === 'integrated') {
 

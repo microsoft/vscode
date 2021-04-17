@@ -3,6 +3,7 @@
 	"description": "Provides rich language support for Markdown.",
 	"markdown.preview.breaks.desc": "Sets how line-breaks are rendered in the Markdown preview. Setting it to 'true' creates a <br> for newlines inside paragraphs.",
 	"markdown.preview.linkify": "Enable or disable conversion of URL-like text to links in the Markdown preview.",
+	"markdown.preview.typographer": "Enable or disable some language-neutral replacement and quotes beautification in the Markdown preview.",
 	"markdown.preview.doubleClickToSwitchToEditor.desc": "Double click in the Markdown preview to switch to the editor.",
 	"markdown.preview.fontFamily.desc": "Controls the font family used in the Markdown preview.",
 	"markdown.preview.fontSize.desc": "Controls the font size in pixels used in the Markdown preview.",
@@ -24,5 +25,6 @@
 	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the Markdown preview.",
 	"configuration.markdown.links.openLocation.description": "Controls where links in Markdown files should be opened.",
 	"configuration.markdown.links.openLocation.currentGroup": "Open links in the active editor group.",
-	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor."
+	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor.",
+	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

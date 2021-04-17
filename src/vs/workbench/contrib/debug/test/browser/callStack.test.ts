@@ -45,7 +45,7 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 	let firstStackFrame: StackFrame;
 	let secondStackFrame: StackFrame;
 	const thread = new class extends Thread {
-		public getCallStack(): StackFrame[] {
+		public override getCallStack(): StackFrame[] {
 			return [firstStackFrame, secondStackFrame];
 		}
 	}(session, 'mockthread', 1);
@@ -61,8 +61,8 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 		sourceReference: 11,
 	}, 'aDebugSessionId', mockUriIdentityService);
 
-	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 0, true);
-	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
+	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 0, true);
+	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 10 }, 1, true);
 
 	return { firstStackFrame, secondStackFrame };
 }
@@ -311,32 +311,32 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
-		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range, true);
-		assert.strictEqual(decorations.length, 2);
-		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		let decorations = createDecorationsForStackFrame(firstStackFrame, true);
+		assert.strictEqual(decorations.length, 3);
+		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
-		assert.deepStrictEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.deepStrictEqual(decorations[1].range, new Range(1, 2, 1, Constants.MAX_SAFE_SMALL_INTEGER));
 		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range, true);
+		decorations = createDecorationsForStackFrame(secondStackFrame, true);
 		assert.strictEqual(decorations.length, 2);
-		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframeFocused));
-		assert.deepStrictEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.deepStrictEqual(decorations[1].range, new Range(1, 2, 1, Constants.MAX_SAFE_SMALL_INTEGER));
 		assert.strictEqual(decorations[1].options.className, 'debug-focused-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6), true);
+		decorations = createDecorationsForStackFrame(firstStackFrame, true);
 		assert.strictEqual(decorations.length, 3);
-		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 1));
+		assert.deepStrictEqual(decorations[0].range, new Range(1, 2, 1, 3));
 		assert.strictEqual(decorations[0].options.glyphMarginClassName, ThemeIcon.asClassName(debugStackframe));
-		assert.deepStrictEqual(decorations[1].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.deepStrictEqual(decorations[1].range, new Range(1, 2, 1, Constants.MAX_SAFE_SMALL_INTEGER));
 		assert.strictEqual(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.strictEqual(decorations[1].options.isWholeLine, true);
 		// Inline decoration gets rendered in this case
 		assert.strictEqual(decorations[2].options.beforeContentClassName, 'debug-top-stack-frame-column');
-		assert.deepStrictEqual(decorations[2].range, new Range(1, Constants.MAX_SAFE_SMALL_INTEGER, 1, 1));
+		assert.deepStrictEqual(decorations[2].range, new Range(1, 2, 1, Constants.MAX_SAFE_SMALL_INTEGER));
 	});
 
 	test('contexts', () => {
@@ -375,7 +375,7 @@ suite('Debug - CallStack', () => {
 
 		// Add the threads
 		const session = new class extends DebugSession {
-			get state(): State {
+			override get state(): State {
 				return State.Stopped;
 			}
 		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, mockWorkspaceContextService, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService, undefined!);

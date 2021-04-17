@@ -54,7 +54,7 @@ export class OpenLatestReleaseNotesInBrowserAction extends Action {
 		super('update.openLatestReleaseNotes', nls.localize('releaseNotes', "Release Notes"), undefined, true);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		if (this.productService.releaseNotesUrl) {
 			const uri = URI.parse(this.productService.releaseNotesUrl);
 			await this.openerService.open(uri);
@@ -75,7 +75,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	async run(): Promise<void> {
+	async override run(): Promise<void> {
 		if (!this.enabled) {
 			return;
 		}
@@ -636,8 +636,7 @@ export class CheckForVSCodeUpdateAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	run(): Promise<void> {
+	override run(): Promise<void> {
 		return this.updateService.checkForUpdates(this.environmentService.sessionId);
 	}
 }
-

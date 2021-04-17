@@ -37,6 +37,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -121,7 +122,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IPathService private readonly pathService: IPathService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -262,7 +264,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
-		const toDispose = Event.once(editor.onDispose)(() => listener());
+		const toDispose = Event.once(editor.onWillDispose)(() => listener());
 
 		let disposables = mapEditorToDispose.get(editor);
 		if (!disposables) {
@@ -664,7 +666,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return false;
 			}
 
-			if (this.layoutService.isRestored() && !this.fileService.canHandleResource(inputResource)) {
+			if (this.lifecycleService.phase >= LifecyclePhase.Restored && !this.fileService.canHandleResource(inputResource)) {
 				return false; // make sure to only check this when workbench has restored (for https://github.com/microsoft/vscode/issues/48275)
 			}
 
@@ -695,12 +697,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const factory = this.editorInputFactory.getEditorInputFactory(editor.getTypeId());
-		if (!factory || !factory.canSerialize(editor)) {
-			return; // we need a factory from this point that can serialize this editor
+		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor);
+		if (!editorSerializer || !editorSerializer.canSerialize(editor)) {
+			return; // we need a serializer from this point that can serialize this editor
 		}
 
-		const serialized = factory.serialize(editor);
+		const serialized = editorSerializer.serialize(editor);
 		if (typeof serialized !== 'string') {
 			return; // we need something to deserialize from
 		}
@@ -720,7 +722,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.recentlyClosedEditors.push({
 			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
-			serialized: { typeId: editor.getTypeId(), value: serialized },
+			serialized: { typeId: editor.typeId, value: serialized },
 			index: event.index,
 			sticky: event.sticky
 		});
@@ -765,7 +767,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Deserialize and open editor unless already opened
-		const restoredEditor = this.editorInputFactory.getEditorInputFactory(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
+		const restoredEditor = this.editorInputFactory.getEditorInputSerializer(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
 		let editorPane: IEditorPane | undefined = undefined;
 		if (restoredEditor && !this.editorGroupService.activeGroup.isOpened(restoredEditor)) {
 			// Fix for https://github.com/microsoft/vscode/issues/107850
@@ -1003,12 +1005,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return { resource: URI.revive(<UriComponents>serializedEditorHistoryEntry.resourceJSON) };
 		}
 
-		// Editor input: via factory
+		// Editor input: via serializer
 		const { editorInputJSON } = serializedEditorHistoryEntry;
 		if (editorInputJSON?.deserialized) {
-			const factory = this.editorInputFactory.getEditorInputFactory(editorInputJSON.typeId);
-			if (factory) {
-				const input = factory.deserialize(this.instantiationService, editorInputJSON.deserialized);
+			const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editorInputJSON.typeId);
+			if (editorSerializer) {
+				const input = editorSerializer.deserialize(this.instantiationService, editorInputJSON.deserialized);
 				if (input) {
 					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
 				}
@@ -1027,13 +1029,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const entries: ISerializedEditorHistoryEntry[] = coalesce(this.history.map((input): ISerializedEditorHistoryEntry | undefined => {
 
-			// Editor input: try via factory
+			// Editor input: try via serializer
 			if (input instanceof EditorInput) {
-				const factory = this.editorInputFactory.getEditorInputFactory(input.getTypeId());
-				if (factory) {
-					const deserialized = factory.serialize(input);
+				const editorSerializer = this.editorInputFactory.getEditorInputSerializer(input);
+				if (editorSerializer) {
+					const deserialized = editorSerializer.serialize(input);
 					if (deserialized) {
-						return { editorInputJSON: { typeId: input.getTypeId(), deserialized } };
+						return { editorInputJSON: { typeId: input.typeId, deserialized } };
 					}
 				}
 			}

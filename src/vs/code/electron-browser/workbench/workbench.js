@@ -32,15 +32,34 @@
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		},
 		{
-			removeDeveloperKeybindingsAfterLoad: true,
+			configureDeveloperKeybindings: function (windowConfig) {
+				return {
+					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath),
+					removeDeveloperKeybindingsAfterLoad: true
+				};
+			},
 			canModifyDOM: function (windowConfig) {
 				showPartsSplash(windowConfig);
 			},
-			beforeLoaderConfig: function (windowConfig, loaderConfig) {
+			beforeLoaderConfig: function (loaderConfig) {
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function () {
 				performance.mark('code/willLoadWorkbenchMain');
+
+				// It looks like browsers only lazily enable
+				// the <canvas> element when needed. Since we
+				// leverage canvas elements in our code in many
+				// locations, we try to help the browser to
+				// initialize canvas when it is idle, right
+				// before we wait for the scripts to be loaded.
+				// @ts-ignore
+				window.requestIdleCallback(() => {
+					const canvas = document.createElement('canvas');
+					const context = canvas.getContext('2d');
+					context.clearRect(0, 0, canvas.width, canvas.height);
+					canvas.remove();
+				}, { timeout: 50 });
 			}
 		}
 	);
@@ -62,12 +81,22 @@
 		}
 	});
 
-	//region Helpers
+	//#region Helpers
 
 	/**
+	 * @typedef {import('../../../platform/windows/common/windows').INativeWindowConfiguration} INativeWindowConfiguration
+	 *
 	 * @returns {{
-	 *   load: (modules: string[], resultCallback: (result, configuration: import('../../../platform/windows/common/windows').INativeWindowConfiguration) => any, options: object) => unknown,
-	 *   globals: () => typeof import('../../../base/parts/sandbox/electron-sandbox/globals')
+	 *   load: (
+	 *     modules: string[],
+	 *     resultCallback: (result, configuration: INativeWindowConfiguration) => unknown,
+	 *     options?: {
+	 *       configureDeveloperKeybindings?: (config: INativeWindowConfiguration & object) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
+	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & object) => void,
+	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
+	 *       beforeRequire?: () => void
+	 *     }
+	 *   ) => Promise<unknown>
 	 * }}
 	 */
 	function bootstrapWindowLib() {

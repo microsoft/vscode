@@ -6,7 +6,7 @@
 import 'vs/css!./media/notebookFind';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_OPEN, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, getNotebookEditorFromEditorPane, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -27,6 +27,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/findController';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const FIND_HIDE_TRANSITION = 'find-hide-transition';
 const FIND_SHOW_TRANSITION = 'find-show-transition';
@@ -270,7 +271,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		});
 	}
 
-	show(initialInput?: string): void {
+	override show(initialInput?: string): void {
 		super.show(initialInput);
 		this._findInput.select();
 
@@ -312,7 +313,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		}
 	}
 
-	hide() {
+	override hide() {
 		super.hide();
 		this.set([], false);
 
@@ -341,7 +342,7 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget implements INote
 		this._findMatches = [];
 	}
 
-	dispose() {
+	override dispose() {
 		this._notebookEditor?.removeClassName(FIND_SHOW_TRANSITION);
 		this._notebookEditor?.removeClassName(FIND_HIDE_TRANSITION);
 		super.dispose();
@@ -384,7 +385,7 @@ registerAction2(class extends Action2 {
 			id: 'notebook.find',
 			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
 			keybinding: {
-				when: ContextKeyExpr.or(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_OPEN),
+				when: ContextKeyExpr.or(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, EditorContextKeys.focus.toNegated())),
 				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
 				weight: KeybindingWeight.WorkbenchContrib
 			}

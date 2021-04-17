@@ -407,7 +407,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
 			};
 
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
+			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
 				if (stdout) {
 					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
 				}

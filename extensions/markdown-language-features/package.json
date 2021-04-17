@@ -29,6 +29,13 @@
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
+  "workspaceTrust": {
+    "request": "onDemand",
+    "description": "%workspaceTrust%",
+    "requiredForConfigurations": [
+      "markdown.styles"
+    ]
+  },
   "contributes": {
     "notebookMarkdownRenderer": [
       {
@@ -205,6 +212,12 @@
           "type": "boolean",
           "default": true,
           "description": "%markdown.preview.linkify%",
+          "scope": "resource"
+        },
+        "markdown.preview.typographer": {
+          "type": "boolean",
+          "default": false,
+          "description": "%markdown.preview.typographer%",
           "scope": "resource"
         },
         "markdown.preview.fontFamily": {

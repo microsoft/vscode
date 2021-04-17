@@ -38,10 +38,8 @@ suite('EditorsObserver', function () {
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor));
 
-		const part = createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables);
 		disposables.add(toDisposable(() => part.clearState()));
-
-		await part.whenRestored;
 
 		return part;
 	}
@@ -225,7 +223,6 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor(input3.resource), true);
 
 		const copiedGroup = part.copyGroup(rootGroup, rootGroup, GroupDirection.RIGHT);
-		await copiedGroup.whenRestored;
 		copiedGroup.setActive(true);
 		copiedGroup.focus();
 
@@ -275,7 +272,7 @@ suite('EditorsObserver', function () {
 
 		const storage = new TestStorageService();
 		const observer = disposables.add(new EditorsObserver(part, storage));
-		await part.whenRestored;
+		await part.whenReady;
 
 		let currentEditorsMRU = observer.editors;
 		assert.strictEqual(currentEditorsMRU.length, 3);
@@ -292,7 +289,7 @@ suite('EditorsObserver', function () {
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
-		await part.whenRestored;
+		await part.whenReady;
 
 		currentEditorsMRU = restoredObserver.editors;
 		assert.strictEqual(currentEditorsMRU.length, 3);
@@ -324,7 +321,7 @@ suite('EditorsObserver', function () {
 
 		const storage = new TestStorageService();
 		const observer = disposables.add(new EditorsObserver(part, storage));
-		await part.whenRestored;
+		await part.whenReady;
 
 		let currentEditorsMRU = observer.editors;
 		assert.strictEqual(currentEditorsMRU.length, 3);
@@ -341,7 +338,7 @@ suite('EditorsObserver', function () {
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
-		await part.whenRestored;
+		await part.whenReady;
 
 		currentEditorsMRU = restoredObserver.editors;
 		assert.strictEqual(currentEditorsMRU.length, 3);
@@ -367,7 +364,7 @@ suite('EditorsObserver', function () {
 
 		const storage = new TestStorageService();
 		const observer = disposables.add(new EditorsObserver(part, storage));
-		await part.whenRestored;
+		await part.whenReady;
 
 		let currentEditorsMRU = observer.editors;
 		assert.strictEqual(currentEditorsMRU.length, 1);
@@ -378,7 +375,7 @@ suite('EditorsObserver', function () {
 		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
-		await part.whenRestored;
+		await part.whenReady;
 
 		currentEditorsMRU = restoredObserver.editors;
 		assert.strictEqual(currentEditorsMRU.length, 0);

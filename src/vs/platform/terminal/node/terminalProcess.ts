@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
 import type * as pty from 'node-pty';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -17,6 +16,7 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -44,6 +44,11 @@ const enum ShutdownConstants {
 	MaximumShutdownTime = 5000
 }
 
+interface IWriteObject {
+	data: string,
+	isBinary: boolean
+}
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	readonly id = 0;
 	readonly shouldPersist = false;
@@ -57,7 +62,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _isDisposed: boolean = false;
 	private _windowsShellHelper: WindowsShellHelper | undefined;
 	private _titleInterval: NodeJS.Timer | null = null;
-	private _writeQueue: string[] = [];
+	private _writeQueue: IWriteObject[] = [];
 	private _writeTimeout: NodeJS.Timeout | undefined;
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
@@ -86,17 +91,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		cwd: string,
 		cols: number,
 		rows: number,
-		env: platform.IProcessEnvironment,
+		env: IProcessEnvironment,
 		/**
 		 * environment used for `findExecutable`
 		 */
-		private readonly _executableEnv: platform.IProcessEnvironment,
+		private readonly _executableEnv: IProcessEnvironment,
 		windowsEnableConpty: boolean,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		let name: string;
-		if (platform.isWindows) {
+		if (isWindows) {
 			name = path.basename(this._shellLaunchConfig.executable || '');
 		} else {
 			// Using 'xterm-256color' here helps ensure that the majority of Linux distributions will use a
@@ -108,7 +113,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._ptyOptions = {
 			name,
 			cwd,
-			env,
+			// TODO: When node-pty is updated this cast can be removed
+			env: env as { [key: string]: string; },
 			cols,
 			rows,
 			useConpty,
@@ -116,7 +122,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			conptyInheritCursor: useConpty && !!_shellLaunchConfig.initialText
 		};
 		// Delay resizes to avoid conpty not respecting very early resize calls
-		if (platform.isWindows) {
+		if (isWindows) {
 			if (useConpty && cols === 0 && rows === 0 && this._shellLaunchConfig.executable?.endsWith('Git\\bin\\bash.exe')) {
 				this._delayedResizer = new DelayedResizer();
 				this._register(this._delayedResizer.onTrigger(dimensions => {
@@ -187,6 +193,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				if (!executable) {
 					return { message: localize('launchFail.executableDoesNotExist', "Path to shell executable \"{0}\" does not exist", slc.executable) };
 				}
+				// Set the executable explicitly here so that node-pty doesn't need to search the
+				// $PATH too.
+				slc.executable = executable;
 			}
 		}
 		return undefined;
@@ -226,7 +235,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._sendProcessId(ptyProcess.pid);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		if (this._titleInterval) {
 			clearInterval(this._titleInterval);
@@ -239,7 +248,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		// Send initial timeout async to give event listeners a chance to init
 		setTimeout(() => this._sendProcessTitle(ptyProcess), 0);
 		// Setup polling for non-Windows, for Windows `process` doesn't change
-		if (!platform.isWindows) {
+		if (!isWindows) {
 			this._titleInterval = setInterval(() => {
 				if (this._currentTitle !== ptyProcess.process) {
 					this._sendProcessTitle(ptyProcess);
@@ -310,14 +319,22 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	public input(data: string): void {
+	public input(data: string, isBinary?: boolean): void {
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
 		for (let i = 0; i <= Math.floor(data.length / WRITE_MAX_CHUNK_SIZE); i++) {
-			this._writeQueue.push(data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE));
+			const obj = {
+				isBinary: isBinary || false,
+				data: data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE)
+			};
+			this._writeQueue.push(obj);
 		}
 		this._startWrite();
+	}
+
+	public async processBinary(data: string): Promise<void> {
+		this.input(data, true);
 	}
 
 	private _startWrite(): void {
@@ -342,9 +359,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _doWrite(): void {
-		const data = this._writeQueue.shift()!;
-		this._logService.trace('IPty#write', `${data.length} characters`);
-		this._ptyProcess!.write(data);
+		const object = this._writeQueue.shift()!;
+		if (object.isBinary) {
+			this._ptyProcess!.write(Buffer.from(object.data, 'binary') as any);
+		} else {
+			this._ptyProcess!.write(object.data);
+		}
 	}
 
 	public resize(cols: number, rows: number): void {
@@ -405,7 +425,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	public getCwd(): Promise<string> {
-		if (platform.isMacintosh) {
+		if (isMacintosh) {
 			// Disable cwd lookup on macOS Big Sur due to spawn blocking thread (darwin v20 is macOS
 			// Big Sur) https://github.com/Microsoft/vscode/issues/105446
 			const osRelease = os.release().split('.');
@@ -428,7 +448,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 		}
 
-		if (platform.isLinux) {
+		if (isLinux) {
 			return new Promise<string>(resolve => {
 				if (!this._ptyProcess) {
 					resolve(this._initialCwd);
@@ -477,7 +497,7 @@ class DelayedResizer extends Disposable {
 		});
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		clearTimeout(this._timeout);
 	}

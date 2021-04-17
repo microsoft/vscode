@@ -94,9 +94,13 @@ class IPCRunner extends events.EventEmitter {
 		super();
 
 		this.didFail = false;
+		this.didEnd = false;
 
 		ipcMain.on('start', () => this.emit('start'));
-		ipcMain.on('end', () => this.emit('end'));
+		ipcMain.on('end', () => {
+			this.didEnd = true;
+			this.emit('end');
+		});
 		ipcMain.on('suite', (e, suite) => this.emit('suite', deserializeSuite(suite)));
 		ipcMain.on('suite end', (e, suite) => this.emit('suite end', deserializeSuite(suite)));
 		ipcMain.on('test', (e, test) => this.emit('test', deserializeRunnable(test)));
@@ -126,13 +130,34 @@ app.on('ready', () => {
 		}
 	});
 
+	// We need to provide a basic `ISandboxConfiguration`
+	// for our preload script to function properly because
+	// some of our types depend on it (e.g. product.ts).
+	ipcMain.handle('vscode:test-vscode-window-config', async () => {
+		return {
+			product: {
+				version: '1.x.y',
+				nameShort: 'Code - OSS Dev',
+				nameLong: 'Code - OSS Dev',
+				applicationName: 'code-oss',
+				dataFolderName: '.vscode-oss',
+				urlProtocol: 'code-oss',
+			}
+		};
+	});
+
+	// No-op since invoke the IPC as part of IIFE in the preload.
+	ipcMain.handle('vscode:fetchShellEnv', event => { });
+
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
 		show: false,
 		webPreferences: {
 			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
+			additionalArguments: [`--vscode-window-config=vscode:test-vscode-window-config`],
 			nodeIntegration: true,
+			contextIsolation: false,
 			enableWebSQL: false,
 			enableRemoteModule: false,
 			spellcheck: false,
@@ -153,6 +178,14 @@ app.on('ready', () => {
 
 	const runner = new IPCRunner();
 	createStatsCollector(runner);
+
+	// Handle renderer crashes, #117068
+	win.webContents.on('render-process-gone', (evt, details) => {
+		if (!runner.didEnd) {
+			console.error(`Renderer process crashed with: ${JSON.stringify(details)}`);
+			app.exit(1);
+		}
+	});
 
 	if (argv.tfs) {
 		new mocha.reporters.Spec(runner);

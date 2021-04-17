@@ -56,8 +56,8 @@ suite('EditorService', () => {
 		disposables.clear();
 	});
 
-	function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): [EditorPart, EditorService, TestServiceAccessor] {
-		const part = createEditorPart(instantiationService, disposables);
+	async function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): Promise<[EditorPart, EditorService, TestServiceAccessor]> {
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
 
@@ -68,7 +68,7 @@ suite('EditorService', () => {
 	}
 
 	test('basics', async () => {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		let input = new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
 		let otherInput = new TestFileEditorInput(URI.parse('my://resource2-basics'), TEST_EDITOR_INPUT_ID);
@@ -87,8 +87,6 @@ suite('EditorService', () => {
 		const didCloseEditorListener = service.onDidCloseEditor(() => {
 			didCloseEditorListenerCounter++;
 		});
-
-		await part.whenRestored;
 
 		// Open input
 		let editor = await service.openEditor(input, { pinned: true });
@@ -172,13 +170,11 @@ suite('EditorService', () => {
 	});
 
 	test('isOpen() with side by side editor', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 		const sideBySideInput = new SideBySideEditorInput('sideBySide', '', input, otherInput);
-
-		await part.whenRestored;
 
 		const editor1 = await service.openEditor(sideBySideInput, { pinned: true });
 		assert.strictEqual(part.activeGroup.count, 1);
@@ -217,13 +213,11 @@ suite('EditorService', () => {
 	});
 
 	test('openEditors() / replaceEditors()', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 		const replaceInput = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		// Open editors
 		await service.openEditors([{ editor: input }, { editor: otherInput }]);
@@ -389,7 +383,7 @@ suite('EditorService', () => {
 				super(id, undefined!, new TestThemeService(), new TestStorageService());
 			}
 
-			getId(): string {
+			override getId(): string {
 				return 'myEditor';
 			}
 
@@ -413,14 +407,12 @@ suite('EditorService', () => {
 	});
 
 	test('close editor does not dispose when editor opened in other group', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-close1'), TEST_EDITOR_INPUT_ID);
 
 		const rootGroup = part.activeGroup;
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-
-		await part.whenRestored;
 
 		// Open input
 		await service.openEditor(input, { pinned: true });
@@ -440,14 +432,12 @@ suite('EditorService', () => {
 	});
 
 	test('open to the side', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true }, rootGroup);
 		let editor = await service.openEditor(input1, { pinned: true, preserveFocus: true }, SIDE_GROUP);
@@ -464,14 +454,12 @@ suite('EditorService', () => {
 	});
 
 	test('editor group activation', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true }, rootGroup);
 		let editor = await service.openEditor(input2, { pinned: true, preserveFocus: true, activation: EditorActivation.ACTIVATE }, SIDE_GROUP);
@@ -497,14 +485,12 @@ suite('EditorService', () => {
 	});
 
 	test('inactive editor group does not activate when closing editor (#117686)', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true }, rootGroup);
 		await service.openEditor(input2, { pinned: true }, rootGroup);
@@ -523,7 +509,7 @@ suite('EditorService', () => {
 	});
 
 	test('active editor change / visible editor change events', async function () {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		let input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 		let otherInput = new TestFileEditorInput(URI.parse('my://resource2-active'), TEST_EDITOR_INPUT_ID);
@@ -552,8 +538,6 @@ suite('EditorService', () => {
 			await group.closeEditor(input);
 			await timeout(0); // closing an editor will not immediately open the next one, so we need to wait
 		}
-
-		await part.whenRestored;
 
 		// 1.) open, open same, open other, close
 		let editor = await service.openEditor(input, { pinned: true });
@@ -741,7 +725,7 @@ suite('EditorService', () => {
 	});
 
 	test('two active editor change events when opening editor to the side', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		let input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 
@@ -754,8 +738,6 @@ suite('EditorService', () => {
 			assert.strictEqual(activeEditorChangeEvents, expected, `Unexpected active editor change state (got ${activeEditorChangeEvents}, expected ${expected})`);
 			activeEditorChangeEvents = 0;
 		}
-
-		await part.whenRestored;
 
 		await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(1);
@@ -776,9 +758,7 @@ suite('EditorService', () => {
 	});
 
 	test('activeTextEditorControl / activeTextEditorMode', async () => {
-		const [part, service] = createEditorService();
-
-		await part.whenRestored;
+		const [, service] = await createEditorService();
 
 		// Open untitled input
 		let editor = await service.openEditor({});
@@ -789,14 +769,12 @@ suite('EditorService', () => {
 	});
 
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-inactive'), TEST_EDITOR_INPUT_ID);
 		const failingInput = new TestFileEditorInput(URI.parse('my://resource3-failing'), TEST_EDITOR_INPUT_ID);
 		failingInput.setFailToOpen();
-
-		await part.whenRestored;
 
 		let editor = await service.openEditor(input, { pinned: true });
 		assert.ok(editor);
@@ -809,7 +787,7 @@ suite('EditorService', () => {
 	});
 
 	test('save, saveAll, revertAll', async function () {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = true;
@@ -819,8 +797,6 @@ suite('EditorService', () => {
 		sameInput1.dirty = true;
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
@@ -888,7 +864,7 @@ suite('EditorService', () => {
 	});
 
 	test('saveAll, revertAll (sticky editor)', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = true;
@@ -896,8 +872,6 @@ suite('EditorService', () => {
 		input2.dirty = true;
 		const sameInput1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		sameInput1.dirty = true;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true, sticky: true });
 		await service.openEditor(input2, { pinned: true });
@@ -936,7 +910,7 @@ suite('EditorService', () => {
 	});
 
 	async function testFileDeleteEditorClose(dirty: boolean): Promise<void> {
-		const [part, service, accessor] = createEditorService();
+		const [part, service, accessor] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = dirty;
@@ -944,8 +918,6 @@ suite('EditorService', () => {
 		input2.dirty = dirty;
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
@@ -966,15 +938,13 @@ suite('EditorService', () => {
 	}
 
 	test('file move asks input to move', async function () {
-		const [part, service, accessor] = createEditorService();
+		const [part, service, accessor] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		const movedInput = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
 		input1.movedEditor = { editor: movedInput };
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 
@@ -1000,12 +970,10 @@ suite('EditorService', () => {
 	}
 
 	test('file watcher gets installed for out of workspace files', async function () {
-		const [part, service, accessor] = createEditorService();
+		const [, service, accessor] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 		assert.strictEqual(accessor.fileService.watches.length, 1);
@@ -1021,12 +989,10 @@ suite('EditorService', () => {
 
 	test('activeEditorPane scopedContextKeyService', async function () {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
-		const [part, service] = createEditorService(instantiationService);
+		const [part, service] = await createEditorService(instantiationService);
 
 		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
 		new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 
@@ -1036,12 +1002,10 @@ suite('EditorService', () => {
 	});
 
 	test('overrideOpenEditor', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		let overrideCalled = false;
 
@@ -1066,12 +1030,10 @@ suite('EditorService', () => {
 	});
 
 	test('whenClosed', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		const editor = await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
@@ -1084,12 +1046,10 @@ suite('EditorService', () => {
 	});
 
 	test('findEditors', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		// Open editors
 		await service.openEditors([{ editor: input }, { editor: otherInput }]);

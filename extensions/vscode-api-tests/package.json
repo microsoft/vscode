@@ -5,14 +5,11 @@
   "publisher": "vscode",
   "license": "MIT",
   "enableProposedApi": true,
-  "workspaceTrust": {
-    "required": "onDemand"
-  },
   "private": true,
   "activationEvents": [],
   "main": "./out/extension",
   "engines": {
-    "vscode": "^1.25.0"
+    "vscode": "^1.55.0"
   },
   "contributes": {
     "configuration": {
@@ -136,6 +133,15 @@
         "selector": [
           {
             "filenamePattern": "**/*.nbdtest"
+          }
+        ]
+      },
+      {
+        "viewType": "notebook.nbdserializer",
+        "displayName": "notebook.nbdserializer",
+        "selector": [
+          {
+            "filenamePattern": "**/*.nbdserializer"
           }
         ]
       }

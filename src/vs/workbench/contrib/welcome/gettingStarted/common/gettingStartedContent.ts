@@ -18,9 +18,6 @@ export type BuiltinGettingStartedItem = {
 	id: string
 	title: string,
 	description: string,
-	button:
-	| { title: string, command?: never, link: string }
-	| { title: string, command: string, link?: never },
 	doneOn: { commandExecuted: string, eventFired?: never } | { eventFired: string, commandExecuted?: never, }
 	when?: string,
 	media: { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string },
@@ -34,12 +31,22 @@ export type BuiltinGettingStartedCategory = {
 	when?: string,
 	content:
 	| { type: 'items', items: BuiltinGettingStartedItem[] }
+};
+
+export type BuiltinGettingStartedStartEntry = {
+	id: string
+	title: string,
+	description: string,
+	icon: ThemeIcon,
+	when?: string,
+	content:
 	| { type: 'startEntry', command: string }
 };
 
-type GettingStartedContent = BuiltinGettingStartedCategory[];
+type GettingStartedWalkthroughContent = BuiltinGettingStartedCategory[];
+type GettingStartedStartEntryContent = BuiltinGettingStartedStartEntry[];
 
-export const content: GettingStartedContent = [
+export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelNewFile',
 		title: localize('gettingStarted.newFile.title', "New File"),
@@ -47,7 +54,7 @@ export const content: GettingStartedContent = [
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'explorer.newFile',
+			command: 'workbench.action.files.newUntitledFile',
 		}
 	},
 	{
@@ -103,6 +110,9 @@ export const content: GettingStartedContent = [
 			command: 'workbench.action.showCommands',
 		}
 	},
+];
+
+export const walkthroughs: GettingStartedWalkthroughContent = [
 	{
 		id: 'Codespaces',
 		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),
@@ -115,55 +125,35 @@ export const content: GettingStartedContent = [
 				{
 					id: 'runProjectTask',
 					title: localize('gettingStarted.runProject.title', "Build & run your app"),
-					description: localize('gettingStarted.runProject.description', "Build, run & debug your code in the cloud, right from the browser."),
-					button: {
-						title: localize('gettingStarted.runProject.button', "Start Debugging (F5)"),
-						command: 'workbench.action.debug.selectandstart'
-					},
+					description: localize('gettingStarted.runProject.description', "Build, run & debug your code in the cloud, right from the browser.\n[Start Debugging](command:workbench.action.debug.selectandstart)"),
 					doneOn: { commandExecuted: 'workbench.action.debug.selectandstart' },
 					media: { type: 'image', altText: 'Node.js project running debug mode and paused.', path: 'runProject.png' },
 				},
 				{
 					id: 'forwardPortsTask',
 					title: localize('gettingStarted.forwardPorts.title', "Access your running application"),
-					description: localize('gettingStarted.forwardPorts.description', "Ports running within your codespace are automatically forwarded to the web, so you can open them in your browser."),
-					button: {
-						title: localize('gettingStarted.forwardPorts.button', "Show Ports Panel"),
-						command: '~remote.forwardedPorts.focus'
-					},
+					description: localize('gettingStarted.forwardPorts.description', "Ports running within your codespace are automatically forwarded to the web, so you can open them in your browser.\n[Show Ports Panel](command:~remote.forwardedPorts.focus)"),
 					doneOn: { commandExecuted: '~remote.forwardedPorts.focus' },
 					media: { type: 'image', altText: 'Ports panel.', path: 'forwardPorts.png' },
 				},
 				{
 					id: 'pullRequests',
 					title: localize('gettingStarted.pullRequests.title', "Pull requests at your fingertips"),
-					description: localize('gettingStarted.pullRequests.description', "Bring your GitHub workflow closer to your code, so you can review pull requests, add comments, merge branches, and more."),
-					button: {
-						title: localize('gettingStarted.pullRequests.button', "Open GitHub View"),
-						command: 'workbench.view.extension.github-pull-requests'
-					},
+					description: localize('gettingStarted.pullRequests.description', "Bring your GitHub workflow closer to your code, so you can review pull requests, add comments, merge branches, and more.\n[Open GitHub View](command:workbench.view.extension.github-pull-requests)"),
 					doneOn: { commandExecuted: 'workbench.view.extension.github-pull-requests' },
 					media: { type: 'image', altText: 'Preview for reviewing a pull request.', path: 'pullRequests.png' },
 				},
 				{
 					id: 'remoteTerminal',
 					title: localize('gettingStarted.remoteTerminal.title', "Run tasks in the integrated terminal"),
-					description: localize('gettingStarted.remoteTerminal.description', "Perform quick command-line tasks using the built-in terminal."),
-					button: {
-						title: localize('gettingStarted.remoteTerminal.button', "Focus Terminal"),
-						command: 'terminal.focus'
-					},
+					description: localize('gettingStarted.remoteTerminal.description', "Perform quick command-line tasks using the built-in terminal.\n[Focus Terminal](command:terminal.focus)"),
 					doneOn: { commandExecuted: 'terminal.focus' },
 					media: { type: 'image', altText: 'Remote terminal showing npm commands.', path: 'remoteTerminal.png' },
 				},
 				{
 					id: 'openVSC',
 					title: localize('gettingStarted.openVSC.title', "Develop remotely in VS Code"),
-					description: localize('gettingStarted.openVSC.description', "Access the power of your cloud development environment from your local VS Code. Set it up by installing the GitHub Codespaces extension and connecting your GitHub account."),
-					button: {
-						title: localize('gettingStarted.openVSC.button', "Open in VS Code"),
-						command: 'github.codespaces.openInStable'
-					},
+					description: localize('gettingStarted.openVSC.description', "Access the power of your cloud development environment from your local VS Code. Set it up by installing the GitHub Codespaces extension and connecting your GitHub account.\n[Open in VS Code](command:github.codespaces.openInStable)"),
 					when: 'isWeb',
 					doneOn: { commandExecuted: 'github.codespaces.openInStable' },
 					media: {
@@ -190,19 +180,14 @@ export const content: GettingStartedContent = [
 				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Customize the look with themes"),
-					description: localize('gettingStarted.pickColor.description', "Pick a color theme to match your taste and mood while coding."),
-					button: { title: localize('gettingStarted.pickColor.button', "Pick a Theme"), command: 'workbench.action.selectTheme' },
+					description: localize('gettingStarted.pickColor.description', "Pick a color theme to match your taste and mood while coding.\n[Pick a Theme](command:workbench.action.selectTheme)"),
 					doneOn: { commandExecuted: 'workbench.action.selectTheme' },
 					media: { type: 'image', altText: 'Color theme preview for dark and light theme.', path: 'colorTheme.png', }
 				},
 				{
 					id: 'findLanguageExtensions',
 					title: localize('gettingStarted.findLanguageExts.title', "Code in any language"),
-					description: localize('gettingStarted.findLanguageExts.description', "VS Code supports over 50+ programming languages. While many are built-in, others can be easily installed as extensions in one click."),
-					button: {
-						title: localize('gettingStarted.findLanguageExts.button', "Browse Language Extensions"),
-						command: 'workbench.extensions.action.showLanguageExtensions',
-					},
+					description: localize('gettingStarted.findLanguageExts.description', "VS Code supports over 50+ programming languages. While many are built-in, others can be easily installed as extensions in one click.\n[Browse Language Extensions](command:workbench.extensions.action.showLanguageExtensions)"),
 					doneOn: { commandExecuted: 'workbench.extensions.action.showLanguageExtensions' },
 					media: {
 						type: 'image', altText: 'Language extensions', path: {
@@ -215,11 +200,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'keymaps',
 					title: localize('gettingStarted.keymaps.title', "Migrate your keyboard shortcuts"),
-					description: localize('gettingStarted.keymaps.description', "Keymap extensions bring your favorite keyboard shortcuts from other editors to VS Code."),
-					button: {
-						title: localize('gettingStarted.keymaps.button', "Keymap Extensions"),
-						command: 'workbench.extensions.action.showRecommendedKeymapExtensions',
-					},
+					description: localize('gettingStarted.keymaps.description', "Keymap extensions bring your favorite keyboard shortcuts from other editors to VS Code.\n[Browse Keymap Extensions](command:workbench.extensions.action.showRecommendedKeymapExtensions)"),
 					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedKeymapExtensions' },
 					media: {
 						type: 'image', altText: 'List of keymap extensions.', path: {
@@ -232,30 +213,22 @@ export const content: GettingStartedContent = [
 				{
 					id: 'settingsSync',
 					title: localize('gettingStarted.settingsSync.title', "Sync your favorite setup"),
-					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several VS Code instances."),
+					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several VS Code instances.[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),
 					when: 'syncStatus != uninitialized',
-					button: {
-						title: localize('gettingStarted.settingsSync.button', "Enable Settings Sync"),
-						command: 'workbench.userDataSync.actions.turnOn',
-					},
 					doneOn: { eventFired: 'sync-enabled' },
 					media: {
 						type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: {
 							dark: 'dark/settingsSync.png',
 							light: 'light/settingsSync.png',
-							hc: 'light/settingsSync.png',
+							hc: 'hc/settingsSync.png',
 						},
 					}
 				},
 				{
 					id: 'pickAFolderTask-Mac',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project"),
-					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to get started!"),
-					when: 'isMac',
-					button: {
-						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
-						command: 'workbench.action.files.openFileFolder'
-					},
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
+					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to start coding!\n[Pick a Folder](command:workbench.action.files.openFileFolder)"),
+					when: 'isMac && workspaceFolderCount == 0',
 					doneOn: { commandExecuted: 'workbench.action.files.openFileFolder' },
 					media: {
 						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
@@ -267,16 +240,26 @@ export const content: GettingStartedContent = [
 				},
 				{
 					id: 'pickAFolderTask-Other',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project"),
-					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a folder to get started!"),
-					when: '!isMac',
-					button: {
-						title: localize('gettingStarted.setup.OpenFolder.button', "Pick a Folder"),
-						command: 'workbench.action.files.openFolder'
-					},
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
+					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a project folder to start coding!\n[Pick a Folder](command:workbench.action.files.openFolder)"),
+					when: '!isMac && workspaceFolderCount == 0',
 					doneOn: { commandExecuted: 'workbench.action.files.openFolder' },
 					media: {
 						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
+							dark: 'dark/openFolder.png',
+							light: 'light/openFolder.png',
+							hc: 'hc/openFolder.png',
+						}
+					}
+				},
+				{
+					id: 'quickOpen',
+					title: localize('gettingStarted.quickOpen.title', "Quick open files"),
+					description: localize('gettingStarted.quickOpen.description', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n[Quick Open a File](command:toSide:workbench.action.quickOpen)"),
+					when: 'workspaceFolderCount != 0',
+					doneOn: { commandExecuted: 'workbench.action.quickOpen' },
+					media: {
+						type: 'image', altText: 'Go to file in quick search.', path: {
 							dark: 'dark/openFolder.png',
 							light: 'light/openFolder.png',
 							hc: 'hc/openFolder.png',
@@ -298,63 +281,47 @@ export const content: GettingStartedContent = [
 				{
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "Find & run commands"),
-					description: localize('gettingStarted.commandPalette.description', "The easiest way to find everything VS Code can do. If you're ever looking for a feature or a shortcut, check here first!"),
-					button: {
-						title: localize('gettingStarted.commandPalette.button', "Open Command Palette"),
-						command: 'workbench.action.showCommands'
-					},
+					description: localize('gettingStarted.commandPalette.description', "The easiest way to find everything VS Code can do. If you're ever looking for a feature or a shortcut, check here first!\n[Open Command Palette](command:workbench.action.showCommands)"),
 					doneOn: { commandExecuted: 'workbench.action.showCommands' },
 					media: {
 						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
 							dark: 'dark/commandPalette.png',
 							light: 'light/commandPalette.png',
-							hc: 'light/commandPalette.png',
+							hc: 'hc/commandPalette.png',
 						}
 					},
 				},
 				{
 					id: 'terminal',
 					title: localize('gettingStarted.terminal.title', "Convenient built-in terminal"),
-					description: localize('gettingStarted.terminal.description', "Quickly run shell commands and monitor build output, right next to your code."),
-					when: 'remoteName != codespaces',
-					button: {
-						title: localize('gettingStarted.terminal.button', "Show Terminal Panel"),
-						command: 'workbench.action.terminal.toggleTerminal'
-					},
+					description: localize('gettingStarted.terminal.description', "Quickly run shell commands and monitor build output, right next to your code.\n[Show Terminal Panel](command:workbench.action.terminal.toggleTerminal)"),
+					when: 'remoteName != codespaces && !terminalIsOpen',
 					doneOn: { commandExecuted: 'workbench.action.terminal.toggleTerminal' },
 					media: {
 						type: 'image', altText: 'Integrated terminal running a few npm commands', path: {
 							dark: 'dark/terminal.png',
 							light: 'light/terminal.png',
-							hc: 'light/terminal.png',
+							hc: 'hc/terminal.png',
 						}
 					},
 				},
 				{
 					id: 'extensions',
 					title: localize('gettingStarted.extensions.title', "Limitless extensibility"),
-					description: localize('gettingStarted.extensions.description', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities."),
-					button: {
-						title: localize('gettingStarted.extensions.button', "Browse Recommended Extensions"),
-						command: 'workbench.extensions.action.showRecommendedExtensions'
-					},
+					description: localize('gettingStarted.extensions.description', "Extensions are VS Code's power-ups. They range from handy productivity hacks, expanding out-of-the-box features, to adding completely new capabilities.\n[Browse Recommended Extensions](command:workbench.extensions.action.showRecommendedExtensions)"),
 					doneOn: { commandExecuted: 'workbench.extensions.action.showRecommendedExtensions' },
 					media: {
 						type: 'image', altText: 'VS Code extension marketplace with featured language extensions', path: {
 							dark: 'dark/extensions.png',
 							light: 'light/extensions.png',
-							hc: 'light/extensions.png',
+							hc: 'hc/extensions.png',
 						}
 					},
 				},
 				{
 					id: 'settings',
-					title: localize('gettingStarted.settings.title', "Everything is a setting"),
-					description: localize('gettingStarted.settings.description', "Optimize every part of VS Code's look & feel to your liking. Enabling Settings Sync lets you share your personal tweaks across machines."),
-					button: {
-						title: localize('gettingStarted.settings.button', "Tweak my Settings"),
-						command: 'workbench.action.openSettings'
-					},
+					title: localize('gettingStarted.settings.title', "Tune your settings"),
+					description: localize('gettingStarted.settings.description', "Tweak every aspect of VS Code and your extensions to your liking. Commonly used settings are listed first to get you started.\n[Tweak my Settings](command:toSide:workbench.action.openSettings)"),
 					doneOn: { commandExecuted: 'workbench.action.openSettings' },
 					media: {
 						type: 'image', altText: 'VS Code Settings', path: {
@@ -367,11 +334,7 @@ export const content: GettingStartedContent = [
 				{
 					id: 'videoTutorial',
 					title: localize('gettingStarted.videoTutorial.title', "Lean back and learn"),
-					description: localize('gettingStarted.videoTutorial.description', "Watch the first in a series of short & practical video tutorials for VS Code's key features."),
-					button: {
-						title: localize('gettingStarted.videoTutorial.button', "Watch Tutorial"),
-						link: 'https://aka.ms/vscode-getting-started-video'
-					},
+					description: localize('gettingStarted.videoTutorial.description', "Watch the first in a series of short & practical video tutorials for VS Code's key features.\n[Watch Tutorial](https://aka.ms/vscode-getting-started-video)"),
 					doneOn: { eventFired: 'linkOpened:https://aka.ms/vscode-getting-started-video' },
 					media: { type: 'image', altText: 'VS Code Settings', path: 'tutorialVideo.png' },
 				}

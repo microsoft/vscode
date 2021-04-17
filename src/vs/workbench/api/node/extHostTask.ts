@@ -44,6 +44,12 @@ export class ExtHostTask extends ExtHostTaskBase {
 				authority: initData.remote.authority,
 				platform: process.platform
 			});
+		} else {
+			this.registerTaskSystem(Schemas.file, {
+				scheme: Schemas.file,
+				authority: '',
+				platform: process.platform
+			});
 		}
 		this._proxy.$registerSupportedExecutions(true, true, true);
 	}
@@ -147,19 +153,19 @@ export class ExtHostTask extends ExtHostTaskBase {
 			}
 		};
 		for (let variable of toResolve.variables) {
-			result.variables[variable] = resolver.resolve(ws, variable);
+			result.variables[variable] = await resolver.resolveAsync(ws, variable);
 		}
 		if (toResolve.process !== undefined) {
 			let paths: string[] | undefined = undefined;
 			if (toResolve.process.path !== undefined) {
 				paths = toResolve.process.path.split(path.delimiter);
 				for (let i = 0; i < paths.length; i++) {
-					paths[i] = resolver.resolve(ws, paths[i]);
+					paths[i] = await resolver.resolveAsync(ws, paths[i]);
 				}
 			}
 			result.process = await win32.findExecutable(
-				resolver.resolve(ws, toResolve.process.name),
-				toResolve.process.cwd !== undefined ? resolver.resolve(ws, toResolve.process.cwd) : undefined,
+				await resolver.resolveAsync(ws, toResolve.process.name),
+				toResolve.process.cwd !== undefined ? await resolver.resolveAsync(ws, toResolve.process.cwd) : undefined,
 				paths
 			);
 		}

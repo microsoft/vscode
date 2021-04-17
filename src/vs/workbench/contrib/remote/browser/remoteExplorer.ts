@@ -94,11 +94,11 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 	private enableBadgeAndStatusBar() {
 		const disposable = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).onViewsRegistered(e => {
 			if (e.find(view => view.views.find(viewDescriptor => viewDescriptor.id === TUNNEL_VIEW_ID))) {
-				this._register(this.remoteExplorerService.tunnelModel.onForwardPort(() => {
+				this._register(Event.debounce(this.remoteExplorerService.tunnelModel.onForwardPort, (_last, e) => e, 50)(() => {
 					this.updateActivityBadge();
 					this.updateStatusBar();
 				}));
-				this._register(this.remoteExplorerService.tunnelModel.onClosePort(() => {
+				this._register(Event.debounce(this.remoteExplorerService.tunnelModel.onClosePort, (_last, e) => e, 50)(() => {
 					this.updateActivityBadge();
 					this.updateStatusBar();
 				}));
@@ -198,10 +198,10 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 				Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
 				this._register(new OutputAutomaticPortForwarding(terminalService, notificationService, openerService, externalOpenerService,
-					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, false));
+					remoteExplorerService, configurationService, debugService, tunnelService, remoteAgentService, hostService, logService, () => false));
 			} else {
-				const useProc = (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
-				if (useProc) {
+				const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+				if (useProc()) {
 					this._register(new ProcAutomaticPortForwarding(configurationService, remoteExplorerService, notificationService,
 						openerService, externalOpenerService, tunnelService, hostService, logService));
 				}
@@ -405,7 +405,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 		private readonly remoteAgentService: IRemoteAgentService,
 		readonly hostService: IHostService,
 		readonly logService: ILogService,
-		readonly privilegedOnly: boolean
+		readonly privilegedOnly: () => boolean
 	) {
 		super();
 		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService);
@@ -444,7 +444,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 			if ((await this.remoteExplorerService.tunnelModel.getAttributes([localUrl.port]))?.get(localUrl.port)?.onAutoForward === OnPortForward.Ignore) {
 				return;
 			}
-			if (this.privilegedOnly && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
+			if (this.privilegedOnly() && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
 				return;
 			}
 			const forwarded = await this.remoteExplorerService.forward(localUrl, undefined, undefined, undefined, undefined, undefined, false);

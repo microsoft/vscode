@@ -15,10 +15,18 @@ const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
 const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
+
+const searchParams = new URL(location.toString()).searchParams;
+/**
+ * Origin used for resources
+ */
+const resourceOrigin = searchParams.get('vscode-resource-origin') ?? sw.origin;
+
 /**
  * Root path for resources
  */
 const resourceRoot = rootPath + '/vscode-resource';
+
 
 const resolveTimeout = 30000;
 
@@ -163,12 +171,12 @@ sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
 
 	// See if it's a resource request
-	if (requestUrl.origin === sw.origin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
+	if (requestUrl.origin === resourceOrigin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
 		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
 	// See if it's a localhost request
-	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^localhost:(\d+)$/)) {
+	if (requestUrl.origin !== sw.origin && requestUrl.host.match(/^(localhost|127.0.0.1|0.0.0.0):(\d+)$/)) {
 		return event.respondWith(processLocalhostRequest(event, requestUrl));
 	}
 });
@@ -247,6 +255,7 @@ async function processResourceRequest(event, requestUrl) {
 		channel: 'load-resource',
 		id: requestId,
 		path: resourcePath,
+		query: requestUrl.search.replace(/^\?/, ''),
 		ifNoneMatch: cached?.headers.get('ETag'),
 	});
 
@@ -308,6 +317,7 @@ async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
 	return allClients.find(client => {
 		const clientUrl = new URL(client.url);
-		return (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html`) && clientUrl.search.match(new RegExp('\\bid=' + webviewId));
+		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/electron-browser-index.html`);
+		return hasExpectedPathName && clientUrl.search.match(new RegExp('\\bid=' + webviewId));
 	});
 }

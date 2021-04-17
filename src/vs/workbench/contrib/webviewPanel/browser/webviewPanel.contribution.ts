@@ -18,7 +18,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from './webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
-import { WebviewEditorInputFactory } from './webviewEditorInputFactory';
+import { WebviewEditorInputSerializer } from './webviewEditorInputSerializer';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
@@ -42,7 +42,7 @@ class WebviewPanelContribution implements IWorkbenchContribution {
 		options: ITextEditorOptions | undefined,
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
-		if (!(editor instanceof WebviewInput) || editor.getTypeId() !== WebviewInput.typeId) {
+		if (!(editor instanceof WebviewInput) || editor.typeId !== WebviewInput.typeId) {
 			return undefined;
 		}
 
@@ -74,9 +74,9 @@ class WebviewPanelContribution implements IWorkbenchContribution {
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(WebviewPanelContribution, LifecyclePhase.Starting);
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
-	WebviewEditorInputFactory.ID,
-	WebviewEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(
+	WebviewEditorInputSerializer.ID,
+	WebviewEditorInputSerializer);
 
 registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 
