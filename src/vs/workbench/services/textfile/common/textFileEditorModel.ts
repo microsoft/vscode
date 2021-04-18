@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason, toBufferOrReadable } from 'vs/workbench/services/textfile/common/textfiles';
+import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IWorkingCopyBackupMeta, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -25,7 +25,6 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -205,7 +204,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			};
 		}
 
-		return { meta, content: toBufferOrReadable(withNullAsUndefined(this.createSnapshot())) };
+		// Fill in content the same way we would do when
+		// saving the file via the text file service
+		// encoding support (hardcode UTF-8)
+		const content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+
+		return { meta, content };
 	}
 
 	//#endregion
@@ -379,12 +383,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: await createTextBufferFactoryFromStream(backup.value),
+			value: await this.textFileService.getDecodedTextFactory(this.resource, backup.value, { encoding: UTF8 }),
 			encoding
 		}, true /* dirty (resolved from backup) */, options);
 
 		// Restore orphaned flag based on state
-		if (backup.meta && backup.meta.orphaned) {
+		if (backup.meta?.orphaned) {
 			this.setOrphaned(true);
 		}
 	}

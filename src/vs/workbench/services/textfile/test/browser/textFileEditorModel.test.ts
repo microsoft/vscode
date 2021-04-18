@@ -15,6 +15,9 @@ import { timeout } from 'vs/base/common/async';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { assertIsDefined } from 'vs/base/common/types';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -750,5 +753,36 @@ suite('Files - TextFileEditorModel', () => {
 		await savePromise;
 
 		participant.dispose();
+	}
+
+	test('backup and restore (simple)', async function () {
+		return testBackupAndRestore(toResource.call(this, '/path/index_async.txt'), toResource.call(this, '/path/index_async2.txt'), 'Some very small file text content.');
+	});
+
+	test('backup and restore (large, #121347)', async function () {
+		const largeContent = '국어한\n'.repeat(100000);
+		return testBackupAndRestore(toResource.call(this, '/path/index_async.txt'), toResource.call(this, '/path/index_async2.txt'), largeContent);
+	});
+
+	async function testBackupAndRestore(resourceA: URI, resourceB: URI, contents: string): Promise<void> {
+		const originalModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resourceA, 'utf8', undefined);
+		await originalModel.resolve({
+			contents: await accessor.textFileService.getDecodedTextFactory(resourceA, bufferToStream(VSBuffer.fromString(contents)))
+		});
+
+		assert.strictEqual(originalModel.textEditorModel?.getValue(), contents);
+
+		const backup = await originalModel.backup(CancellationToken.None);
+		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: resourceB };
+		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
+
+		const modelRestored: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, modelRestoredIdentifier.resource, 'utf8', undefined);
+		await modelRestored.resolve();
+
+		assert.strictEqual(modelRestored.textEditorModel?.getValue(), contents);
+		assert.strictEqual(modelRestored.isDirty(), true);
+
+		originalModel.dispose();
+		modelRestored.dispose();
 	}
 });

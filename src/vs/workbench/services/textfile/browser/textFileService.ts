@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
@@ -20,8 +20,8 @@ import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream 
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
-import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
-import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
+import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ITextSnapshot, ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -136,10 +136,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// read through encoding library
-		const decoder = await toDecodeStream(bufferStream.value, {
-			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
-		});
+		const decoder = await this.toDecodeStream(resource, bufferStream.value, options);
 
 		// validate binary
 		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
@@ -147,6 +144,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		return [bufferStream, decoder];
+	}
+
+	private toDecodeStream(resource: URI, stream: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamResult> {
+		return toDecodeStream(stream, {
+			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
+		});
 	}
 
 	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
@@ -186,6 +190,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		value = value || '';
 		const snapshot = typeof value === 'string' ? stringToSnapshot(value) : value;
 		return toEncodeReadable(snapshot, encoding, { addBOM });
+	}
+
+	async getDecodedTextFactory(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ITextBufferFactory> {
+
+		// read through encoding library
+		const decoder = await this.toDecodeStream(resource, value, options);
+
+		return createTextBufferFactoryFromStream(decoder.stream);
 	}
 
 	//#endregion
@@ -600,7 +612,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		};
 	}
 
-	getReadEncoding(resource: URI, options: IReadTextFileOptions | undefined, detectedEncoding: string | null): Promise<string> {
+	getReadEncoding(resource: URI, options: IReadTextFileEncodingOptions | undefined, detectedEncoding: string | null): Promise<string> {
 		let preferredEncoding: string | undefined;
 
 		// Encoding passed in as option
