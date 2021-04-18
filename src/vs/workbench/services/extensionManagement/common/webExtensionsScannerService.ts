@@ -88,7 +88,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const result: IScannedExtension[] = [];
 		for (const e of staticExtensions) {
 			if (Boolean(e.isBuiltin) === builtin) {
-				const scannedExtension = this.parseStaticExtension(e, builtin);
+				const scannedExtension = this.parseStaticExtension(e, builtin, false);
 				if (scannedExtension) {
 					result.push(scannedExtension);
 				}
@@ -101,7 +101,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
 		const extensions: IScannedExtension[] = [];
 		for (const e of defaultUserWebExtensions) {
-			const scannedExtension = this.parseStaticExtension(e, false);
+			const scannedExtension = this.parseStaticExtension(e, false, false);
 			if (scannedExtension) {
 				extensions.push(scannedExtension);
 			}
@@ -109,13 +109,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return extensions.concat(this.getStaticExtensions(false));
 	}
 
-	private parseStaticExtension(e: IStaticExtension, builtin: boolean): IScannedExtension | null {
+	private parseStaticExtension(e: IStaticExtension, builtin: boolean, isUnderDevelopment: boolean): IScannedExtension | null {
 		try {
 			return {
 				identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
 				location: e.extensionLocation,
 				type: builtin ? ExtensionType.System : ExtensionType.User,
 				packageJSON: e.packageJSON,
+				isUnderDevelopment
 			};
 		} catch (error) {
 			this.logService.error(`Error while parsing extension ${e.extensionLocation.toString()}`);
@@ -234,7 +235,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			type: scannedExtension.type,
 			packageJSON: manifest,
 			readmeUrl: scannedExtension.readmeUrl,
-			changelogUrl: scannedExtension.changelogUrl
+			changelogUrl: scannedExtension.changelogUrl,
+			isUnderDevelopment: scannedExtension.isUnderDevelopment
 		};
 	}
 
@@ -309,6 +311,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					readmeUrl: userExtension.readmeUri,
 					changelogUrl: userExtension.changelogUri,
 					packageNLSUrl: userExtension.packageNLSUri,
+					isUnderDevelopment: false
 				};
 			}
 		}

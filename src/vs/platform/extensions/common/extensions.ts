@@ -322,6 +322,7 @@ export interface IScannedExtension {
 	readonly packageNLSUrl?: URI;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isUnderDevelopment: boolean;
 }
 
 export interface ITranslatedScannedExtension {
@@ -331,6 +332,7 @@ export interface ITranslatedScannedExtension {
 	readonly packageJSON: IExtensionManifest;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
+	readonly isUnderDevelopment: boolean;
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
