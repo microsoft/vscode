@@ -150,12 +150,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	}
 
 	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
-		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async o => {
-			const contents = await this.getEncodedReadable(o.resource, o.value);
+		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async operation => {
+			const contents = await this.getEncodedReadable(operation.resource, operation.value);
 			return {
-				resource: o.resource,
+				resource: operation.resource,
 				contents,
-				overwrite: o.options?.overwrite
+				overwrite: operation.options?.overwrite
 			};
 		}));
 

@@ -25,7 +25,7 @@ import { SearchEditorModel } from 'vs/workbench/contrib/searchEditor/browser/sea
 import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { ITextFileSaveOptions, ITextFileService, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileSaveOptions, ITextFileService, toBufferOrReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -271,8 +271,12 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	private async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		const content = stringToSnapshot((await this.model).getValue());
-		return { content };
+		const model = await this.model;
+		if (token.isCancellationRequested) {
+			return {};
+		}
+
+		return { content: toBufferOrReadable(model.createSnapshot(true /* preserve BOM */)) };
 	}
 
 	private async suggestFileName(): Promise<URI> {

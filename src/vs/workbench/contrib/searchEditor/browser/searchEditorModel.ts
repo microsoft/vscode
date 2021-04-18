@@ -13,6 +13,7 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { SearchConfiguration } from './searchEditorInput';
 import { assertIsDefined } from 'vs/base/common/types';
 import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
 
 export class SearchEditorModel {
@@ -36,7 +37,18 @@ export class SearchEditorModel {
 		this.onModelResolved = new Promise<ITextModel>(resolve => this.resolveContents = resolve);
 		this.onModelResolved.then(model => this.cachedContentsModel = model);
 		this.ongoingResolve = workingCopyBackupService.resolve({ resource: modelUri, typeId: NO_TYPE_ID })
-			.then(backup => modelService.getModel(modelUri) ?? (backup ? modelService.createModel(backup.value, modeService.create('search-result'), modelUri) : undefined))
+			.then(backup => {
+				const model = modelService.getModel(modelUri);
+				if (model) {
+					return model;
+				}
+
+				if (backup) {
+					return createTextBufferFactoryFromStream(backup.value).then(factory => modelService.createModel(factory, modeService.create('search-result'), modelUri));
+				}
+
+				return undefined;
+			})
 			.then(model => { if (model) { this.resolveContents(model); } });
 	}
 

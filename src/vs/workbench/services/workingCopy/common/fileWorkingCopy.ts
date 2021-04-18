@@ -13,13 +13,11 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { raceCancellation, TaskSequentializer, timeout } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { DefaultEndOfLine, ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 import { assertIsDefined } from 'vs/base/common/types';
-import { ITextFileEditorModel, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
-import { newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyBackupService, IWorkingCopyBackupMeta, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { isWindows } from 'vs/base/common/platform';
 
 export interface IFileWorkingCopyModelFactory<T extends IFileWorkingCopyModel> {
 
@@ -625,7 +623,7 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: this.textBufferFactoryToStream(backup.value)
+			value: backup.value
 		}, true /* dirty (resolved from backup) */);
 
 		// Restore orphaned flag based on state
@@ -839,7 +837,13 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 			};
 		}
 
-		return { meta, content: await this.modelTextSnapshot(token) };
+		// Fill in content if we are resolved
+		let content: VSBufferReadableStream | undefined = undefined;
+		if (this.isResolved()) {
+			content = await raceCancellation(this.model.snapshot(token), token);
+		}
+
+		return { meta, content };
 	}
 
 	//#endregion
@@ -1239,33 +1243,6 @@ export class FileWorkingCopy<T extends IFileWorkingCopyModel> extends Disposable
 		const textFileModel = this.textFileService.files.get(this.resource);
 
 		return !!(textFileModel && this.model && (textFileModel as unknown) === (this.model as unknown));
-	}
-
-	// TODO@bpasero backups should account for binary data,
-	// and be able to deal with VSBuffer directly
-
-	private textBufferFactoryToStream(factory: ITextBufferFactory): VSBufferReadableStream {
-		const stream = newWriteableBufferStream();
-
-		const contents = snapshotToString(factory.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		stream.end(VSBuffer.fromString(contents));
-
-		return stream;
-	}
-
-	private async modelTextSnapshot(token: CancellationToken): Promise<ITextSnapshot | undefined> {
-		if (!this.isResolved()) {
-			return undefined;
-		}
-
-		const snapshot = await raceCancellation(this.model.snapshot(token), token);
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-
-		const contents = await streamToBuffer(assertIsDefined(snapshot));
-
-		return stringToSnapshot(contents.toString());
 	}
 
 	//#endregion

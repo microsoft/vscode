@@ -6,8 +6,7 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -60,11 +59,11 @@ suite('WorkingCopyBackupRestorer', () => {
 		disposables.add(instantiationService.createInstance(BrowserWorkingCopyBackupTracker));
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
-		// Backup 2 normal files, 2 untitled file and 2 files with custom typeId
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile1), createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile2), createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(fooFile), createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(barFile), createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		// Backup 2 normal files and 2 untitled files
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile1), VSBuffer.fromString('untitled-1'));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile2), VSBuffer.fromString('untitled-2'));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(fooFile), VSBuffer.fromString('fooFile'));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(barFile), VSBuffer.fromString('barFile'));
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();

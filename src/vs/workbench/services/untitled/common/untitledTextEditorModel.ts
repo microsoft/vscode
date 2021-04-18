@@ -12,11 +12,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEncodingSupport, IModeSupport, ITextFileService, toBufferOrReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -284,7 +284,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-		return { content: withNullAsUndefined(this.createSnapshot()) };
+		return { content: toBufferOrReadable(withNullAsUndefined(this.createSnapshot())) };
 	}
 
 	//#endregion
@@ -299,7 +299,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		let untitledContents: ITextBufferFactory;
 		if (backup) {
-			untitledContents = backup.value;
+			untitledContents = await createTextBufferFactoryFromStream(backup.value);
 		} else {
 			untitledContents = createTextBufferFactory(this.initialValue || '');
 		}

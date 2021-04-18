@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
@@ -29,13 +29,13 @@ export interface IWorkingCopyBackupMeta {
 export interface IResolvedWorkingCopyBackup<T extends IWorkingCopyBackupMeta> {
 
 	/**
-	 * The actual backed up value of the entity.
+	 * The content of the working copy backup.
 	 */
-	readonly value: ITextBufferFactory;
+	readonly value: VSBufferReadableStream;
 
 	/**
 	 * Additional metadata that is associated with
-	 * the entity.
+	 * the working copy backup.
 	 */
 	readonly meta?: T;
 }
@@ -78,7 +78,7 @@ export interface IWorkingCopyBackupService {
 	/**
 	 * Stores a new working copy backup for the given identifier.
 	 */
-	backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void>;
+	backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void>;
 
 	/**
 	 * Discards the working copy backup associated with the identifier if it exists.

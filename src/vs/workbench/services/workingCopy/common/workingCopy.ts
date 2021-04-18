@@ -6,9 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
-import { ITextSnapshot } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 export const enum WorkingCopyCapabilities {
 
@@ -38,9 +38,10 @@ export interface IWorkingCopyBackup {
 	meta?: IWorkingCopyBackupMeta;
 
 	/**
-	 * Use this for larger textual content of the backup.
+	 * The actual snapshot of the contents of the working copy at
+	 * the time the backup was made.
 	 */
-	content?: ITextSnapshot;
+	content?: VSBuffer | VSBufferReadable | VSBufferReadableStream;
 }
 
 /**

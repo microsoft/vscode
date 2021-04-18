@@ -519,35 +519,6 @@ export function stringToSnapshot(value: string): ITextSnapshot {
 	};
 }
 
-export class TextSnapshotReadable implements VSBufferReadable {
-	private preambleHandled = false;
-
-	constructor(private snapshot: ITextSnapshot, private preamble?: string) { }
-
-	read(): VSBuffer | null {
-		let value = this.snapshot.read();
-
-		// Handle preamble if provided
-		if (!this.preambleHandled) {
-			this.preambleHandled = true;
-
-			if (typeof this.preamble === 'string') {
-				if (typeof value === 'string') {
-					value = this.preamble + value;
-				} else {
-					value = this.preamble;
-				}
-			}
-		}
-
-		if (typeof value === 'string') {
-			return VSBuffer.fromString(value);
-		}
-
-		return null;
-	}
-}
-
 export function toBufferOrReadable(value: string): VSBuffer;
 export function toBufferOrReadable(value: ITextSnapshot): VSBufferReadable;
 export function toBufferOrReadable(value: string | ITextSnapshot): VSBuffer | VSBufferReadable;
@@ -561,5 +532,14 @@ export function toBufferOrReadable(value: string | ITextSnapshot | undefined): V
 		return VSBuffer.fromString(value);
 	}
 
-	return new TextSnapshotReadable(value);
+	return {
+		read: () => {
+			const chunk = value.read();
+			if (typeof chunk === 'string') {
+				return VSBuffer.fromString(chunk);
+			}
+
+			return null;
+		}
+	};
 }

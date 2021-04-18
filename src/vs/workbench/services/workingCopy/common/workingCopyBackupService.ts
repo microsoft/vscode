@@ -10,11 +10,9 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import { Promises, ResourceQueue } from 'vs/base/common/async';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService, IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { ITextSnapshot } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ResourceMap } from 'vs/base/common/map';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { TextSnapshotReadable, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { isReadableStream, peekStream } from 'vs/base/common/stream';
+import { bufferToStream, prefixedBufferReadable, prefixedBufferStream, readableToBuffer, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -149,7 +147,7 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		return this.impl.hasBackupSync(identifier, versionId);
 	}
 
-	backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		return this.impl.backup(identifier, content, versionId, meta, token);
 	}
 
@@ -177,6 +175,7 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBackupService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
+	private static readonly PREAMBLE_END_MARKER_CHARCODE = '\n'.charCodeAt(0);
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
@@ -256,7 +255,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		return this.model.has(backupResource, versionId);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	async backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const model = await this.ready;
 		if (token?.isCancellationRequested) {
 			return;
@@ -280,8 +279,20 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 				preamble = this.createPreamble(identifier);
 			}
 
-			// Update content with value
-			await this.fileService.writeFile(backupResource, new TextSnapshotReadable(content || stringToSnapshot(''), preamble));
+			// Update backup with value
+			const preambleBuffer = VSBuffer.fromString(preamble);
+			let backupBuffer: VSBuffer | VSBufferReadableStream | VSBufferReadable;
+			if (content instanceof VSBuffer) {
+				backupBuffer = VSBuffer.concat([preambleBuffer, content]);
+			} else if (isReadableStream(content)) {
+				backupBuffer = prefixedBufferStream(preambleBuffer, content);
+			} else if (content) {
+				backupBuffer = prefixedBufferReadable(preambleBuffer, content);
+			} else {
+				backupBuffer = VSBuffer.concat([preambleBuffer, VSBuffer.fromString('')]);
+			}
+
+			await this.fileService.writeFile(backupResource, backupBuffer);
 
 			// Update model
 			model.add(backupResource, versionId, meta);
@@ -396,41 +407,32 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 			return undefined; // require backup to be present
 		}
 
-		// Metadata extraction
-		let metaRaw = '';
-		let metaEndFound = false;
+		// Load the backup content and peek into the first chunk
+		// to be able to resolve the meta data
+		const backupStream = await this.fileService.readFileStream(backupResource);
+		const peekedBackupStream = await peekStream(backupStream.value, 1);
+		const firstBackupChunk = VSBuffer.concat(peekedBackupStream.buffer);
 
-		// Add a filter method to filter out everything until the meta end marker
-		const metaPreambleFilter = (chunk: VSBuffer) => {
-			const chunkString = chunk.toString();
+		// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
+		// if VSCode goes down while writing the backup file, the file can turn empty because
+		// it always first gets truncated and then written to. In this case, we will not find
+		// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
+		// here if that is the case.
+		const preambleEndIndex = firstBackupChunk.buffer.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER_CHARCODE);
+		if (preambleEndIndex === -1) {
+			this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${backupStream.size}).`);
 
-			if (!metaEndFound) {
-				const metaEndIndex = chunkString.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_END_MARKER);
-				if (metaEndIndex === -1) {
-					metaRaw += chunkString;
+			return undefined;
+		}
 
-					return VSBuffer.fromString(''); // meta not yet found, return empty string
-				}
-
-				metaEndFound = true;
-				metaRaw += chunkString.substring(0, metaEndIndex); // ensure to get last chunk from metadata
-
-				return VSBuffer.fromString(chunkString.substr(metaEndIndex + 1)); // meta found, return everything after
-			}
-
-			return chunk;
-		};
-
-		// Read backup into factory
-		const content = await this.fileService.readFileStream(backupResource);
-		const factory = await createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
+		const preambelRaw = firstBackupChunk.slice(0, preambleEndIndex).toString();
 
 		// Extract meta data (if any)
 		let meta: T | undefined;
-		const metaStartIndex = metaRaw.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
+		const metaStartIndex = preambelRaw.indexOf(NativeWorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
 		if (metaStartIndex !== -1) {
 			try {
-				meta = JSON.parse(metaRaw.substr(metaStartIndex + 1));
+				meta = JSON.parse(preambelRaw.substr(metaStartIndex + 1));
 
 				// `typeId` is a property that we add so we
 				// remove it when returning to clients.
@@ -446,18 +448,16 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 			}
 		}
 
-		// We have seen reports (e.g. https://github.com/microsoft/vscode/issues/78500) where
-		// if VSCode goes down while writing the backup file, the file can turn empty because
-		// it always first gets truncated and then written to. In this case, we will not find
-		// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
-		// here if that is the case.
-		if (!metaEndFound) {
-			this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${content.size}).`);
-
-			return undefined;
+		// Build a new stream without the preamble
+		const firstBackupChunkWithoutPreamble = firstBackupChunk.slice(preambleEndIndex + 1);
+		let backupValue: VSBufferReadableStream;
+		if (peekedBackupStream.ended) {
+			backupValue = bufferToStream(firstBackupChunkWithoutPreamble);
+		} else {
+			backupValue = prefixedBufferStream(firstBackupChunkWithoutPreamble, peekedBackupStream.stream);
 		}
 
-		return { value: factory, meta };
+		return { value: backupValue, meta };
 	}
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
@@ -469,7 +469,7 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 
 	declare readonly _serviceBrand: undefined;
 
-	private backups = new ResourceMap<{ typeId: string, content: ITextSnapshot, meta?: IWorkingCopyBackupMeta }>();
+	private backups = new ResourceMap<{ typeId: string, content: VSBuffer, meta?: IWorkingCopyBackupMeta }>();
 
 	constructor() { }
 
@@ -483,16 +483,20 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 		return this.backups.has(backupResource);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	async backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
-		this.backups.set(backupResource, { typeId: identifier.typeId, content: content || stringToSnapshot(''), meta });
+		this.backups.set(backupResource, {
+			typeId: identifier.typeId,
+			content: content instanceof VSBuffer ? content : content ? isReadableStream(content) ? await streamToBuffer(content) : readableToBuffer(content) : VSBuffer.fromString(''),
+			meta
+		});
 	}
 
 	async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
 		const backupResource = this.toBackupResource(identifier);
 		const backup = this.backups.get(backupResource);
 		if (backup) {
-			return { value: createTextBufferFactoryFromSnapshot(backup.content), meta: backup.meta as T | undefined };
+			return { value: bufferToStream(backup.content), meta: backup.meta as T | undefined };
 		}
 
 		return undefined;

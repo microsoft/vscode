@@ -16,6 +16,7 @@ import { basename } from 'vs/base/common/resources';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { Promises } from 'vs/base/common/async';
+import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 
 export class TestFileWorkingCopyModel extends Disposable implements IFileWorkingCopyModel {
 
@@ -349,7 +350,17 @@ suite('FileWorkingCopy', function () {
 		const backup = await workingCopy.backup(CancellationToken.None);
 
 		assert.ok(backup.meta);
-		assert.strictEqual(backup.content?.read(), 'hello backup');
+
+		let backupContents: string | undefined = undefined;
+		if (backup.content instanceof VSBuffer) {
+			backupContents = backup.content.toString();
+		} else if (isReadableStream(backup.content)) {
+			backupContents = (await consumeStream(backup.content, chunks => VSBuffer.concat(chunks))).toString();
+		} else if (backup.content) {
+			backupContents = consumeReadable(backup.content, chunks => VSBuffer.concat(chunks)).toString();
+		}
+
+		assert.strictEqual(backupContents, 'hello backup');
 	});
 
 	test('save (no errors)', async () => {

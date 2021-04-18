@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason, toBufferOrReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IWorkingCopyBackupMeta, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -25,6 +25,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -204,7 +205,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			};
 		}
 
-		return { meta, content: withNullAsUndefined(this.createSnapshot()) };
+		return { meta, content: toBufferOrReadable(withNullAsUndefined(this.createSnapshot())) };
 	}
 
 	//#endregion
@@ -358,7 +359,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Try to resolve from backup if we have any
 		if (backup) {
-			this.doResolveFromBackup(backup, encoding, options);
+			await this.doResolveFromBackup(backup, encoding, options);
 
 			return true;
 		}
@@ -367,7 +368,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return false;
 	}
 
-	private doResolveFromBackup(backup: IResolvedWorkingCopyBackup<IBackupMetaData>, encoding: string, options?: ITextFileResolveOptions): void {
+	private async doResolveFromBackup(backup: IResolvedWorkingCopyBackup<IBackupMetaData>, encoding: string, options?: ITextFileResolveOptions): Promise<void> {
 		this.logService.trace('[text file model] doResolveFromBackup()', this.resource.toString(true));
 
 		// Resolve with backup
@@ -378,7 +379,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: backup.value,
+			value: await createTextBufferFactoryFromStream(backup.value),
 			encoding
 		}, true /* dirty (resolved from backup) */, options);
 

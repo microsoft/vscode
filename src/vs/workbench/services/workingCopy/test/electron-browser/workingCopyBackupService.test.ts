@@ -6,33 +6,32 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
+import { insert } from 'vs/base/common/arrays';
+import { hash } from 'vs/base/common/hash';
+import { isEqual } from 'vs/base/common/resources';
 import { promises, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'vs/base/common/path';
 import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
+import { toBufferOrReadable } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { insert } from 'vs/base/common/arrays';
-import { hash } from 'vs/base/common/hash';
-import { isEqual } from 'vs/base/common/resources';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { consumeStream } from 'vs/base/common/stream';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -75,7 +74,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async override backup(identifier: IWorkingCopyIdentifier, content?: ITextSnapshot, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	async override backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		const p = super.backup(identifier, content, versionId, meta, token);
 		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
 
@@ -306,7 +305,7 @@ suite('WorkingCopyBackupService', () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
-			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test'));
@@ -317,7 +316,7 @@ suite('WorkingCopyBackupService', () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
-			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 666);
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')), 666);
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test'));
@@ -330,7 +329,7 @@ suite('WorkingCopyBackupService', () => {
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678', orphaned: true };
 
-			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), undefined, meta);
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')), undefined, meta);
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test', meta));
@@ -343,7 +342,7 @@ suite('WorkingCopyBackupService', () => {
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const meta = { etag: '678', orphaned: true };
 
-			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), undefined, meta);
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')), undefined, meta);
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test', meta));
@@ -354,19 +353,19 @@ suite('WorkingCopyBackupService', () => {
 			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
-			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test'));
 			assert.ok(service.hasBackupSync(identifier));
 		});
 
-		test('text file (ITextSnapshot)', async () => {
+		test('text file (readable)', async () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const model = createTextModel('test');
 
-			await service.backup(identifier, model.createSnapshot());
+			await service.backup(identifier, toBufferOrReadable(model.createSnapshot()));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test'));
@@ -375,12 +374,12 @@ suite('WorkingCopyBackupService', () => {
 			model.dispose();
 		});
 
-		test('untitled file (ITextSnapshot)', async () => {
+		test('untitled file (readable)', async () => {
 			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 			const model = createTextModel('test');
 
-			await service.backup(identifier, model.createSnapshot());
+			await service.backup(identifier, toBufferOrReadable(model.createSnapshot()));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, 'test'));
@@ -388,28 +387,45 @@ suite('WorkingCopyBackupService', () => {
 			model.dispose();
 		});
 
-		test('text file (large file, ITextSnapshot)', async () => {
-			const identifier = toUntypedWorkingCopyId(fooFile);
-			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
-			const largeString = (new Array(10 * 1024)).join('Large String\n');
+		test('text file (large file, buffer)', () => {
+			const largeString = (new Array(30 * 1024)).join('Large String\n');
+
+			return testLargeTextFile(largeString, VSBuffer.fromString(largeString));
+		});
+
+		test('text file (large file, stream)', () => {
+			const largeString = (new Array(30 * 1024)).join('Large String\n');
+
+			return testLargeTextFile(largeString, bufferToStream(VSBuffer.fromString(largeString)));
+		});
+
+		test('text file (large file, readable)', async () => {
+			const largeString = (new Array(30 * 1024)).join('Large String\n');
 			const model = createTextModel(largeString);
 
-			await service.backup(identifier, model.createSnapshot());
-			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
-			assert.strictEqual(existsSync(backupPath), true);
-			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, largeString));
-			assert.ok(service.hasBackupSync(identifier));
+			await testLargeTextFile(largeString, toBufferOrReadable(model.createSnapshot()));
 
 			model.dispose();
 		});
 
-		test('untitled file (large file, ITextSnapshot)', async () => {
+		async function testLargeTextFile(largeString: string, buffer: VSBuffer | VSBufferReadable | VSBufferReadableStream) {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+
+			await service.backup(identifier, buffer, undefined, { largeTest: true });
+			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
+			assert.strictEqual(existsSync(backupPath), true);
+			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, largeString, { largeTest: true }));
+			assert.ok(service.hasBackupSync(identifier));
+		}
+
+		test('untitled file (large file, readable)', async () => {
 			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
-			const largeString = (new Array(10 * 1024)).join('Large String\n');
+			const largeString = (new Array(30 * 1024)).join('Large String\n');
 			const model = createTextModel(largeString);
 
-			await service.backup(identifier, model.createSnapshot());
+			await service.backup(identifier, toBufferOrReadable(model.createSnapshot()));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readFileSync(backupPath).toString(), toExpectedPreamble(identifier, largeString));
@@ -457,7 +473,7 @@ suite('WorkingCopyBackupService', () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
-			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
 			assert.ok(service.hasBackupSync(identifier));
 
@@ -471,7 +487,7 @@ suite('WorkingCopyBackupService', () => {
 			const identifier = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 
-			await service.backup(identifier, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
 
 			await service.discardBackup(identifier);
@@ -505,13 +521,13 @@ suite('WorkingCopyBackupService', () => {
 			const backupId2 = toUntypedWorkingCopyId(barFile);
 			const backupId3 = toTypedWorkingCopyId(barFile);
 
-			await service.backup(backupId1, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(backupId1, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 1);
 
-			await service.backup(backupId2, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(backupId2, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 2);
 
-			await service.backup(backupId3, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(backupId3, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
 
 			await service.discardBackups();
@@ -527,7 +543,7 @@ suite('WorkingCopyBackupService', () => {
 			const backupId = toUntypedWorkingCopyId(untitledFile);
 			const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
 
-			await service.backup(backupId, createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(backupId, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
 
 			await service.discardBackups();
@@ -537,16 +553,16 @@ suite('WorkingCopyBackupService', () => {
 
 		test('can backup after discarding all', async () => {
 			await service.discardBackups();
-			await service.backup(toUntypedWorkingCopyId(untitledFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(existsSync(workspaceBackupPath), true);
 		});
 	});
 
 	suite('getBackups', () => {
 		test('text file', async () => {
-			await service.backup(toUntypedWorkingCopyId(fooFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedWorkingCopyId(fooFile, 'type1'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedWorkingCopyId(fooFile, 'type2'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString('test')));
+			await service.backup(toTypedWorkingCopyId(fooFile, 'type1'), bufferToReadable(VSBuffer.fromString('test')));
+			await service.backup(toTypedWorkingCopyId(fooFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')));
 
 			let backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);
@@ -563,16 +579,16 @@ suite('WorkingCopyBackupService', () => {
 				}
 			}
 
-			await service.backup(toUntypedWorkingCopyId(barFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(barFile), bufferToReadable(VSBuffer.fromString('test')));
 
 			backups = await service.getBackups();
 			assert.strictEqual(backups.length, 4);
 		});
 
 		test('untitled file', async () => {
-			await service.backup(toUntypedWorkingCopyId(untitledFile), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedWorkingCopyId(untitledFile, 'type1'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-			await service.backup(toTypedWorkingCopyId(untitledFile, 'type2'), createTextBufferFactory('test').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+			await service.backup(toUntypedWorkingCopyId(untitledFile), bufferToReadable(VSBuffer.fromString('test')));
+			await service.backup(toTypedWorkingCopyId(untitledFile, 'type1'), bufferToReadable(VSBuffer.fromString('test')));
+			await service.backup(toTypedWorkingCopyId(untitledFile, 'type2'), bufferToReadable(VSBuffer.fromString('test')));
 
 			const backups = await service.getBackups();
 			assert.strictEqual(backups.length, 3);
@@ -608,6 +624,32 @@ suite('WorkingCopyBackupService', () => {
 
 		test('should restore the original contents (untitled file with metadata)', async () => {
 			const contents = 'test\nand more stuff';
+
+			const meta = {
+				etag: 'the Etag',
+				size: 666,
+				mtime: Date.now(),
+				orphaned: true
+			};
+
+			await testResolveBackup(untitledFile, contents, meta);
+		});
+
+		test('should restore the original contents (untitled file empty with metadata)', async () => {
+			const contents = '';
+
+			const meta = {
+				etag: 'the Etag',
+				size: 666,
+				mtime: Date.now(),
+				orphaned: true
+			};
+
+			await testResolveBackup(untitledFile, contents, meta);
+		});
+
+		test('should restore the original contents (untitled large file with metadata)', async () => {
+			const contents = (new Array(30 * 1024)).join('Large String\n');
 
 			const meta = {
 				etag: 'the Etag',
@@ -659,6 +701,32 @@ suite('WorkingCopyBackupService', () => {
 			await testResolveBackup(fooFile, contents, meta);
 		});
 
+		test('should restore the original contents (empty text file with metadata)', async () => {
+			const contents = '';
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await testResolveBackup(fooFile, contents, meta);
+		});
+
+		test('should restore the original contents (large text file with metadata)', async () => {
+			const contents = (new Array(30 * 1024)).join('Large String\n');
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await testResolveBackup(fooFile, contents, meta);
+		});
+
 		test('should restore the original contents (text file with metadata changed once)', async () => {
 			const contents = [
 				'Lorem ipsum ',
@@ -680,43 +748,6 @@ suite('WorkingCopyBackupService', () => {
 			meta.size = 999;
 			await testResolveBackup(fooFile, contents, meta);
 		});
-
-		test('should restore the original contents (text file with broken metadata)', async () => {
-			await testShouldRestoreOriginalContents(toUntypedWorkingCopyId(fooFile));
-			await testShouldRestoreOriginalContents(toTypedWorkingCopyId(fooFile));
-		});
-
-		async function testShouldRestoreOriginalContents(identifier: IWorkingCopyIdentifier): Promise<void> {
-			const contents = [
-				'Lorem ipsum ',
-				'dolor öäü sit amet ',
-				'adipiscing ßß elit',
-				'consectetur '
-			].join('');
-
-			const meta = {
-				etag: 'theEtag',
-				size: 888,
-				mtime: Date.now(),
-				orphaned: false
-			};
-
-			await service.backup(identifier, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1, meta);
-
-			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
-
-			const fileContents = readFileSync(backupPath).toString();
-			assert.strictEqual(fileContents.indexOf(identifier.resource.toString()), 0);
-
-			const metaIndex = fileContents.indexOf('{');
-			const newFileContents = fileContents.substring(0, metaIndex) + '{{' + fileContents.substr(metaIndex);
-			writeFileSync(backupPath, newFileContents);
-
-			const backup = await service.resolve(identifier);
-			assert.ok(backup);
-			assert.strictEqual(contents, snapshotToString(backup.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
-			assert.strictEqual(backup.meta, undefined);
-		}
 
 		test('should restore the original contents (text file with metadata and fragment URI)', async () => {
 			const contents = [
@@ -769,29 +800,7 @@ suite('WorkingCopyBackupService', () => {
 				orphaned: false
 			};
 
-			await testResolveBackup(fooBarFile, contents, meta, true);
-		});
-
-		test('should ignore invalid backups', async () => {
-			const contents = 'test\nand more stuff';
-
-			await service.backup(toUntypedWorkingCopyId(fooBarFile), createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1);
-
-			const backup = await service.resolve(toUntypedWorkingCopyId(fooBarFile));
-			if (!backup) {
-				throw new Error('Unexpected missing backup');
-			}
-
-			await service.fileService.writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooBarFile)), VSBuffer.fromString(''));
-
-			let err: Error | undefined = undefined;
-			try {
-				await service.resolve<IBackupTestMetaData>(toUntypedWorkingCopyId(fooBarFile));
-			} catch (error) {
-				err = error;
-			}
-
-			assert.ok(!err);
+			await testResolveBackup(fooFile, contents, meta, true);
 		});
 
 		async function testResolveBackup(resource: URI, contents: string, meta?: IBackupTestMetaData, expectNoMeta?: boolean) {
@@ -800,11 +809,11 @@ suite('WorkingCopyBackupService', () => {
 		}
 
 		async function doTestResolveBackup(identifier: IWorkingCopyIdentifier, contents: string, meta?: IBackupTestMetaData, expectNoMeta?: boolean) {
-			await service.backup(identifier, createTextBufferFactory(contents).create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false), 1, meta);
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString(contents)), 1, meta);
 
 			const backup = await service.resolve<IBackupTestMetaData>(identifier);
 			assert.ok(backup);
-			assert.strictEqual(contents, snapshotToString(backup.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(true)));
+			assert.strictEqual(contents, (await streamToBuffer(backup.value)).toString());
 
 			if (expectNoMeta || !meta) {
 				assert.strictEqual(backup.meta, undefined);
@@ -818,6 +827,91 @@ suite('WorkingCopyBackupService', () => {
 				assert.strictEqual(Object.keys(meta).length, Object.keys(backup.meta).length);
 			}
 		}
+
+		test('should restore the original contents (text file with broken metadata)', async () => {
+			await testShouldRestoreOriginalContentsWithBrokenBackup(toUntypedWorkingCopyId(fooFile));
+			await testShouldRestoreOriginalContentsWithBrokenBackup(toTypedWorkingCopyId(fooFile));
+		});
+
+		async function testShouldRestoreOriginalContentsWithBrokenBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+			const contents = [
+				'Lorem ipsum ',
+				'dolor öäü sit amet ',
+				'adipiscing ßß elit',
+				'consectetur '
+			].join('');
+
+			const meta = {
+				etag: 'theEtag',
+				size: 888,
+				mtime: Date.now(),
+				orphaned: false
+			};
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString(contents)), 1, meta);
+
+			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
+
+			const fileContents = readFileSync(backupPath).toString();
+			assert.strictEqual(fileContents.indexOf(identifier.resource.toString()), 0);
+
+			const metaIndex = fileContents.indexOf('{');
+			const newFileContents = fileContents.substring(0, metaIndex) + '{{' + fileContents.substr(metaIndex);
+			writeFileSync(backupPath, newFileContents);
+
+			const backup = await service.resolve(identifier);
+			assert.ok(backup);
+			assert.strictEqual(contents, (await streamToBuffer(backup.value)).toString());
+			assert.strictEqual(backup.meta, undefined);
+		}
+
+		test('should ignore invalid backups (empty file)', async () => {
+			const contents = 'test\nand more stuff';
+
+			await service.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString(contents)), 1);
+
+			let backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
+			assert.ok(backup);
+
+			await service.fileService.writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooFile)), VSBuffer.fromString(''));
+
+			backup = await service.resolve<IBackupTestMetaData>(toUntypedWorkingCopyId(fooFile));
+			assert.ok(!backup);
+		});
+
+		test('should ignore invalid backups (no preamble)', async () => {
+			const contents = 'testand more stuff';
+
+			await service.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString(contents)), 1);
+
+			let backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
+			assert.ok(backup);
+
+			await service.fileService.writeFile(service.toBackupResource(toUntypedWorkingCopyId(fooFile)), VSBuffer.fromString(contents));
+
+			backup = await service.resolve<IBackupTestMetaData>(toUntypedWorkingCopyId(fooFile));
+			assert.ok(!backup);
+		});
+
+		test('file with binary data', async () => {
+			const identifier = toUntypedWorkingCopyId(fooFile);
+
+			const buffer = VSBuffer.alloc(3);
+			buffer.writeUInt8(10, 0);
+			buffer.writeUInt8(20, 1);
+			buffer.writeUInt8(30, 2);
+
+			await service.backup(identifier, bufferToReadable(buffer), undefined, { binaryTest: 'true' });
+
+			const backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
+			assert.ok(backup);
+
+			const backupBuffer = await consumeStream(backup.value, chunks => VSBuffer.concat(chunks));
+			assert.strictEqual(backupBuffer.buffer.byteLength, buffer.byteLength);
+			assert.strictEqual(backupBuffer.readUInt8(0), buffer.readUInt8(0));
+			assert.strictEqual(backupBuffer.readUInt8(1), buffer.readUInt8(1));
+			assert.strictEqual(backupBuffer.readUInt8(2), buffer.readUInt8(2));
+		});
 	});
 
 	suite('WorkingCopyBackupsModel', () => {
