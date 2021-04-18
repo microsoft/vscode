@@ -122,6 +122,7 @@ export interface IProductConfiguration {
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 	readonly extensionWorkspaceTrustRequest?: { readonly [extensionId: string]: ExtensionWorkspaceTrustRequest };
+	readonly extensionWorkspaceSchemes?: { readonly [extensionId: string]: { default?: string[], override?: string[] } };
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];

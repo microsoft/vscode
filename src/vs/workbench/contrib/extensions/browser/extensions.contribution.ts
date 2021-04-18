@@ -174,6 +174,28 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsWebWorker', "Enable web worker extension host."),
 				default: false
+			},
+			'extensions.workspaceRequirements': {
+				type: 'object',
+				markdownDescription: localize('extensions.workspaceRequirements', "Override the workspace requirements of an extension"),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$': {
+						type: 'object',
+						properties: {
+							'schemes': {
+								type: 'array'
+							}
+						},
+						default: {
+							'schemes': [Schemas.file]
+						}
+					},
+				},
+				default: {
+					'pub.name': {
+						'schemes': [Schemas.file]
+					}
+				}
 			}
 		}
 	});

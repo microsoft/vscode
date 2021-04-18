@@ -19,11 +19,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { productService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-// import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -64,7 +63,6 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			new class extends mock<IExtensionWorkspaceTrustRequestService>() { override getExtensionWorkspaceTrustRequestType(manifest: IExtensionManifest): ExtensionWorkspaceTrustRequestType { return 'never'; } },
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
-			productService,
 			instantiationService.get(IUserDataAutoSyncEnablementService) || instantiationService.stub(IUserDataAutoSyncEnablementService, <Partial<IUserDataAutoSyncEnablementService>>{ isEnabled() { return false; } }),
 			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService),
 			instantiationService.get(ILifecycleService) || instantiationService.stub(ILifecycleService, new TestLifecycleService()),

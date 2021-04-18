@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionKind, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionKind, ExtensionIdentifier, ExtensionWorkspaceRequirements } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
@@ -26,6 +26,7 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
+	getWorkspaceSchemes(manifest: IExtensionManifest): string[];
 }
 
 export class ExtensionManifestPropertiesService implements IExtensionManifestPropertiesService {
@@ -35,6 +36,9 @@ export class ExtensionManifestPropertiesService implements IExtensionManifestPro
 	private _uiExtensionPoints: Set<string> | null = null;
 	private _productExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
 	private _configuredExtensionKindsMap: Map<string, ExtensionKind | ExtensionKind[]> | null = null;
+
+	private _productWorkspaceSchemesMap: Map<string, { default?: string[], override?: string[] }> | null = null;
+	private _configuredWorkspaceSchemesMap: Map<string, string[]> | null = null;
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -91,6 +95,33 @@ export class ExtensionManifestPropertiesService implements IExtensionManifestPro
 		}
 
 		return this.deduceExtensionKind(manifest);
+	}
+
+	getWorkspaceSchemes(manifest: IExtensionManifest): string[] {
+		// check user configured
+		const userConfiguredWorkspaceSchemes = this.getConfiguredWorkspaceSchemes(manifest);
+		if (userConfiguredWorkspaceSchemes?.length) {
+			return userConfiguredWorkspaceSchemes;
+		}
+
+		const productConfiguredWorkspaceSchemes = this.getProductWorkspaceSchemes(manifest);
+
+		// check override from product
+		if (productConfiguredWorkspaceSchemes?.override?.length) {
+			return productConfiguredWorkspaceSchemes?.override;
+		}
+
+		// check the manifest
+		if (manifest.workspaceRequirements?.schemes?.length) {
+			return manifest.workspaceRequirements.schemes;
+		}
+
+		// check default from product
+		if (productConfiguredWorkspaceSchemes?.default?.length) {
+			return productConfiguredWorkspaceSchemes?.default;
+		}
+
+		return ['*'];
 	}
 
 	deduceExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
@@ -161,6 +192,38 @@ export class ExtensionManifestPropertiesService implements IExtensionManifestPro
 
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
 		return this._configuredExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionId));
+	}
+
+	private getProductWorkspaceSchemes(manifest: IExtensionManifest): { default?: string[], override?: string[] } | undefined {
+		if (this._productWorkspaceSchemesMap === null) {
+			const productWorkspaceSchemesMap = new Map<string, { default?: string[], override?: string[] }>();
+			if (this.productService.extensionWorkspaceSchemes) {
+				for (const id of Object.keys(this.productService.extensionWorkspaceSchemes)) {
+					productWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionWorkspaceSchemes[id]);
+				}
+			}
+			this._productWorkspaceSchemesMap = productWorkspaceSchemesMap;
+		}
+
+		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+		return this._productWorkspaceSchemesMap.get(ExtensionIdentifier.toKey(extensionId));
+	}
+
+	private getConfiguredWorkspaceSchemes(manifest: IExtensionManifest): string[] | undefined {
+		if (this._configuredWorkspaceSchemesMap === null) {
+			const configuredWorkspaceSchemesMap = new Map<string, string[]>();
+			const configuredWorkspaceSchemes = this.configurationService.getValue<{ [key: string]: ExtensionWorkspaceRequirements }>('extensions.workspaceRequirements') || {};
+			for (const id of Object.keys(configuredWorkspaceSchemes)) {
+				const schemes = configuredWorkspaceSchemes[id].schemes;
+				if (schemes?.length) {
+					configuredWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), schemes);
+				}
+			}
+			this._configuredWorkspaceSchemesMap = configuredWorkspaceSchemesMap;
+		}
+
+		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+		return this._configuredWorkspaceSchemesMap.get(ExtensionIdentifier.toKey(extensionId));
 	}
 
 	private toArray(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[] {

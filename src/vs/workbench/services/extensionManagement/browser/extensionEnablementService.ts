@@ -15,7 +15,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
@@ -28,6 +27,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { Promises } from 'vs/base/common/async';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { Schemas } from 'vs/base/common/network';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -49,7 +49,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IExtensionWorkspaceTrustRequestService private readonly extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IProductService productService: IProductService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -101,6 +100,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return EnablementState.DisabledByEnvironment;
 		}
 		if (this._isDisabledInEnv(extension)) {
+			return EnablementState.DisabledByEnvironment;
+		}
+		if (this._isDisabledByWorkspaceScheme(extension)) {
 			return EnablementState.DisabledByEnvironment;
 		}
 		if (this._isDisabledByExtensionKind(extension)) {
@@ -239,6 +241,25 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return disabledExtensions.some(id => areSameExtensions({ id }, extension.identifier));
 		}
 		return false;
+	}
+
+	private _isDisabledByWorkspaceScheme(extension: IExtension): boolean {
+		const workspace = this.contextService.getWorkspace();
+		const workspaceFolderSchemes: string[] | undefined = workspace.folders.length
+			? workspace.folders.map(folder => folder.uri.scheme === Schemas.vscodeRemote ? Schemas.file : folder.uri.scheme)
+			: workspace.configuration ? [workspace.configuration.scheme] : undefined;
+
+		if (!workspaceFolderSchemes) {
+			return false;
+		}
+
+		const extensionSupportedWorkspaceSchemes = this.extensionManifestPropertiesService.getWorkspaceSchemes(extension.manifest);
+		// Supports all schemes
+		if (extensionSupportedWorkspaceSchemes.includes('*')) {
+			return false;
+		}
+
+		return !extensionSupportedWorkspaceSchemes.some(scheme => workspaceFolderSchemes.includes(scheme));
 	}
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
