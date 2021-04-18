@@ -29,10 +29,10 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -108,8 +108,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _extensionHostActivationTimes: Map<string, ActivationTimes>;
 	private _extensionHostExtensionRuntimeErrors: Map<string, Error[]>;
 
-	private readonly _extensionKindController: ExtensionKindController;
-
 	constructor(
 		protected readonly _runningLocationClassifier: ExtensionRunningLocationClassifier,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
@@ -122,6 +120,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
 
@@ -149,8 +148,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._inHandleDeltaExtensions = false;
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
-
-		this._extensionKindController = new ExtensionKindController(this._productService, this._configurationService);
 
 		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
 			let toAdd: IExtension[] = [];
@@ -189,7 +186,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return this._environmentService.extensionDevelopmentKind;
 		}
 
-		return this._extensionKindController.getExtensionKind(extensionDescription);
+		return this._extensionManifestPropertiesService.getExtensionKind(extensionDescription);
 	}
 
 	protected _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {

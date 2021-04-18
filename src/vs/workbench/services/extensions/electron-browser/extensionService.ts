@@ -45,6 +45,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { Codicon } from 'vs/base/common/codicons';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 const MACHINE_PROMPT = false;
 
@@ -76,6 +77,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@ILogService private readonly _logService: ILogService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
@@ -92,6 +94,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManagementService,
 			contextService,
 			configurationService,
+			extensionManifestPropertiesService
 		);
 
 		this._enableLocalWebWorker = this._isLocalWebWorkerEnabled();

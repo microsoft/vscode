@@ -14,7 +14,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -28,6 +27,7 @@ import { IExtensionBisectService } from 'vs/workbench/services/extensionManageme
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -39,7 +39,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
 
 	private readonly storageManger: StorageManager;
-	private readonly extensionKindController: ExtensionKindController;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -58,7 +57,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IHostService readonly hostService: IHostService,
 		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -86,8 +86,6 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				}]);
 			});
 		}
-
-		this.extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
 	private get hasWorkspace(): boolean {
@@ -246,7 +244,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
 		if (this.extensionManagementServerService.remoteExtensionManagementServer || this.extensionManagementServerService.webExtensionManagementServer) {
 			const server = this.extensionManagementServerService.getExtensionManagementServer(extension);
-			for (const extensionKind of this.extensionKindController.getExtensionKind(extension.manifest)) {
+			for (const extensionKind of this.extensionManifestPropertiesService.getExtensionKind(extension.manifest)) {
 				if (extensionKind === 'ui') {
 					if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.localExtensionManagementServer === server) {
 						return false;

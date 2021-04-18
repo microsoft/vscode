@@ -21,6 +21,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import product from 'vs/platform/product/common/product';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -213,3 +214,5 @@ export interface Ctor<T> {
 }
 
 export class TestExtensionService extends NullExtensionService { }
+
+export const TestProductService = { _serviceBrand: undefined, ...product };

@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { deduceExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IExtensionManifest, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('ExtensionKind', () => {
 
 	function check(manifest: Partial<IExtensionManifest>, expected: ExtensionKind[]): void {
-		assert.deepStrictEqual(deduceExtensionKind(<IExtensionManifest>manifest), expected);
+		const extensionManifestPropertiesService = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService());
+		assert.deepStrictEqual(extensionManifestPropertiesService.deduceExtensionKind(<IExtensionManifest>manifest), expected);
 	}
 
 	test('declarative with extension dependencies => workspace', () => {
