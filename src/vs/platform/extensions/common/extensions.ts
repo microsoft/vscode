@@ -166,7 +166,6 @@ export interface IExtensionContributions {
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 export type ExtensionWorkspaceTrustRequestType = 'never' | 'onStart' | 'onDemand';
 export type ExtensionWorkspaceTrust = { request: 'never'; } | { request: 'onStart', description: string } | { request: 'onDemand', description: string, requiredForConfigurations?: string[] };
-export type ExtensionWorkspaceRequirements = { schemes?: string[] };
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
@@ -224,7 +223,7 @@ export interface IExtensionManifest {
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
 	readonly workspaceTrust?: ExtensionWorkspaceTrust;
-	readonly workspaceRequirements?: ExtensionWorkspaceRequirements;
+	readonly supportsVirtualWorkspace?: boolean;
 }
 
 export const enum ExtensionType {

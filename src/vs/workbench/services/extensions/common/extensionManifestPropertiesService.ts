@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionKind, ExtensionIdentifier, ExtensionWorkspaceRequirements } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionKind, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
@@ -26,7 +26,7 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
-	getWorkspaceSchemes(manifest: IExtensionManifest): string[];
+	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean;
 }
 
 export class ExtensionManifestPropertiesService implements IExtensionManifestPropertiesService {
@@ -37,8 +37,8 @@ export class ExtensionManifestPropertiesService implements IExtensionManifestPro
 	private _productExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
 	private _configuredExtensionKindsMap: Map<string, ExtensionKind | ExtensionKind[]> | null = null;
 
-	private _productWorkspaceSchemesMap: Map<string, { default?: string[], override?: string[] }> | null = null;
-	private _configuredWorkspaceSchemesMap: Map<string, string[]> | null = null;
+	private _productVirtualWorkspaceSupportMap: Map<string, { default?: boolean, override?: boolean }> | null = null;
+	private _configuredVirtualWorkspaceSupportMap: Map<string, boolean> | null = null;
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -97,31 +97,32 @@ export class ExtensionManifestPropertiesService implements IExtensionManifestPro
 		return this.deduceExtensionKind(manifest);
 	}
 
-	getWorkspaceSchemes(manifest: IExtensionManifest): string[] {
+	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean {
 		// check user configured
-		const userConfiguredWorkspaceSchemes = this.getConfiguredWorkspaceSchemes(manifest);
-		if (userConfiguredWorkspaceSchemes?.length) {
-			return userConfiguredWorkspaceSchemes;
+		const userConfiguredVirtualWorkspaceSupport = this.getConfiguredVirtualWorkspaceSupport(manifest);
+		if (userConfiguredVirtualWorkspaceSupport !== undefined) {
+			return userConfiguredVirtualWorkspaceSupport;
 		}
 
 		const productConfiguredWorkspaceSchemes = this.getProductWorkspaceSchemes(manifest);
 
 		// check override from product
-		if (productConfiguredWorkspaceSchemes?.override?.length) {
-			return productConfiguredWorkspaceSchemes?.override;
+		if (productConfiguredWorkspaceSchemes?.override !== undefined) {
+			return productConfiguredWorkspaceSchemes.override;
 		}
 
 		// check the manifest
-		if (manifest.workspaceRequirements?.schemes?.length) {
-			return manifest.workspaceRequirements.schemes;
+		if (manifest.supportsVirtualWorkspace !== undefined) {
+			return manifest.supportsVirtualWorkspace;
 		}
 
 		// check default from product
-		if (productConfiguredWorkspaceSchemes?.default?.length) {
-			return productConfiguredWorkspaceSchemes?.default;
+		if (productConfiguredWorkspaceSchemes?.default !== undefined) {
+			return productConfiguredWorkspaceSchemes.default;
 		}
 
-		return ['*'];
+		// Default - supports virtual workspace
+		return true;
 	}
 
 	deduceExtensionKind(manifest: IExtensionManifest): ExtensionKind[] {
@@ -194,36 +195,35 @@ export class ExtensionManifestPropertiesService implements IExtensionManifestPro
 		return this._configuredExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	private getProductWorkspaceSchemes(manifest: IExtensionManifest): { default?: string[], override?: string[] } | undefined {
-		if (this._productWorkspaceSchemesMap === null) {
-			const productWorkspaceSchemesMap = new Map<string, { default?: string[], override?: string[] }>();
-			if (this.productService.extensionWorkspaceSchemes) {
-				for (const id of Object.keys(this.productService.extensionWorkspaceSchemes)) {
-					productWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionWorkspaceSchemes[id]);
+	private getProductWorkspaceSchemes(manifest: IExtensionManifest): { default?: boolean, override?: boolean } | undefined {
+		if (this._productVirtualWorkspaceSupportMap === null) {
+			const productWorkspaceSchemesMap = new Map<string, { default?: boolean, override?: boolean }>();
+			if (this.productService.extensionSupportsVirtualWorkspace) {
+				for (const id of Object.keys(this.productService.extensionSupportsVirtualWorkspace)) {
+					productWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionSupportsVirtualWorkspace[id]);
 				}
 			}
-			this._productWorkspaceSchemesMap = productWorkspaceSchemesMap;
+			this._productVirtualWorkspaceSupportMap = productWorkspaceSchemesMap;
 		}
 
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._productWorkspaceSchemesMap.get(ExtensionIdentifier.toKey(extensionId));
+		return this._productVirtualWorkspaceSupportMap.get(ExtensionIdentifier.toKey(extensionId));
 	}
 
-	private getConfiguredWorkspaceSchemes(manifest: IExtensionManifest): string[] | undefined {
-		if (this._configuredWorkspaceSchemesMap === null) {
-			const configuredWorkspaceSchemesMap = new Map<string, string[]>();
-			const configuredWorkspaceSchemes = this.configurationService.getValue<{ [key: string]: ExtensionWorkspaceRequirements }>('extensions.workspaceRequirements') || {};
+	private getConfiguredVirtualWorkspaceSupport(manifest: IExtensionManifest): boolean | undefined {
+		if (this._configuredVirtualWorkspaceSupportMap === null) {
+			const configuredWorkspaceSchemesMap = new Map<string, boolean>();
+			const configuredWorkspaceSchemes = this.configurationService.getValue<{ [key: string]: boolean }>('extensions.supportsVirtualWorkspace') || {};
 			for (const id of Object.keys(configuredWorkspaceSchemes)) {
-				const schemes = configuredWorkspaceSchemes[id].schemes;
-				if (schemes?.length) {
-					configuredWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), schemes);
+				if (configuredWorkspaceSchemes[id] !== undefined) {
+					configuredWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), configuredWorkspaceSchemes[id]);
 				}
 			}
-			this._configuredWorkspaceSchemesMap = configuredWorkspaceSchemesMap;
+			this._configuredVirtualWorkspaceSupportMap = configuredWorkspaceSchemesMap;
 		}
 
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._configuredWorkspaceSchemesMap.get(ExtensionIdentifier.toKey(extensionId));
+		return this._configuredVirtualWorkspaceSupportMap.get(ExtensionIdentifier.toKey(extensionId));
 	}
 
 	private toArray(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[] {

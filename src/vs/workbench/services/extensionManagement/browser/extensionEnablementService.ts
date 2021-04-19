@@ -27,7 +27,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { Promises } from 'vs/base/common/async';
 import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { Schemas } from 'vs/base/common/network';
+import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -244,22 +244,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByWorkspaceScheme(extension: IExtension): boolean {
-		const workspace = this.contextService.getWorkspace();
-		const workspaceFolderSchemes: string[] | undefined = workspace.folders.length
-			? workspace.folders.map(folder => folder.uri.scheme === Schemas.vscodeRemote ? Schemas.file : folder.uri.scheme)
-			: workspace.configuration ? [workspace.configuration.scheme] : undefined;
-
-		if (!workspaceFolderSchemes) {
-			return false;
+		if (getVirtualWorkspaceScheme(this.contextService.getWorkspace()) !== undefined) {
+			return !this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.manifest);
 		}
-
-		const extensionSupportedWorkspaceSchemes = this.extensionManifestPropertiesService.getWorkspaceSchemes(extension.manifest);
-		// Supports all schemes
-		if (extensionSupportedWorkspaceSchemes.includes('*')) {
-			return false;
-		}
-
-		return !extensionSupportedWorkspaceSchemes.some(scheme => workspaceFolderSchemes.includes(scheme));
+		return false;
 	}
 
 	private _isDisabledByExtensionKind(extension: IExtension): boolean {
