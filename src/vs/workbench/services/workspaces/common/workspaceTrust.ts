@@ -9,6 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -48,7 +49,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		@IConfigurationService readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
+		@IEnvironmentService private readonly envService: IEnvironmentService,
 	) {
 		super();
 
@@ -109,6 +111,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private calculateWorkspaceTrust(): boolean {
 		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return true;
+		}
+
+		if (this.envService.extensionTestsLocationURI) {
+			return true; // trust running tests with vscode-test
 		}
 
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
