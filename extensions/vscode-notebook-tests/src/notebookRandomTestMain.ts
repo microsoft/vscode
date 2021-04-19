@@ -62,7 +62,7 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 		saveNotebook: async (document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			const notebookData: vscode.NotebookData = {
 				metadata: document.metadata,
-				cells: document.cells.map(docCell => (<vscode.NotebookCellData>{
+				cells: document.getCells().map(docCell => (<vscode.NotebookCellData>{
 					source: docCell.document.getText(),
 					language: docCell.document.languageId,
 					kind: docCell.kind,
@@ -96,7 +96,7 @@ class TestKernel implements vscode.NotebookKernel {
 
 	supportedLanguages: string[] = ['typescript'];
 
-	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookCellRange[]): Promise<void> {
+	async executeCellsRequest(document: vscode.NotebookDocument, ranges: vscode.NotebookRange[]): Promise<void> {
 		for (let r in ranges) {
 			for (let i = ranges[r].start; i < ranges[r].end; i++) {
 				const task = vscode.notebook.createNotebookCellExecutionTask(document.uri, i, '')!;
