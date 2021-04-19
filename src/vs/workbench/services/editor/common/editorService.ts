@@ -223,7 +223,10 @@ export interface IEditorService {
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
-	 * Find the existing editors for a given resource.
+	 * Find the existing editors for a given resource. It is possible
+	 * that multiple editors are returned in case the same resource
+	 * is opened in different editors. To find the specific editor,
+	 * either check on the `typeId` or do an `instanceof` check.
 	 */
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): IEditorInput[];
 
@@ -271,13 +274,4 @@ export interface IEditorService {
 	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
-
-	/**
-	 * Track the provided editors until all have been closed.
-	 *
-	 * @param options use `waitForSaved: true` to wait for the resources
-	 * being saved. If auto-save is enabled, it may be possible to close
-	 * an editor while the save continues in the background.
-	 */
-	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean }): Promise<void>;
 }

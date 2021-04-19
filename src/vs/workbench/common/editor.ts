@@ -13,7 +13,7 @@ import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorIn
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITextModel } from 'vs/editor/common/model';
+import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -626,40 +626,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 }
 
-export const enum EncodingMode {
-
-	/**
-	 * Instructs the encoding support to encode the current input with the provided encoding
-	 */
-	Encode,
-
-	/**
-	 * Instructs the encoding support to decode the current input with the provided encoding
-	 */
-	Decode
-}
-
-export interface IEncodingSupport {
-
-	/**
-	 * Gets the encoding of the type if known.
-	 */
-	getEncoding(): string | undefined;
-
-	/**
-	 * Sets the encoding for the type for saving.
-	 */
-	setEncoding(encoding: string, mode: EncodingMode): void;
-}
-
-export interface IModeSupport {
-
-	/**
-	 * Sets the language mode of the type.
-	 */
-	setMode(mode: string): void;
-}
-
 export interface IEditorInputWithPreferredResource {
 
 	/**
@@ -863,10 +829,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 		return false;
 	}
-}
-
-export interface ITextEditorModel extends IEditorModel {
-	textEditorModel: ITextModel;
 }
 
 /**
@@ -1597,29 +1559,6 @@ export const enum EditorsOrder {
 	SEQUENTIAL
 }
 
-export function computeEditorAriaLabel(input: IEditorInput, index: number | undefined, group: IEditorGroup | undefined, groupCount: number): string {
-	let ariaLabel = input.getAriaLabel();
-	if (group && !group.isPinned(input)) {
-		ariaLabel = localize('preview', "{0}, preview", ariaLabel);
-	}
-
-	if (group?.isSticky(index ?? input)) {
-		ariaLabel = localize('pinned', "{0}, pinned", ariaLabel);
-	}
-
-	// Apply group information to help identify in
-	// which group we are (only if more than one group
-	// is actually opened)
-	if (group && groupCount > 1) {
-		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
-	}
-
-	return ariaLabel;
-}
-
-
-//#region Editor Group Column
-
 /**
  * A way to address editor groups through a column based system
  * where `0` is the first column. Will fallback to `SIDE_GROUP`
@@ -1653,5 +1592,3 @@ export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService
 
 	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
 }
-
-//#endregion

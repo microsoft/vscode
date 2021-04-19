@@ -268,10 +268,10 @@ class LogWorkingCopiesAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const msg = [
 			`Dirty Working Copies:`,
-			...workingCopyService.dirtyWorkingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+			...workingCopyService.dirtyWorkingCopies.map(workingCopy => `${workingCopy.resource.toString(true)} (typeId: ${workingCopy.typeId || '<no typeId>'})`),
 			``,
 			`All Working Copies:`,
-			...workingCopyService.workingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+			...workingCopyService.workingCopies.map(workingCopy => `${workingCopy.resource.toString(true)} (typeId: ${workingCopy.typeId || '<no typeId>'})`),
 		];
 
 		logService.info(msg.join('\n'));

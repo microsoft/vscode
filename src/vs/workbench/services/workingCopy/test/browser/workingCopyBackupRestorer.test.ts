@@ -6,22 +6,21 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
+import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { createEditorPart, InMemoryTestBackupFileService, registerTestResourceEditor, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { BackupRestorer } from 'vs/workbench/services/backup/common/backupRestorer';
-import { BrowserBackupTracker } from 'vs/workbench/services/backup/browser/backupTracker';
+import { createEditorPart, InMemoryTestWorkingCopyBackupService, registerTestResourceEditor, TestServiceAccessor, toUntypedWorkingCopyId, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { WorkingCopyBackupRestorer } from 'vs/workbench/services/workingCopy/common/workingCopyBackupRestorer';
+import { BrowserWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupTracker';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
-suite('BackupRestorer', () => {
+suite('WorkingCopyBackupRestorer', () => {
 
-	class TestBackupRestorer extends BackupRestorer {
+	class TestBackupRestorer extends WorkingCopyBackupRestorer {
 		async override doRestoreBackups(): Promise<void> {
 			return super.doRestoreBackups();
 		}
@@ -44,9 +43,9 @@ suite('BackupRestorer', () => {
 	});
 
 	test('Restore backups', async function () {
-		const backupFileService = new InMemoryTestBackupFileService();
+		const workingCopyBackupService = new InMemoryTestWorkingCopyBackupService();
 		const instantiationService = workbenchInstantiationService();
-		instantiationService.stub(IBackupFileService, backupFileService);
+		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
 
 		const part = await createEditorPart(instantiationService, disposables);
 
@@ -57,14 +56,14 @@ suite('BackupRestorer', () => {
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		disposables.add(instantiationService.createInstance(BrowserBackupTracker));
+		disposables.add(instantiationService.createInstance(BrowserWorkingCopyBackupTracker));
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
-		// Backup 2 normal files and 2 untitled file
-		await backupFileService.backup(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await backupFileService.backup(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await backupFileService.backup(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
-		await backupFileService.backup(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		// Backup 2 normal files and 2 untitled files
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile1), bufferToReadable(VSBuffer.fromString('untitled-1')));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile2), bufferToReadable(VSBuffer.fromString('untitled-2')));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString('fooFile')));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(barFile), bufferToReadable(VSBuffer.fromString('barFile')));
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();
@@ -77,7 +76,7 @@ suite('BackupRestorer', () => {
 			if (isEqual(resource, untitledFile1)) {
 				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
 				if (model.textEditorModel?.getValue() !== 'untitled-1') {
-					const backupContents = await backupFileService.getBackupContents(untitledFile1);
+					const backupContents = await workingCopyBackupService.getBackupContents(model);
 					assert.fail(`Unable to restore backup for resource ${untitledFile1.toString()}. Backup contents: ${backupContents}`);
 				}
 				model.dispose();
@@ -85,7 +84,7 @@ suite('BackupRestorer', () => {
 			} else if (isEqual(resource, untitledFile2)) {
 				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
 				if (model.textEditorModel?.getValue() !== 'untitled-2') {
-					const backupContents = await backupFileService.getBackupContents(untitledFile2);
+					const backupContents = await workingCopyBackupService.getBackupContents(model);
 					assert.fail(`Unable to restore backup for resource ${untitledFile2.toString()}. Backup contents: ${backupContents}`);
 				}
 				model.dispose();
@@ -94,7 +93,7 @@ suite('BackupRestorer', () => {
 				const model = accessor.textFileService.files.get(fooFile);
 				await model?.resolve();
 				if (model?.textEditorModel?.getValue() !== 'fooFile') {
-					const backupContents = await backupFileService.getBackupContents(fooFile);
+					const backupContents = await workingCopyBackupService.getBackupContents(model!);
 					assert.fail(`Unable to restore backup for resource ${fooFile.toString()}. Backup contents: ${backupContents}`);
 				}
 				counter++;
@@ -102,7 +101,7 @@ suite('BackupRestorer', () => {
 				const model = accessor.textFileService.files.get(barFile);
 				await model?.resolve();
 				if (model?.textEditorModel?.getValue() !== 'barFile') {
-					const backupContents = await backupFileService.getBackupContents(barFile);
+					const backupContents = await workingCopyBackupService.getBackupContents(model!);
 					assert.fail(`Unable to restore backup for resource ${barFile.toString()}. Backup contents: ${backupContents}`);
 				}
 				counter++;
