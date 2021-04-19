@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICellRange, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
 export interface INotebookKernel2ChangeEvent {
@@ -20,28 +20,13 @@ export interface INotebookKernel2ChangeEvent {
 	hasExecutionOrder?: true;
 }
 
-export interface INotebookKernel2 {
+export interface INotebookKernel2 extends INotebookKernel {
 
 	readonly id: string;
 	readonly selector: NotebookSelector
 	readonly extension: ExtensionIdentifier;
 
 	readonly onDidChange: Event<INotebookKernel2ChangeEvent>;
-
-	label: string;
-	description?: string;
-	detail?: string;
-	isPreferred?: boolean;
-	supportedLanguages: string[];
-	implementsExecutionOrder: boolean;
-	implementsInterrupt: boolean;
-
-	localResourceRoot: URI;
-	preloadUris: URI[];
-	preloadProvides: string[];
-
-	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
-	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void
 }
 
 export interface INotebookKernelBindEvent {

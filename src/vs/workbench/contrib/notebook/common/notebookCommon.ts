@@ -764,12 +764,17 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 }
 
 export interface INotebookKernel {
+
+	/** @deprecated */
+	providerHandle?: number;
+	/** @deprecated */
+	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
+
 	id?: string;
 	friendlyId: string;
 	label: string;
 	extension: ExtensionIdentifier;
 	localResourceRoot: URI;
-	providerHandle?: number;
 	description?: string;
 	detail?: string;
 	isPreferred?: boolean;
@@ -779,7 +784,6 @@ export interface INotebookKernel {
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
-	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
 	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): Promise<void>;
 }
