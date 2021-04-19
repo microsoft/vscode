@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane } from 'vs/workbench/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorAssociation, EditorAssociations, editorsAssociationsSettingId } from 'vs/workbench/browser/editor';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/browser/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -16,7 +15,7 @@ import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, File
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, joinPath, isEqual, extname } from 'vs/base/common/resources';
+import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
@@ -38,8 +37,8 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IKeyMods, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { Codicon } from 'vs/base/common/codicons';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
+import { ContributedEditorPriority, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -79,13 +78,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
 	) {
 		super();
 
 		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
 
 		this.registerListeners();
+
+		this.registerDefaultOverride();
 	}
 
 	private registerListeners(): void {
@@ -516,6 +517,26 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return overrides;
 	}
 
+	private registerDefaultOverride(): void {
+		this._register(this.editorOverrideService.registerContributionPoint(
+			'*',
+			priorityToRank(ContributedEditorPriority.builtin),
+			{
+				id: DEFAULT_EDITOR_ASSOCIATION.id,
+				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
+				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
+				active: (currentEditor) => this.fileEditorInputFactory.isFileEditorInput(currentEditor) && isEqual(currentEditor.resource, this.activeEditor?.resource),
+				priority: ContributedEditorPriority.builtin,
+			},
+			{},
+			(resource, editorID, options, group) => {
+				return { editor: this.createEditorInput({ resource }) };
+			},
+			(diffEditor, editorId, options, group) => {
+				return { editor: diffEditor };
+			}
+		));
+	}
 	private getDefaultEditorOverride(resource: URI): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry] {
 		return [
 			{
@@ -581,7 +602,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Override handling: pick editor or open specific
 			if (resolvedOptions?.override === EditorOverride.PICK || typeof resolvedOptions?.override === 'string') {
-				return this.openEditorWith(resolvedOptions.override, resolvedEditor, resolvedOptions, resolvedGroup);
+				const resolvedInputWithOptions = await this.editorOverrideService.resolveEditorOverride(editor as IEditorInput, resolvedOptions, resolvedGroup);
+				if (!resolvedInputWithOptions) {
+					return;
+				}
+				return resolvedGroup.openEditor(resolvedInputWithOptions.editor, resolvedInputWithOptions.options ?? resolvedOptions);
 			}
 
 			// Override handling: ask providers to override
@@ -648,158 +673,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 
 			return [resolvedGroup, typedEditor, typedOptions];
-		}
-
-		return undefined;
-	}
-
-	private async openEditorWith(override: EditorOverride.PICK | string, editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorPane | undefined> {
-		const editorOverride = await this.findEditorOverride(override, editor, options, group);
-		if (!editorOverride) {
-			return undefined;
-		}
-
-		const [editorOverrideHandler, , targetOptions, targetGroup] = editorOverride;
-
-		return editorOverrideHandler.open(editor, targetOptions ?? options, targetGroup ?? group)?.override;
-	}
-
-	private async findEditorOverride(override: EditorOverride.PICK | string, editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<[IOpenEditorOverrideHandler, IOpenEditorOverrideEntry, IEditorOptions?, IEditorGroup?] | undefined> {
-
-		// We need a resource at least
-		const resource = editor.resource;
-		if (!resource) {
-			return undefined;
-		}
-
-		// Collect all overrides for resource
-		const allEditorOverrides = this.getEditorOverrides(resource, undefined, undefined);
-		if (!allEditorOverrides.length) {
-			return undefined;
-		}
-
-		// Return early for a specific override or we have just 1 in total
-		if (typeof override === 'string') {
-			const overrideToUse = allEditorOverrides.find(([, entry]) => entry.id === override);
-			if (overrideToUse) {
-				return overrideToUse;
-			}
-		} else if (allEditorOverrides.length === 1) {
-			return allEditorOverrides[0];
-		}
-
-		// Otherwise find via picker
-		return this.doPickEditorOverride(allEditorOverrides, editor, options, group);
-	}
-
-	private async doPickEditorOverride(allEditorOverrides: [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][], editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<[IOpenEditorOverrideHandler, IOpenEditorOverrideEntry, IEditorOptions?, IEditorGroup?] | undefined> {
-
-		type EditorOverrideQuickPickItem = IQuickPickItem & {
-			readonly overrideHandler: IOpenEditorOverrideHandler;
-			readonly overrideEntry: IOpenEditorOverrideEntry;
-		};
-
-		type EditorOverridePick = {
-			readonly item: EditorOverrideQuickPickItem;
-			readonly keyMods?: IKeyMods;
-			readonly openInBackground: boolean;
-		};
-
-		const resource = EditorResourceAccessor.getOriginalUri(editor);
-
-		const editorOverridePicks = allEditorOverrides.map(([overrideHandler, overrideEntry]) => {
-			return {
-				id: overrideEntry.id,
-				label: overrideEntry.label,
-				description: overrideEntry.active ? localize('promptOpenWith.currentlyActive', "Currently Active") : undefined,
-				detail: overrideEntry.detail,
-				buttons: resource && extname(resource) ? [{
-					iconClass: Codicon.gear.classNames,
-					tooltip: localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", extname(resource))
-				}] : undefined,
-				overrideHandler,
-				overrideEntry
-			};
-		});
-
-		// Create editor override picker
-		const editorOverridePicker = this.quickInputService.createQuickPick<EditorOverrideQuickPickItem>();
-		editorOverridePicker.placeholder = resource ? localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource)) : localize('promptOpenWith.placeHolderGeneric', "Select editor");
-		editorOverridePicker.canAcceptInBackground = true;
-		editorOverridePicker.items = editorOverridePicks;
-		if (editorOverridePicks.length) {
-			editorOverridePicker.selectedItems = [editorOverridePicks[0]];
-		}
-
-		// Prompt the user to select an override
-		const picked: EditorOverridePick | undefined = await new Promise<EditorOverridePick | undefined>(resolve => {
-			editorOverridePicker.onDidAccept(e => {
-				let result: EditorOverridePick | undefined = undefined;
-
-				if (editorOverridePicker.selectedItems.length === 1) {
-					result = {
-						item: editorOverridePicker.selectedItems[0],
-						keyMods: editorOverridePicker.keyMods,
-						openInBackground: e.inBackground
-					};
-				}
-
-				resolve(result);
-			});
-
-			editorOverridePicker.onDidTriggerItemButton(e => {
-
-				// Trigger opening and close picker
-				resolve({ item: e.item, openInBackground: false });
-
-				// Persist setting
-				if (resource && e.item && e.item.id) {
-					const newAssociation: EditorAssociation = { viewType: e.item.id, filenamePattern: `*${extname(resource)}` };
-					const currentAssociations = [...this.configurationService.getValue<EditorAssociations>(editorsAssociationsSettingId)];
-
-					// First try updating existing association
-					for (let i = 0; i < currentAssociations.length; ++i) {
-						const existing = currentAssociations[i];
-						if (existing.filenamePattern === newAssociation.filenamePattern) {
-							currentAssociations.splice(i, 1, newAssociation);
-							this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
-							return;
-						}
-					}
-
-					// Otherwise, create a new one
-					currentAssociations.unshift(newAssociation);
-					this.configurationService.updateValue(editorsAssociationsSettingId, currentAssociations);
-				}
-			});
-
-			editorOverridePicker.show();
-		});
-
-		// Close picker
-		editorOverridePicker.dispose();
-
-		// If the user picked an override, look at how the picker was
-		// used (e.g. modifier keys, open in background) and create the
-		// options and group to use accordingly
-		if (picked) {
-
-			// Figure out target group
-			let targetGroup: IEditorGroup | undefined;
-			if (picked.keyMods?.alt || picked.keyMods?.ctrlCmd) {
-				const direction = preferredSideBySideGroupDirection(this.configurationService);
-				targetGroup = this.editorGroupService.findGroup({ direction }, group.id);
-				targetGroup = targetGroup ?? this.editorGroupService.addGroup(group, direction);
-			}
-
-			// Figure out options
-			const targetOptions: IEditorOptions = {
-				...options,
-				override: picked.item.overrideEntry.id,
-				preserveFocus: picked.openInBackground || options?.preserveFocus,
-			};
-
-			return [picked.item.overrideHandler, picked.item.overrideEntry, targetOptions, targetGroup];
 		}
 
 		return undefined;
@@ -970,15 +843,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return [];
 		}
 
-		const canonicalResource = this.asCanonicalEditorResource(resource);
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 		if (!targetGroup) {
 			return [];
 		}
 
-		return targetGroup.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-			return editor.resource && isEqual(editor.resource, canonicalResource);
-		});
+		return targetGroup.findEditors(resource, EditorsOrder.SEQUENTIAL);
 	}
 
 	//#endregion

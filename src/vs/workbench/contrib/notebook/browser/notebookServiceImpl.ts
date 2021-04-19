@@ -197,7 +197,6 @@ export class NotebookProviderInfoStore extends Disposable {
 					label: notebookProviderInfo.displayName,
 					detail: notebookProviderInfo.providerDisplayName,
 					active: (currentEditor) => currentEditor instanceof NotebookEditorInput && currentEditor.viewType === notebookProviderInfo.id,
-					instanceOf: (editorInput) => editorInput instanceof NotebookEditorInput,
 					priority: notebookProviderInfo.priority,
 				},
 				{

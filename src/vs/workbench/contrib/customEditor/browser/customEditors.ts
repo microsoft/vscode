@@ -117,7 +117,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						label: contributedEditor.displayName,
 						detail: contributedEditor.providerDisplayName,
 						active: (currentEditor) => currentEditor instanceof CustomEditorInput && currentEditor.viewType === contributedEditor.id,
-						instanceOf: (editorInput) => editorInput instanceof CustomEditorInput,
 						priority: contributedEditor.priority,
 					},
 					{
