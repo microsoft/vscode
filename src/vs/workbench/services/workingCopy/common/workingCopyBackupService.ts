@@ -27,21 +27,21 @@ import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common
 
 export class WorkingCopyBackupsModel {
 
-	private readonly cache = new ResourceMap<{ versionId?: number; meta?: IWorkingCopyBackupMeta; }>();
+	private readonly cache = new ResourceMap<{ versionId?: number, meta?: IWorkingCopyBackupMeta }>();
 
-	static async create(fileService: IFileService, backupRoot: URI): Promise<WorkingCopyBackupsModel> {
-		const model = new WorkingCopyBackupsModel(fileService);
+	static async create(backupRoot: URI, fileService: IFileService): Promise<WorkingCopyBackupsModel> {
+		const model = new WorkingCopyBackupsModel(backupRoot, fileService);
 
-		await model.resolve(backupRoot);
+		await model.resolve();
 
 		return model;
 	}
 
-	private constructor(private fileService: IFileService) { }
+	private constructor(private backupRoot: URI, private fileService: IFileService) { }
 
-	private async resolve(backupRoot: URI): Promise<void> {
+	private async resolve(): Promise<void> {
 		try {
-			const backupRootStat = await this.fileService.resolve(backupRoot);
+			const backupRootStat = await this.fileService.resolve(this.backupRoot);
 			if (backupRootStat.children) {
 				await Promises.settled(backupRootStat.children
 					.filter(child => child.isDirectory)
@@ -51,7 +51,13 @@ export class WorkingCopyBackupsModel {
 						const backupSchemaFolderStat = await this.fileService.resolve(backupSchemaFolder.resource);
 
 						// Remember known backups in our caches
-						backupSchemaFolderStat.children?.forEach(backupHash => this.add(backupHash.resource));
+						if (backupSchemaFolderStat.children) {
+							for (const backupForSchema of backupSchemaFolderStat.children) {
+								if (!backupForSchema.isDirectory) {
+									this.add(backupForSchema.resource);
+								}
+							}
+						}
 					}));
 			}
 		} catch (error) {
@@ -205,7 +211,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 	private async doInitialize(): Promise<WorkingCopyBackupsModel> {
 
 		// Create backup model
-		this.model = await WorkingCopyBackupsModel.create(this.fileService, this.backupWorkspaceHome);
+		this.model = await WorkingCopyBackupsModel.create(this.backupWorkspaceHome, this.fileService);
 
 		// Migrate hashes as needed. We used to hash with a MD5
 		// sum of the path but switched to our own simpler hash
@@ -325,9 +331,9 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		});
 	}
 
-	private async deleteIgnoreFileNotFound(resource: URI): Promise<void> {
+	private async deleteIgnoreFileNotFound(backupResource: URI): Promise<void> {
 		try {
-			await this.fileService.del(resource, { recursive: true });
+			await this.fileService.del(backupResource, { recursive: true });
 		} catch (error) {
 			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
 				throw error; // re-throw any other error than file not found which is OK
