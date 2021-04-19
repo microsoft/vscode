@@ -914,6 +914,7 @@ export interface INotebookKernelDto2 {
 	extensionId: ExtensionIdentifier;
 	extensionLocation: UriComponents;
 	label: string;
+	detail?: string;
 	description?: string;
 	isPreferred?: boolean;
 	supportedLanguages: string[];

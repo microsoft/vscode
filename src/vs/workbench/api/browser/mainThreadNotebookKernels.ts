@@ -51,6 +51,7 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
 		this.label = data.label;
 		this.description = data.description;
+		this.detail = data.detail;
 		this.isPreferred = data.isPreferred;
 		this.supportedLanguages = data.supportedLanguages;
 		this.implementsExecutionOrder = data.hasExecutionOrder ?? false;
@@ -68,6 +69,10 @@ abstract class MainThreadKernel implements INotebookKernel2 {
 		if (data.description !== undefined) {
 			this.description = data.description;
 			event.description = true;
+		}
+		if (data.detail !== undefined) {
+			this.detail = data.detail;
+			event.detail = true;
 		}
 		if (data.isPreferred !== undefined) {
 			this.isPreferred = data.isPreferred;

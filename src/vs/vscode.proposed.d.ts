@@ -1494,6 +1494,7 @@ declare module 'vscode' {
 
 		// UI properties (get/set)
 		label: string;
+		detail?: string;
 		description?: string;
 		isPreferred?: boolean;
 
