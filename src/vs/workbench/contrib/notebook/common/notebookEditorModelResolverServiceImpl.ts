@@ -46,10 +46,6 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			// working copy to have any resource (including file based resources)
 			// even if other working copies exist with the same resource.
 			//
-			// If you enable `typeId`, the value should match with the `viewType`
-			// so that we can open the working copy properly in case needed via
-			// our editor service `override` logic.
-			//
 			// IMPORTANT: changing the `typeId` has an impact on backups for this
 			// working copy. Any value that is not the empty string will be used
 			// as seed to the backup. Only change the `typeId` if you have implemented

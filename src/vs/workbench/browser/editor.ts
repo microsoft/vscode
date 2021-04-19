@@ -346,9 +346,8 @@ export function whenTextEditorClosed(accessor: ServicesAccessor, resources: URI[
 
 	const fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).getFileEditorInputFactory();
 
-	let remainingResources = [...resources];
-
 	return new Promise(resolve => {
+		let remainingResources = [...resources];
 
 		// Observe any editor closing from this moment on
 		const listener = editorService.onDidCloseEditor(async event => {

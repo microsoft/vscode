@@ -684,7 +684,7 @@ export function prefixedReadable<T>(prefix: T, readable: Readable<T>, reducer: I
 
 	return {
 		read: () => {
-			let chunk = readable.read();
+			const chunk = readable.read();
 
 			// Handle prefix only once
 			if (!prefixHandled) {
