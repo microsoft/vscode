@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { ReadableStream } from 'vs/base/common/stream';
 import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -105,13 +106,13 @@ export interface ITextFileService extends IDisposable {
 	getEncodedReadable(resource: URI, value?: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<VSBuffer | VSBufferReadable | undefined>;
 
 	/**
-	 * Returns the text factory that uses the appropriate encoding. This method should
+	 * Returns a stream of strings that uses the appropriate encoding. This method should
 	 * be used whenever a `VSBufferReadableStream` is being loaded from the file system.
 	 */
-	getDecodedTextFactory(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ITextBufferFactory>;
+	getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>>;
 }
 
-export interface IReadTextFileEncodingOptions extends IReadFileStreamOptions {
+export interface IReadTextFileEncodingOptions {
 
 	/**
 	 * The optional encoding parameter allows to specify the desired encoding when resolving

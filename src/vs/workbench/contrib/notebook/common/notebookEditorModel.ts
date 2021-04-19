@@ -11,7 +11,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { IMainNotebookController, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Schemas } from 'vs/base/common/network';
@@ -44,7 +44,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
 	private readonly _name: string;
-	private readonly _workingCopy: IWorkingCopy;
+	private readonly _workingCopyIdentifier: IWorkingCopyIdentifier;
 	private readonly _saveSequentializer = new TaskSequentializer();
 
 	private _dirty: boolean = false;
@@ -68,7 +68,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		this._name = labelService.getUriBasenameLabel(resource);
 
 		const that = this;
-		this._workingCopy = new class implements IWorkingCopy {
+		this._workingCopyIdentifier = {
 			// TODO@jrieken TODO@rebornix consider to enable a `typeId` that is
 			// specific for custom editors. Using a distinct `typeId` allows the
 			// working copy to have any resource (including file based resources)
@@ -79,8 +79,12 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			// as seed to the backup. Only change the `typeId` if you have implemented
 			// a fallback solution to resolve any existing backups that do not have
 			// this seed.
-			readonly typeId = NO_TYPE_ID;
-			readonly resource = URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() });
+			typeId: NO_TYPE_ID,
+			resource: URI.from({ scheme: Schemas.vscodeNotebook, path: resource.toString() })
+		};
+		const workingCopyAdapter = new class implements IWorkingCopy {
+			readonly typeId = that._workingCopyIdentifier.typeId;
+			readonly resource = that._workingCopyIdentifier.resource;
 			get name() { return that._name; }
 			readonly capabilities = that._isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = that.onDidChangeDirty;
@@ -91,7 +95,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			revert(options?: IRevertOptions): Promise<void> { return that.revert(options); }
 		};
 
-		this._register(this._workingCopyService.registerWorkingCopy(this._workingCopy));
+		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
 		this._register(this._fileService.onDidFilesChange(async e => {
 			if (this.isDirty() || !this.isResolved() || this._saveSequentializer.hasPending()) {
 				// skip when dirty, unresolved, or when saving
@@ -184,7 +188,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return this;
 		}
 
-		const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopy);
+		const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopyIdentifier);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
@@ -258,7 +262,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 
 		if (backupId) {
-			this._workingCopyBackupService.discardBackup(this._workingCopy);
+			this._workingCopyBackupService.discardBackup(this._workingCopyIdentifier);
 			this.setDirty(true);
 		} else {
 			this.setDirty(false);

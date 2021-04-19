@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ITextModel } from 'vs/editor/common/model';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -321,7 +321,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			// or initial value. We must use text file service
 			// to create the text factory to respect encodings
 			// accordingly.
-			const untitledContentsFactory = await this.textFileService.getDecodedTextFactory(this.resource, untitledContents, { encoding: UTF8 });
+			const untitledContentsFactory = await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, untitledContents, { encoding: UTF8 }));
 
 			this.createTextEditorModel(untitledContentsFactory, this.resource, this.preferredMode);
 			createdUntitledModel = true;

@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { ITextSnapshot, ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -35,7 +35,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
-import { consumeStream } from 'vs/base/common/stream';
+import { consumeStream, ReadableStream } from 'vs/base/common/stream';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -136,7 +136,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// read through encoding library
-		const decoder = await this.toDecodeStream(resource, bufferStream.value, options);
+		const decoder = await this.doGetDecodedStream(resource, bufferStream.value, options);
 
 		// validate binary
 		if (options?.acceptTextOnly && decoder.detected.seemsBinary) {
@@ -144,13 +144,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		return [bufferStream, decoder];
-	}
-
-	private toDecodeStream(resource: URI, stream: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamResult> {
-		return toDecodeStream(stream, {
-			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
-			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
-		});
 	}
 
 	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<IFileStatWithMetadata[]> {
@@ -192,12 +185,17 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return toEncodeReadable(snapshot, encoding, { addBOM });
 	}
 
-	async getDecodedTextFactory(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ITextBufferFactory> {
+	async getDecodedStream(resource: URI, value: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<ReadableStream<string>> {
+		return (await this.doGetDecodedStream(resource, value, options)).stream;
+	}
+
+	private doGetDecodedStream(resource: URI, stream: VSBufferReadableStream, options?: IReadTextFileEncodingOptions): Promise<IDecodeStreamResult> {
 
 		// read through encoding library
-		const decoder = await this.toDecodeStream(resource, value, options);
-
-		return createTextBufferFactoryFromStream(decoder.stream);
+		return toDecodeStream(stream, {
+			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			overwriteEncoding: detectedEncoding => this.encoding.getReadEncoding(resource, options, detectedEncoding)
+		});
 	}
 
 	//#endregion

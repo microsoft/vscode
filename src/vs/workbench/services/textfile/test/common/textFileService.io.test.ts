@@ -12,6 +12,7 @@ import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
 import { isWindows } from 'vs/base/common/platform';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
 export interface Params {
 	setup(): Promise<{
@@ -545,7 +546,7 @@ export default function createSuite(params: Params) {
 			rawFileVSBuffer = VSBuffer.wrap(rawFile);
 		}
 
-		const factory = await service.getDecodedTextFactory(resource, bufferToStream(rawFileVSBuffer), { encoding });
+		const factory = await createTextBufferFactoryFromStream(await service.getDecodedStream(resource, bufferToStream(rawFileVSBuffer), { encoding }));
 
 		contents = snapshotToString(factory.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
 

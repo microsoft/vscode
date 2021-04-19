@@ -14,7 +14,7 @@ import { FileOperationResult, FileOperationError } from 'vs/platform/files/commo
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { assertIsDefined } from 'vs/base/common/types';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactory, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
@@ -767,7 +767,7 @@ suite('Files - TextFileEditorModel', () => {
 	async function testBackupAndRestore(resourceA: URI, resourceB: URI, contents: string): Promise<void> {
 		const originalModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resourceA, 'utf8', undefined);
 		await originalModel.resolve({
-			contents: await accessor.textFileService.getDecodedTextFactory(resourceA, bufferToStream(VSBuffer.fromString(contents)))
+			contents: await createTextBufferFactoryFromStream(await accessor.textFileService.getDecodedStream(resourceA, bufferToStream(VSBuffer.fromString(contents))))
 		});
 
 		assert.strictEqual(originalModel.textEditorModel?.getValue(), contents);

@@ -25,6 +25,7 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -383,7 +384,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			ctime: backup.meta ? backup.meta.ctime : Date.now(),
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
-			value: await this.textFileService.getDecodedTextFactory(this.resource, backup.value, { encoding: UTF8 }),
+			value: await createTextBufferFactoryFromStream(await this.textFileService.getDecodedStream(this.resource, backup.value, { encoding: UTF8 })),
 			encoding
 		}, true /* dirty (resolved from backup) */, options);
 
