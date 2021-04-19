@@ -28,6 +28,7 @@ import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TERMINAL_COMMAND_ID } from 'v
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Codicon } from 'vs/base/common/codicons';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const $ = dom.$;
 
@@ -61,7 +62,8 @@ export class TerminalTabbedView extends Disposable {
 
 	private _cancelContextMenu: boolean = false;
 	private _instanceMenu: IMenu;
-	// private _dropdownMenu: IMenu;
+	private _dropdownMenu: IMenu;
+	private _tabsWidgetMenu: IMenu;
 
 	constructor(
 		parentElement: HTMLElement,
@@ -71,9 +73,10 @@ export class TerminalTabbedView extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 		super();
 
@@ -85,8 +88,9 @@ export class TerminalTabbedView extends Disposable {
 		tabWidgetContainer.appendChild(this._terminalTabTree);
 		this._tabTreeContainer.appendChild(tabWidgetContainer);
 
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContext, contextKeyService));
-		// this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalTabsContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalContainerContext, _contextKeyService));
+		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalToolbarContext, _contextKeyService));
+		this._tabsWidgetMenu = this._register(menuService.createMenu(MenuId.TerminalTabsWidgetContext, _contextKeyService));
 
 		this._register(this._tabsWidget = this._instantiationService.createInstance(TerminalTabsWidget, this._terminalTabTree));
 		this._register(this._findWidget = this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
@@ -101,7 +105,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabTreeIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 0 : 1;
 		this._terminalContainerIndex = this._terminalService.configHelper.config.tabsLocation === 'left' ? 1 : 0;
 
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(_contextKeyService);
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
 
@@ -287,7 +291,7 @@ export class TerminalTabbedView extends Disposable {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						this._openContextMenu(event);
+						this._openContextMenu(event, parentDomElement);
 						return;
 					}
 
@@ -314,9 +318,17 @@ export class TerminalTabbedView extends Disposable {
 				}
 			}
 		}));
-		this._register(dom.addDisposableListener(parentDomElement, 'contextmenu', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._terminalContainer, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
-				this._openContextMenu(event);
+				this._openContextMenu(event, this._terminalContainer);
+			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			this._cancelContextMenu = false;
+		}));
+		this._register(dom.addDisposableListener(this._tabTreeContainer, 'contextmenu', (event: MouseEvent) => {
+			if (!this._cancelContextMenu) {
+				this._openContextMenu(event, this._tabTreeContainer);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -363,12 +375,14 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 	}
-	private _openContextMenu(event: MouseEvent): void {
+	private _openContextMenu(event: MouseEvent, parent: HTMLElement): void {
+
 		const standardEvent = new StandardMouseEvent(event);
 		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this._instanceMenu, undefined, actions);
+		const menu = parent === this._terminalContainer ? this._instanceMenu : this._tabsWidgetMenu;
+
+		const actionsDisposable = createAndFillInContextMenuActions(menu, undefined, actions);
 
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
@@ -377,29 +391,6 @@ export class TerminalTabbedView extends Disposable {
 			onHide: () => actionsDisposable.dispose()
 		});
 	}
-
-	// private async _openTabsContextMenu(event: MouseEvent): Promise<void> {
-	// 	const standardEvent = new StandardMouseEvent(event);
-	// 	const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
-
-	// 	const actions: IAction[] = [];
-
-	// 	const profiles = await this._terminalService.getAvailableProfiles().filter(p => this._terminalService.configHelper.checkIsProcessLaunchSafe(undefined, p));
-	// 	const tabsMenu = this._dropdownMenu;
-	// 	for (const p of profiles) {
-	// 		const action = new MenuItemAction({ id: TERMINAL_COMMAND_ID.NEW_WITH_PROFILE, title: p.profileName, category: ContextMenuTabsGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService);
-	// 		actions.push(action);
-	// 	}
-
-	// 	const actionsDisposable = createAndFillInContextMenuActions(tabsMenu, undefined, actions);
-
-	// 	this._contextMenuService.showContextMenu({
-	// 		getAnchor: () => anchor,
-	// 		getActions: () => actions,
-	// 		getActionsContext: () => this._parentElement,
-	// 		onHide: () => actionsDisposable.dispose()
-	// 	});
-	// }
 
 	public focusFindWidget() {
 		this._findWidgetVisible.set(true);
