@@ -50,7 +50,6 @@ const args = parseArgs(process.argv, OPTIONS);
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
-	sessionId: 'testSessionId',
 	logLevel: LogLevel.Error,
 	mainPid: 0,
 	partsSplashPath: '',

@@ -1154,7 +1154,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			machineId: this.machineId,
 
-			sessionId: '', 	// Will be filled in by the window once loaded later
 			windowId: -1,	// Will be filled in by the window once loaded later
 
 			mainPid: process.pid,
@@ -1268,7 +1267,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Update window identifier and session now
 		// that we have the window object in hand.
 		configuration.windowId = window.id;
-		configuration.sessionId = `window:${window.id}`;
 
 		// If the window was already loaded, make sure to unload it
 		// first and only load the new configuration if that was

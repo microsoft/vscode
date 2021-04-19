@@ -219,8 +219,6 @@ export interface IColorScheme {
 }
 
 export interface IWindowConfiguration {
-	sessionId: string;
-
 	remoteAuthority?: string;
 
 	colorScheme: IColorScheme;
