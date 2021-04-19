@@ -142,7 +142,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Resolved the override as much as possible, now find a given contribution
-		const selectedContribution = this.getContributionPoint(editor instanceof DiffEditorInput ? editor.modifiedInput.resource! : editor.resource!, override);
+		const { contributionPoint, conflictingDefault } = this.getContributionPoint(editor instanceof DiffEditorInput ? editor.modifiedInput.resource! : editor.resource!, override);
+		const selectedContribution = contributionPoint;
 		if (!selectedContribution) {
 			return;
 		}
@@ -156,7 +157,14 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		if (selectedContribution.editorInfo.active(editor)) {
 			return;
 		}
-		return this.doOverrideEditorInput(editor, options, group, selectedContribution);
+		const input = await this.doOverrideEditorInput(editor, options, group, selectedContribution);
+		if (conflictingDefault && input) {
+			// Wait one second to give the user ample time to see the current editor then ask them to configure a default
+			setTimeout(() => {
+				this.doHandleConflictingDefaults(input.editor, input.options ?? options, group);
+			}, 1000);
+		}
+		return input;
 	}
 
 	registerContributionPoint(
@@ -224,46 +232,37 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return contributions.sort((a, b) => b.priority - a.priority);
 	}
 
-	private getContributionPoint(resource: URI, override: string | undefined) {
+	/**
+	 * Given a resource and an override selects the best possible contribution point
+	 * @returns The contribution point and whether there was another default which conflicted with it
+	 */
+	private getContributionPoint(resource: URI, override: string | undefined): { contributionPoint: ContributionPoint | undefined, conflictingDefault: boolean } {
 		if (override) {
 			// Specific overried passed in doesn't have to match the reosurce, it can be anything
 			const contributionPoints = flatten(Array.from(this._contributionPoints.values()));
-			return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === override);
+			return {
+				contributionPoint: contributionPoints.find(contribPoint => contribPoint.editorInfo.id === override),
+				conflictingDefault: false
+			};
 		}
 
 		let contributionPoints = this.findMatchingContributions(resource);
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
-		// We only want built-in+ if no user defined setting is found. Else we will fall back to the text editor
-		const contributionPoint = contributionPoints.find(contribPoint => contribPoint.priority >= priorityToRank(ContributedEditorPriority.builtin));
-		// If the user has a setting we use that, else choise the highest priority editor that is built-in+
-		const selectedViewType = associationsFromSetting[0]?.viewType || contributionPoint?.editorInfo.id;
+		// We only want built-in+ if no user defined setting is found, else we won't override
+		const possibleContributionPoints = contributionPoints.filter(contribPoint => contribPoint.priority >= priorityToRank(ContributedEditorPriority.builtin) && contribPoint.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		// If the user has a setting we use that, else choose the highest priority editor that is built-in+
+		const selectedViewType = associationsFromSetting[0]?.viewType || possibleContributionPoints[0]?.editorInfo.id;
 
-		if (associationsFromSetting.length === 0 && contributionPoint?.editorInfo.priority === ContributedEditorPriority.default) {
-			setTimeout(() => {
-				console.log('Conflicting defaults!');
-				this.notificationService.prompt(Severity.Warning,
-					localize('editorOverride.conflictingDefaults', 'Two or more editors want to be your default editor for this resource. Consider configuring a default'),
-					[{
-						label: localize('editorOverride.configureDefault', 'Configure default editor for resource'),
-						run: () => {
-							console.log('configured');
-						}
-					}]);
-			}, 500);
+		let conflictingDefault = false;
+		if (associationsFromSetting.length === 0 && possibleContributionPoints.length > 1) {
+			conflictingDefault = true;
 		}
 
-		return contributionPoints.find(contribPoint => contribPoint.editorInfo.id === selectedViewType);
-	}
-
-	// Hacky temporary wrapper for the current override infrastructure
-	// @ts-ignore
-	private async doHandleEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, selectedContribution: ContributionPoint) {
-		const editorInputWithOptions = await this.doOverrideEditorInput(editor, options, group, selectedContribution);
-		if (editorInputWithOptions) {
-			return group.openEditor(editorInputWithOptions.editor, editorInputWithOptions.options ?? options);
-		}
-		return;
+		return {
+			contributionPoint: contributionPoints.find(contribPoint => contribPoint.editorInfo.id === selectedViewType),
+			conflictingDefault
+		};
 	}
 
 	private async doOverrideEditorInput(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, selectedContribution: ContributionPoint): Promise<IEditorInputWithOptions | undefined> {
@@ -362,6 +361,24 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return out;
 	}
 
+	private async doHandleConflictingDefaults(currentEditor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
+		console.log('Conflicting defaults!');
+		this.notificationService.prompt(Severity.Warning,
+			localize('editorOverride.conflictingDefaults', 'Two or more editors want to be your default editor for this resource. Consider configuring a default'),
+			[{
+				label: localize('editorOverride.configureDefault', 'Configure default editor for resource'),
+				run: async () => {
+					// Show the picker and tell it to update the setting to whatever the user selected
+					const picked = await this.doPickEditorOverride(currentEditor, options, group, true);
+					if (!picked) {
+						return;
+					}
+					// Resolve the new override and open that instead (this always triggers a replace as it's the same resource, so opening is implicitly called here)
+					this.resolveEditorOverride(currentEditor, picked[0], picked[1] ?? group);
+				}
+			}]);
+	}
+
 	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup) {
 		const currentEditor = firstOrDefault(group.findEditors(resource, EditorsOrder.SEQUENTIAL));
 		// If untitled, we want all contribution points
@@ -407,7 +424,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return [...contribGroups.defaults, ...contribGroups.optional];
 	}
 
-	private async doPickEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<[IEditorOptions, IEditorGroup | undefined] | undefined> {
+	private async doPickEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup, alwaysUpdateSetting?: boolean): Promise<[IEditorOptions, IEditorGroup | undefined] | undefined> {
 
 		type EditorOverridePick = {
 			readonly item: IQuickPickItem;
@@ -445,6 +462,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 						keyMods: editorOverridePicker.keyMods,
 						openInBackground: e.inBackground
 					};
+				}
+
+				// If asked to always update the setting then update it even if the gear isn't clicked
+				if (alwaysUpdateSetting && result?.item.id) {
+					this.updateUserAssociations(`*${extname(resource)}`, result.item.id,);
 				}
 
 				resolve(result);
