@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -60,10 +60,10 @@ suite('WorkingCopyBackupRestorer', () => {
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
 		// Backup 2 normal files and 2 untitled files
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile1), VSBuffer.fromString('untitled-1'));
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile2), VSBuffer.fromString('untitled-2'));
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(fooFile), VSBuffer.fromString('fooFile'));
-		await workingCopyBackupService.backup(toUntypedWorkingCopyId(barFile), VSBuffer.fromString('barFile'));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile1), bufferToReadable(VSBuffer.fromString('untitled-1')));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(untitledFile2), bufferToReadable(VSBuffer.fromString('untitled-2')));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(fooFile), bufferToReadable(VSBuffer.fromString('fooFile')));
+		await workingCopyBackupService.backup(toUntypedWorkingCopyId(barFile), bufferToReadable(VSBuffer.fromString('barFile')));
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();

@@ -74,7 +74,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
 	}
 
-	async override backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+	async override backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
 		const p = super.backup(identifier, content, versionId, meta, token);
 		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
 
@@ -387,12 +387,6 @@ suite('WorkingCopyBackupService', () => {
 			model.dispose();
 		});
 
-		test('text file (large file, buffer)', () => {
-			const largeString = (new Array(30 * 1024)).join('Large String\n');
-
-			return testLargeTextFile(largeString, VSBuffer.fromString(largeString));
-		});
-
 		test('text file (large file, stream)', () => {
 			const largeString = (new Array(30 * 1024)).join('Large String\n');
 
@@ -408,7 +402,7 @@ suite('WorkingCopyBackupService', () => {
 			model.dispose();
 		});
 
-		async function testLargeTextFile(largeString: string, buffer: VSBuffer | VSBufferReadable | VSBufferReadableStream) {
+		async function testLargeTextFile(largeString: string, buffer: VSBufferReadable | VSBufferReadableStream) {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 			const backupPath = join(workspaceBackupPath, identifier.resource.scheme, hashIdentifier(identifier));
 

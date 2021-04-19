@@ -147,7 +147,7 @@ export abstract class WorkingCopyBackupService implements IWorkingCopyBackupServ
 		return this.impl.hasBackupSync(identifier, versionId);
 	}
 
-	backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		return this.impl.backup(identifier, content, versionId, meta, token);
 	}
 
@@ -255,7 +255,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 		return this.model.has(backupResource, versionId);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const model = await this.ready;
 		if (token?.isCancellationRequested) {
 			return;
@@ -282,9 +282,7 @@ class NativeWorkingCopyBackupServiceImpl extends Disposable implements IWorkingC
 			// Update backup with value
 			const preambleBuffer = VSBuffer.fromString(preamble);
 			let backupBuffer: VSBuffer | VSBufferReadableStream | VSBufferReadable;
-			if (content instanceof VSBuffer) {
-				backupBuffer = VSBuffer.concat([preambleBuffer, content]);
-			} else if (isReadableStream(content)) {
+			if (isReadableStream(content)) {
 				backupBuffer = prefixedBufferStream(preambleBuffer, content);
 			} else if (content) {
 				backupBuffer = prefixedBufferReadable(preambleBuffer, content);
@@ -483,7 +481,7 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 		return this.backups.has(backupResource);
 	}
 
-	async backup(identifier: IWorkingCopyIdentifier, content?: VSBuffer | VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
+	async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadable | VSBufferReadableStream, versionId?: number, meta?: IWorkingCopyBackupMeta, token?: CancellationToken): Promise<void> {
 		const backupResource = this.toBackupResource(identifier);
 		this.backups.set(backupResource, {
 			typeId: identifier.typeId,
